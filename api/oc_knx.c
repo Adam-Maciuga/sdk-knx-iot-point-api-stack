@@ -191,7 +191,6 @@ static int cached_erase_code_value;
 static oc_event_callback_retval_t reset(void* context)
 {
   (void)context;
-  OC_DBG("reset device: %d", cached_erase_code_value);
 
   /* Specification demands
      - reset a possible PRG mode
@@ -226,6 +225,11 @@ static oc_event_callback_retval_t reset(void* context)
 
   */
 
+  OC_DBG("reset device: %d", cached_erase_code_value);
+
+  // revert current mDNS advertisement by send 'goodbye' and wipe the local record
+  knx_dns_sd_clear_advertisement();
+  
   // application factory preset callback handler
   const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
   if (my_preset_cb && my_preset_cb->cb)

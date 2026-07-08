@@ -62,6 +62,18 @@ void knx_dns_sd_set_sleep_period(int sp);
 uint16_t knx_dns_sd_get_used_port(void);
 
 /**
+ * @brief Clear the current DNS-SD advertisement on device reset or restart.
+ *
+ * Sends an mDNS goodbye (TTL 0) for whatever is currently advertised, then
+ * zeroes the internal record (serial number, IA, IID, PM, SP) so the next
+ * call to knx_dns_sd_update_service() starts from a clean slate.
+ *
+ * Call this at the start of a factory reset (erase code 2 or 7) and at the
+ * start of a device restart, before any new advertisement is published.
+ */
+void knx_dns_sd_clear_advertisement(void);
+
+/**
  * @brief Stop the device's DNS-SD service advertisement during shutdown.
  *
  * On the mDNS transports (Wi-Fi on Zephyr, Linux, Windows) this sends the mDNS

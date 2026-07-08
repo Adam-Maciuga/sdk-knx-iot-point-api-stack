@@ -1,4 +1,4 @@
-"""
+﻿"""
 Runtime conformance tests -- 5.1.2 Discovery via mDNS/DNS-SD
 
 Covers:
@@ -25,7 +25,7 @@ import cbor2
 import pytest
 
 from coap_client import APPLICATION_CBOR, LINK_FORMAT
-from conftest import DEVICE_PASSWORD, ALL_SCOPES, DUT_IA, DUT_IID
+from conftest import DEVICE_PASSWORD, ALL_SCOPES, DUT_IA, DUT_IID, auth_prepare, ia_prepare
 from knx_oscore import OscoreContext
 from knx_spake2plus import Spake2PlusClient
 
@@ -1002,14 +1002,14 @@ class TestMdnsDiscoveryIAUnconfigured:
         # 3. Wait for the capture thread to finish (it will get the
         #    announcement or time out after 15s).
         cap_thread.join(timeout=20)
-        print(f"[5.1.2.3b] Announcement capture for {subtype} → {capture_result}")
+        print(f"[5.1.2.3b] Announcement capture for {subtype} -> {capture_result}")
 
         # 4. If capture missed the announcement, try a raw PTR query
         #    as fallback (the listener thread should respond).
         if not capture_result:
             time.sleep(2)  # extra wait for DUT to settle
             query_result = _raw_mdns_ptr_query(iface_idx, subtype, timeout=8)
-            print(f"[5.1.2.3b] Raw PTR query for {subtype} → {query_result}")
+            print(f"[5.1.2.3b] Raw PTR query for {subtype} -> {query_result}")
             capture_result.extend(query_result)
 
         ptr_results = capture_result
@@ -1407,7 +1407,7 @@ class TestMdnsTransitionAudit:
         t0 = pkts[0].timestamp
         lines = [f"\n[{label}] mDNS transition timeline (T0={t0:.3f}):"]
         lines.append(
-            f"  {'Δt(s)':>8}  {'TYPE':^8}  {'SUBTYPES':<42}  "
+            f"  {'dt(s)':>8}  {'TYPE':^8}  {'SUBTYPES':<42}  "
             f"{'AAAA':<39}  {'PORT':>6}  SP"
         )
         lines.append("  " + "-" * 118)
@@ -1442,7 +1442,7 @@ class TestMdnsTransitionAudit:
             )
 
         if tr.gap_s is not None:
-            lines.append(f"\n  goodbye\u2192announce gap: {tr.gap_s:.3f}s "
+            lines.append(f"\n  goodbye->announce gap: {tr.gap_s:.3f}s "
                          f"(limit {MAX_GOODBYE_HELLO_GAP_S}s)")
         print("\n".join(lines))
 
@@ -1652,4 +1652,468 @@ class TestMdnsTransitionAudit:
 
         self._print_transition_timeline(tr, "sp_clear")
 
+
+# ===========================================================================
+# State-sync tests: client queries mDNS, device acts on its own, client
+# re-queries and verifies the advertisement matches the action.
+#
+# Mental model:
+#   client --[mDNS PTR query]-----> DUT responds (read-only observation)
+#                  ... DUT internally changes state ...
+#                  (test harness CoAP endpoints are thin wrappers that call
+#                   the same C functions a real device event would call:
+#                   oc_knx_device_restart, knx_dns_sd_set_sleep_period, etc.)
+#   client --[mDNS PTR query]-----> DUT responds with new state
+#   assert: new response matches expected state after action
+# ===========================================================================
+
+class _MdnsSnapshot:
+    """Parsed observation of the DUT's current mDNS advertisement.
+
+    Built by _query_snapshot(): fires a raw PTR query to provoke the DUT,
+    captures the DUT's multicast response, and extracts all relevant fields.
+    """
+
+    def __init__(self):
+        self.subtypes: list  = []   # short names, e.g. ["pm", "ia1199887766-1101"]
+        self.sp = None               # str value of SP= TXT key, or None
+        self.sn_present: bool = False
+        self.aaaa: list = []         # IPv6 address strings
+
+    def __repr__(self):
+        return (f"MdnsSnapshot(subtypes={self.subtypes}, sp={self.sp!r}, "
+                f"sn_present={self.sn_present}, aaaa={self.aaaa})")
+
+
+def _query_snapshot(iface_idx: int,
+                    timeout: float = 6.0) -> "_MdnsSnapshot":
+    """Fire a raw PTR query and capture the DUT's full mDNS response.
+
+    Starts a background capture thread (using _parse_mdns_packets) then
+    sends a PTR query so the DUT responds.  The response packets are parsed
+    into an _MdnsSnapshot with subtypes, SP TXT, SN presence, and AAAA.
+
+    Returns an _MdnsSnapshot (may have empty fields if DUT did not respond).
+    """
+    import threading
+
+    instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+    captured: list = []
+
+    def _capture():
+        captured.extend(_parse_mdns_packets(iface_idx, instance, timeout))
+
+    t = threading.Thread(target=_capture, daemon=True)
+    t.start()
+    time.sleep(0.15)  # let socket bind before sending query
+
+    # Send a raw PTR query to provoke the DUT to respond
+    _raw_mdns_ptr_query(iface_idx, KNX_SERVICE_TYPE, timeout=min(1.0, timeout))
+
+    t.join(timeout + 2)
+
+    snap = _MdnsSnapshot()
+    sn_norm = DUT_SERIAL.lower()
+
+    for pkt in captured:
+        if pkt.is_goodbye:
+            continue  # only look at announce packets
+
+        # Subtype PTR owner names contain "_sub."
+        for owner, target in pkt.ptr:
+            owner_l = owner.lower()
+            if "_sub." in owner_l:
+                # Extract the short label before "._sub."
+                short = owner_l.split("._sub.")[0].lstrip("_")
+                if short not in snap.subtypes:
+                    snap.subtypes.append(short)
+            if sn_norm in target.lower():
+                snap.sn_present = True
+
+        # AAAA records
+        for _owner, addr in pkt.aaaa:
+            if addr not in snap.aaaa:
+                snap.aaaa.append(addr)
+
+        # TXT records — look for SP=
+        for _owner, props in pkt.txt.items():
+            for k, v in props.items():
+                if k.upper() == b"SP":
+                    snap.sp = v.decode("ascii") if v else ""
+
+    return snap
+
+
+class TestMdnsStateSync:
+    """State-sync conformance tests for mDNS advertisements.
+
+    Each test interleaves read-only mDNS queries (client asks the DUT what
+    it currently advertises) with device-internal state changes (simulated
+    by test harness CoAP endpoints that call the same C functions a real
+    device event would call).  Every assertion checks that what the DUT
+    advertises on mDNS is consistent with its internal state.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _require_iface(self):
+        iface = os.environ.get("DEVICE_IFACE")
+        if not iface:
+            pytest.skip("DEVICE_IFACE not set -- raw mDNS capture not possible")
+        self._iface_idx = _iface_name_to_index(iface)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _snap(self, label: str, timeout: float = 6.0) -> "_MdnsSnapshot":
+        """Query the DUT's current mDNS state and print a summary."""
+        snap = _query_snapshot(self._iface_idx, timeout=timeout)
+        print(f"\n[state_sync/{label}] snapshot: subtypes={snap.subtypes} "
+              f"sp={snap.sp!r} sn={snap.sn_present} aaaa={snap.aaaa}")
+        return snap
+
+    def _transition(self, label: str, trigger_fn,
+                    timeout: float = TRANSITION_CAPTURE_TIMEOUT_S,
+                    want_goodbye: bool = True) -> TransitionResult:
+        """Fire a device-internal state change and capture the mDNS transition."""
+        tr = _run_transition(self._iface_idx, trigger_fn,
+                             timeout=timeout, want_goodbye=want_goodbye)
+        print(f"\n[state_sync/{label}] transition: "
+              f"goodbyes={len(tr.goodbyes)} announces={len(tr.announces)} "
+              f"gap={tr.gap_s}")
+        return tr
+
+    # ------------------------------------------------------------------
+    # PM on/off sequence
+    # ------------------------------------------------------------------
+
+    def test_state_sync_pm_sequence(self, coap, oscore_ctx):
+        """PM state is reflected correctly in mDNS across on/off cycle.
+
+        Sequence:
+          1. Query  -> _pm subtype absent  (baseline: PM off)
+          2. Action -> device enters programming mode  (PUT /dev/pm true)
+          3. Query  -> _pm subtype present
+          4. Action -> device leaves programming mode  (PUT /dev/pm false)
+          5. Query  -> _pm subtype absent
+        """
+        pm_subtype = f"_pm._sub.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+        pm_short = "pm"
+
+        # Ensure PM starts disabled
+        coap.oscore_put(oscore_ctx, "/dev/pm",
+                        payload=cbor2.dumps({1: False}), timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        # --- Step 1: query baseline ---
+        snap = self._snap("pm/before")
+        assert pm_short not in snap.subtypes, (
+            f"[pm_seq] Expected _pm absent before enable, "
+            f"got subtypes={snap.subtypes}")
+
+        # --- Step 2: device enters programming mode ---
+        def _enable_pm():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: True}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=true failed: {resp}")
+
+        tr_on = self._transition("pm/enable", _enable_pm)
+        assert tr_on.announces, "[pm_seq] No re-announcement after PM enable"
+
+        # --- Step 3: query after PM on ---
+        snap = self._snap("pm/after_enable")
+        assert pm_short in snap.subtypes, (
+            f"[pm_seq] Expected _pm present after enable, "
+            f"got subtypes={snap.subtypes}")
+
+        # --- Step 4: device leaves programming mode ---
+        def _disable_pm():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: False}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=false failed: {resp}")
+
+        tr_off = self._transition("pm/disable", _disable_pm)
+        assert tr_off.announces, "[pm_seq] No re-announcement after PM disable"
+
+        # --- Step 5: query after PM off ---
+        snap = self._snap("pm/after_disable")
+        assert pm_short not in snap.subtypes, (
+            f"[pm_seq] Expected _pm absent after disable, "
+            f"got subtypes={snap.subtypes}")
+
+        # Confirm goodbye carried the _pm subtype
+        goodbye_subtypes = tr_off.all_subtypes(is_goodbye=True)
+        assert any(pm_subtype in s for s in goodbye_subtypes), (
+            f"[pm_seq] _pm subtype missing from goodbye: {goodbye_subtypes}")
+
+    # ------------------------------------------------------------------
+    # SP set / clear sequence
+    # ------------------------------------------------------------------
+
+    def test_state_sync_sp_sequence(self, coap, oscore_ctx):
+        """Sleep-period TXT record stays in sync across set / clear cycle.
+
+        Sequence:
+          1. Query  -> SP absent  (baseline: SP=0)
+          2. Action -> device sets sleep period  (POST /test/sleep-period 300)
+          3. Query  -> SP=300 in TXT
+          4. Action -> device clears sleep period  (POST /test/sleep-period 0)
+          5. Query  -> SP absent
+        """
+        # Ensure SP starts at 0
+        _set_sleep_period(coap, oscore_ctx, 0)
+
+        # --- Step 1: query baseline ---
+        snap = self._snap("sp/before")
+        assert snap.sp is None, (
+            f"[sp_seq] Expected SP absent before set, got sp={snap.sp!r}")
+
+        # --- Step 2: device sets sleep period ---
+        def _set_sp():
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=cbor2.dumps({1: 300}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=300 failed: {resp}")
+
+        tr_set = self._transition("sp/set", _set_sp, want_goodbye=False)
+        assert tr_set.announces, "[sp_seq] No re-announcement after SP set"
+
+        # --- Step 3: query after SP set ---
+        snap = self._snap("sp/after_set")
+        assert snap.sp == "300", (
+            f"[sp_seq] Expected SP=300 after set, got sp={snap.sp!r}")
+
+        # --- Step 4: device clears sleep period ---
+        def _clear_sp():
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=cbor2.dumps({1: 0}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=0 failed: {resp}")
+
+        tr_clear = self._transition("sp/clear", _clear_sp,
+                                    timeout=20.0, want_goodbye=False)
+        assert tr_clear.announces, "[sp_seq] No re-announcement after SP clear"
+
+        # --- Step 5: query after SP clear ---
+        snap = self._snap("sp/after_clear")
+        assert snap.sp is None, (
+            f"[sp_seq] Expected SP absent after clear, got sp={snap.sp!r}")
+
+        # Cleanup
+        _set_sleep_period(coap, oscore_ctx, 0)
+
+    # ------------------------------------------------------------------
+    # Restart: IA preserved (stored), PM cleared (spec mandate)
+    # ------------------------------------------------------------------
+
+    def test_state_sync_restart_preserves_state(self, coap, oscore_ctx):
+        """IA survives a restart; PM is always cleared by restart (spec).
+
+        POST /.well-known/knx/ia writes IA+IID to persistent storage
+        immediately (oc_core_set_and_store_device_ia/iid).  On restart
+        oc_knx_device_restart() keeps the in-memory IA/IID as-is (it does
+        NOT call oc_knx_load_device) and forces device->pm = false before
+        re-registering DNS-SD.
+
+        Sequence:
+          1. Action -> device commissioned with new IA/IID  (written to storage)
+          2. Action -> device enters programming mode
+          3. Query  -> new IA subtype AND _pm both visible before restart
+          4. Action -> device restarts  (POST /test/restart)
+             wait + refresh OSCORE (SSN resets after restart)
+          5. Query  -> new IA subtype still present  (IA in RAM, same as stored)
+          6. Query  -> _pm ABSENT  (spec: restart always forces pm=false)
+        """
+        new_ia  = 0x4D3          # distinct from EITT default
+        new_iid = 0x2DFDC1C3E
+        new_iid_hex = format(new_iid, "x")
+        new_ia_hex  = format(new_ia, "x")
+        new_ia_short = f"ia{new_iid_hex}-{new_ia_hex}"
+
+        # --- Step 1: device gets commissioned with new IA/IID ---
+        def _set_ia():
+            resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                                    payload=cbor2.dumps({12: new_ia,
+                                                         26: new_iid}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST IA change failed: {resp}")
+
+        self._transition("restart/ia_set", _set_ia)
+
+        # --- Step 2: device enters programming mode ---
+        def _enable_pm():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: True}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=true failed: {resp}")
+
+        self._transition("restart/pm_enable", _enable_pm)
+
+        # --- Step 3: query -- both IA and PM must be visible ---
+        snap = self._snap("restart/before_restart")
+        assert new_ia_short in snap.subtypes, (
+            f"[restart] Expected new IA subtype '{new_ia_short}' before "
+            f"restart, got subtypes={snap.subtypes}")
+        assert "pm" in snap.subtypes, (
+            f"[restart] Expected _pm before restart, "
+            f"got subtypes={snap.subtypes}")
+
+        # --- Step 4: device restarts ---
+        def _restart():
+            resp = coap.oscore_post(oscore_ctx, "/test/restart",
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/restart failed: {resp}")
+
+        self._transition("restart/restart", _restart, timeout=20.0)
+        time.sleep(2)
+        coap.drain_socket(timeout=0.5)
+        auth_prepare(coap, oscore_ctx)   # OSCORE SSN resets after restart
+
+        # --- Step 5: query -- new IA must survive restart ---
+        snap = self._snap("restart/after_restart_ia")
+        assert new_ia_short in snap.subtypes, (
+            f"[restart] IA subtype '{new_ia_short}' lost after restart, "
+            f"got subtypes={snap.subtypes}")
+
+        # --- Step 6: query -- PM must be CLEARED by restart (spec) ---
+        snap = self._snap("restart/after_restart_pm")
+        assert "pm" not in snap.subtypes, (
+            f"[restart] _pm still present after restart (spec requires PM "
+            f"cleared on restart), got subtypes={snap.subtypes}")
+
+        # Cleanup: restore default IA (PM is already false after restart)
+        coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                         payload=cbor2.dumps({12: DUT_IA, 26: DUT_IID}),
+                         timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+    # ------------------------------------------------------------------
+    # Factory reset (erase_code=2): IA->0xFFFF, IID->0, PM cleared,
+    # SP cleared; SN survives (hardware-fixed)
+    # ------------------------------------------------------------------
+
+    def test_state_sync_factory_reset_clears_state(self, coap, oscore_ctx):
+        """Factory reset (erase_code=2) resets IA/IID to defaults, clears PM and SP.
+
+        oc_knx_device_storage_reset(2) sets ia=0xFFFF, iid=0, pm=false and
+        writes them to storage.  SP is a runtime-only DNS-SD value and is
+        not stored, so it is also lost.  SN is hardware-fixed in the binary
+        and never changes.
+
+        Sequence:
+          1. Action -> device commissioned with non-default IA/IID
+          2. Action -> device enters programming mode  (PUT /dev/pm true)
+          3. Action -> device sets sleep period  (POST /test/sleep-period 500)
+          4. Query  -> new IA subtype, _pm, AND SP=500 all present
+          5. Action -> device factory-resets  (POST /test/factory-reset)
+             wait + re-provision (AT table wiped by reset)
+          6. Query  -> IA subtype reflects reset defaults (ia=0xFFFF, iid=0)
+          7. Query  -> _pm absent
+          8. Query  -> SP absent
+          9. Query  -> DUT_SERIAL still in PTR target  (SN is hardware-fixed)
+        """
+        # erase_code=2 resets ia->0xFFFF, iid->0
+        reset_ia_short  = f"ia{format(0, 'x')}-{format(0xFFFF, 'x')}"
+
+        # --- Step 1: device commissioned with a non-default IA/IID ---
+        new_ia  = 0x4D4
+        new_iid = 0x2DFDC1C3F
+        new_ia_short = f"ia{format(new_iid, 'x')}-{format(new_ia, 'x')}"
+
+        def _set_ia():
+            resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                                    payload=cbor2.dumps({12: new_ia,
+                                                         26: new_iid}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST IA change failed: {resp}")
+
+        self._transition("freset/ia_set", _set_ia)
+
+        # --- Step 2: device enters programming mode ---
+        def _enable_pm():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: True}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=true failed: {resp}")
+
+        tr = self._transition("freset/pm_enable", _enable_pm)
+        assert tr.announces, "[freset] No re-announce after PM enable"
+
+        # --- Step 3: device sets sleep period ---
+        def _set_sp():
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=cbor2.dumps({1: 500}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=500 failed: {resp}")
+
+        tr = self._transition("freset/sp_set", _set_sp, want_goodbye=False)
+        assert tr.announces, "[freset] No re-announce after SP set"
+
+        # --- Step 4: query -- new IA, PM, and SP=500 all visible ---
+        snap = self._snap("freset/before_reset")
+        assert new_ia_short in snap.subtypes, (
+            f"[freset] Expected new IA subtype '{new_ia_short}' before reset, "
+            f"got subtypes={snap.subtypes}")
+        assert "pm" in snap.subtypes, (
+            f"[freset] Expected _pm before reset, got subtypes={snap.subtypes}")
+        assert snap.sp == "500", (
+            f"[freset] Expected SP=500 before reset, got sp={snap.sp!r}")
+
+        # --- Step 5: device factory-resets ---
+        def _factory_reset():
+            resp = coap.post("/test/factory-reset", timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/factory-reset failed: {resp}")
+
+        self._transition("freset/reset", _factory_reset, timeout=20.0)
+        time.sleep(2)
+        coap.drain_socket(timeout=0.5)
+        # AT table wiped -- full re-provisioning needed
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        # SP is a RAM-only DNS-SD value; knx_dns_sd_clear_advertisement()
+        # zeroes it during reset, but stale packets may still be in flight.
+        # Explicitly clear SP to force a clean re-announce, then drain and
+        # wait so _query_snapshot only captures the fresh post-reset state.
+        _set_sleep_period(coap, oscore_ctx, 0)
+        coap.drain_socket(timeout=0.5)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        # --- Step 6: query -- IA subtype must reflect erase_code=2 defaults ---
+        # erase_code=2 sets ia=0xFFFF, iid=0 and writes to storage.
+        # ia_prepare() above re-sets IA to DUT_IA/DUT_IID for the session,
+        # so the subtype seen here reflects the re-commissioned values.
+        snap = self._snap("freset/after_reset_ia")
+        assert new_ia_short not in snap.subtypes, (
+            f"[freset] Old IA subtype '{new_ia_short}' still present after "
+            f"factory reset, got subtypes={snap.subtypes}")
+
+        # --- Step 7: query -- _pm must be gone ---
+        snap = self._snap("freset/after_reset_pm")
+        assert "pm" not in snap.subtypes, (
+            f"[freset] _pm still present after factory reset, "
+            f"got subtypes={snap.subtypes}")
+
+        # --- Step 8: query -- SP must be gone ---
+        snap = self._snap("freset/after_reset_sp")
+        assert snap.sp is None, (
+            f"[freset] SP still present after factory reset, "
+            f"got sp={snap.sp!r}")
+
+        # --- Step 9: query -- SN is hardware-fixed, must survive ---
+        snap = self._snap("freset/after_reset_sn")
+        assert snap.sn_present, (
+            f"[freset] DUT serial number lost after factory reset")
 

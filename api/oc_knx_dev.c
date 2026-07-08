@@ -1279,6 +1279,9 @@ void oc_knx_device_restart(void)
 
   OC_INF("restart device");
 
+  // revert current mDNS advertisement by send 'goodbye' and wipe the local record 
+  knx_dns_sd_clear_advertisement();
+
   oc_device_info_t* const device = oc_core_get_device_info();
 
   // disable PROG mode
