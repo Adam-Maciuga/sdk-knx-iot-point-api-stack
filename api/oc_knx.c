@@ -227,9 +227,6 @@ static oc_event_callback_retval_t reset(void* context)
 
   OC_DBG("reset device: %d", cached_erase_code_value);
 
-  // revert current mDNS advertisement by send 'goodbye' and wipe the local record
-  knx_dns_sd_clear_advertisement();
-  
   // application factory preset callback handler
   const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
   if (my_preset_cb && my_preset_cb->cb)
@@ -248,10 +245,6 @@ static oc_event_callback_retval_t reset(void* context)
     OC_INF("Factory RESET callback handler is called");
     my_reset_cb->cb(cached_erase_code_value, my_reset_cb->data);
   }
-
-  OC_INF("Re-register DNS-SD service after a reset with erase code 2 or 7");
-  const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
 }
