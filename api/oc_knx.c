@@ -252,7 +252,16 @@ static oc_event_callback_retval_t reset(void* context)
 static oc_event_callback_retval_t restart(void* context)
 {
   (void)context;
+
   oc_knx_device_restart();
+
+  // application restart callback handler
+  const oc_restart_t* my_restart = oc_get_restart_cb();
+  if (my_restart && my_restart->cb)
+  {
+    my_restart->cb(my_restart->data);
+  }
+
   return OC_EVENT_DONE;
 }
 

@@ -518,7 +518,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
    * This ensures the packet reaches all local network segments.
    */
   
-  // Collect unique unicast IPv6 interface indices
+  // collect unique unicast IPv6 interface indices
   unsigned int if_indices[MAX_IF_INDICES];
   const int if_count = collect_if_indices(if_indices);
 
@@ -1469,20 +1469,10 @@ uint16_t knx_dns_sd_get_used_port(void)
   return get_ip_context_for_device()->port;
 }
 
-void knx_dns_sd_clear_advertisement(void)
+void knx_dns_sd_clear_advertisement_record(void)
 {
-  // send goodbye for the current advertisement (if any) so peers retract it
-  if (current_advertisement.valid)
-  {
-    (void)send_announcement(&current_advertisement, true);
-
-    OC_INF("DNS-SD: current advertisement cleared.");
-  }
-
   // wipe the entire record, so the next update_service call starts clean (valid = false, no stale SP, IA, IID, pm, or sn)
   memset(&current_advertisement, 0, sizeof(current_advertisement));
-
-  
 }
 
 void knx_dns_sd_stop(void)

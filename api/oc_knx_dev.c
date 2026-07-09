@@ -1175,9 +1175,6 @@ void oc_knx_device_storage_reset(int reset_mode)
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
-  // revert current mDNS advertisement by send 'goodbye' and wipe the local record
-  knx_dns_sd_clear_advertisement();
-
   // LSM (first to prevent any runtime messaging in/out)
   oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
@@ -1268,14 +1265,12 @@ void oc_knx_device_restart(void)
      - send read requests for all GO's with i-flag
      - call individual application restart callback handler
 
-    @note After the actions factory restart callback handler is called.
+    @note The factory restart callback handler is NOT called in this method, it is called 
+          only on an inbound message together with this method.
 
   */
 
   OC_INF("restart device");
-
-  // revert current mDNS advertisement by send 'goodbye' and wipe the local record 
-  knx_dns_sd_clear_advertisement();
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1293,11 +1288,4 @@ void oc_knx_device_restart(void)
 
   // reannounce mDNS advertisement with new data
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
-  
-  // application restart callback handler
-  const oc_restart_t* my_restart = oc_get_restart_cb();
-  if (my_restart && my_restart->cb)
-  {
-    my_restart->cb(my_restart->data);
-  }
 }

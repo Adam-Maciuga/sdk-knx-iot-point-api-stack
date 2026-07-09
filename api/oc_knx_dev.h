@@ -48,6 +48,9 @@ void oc_knx_load_device(void);
  *        - terminate pase sessions, unregister mc groups, 
  *        - clear request (repeat) / response (replay) buffers
  *        - reannounce mDNS with the new values
+ *
+ *   The factory preset/reset callback handler is NOT called in this method, it is called 
+*    only on an inbound message together with this method.
  * 
  * @note  reset behavior according to the supplied reset_mode
  * - 2 (Factory Reset) :
@@ -88,13 +91,12 @@ void oc_knx_device_set_programming_mode(bool programming_mode);
 /**
  * @brief Restart the KNX device
  *
- * Performs the KNX restart operation:
+ * @note Performs the KNX restart operation:
  * - clear mDNS (goodbye with current values)
  * - resets programming mode to false
  * - terminates PASE token
  * - applies configuration parameters
  * - reannounce mDNS with the new values
- * - calls application restart callback handler
  *
  */
 void oc_knx_device_restart(void);
