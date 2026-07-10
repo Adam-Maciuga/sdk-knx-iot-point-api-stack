@@ -1167,33 +1167,18 @@ void oc_knx_load_device(void)
 
 void oc_knx_device_storage_reset(int reset_mode) 
 {
-  if (reset_mode != RESET_TO_DEFAULT_STATE && reset_mode != RESET_TO_DEFAULT_WO_IA)
-  {
-    OC_ERR("Invalid reset code");
-    return;
-  }
-
   oc_device_info_t* const device = oc_core_get_device_info();
 
-  // LSM (first to prevent any runtime messaging in/out)
-  oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
-
-  // set to KNX defaults (ports see below)
-  device->pm = false;
-
-  // drop multicast memberships before clearing the tables
-  oc_unregister_group_multicasts();
-
-  // delete iot device tables
-  oc_delete_group_object_table();
-  oc_delete_group_tables();
-
-  // terminate any in-flight PASE handshake so its state machine is reset to IDLE
-  oc_spake_reset_pase_session();
-
-  if (reset_mode == RESET_TO_DEFAULT_STATE) 
+  if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
+    // LSM (first to prevent any runtime messaging in/out)
+    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
+
+    // drop multicast memberships before clearing the tables AND resetting device IID
+    oc_unregister_group_multicasts();
+
     // set to KNX defaults (ports see below)
+    device->pm = false;
     device->ia = 0xFFFF;
     device->iid = 0;
     device->fid = 0;
@@ -1203,9 +1188,15 @@ void oc_knx_device_storage_reset(int reset_mode)
     (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
     oc_core_set_device_hostname(hname);
 
+    // delete iot device tables
+    oc_delete_group_object_table();
+    oc_delete_group_tables();
     oc_delete_at_table();
 
-    // clear the CoAP request cache 
+    // terminate any in-flight PASE handshake so its state machine is reset to IDLE
+    oc_spake_reset_pase_session();
+
+    // clear the CoAP request cache
     oc_coap_clear_request_history();
 
     // clear the CoAP response cache
@@ -1223,21 +1214,43 @@ void oc_knx_device_storage_reset(int reset_mode)
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
     oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
+
+     // reannounce mDNS advertisement with new data
+    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+
+    return;
   }
-  if (reset_mode == RESET_TO_DEFAULT_WO_IA) 
+
+  if (reset_mode == RESET_TO_DEFAULT_WO_IA)
   {
+    // LSM (first to prevent any runtime messaging in/out)
+    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
+
+    // drop multicast memberships before clearing the tables AND resetting device IID
+    oc_unregister_group_multicasts();
+
+    // set the KNX defaults (ports see above)
+    device->pm = false;
+
+    // delete iot device tables
+    oc_delete_group_object_table();
+    oc_delete_group_tables();
+
     // first remove PASE token, then delete AT table, then reinit contexts
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
 
-    // (re)create the secure contexts from AT table (except PASE, see above) 
+    // (re)create the secure contexts from AT table (except PASE, see above)
     oc_init_oscore_from_storage(true);
 
-    // don't reset security related "osn delay"
-  }
+    // terminate any in-flight PASE handshake so its state machine is reset to IDLE
+    oc_spake_reset_pase_session();
 
-  // reannounce mDNS advertisement with new data
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+    // don't reset security related "replay window size" and "osn delay"
+
+    // reannounce mDNS advertisement with new data
+    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  }
 }
 
 bool oc_knx_device_in_programming_mode(void) 
