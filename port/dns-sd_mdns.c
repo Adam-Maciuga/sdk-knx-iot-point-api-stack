@@ -1348,7 +1348,7 @@ static void stop_listener(void)
 
 int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
-  // goodbye for current_advertisement advertisement (if any)
+  // goodbye for current_advertisement advertisement (if any, 'goodbye' may be already send out on stop listener)
   if (current_advertisement.valid) 
   {
     (void)send_announcement(&current_advertisement, true);
@@ -1452,6 +1452,7 @@ void knx_dns_sd_set_sleep_period(int sp)
       }
     }
 
+    // clear SP in current advertisement (for next announcement)
     memset(current_advertisement.knx.sp, 0, sizeof(current_advertisement.knx.sp));
   }
 

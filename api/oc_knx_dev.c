@@ -1174,6 +1174,9 @@ void oc_knx_device_storage_reset(int reset_mode)
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
+    // send the DNS-SD goodbye while the interface is still up, before leaving the multicast groups
+    knx_dns_sd_stop();
+    
     // drop multicast memberships before clearing the tables AND resetting device IID
     oc_unregister_group_multicasts();
 
@@ -1226,6 +1229,9 @@ void oc_knx_device_storage_reset(int reset_mode)
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
+    // send the DNS-SD goodbye while the interface is still up, before leaving the multicast groups
+    knx_dns_sd_stop();
+    
     // drop multicast memberships before clearing the tables AND resetting device IID
     oc_unregister_group_multicasts();
 
@@ -1286,6 +1292,10 @@ void oc_knx_device_restart(void)
   OC_INF("restart device");
 
   oc_device_info_t* const device = oc_core_get_device_info();
+
+
+  // send the DNS-SD goodbye while the interface is still up, before change of 'pm' mode
+  knx_dns_sd_stop();
 
   // disable PROG mode
   device->pm = false;
