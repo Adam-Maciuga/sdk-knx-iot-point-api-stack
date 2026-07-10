@@ -47,7 +47,7 @@ void oc_knx_load_device(void);
  *          device storage (according to the reset_mode)
  *        - terminate pase sessions, unregister mc groups, 
  *        - clear request (repeat) / response (replay) buffers
- *        - reannounce mDNS with the new values
+ *        - clear old mDNS and reannounce new mDNS with the new values
  *
  *   The factory preset/reset callback handler is NOT called in this method, it is called 
 *    only on an inbound message together with this method.

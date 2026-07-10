@@ -42,7 +42,7 @@ static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
 static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive)
-static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains foreign 'iid' entries
+static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains 'iid' entries from external projects
 bool pub_table_contains_no_iid(void) {return g_gpt_contains_no_iid;} 
 #endif
 
@@ -2914,7 +2914,7 @@ static void oc_handle_group_multicasts(bool subscribe)
 
         // (un)register the grpid/iid from the PUB table (if present) or with defaults
         uint32_t grpid = 0;
-        uint64_t iid = device->iid;
+        uint64_t iid = device->iid; // 'iid' is from a local project (default)
 
         if (entry)
         {
@@ -2924,13 +2924,13 @@ static void oc_handle_group_multicasts(bool subscribe)
           {
             // one single hit is enough to set the bool globally
             g_gpt_contains_no_iid = false;
-            iid = entry->iid;
+            iid = entry->iid; // 'iid' is from an external project
           }
         }
 
         if (grpid > 0)
         {
-          // FF3X::30: <ULA-routing-prefix>::<group id>, create the multicast address from group and scope
+          // FF3X::30: <ULA-routing-prefix>::<group id>, create the multicast address from 'grpid', local or external 'iid' and scope
           oc_endpoint_t group_mcast_endpoint = {0};
           group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
 
