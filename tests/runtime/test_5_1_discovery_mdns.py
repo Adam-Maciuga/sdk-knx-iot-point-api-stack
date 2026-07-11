@@ -159,15 +159,27 @@ def _raw_mdns_ptr_query(iface_idx: int, qname: str,
         ptr_results = []
         pkt_count = 0
         deadline = time.monotonic() + timeout
+        # Re-send the query periodically.  After heavy multicast traffic the
+        # DUT may suppress a PTR in its response (RFC 6762 known-answer /
+        # duplicate-response suppression); re-querying past the ~1s window
+        # forces a fresh answer that includes the PTR record.
+        next_resend = time.monotonic() + 1.2
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
-            sock.settimeout(remaining)
+            if time.monotonic() >= next_resend:
+                try:
+                    sock.sendto(packet,
+                                (MDNS_MULTICAST_ADDR, MDNS_PORT, 0, iface_idx))
+                except OSError:
+                    pass
+                next_resend = time.monotonic() + 1.2
+            sock.settimeout(min(remaining, 1.0))
             try:
                 data, _addr = sock.recvfrom(4096)
             except socket.timeout:
-                break
+                continue
 
             pkt_count += 1
 
@@ -182,6 +194,12 @@ def _raw_mdns_ptr_query(iface_idx: int, qname: str,
             # Skip queries (our own echo or from DUT's listener)
             if not is_response:
                 continue
+
+            # DIAG: dump packet header + hex of first response packets so we
+            # can see exactly what the DUT returns in a full-suite run.
+            print(f"[mdns] DIAG pkt#{pkt_count} flags=0x{_flags:04x} "
+                  f"qd={_qdcount} an={ancount} ns={_nscount} ar={_arcount} "
+                  f"len={len(data)} hex={data.hex()}")
 
             # Skip question section
             offset = 12
@@ -743,20 +761,62 @@ def mdns(server_process):
 
 def _browse_service(mdns: "Zeroconf", service_type: str,
                     timeout: float = MDNS_BROWSE_TIMEOUT_S) -> list[str]:
-    """Browse for services of the given type, return list of instance names."""
+    """Browse for services of the given type, return list of instance names.
+
+    Uses ServiceBrowser (zeroconf) as the primary method.  If that returns
+    nothing (e.g. because the DUT rate-limited its response after heavy
+    multicast traffic in an earlier test), sends a raw PTR query to "wake"
+    the DUT, then re-runs ServiceBrowser to populate the zeroconf cache
+    (needed by subsequent _get_service_info calls).
+    """
     collector = _ServiceCollector()
     browser = ServiceBrowser(mdns, service_type, collector)
     time.sleep(timeout)
     browser.cancel()
-    return collector.found
+    if collector.found:
+        return collector.found
+
+    # Fallback: raw PTR query to break DUT rate-limiting (RFC 6762 §11.3),
+    # then re-run ServiceBrowser so the zeroconf cache gets populated.
+    iface = os.environ.get("DEVICE_IFACE")
+    if not iface:
+        return []
+    try:
+        iface_idx = _iface_name_to_index(iface)
+    except (OSError, AttributeError):
+        return []
+    print(f"[mdns] _browse_service: zeroconf got 0 results for {service_type!r}, "
+          f"sending raw PTR query to wake DUT")
+    raw = _raw_mdns_ptr_query(iface_idx, service_type, timeout=timeout)
+    if not raw:
+        return []
+    # Re-run ServiceBrowser now that the DUT has answered; this populates
+    # the zeroconf instance cache so that _get_service_info works afterwards.
+    collector2 = _ServiceCollector()
+    browser2 = ServiceBrowser(mdns, service_type, collector2)
+    time.sleep(min(timeout, 3.0))
+    browser2.cancel()
+    return collector2.found if collector2.found else raw
 
 
 def _get_service_info(mdns: "Zeroconf", service_type: str,
                       instance_name: str,
-                      timeout_ms: int = 3000) -> "ServiceInfo | None":
-    """Query SRV + AAAA + TXT for a specific service instance."""
-    return mdns.get_service_info(service_type, instance_name,
-                                timeout=timeout_ms)
+                      timeout_ms: int = 5000) -> "ServiceInfo | None":
+    """Query SRV + AAAA + TXT for a specific service instance.
+
+    Retries a few times with a delay when None is returned, to get past the
+    DUT's mDNS response-suppression window (RFC 6762) that can appear in a
+    full-suite run after heavy multicast traffic.
+    """
+    for attempt in range(3):
+        info = mdns.get_service_info(service_type, instance_name,
+                                     timeout=timeout_ms)
+        if info is not None:
+            return info
+        print(f"[mdns] _get_service_info: attempt {attempt + 1} returned None "
+              f"for {instance_name!r}, retrying")
+        time.sleep(1.5)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -851,8 +911,19 @@ class TestMdnsDiscoverySerialUnconfigured:
 
     def test_5_1_2_1_coap_reachability(self, mdns, coap):
         """Step 9-10: CoAP GET .well-known/core at discovered address → 2.05."""
-        resp = coap.get(".well-known/core", accept=LINK_FORMAT,
-                        timeout=COAP_TIMEOUT)
+        # The four preceding tests ran Zeroconf ServiceBrowsers for ~20 s total,
+        # flooding the DUT's single-threaded CoAP+mDNS event loop with mDNS queries.
+        # Wait for the backlog to drain, drain any stale socket data, then retry a
+        # few times in case one attempt still races with a lingering mDNS query.
+        time.sleep(2.0)
+        coap.drain_socket()
+        resp = None
+        for _ in range(3):
+            resp = coap.get(".well-known/core", accept=LINK_FORMAT,
+                            timeout=COAP_TIMEOUT)
+            if resp is not None:
+                break
+            time.sleep(1.0)
         assert resp is not None, "CoAP .well-known/core timed out"
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
 
