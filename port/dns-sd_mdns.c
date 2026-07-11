@@ -131,23 +131,7 @@ static ip_context_t *get_ip_context_for_device(void)
 /* Private helpers & state                                            */
 /* ------------------------------------------------------------------ */
 
-#define SN_STR_LEN_MAX (12) // max SN length
-
-typedef struct mdns_knx_record_t
-{
-  bool valid;
-  struct knx
-  {
-    uint64_t iid;
-    uint16_t ia;
-    char sn[SN_STR_LEN_MAX + 1]; // +1 for null terminator
-    bool pm;
-    uint16_t sp;          
-  } knx;
-
-} mdns_knx_record_t;
-
-static mdns_knx_record_t current_advertisement = 
+static mdns_knx_record_t current_advertisement =
 {
   .valid = false,
   .knx = 
@@ -1489,6 +1473,11 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
 uint16_t knx_dns_sd_get_used_port(void)
 {
   return get_ip_context_for_device()->port;
+}
+
+mdns_knx_record_t knx_dns_sd_get_current_record(void)
+{
+  return current_advertisement;
 }
 
 void knx_dns_sd_stop(void)
