@@ -42,10 +42,8 @@ void oc_knx_load_device(void);
 
 /**
  * @brief reset the device by: 
- *        - clear mDNS (goodbye with current values)
- *        - set device default values in the persistent 
- *          device storage (according to the reset_mode)
- *        - terminate pase sessions, unregister mc groups, 
+ *        - set device default values in the persistent device storage (according to the reset_mode)
+ *        - terminate pase sessions, unregister mc groups
  *        - clear request (repeat) / response (replay) buffers
  *        - clear old mDNS and reannounce new mDNS with the new values
  *
@@ -70,7 +68,7 @@ void oc_knx_load_device(void);
  *
  * @param reset_mode the KNX reset mode
  */
-void oc_knx_device_storage_reset(int reset_mode);
+void oc_knx_device_reset(int reset_mode);
 
 /**
  * @brief function checks if the device is in programming mode
@@ -92,11 +90,10 @@ void oc_knx_device_set_programming_mode(bool programming_mode);
  * @brief Restart the KNX device
  *
  * @note Performs the KNX restart operation:
- * - clear mDNS (goodbye with current values)
  * - resets programming mode to false
  * - terminates PASE token
  * - applies configuration parameters
- * - reannounce mDNS with the new values
+ * - clear old mDNS and reannounce new mDNS with the new values
  *
  */
 void oc_knx_device_restart(void);

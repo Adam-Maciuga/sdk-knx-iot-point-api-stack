@@ -157,7 +157,7 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 {
 
-	// release strings (e.g. after a device restart/ reset)
+	// release ALL strings (e.g. after a device restart/ reset) -> device content is wiped below
   oc_free_string(&oc_device_info.serialnumber);
   oc_free_string(&oc_device_info.hwt);
   oc_free_string(&oc_device_info.iot_model);
@@ -166,9 +166,6 @@ void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 
 	// clear old device context 
   memset(&oc_device_info, 0, sizeof(oc_device_info_t));
-
-	// assign default ia 
-  oc_device_info.ia = 0xffff;
 
 	// caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
   oc_new_string(&oc_device_info.serialnumber, serialnumber, SERIAL_NUM_SIZE);

@@ -1165,7 +1165,7 @@ void oc_knx_load_device(void)
   */
 }
 
-void oc_knx_device_storage_reset(int reset_mode) 
+void oc_knx_device_reset(int reset_mode) 
 {
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1292,7 +1292,6 @@ void oc_knx_device_restart(void)
   OC_INF("restart device");
 
   oc_device_info_t* const device = oc_core_get_device_info();
-
 
   // send the DNS-SD goodbye while the interface is still up, before change of 'pm' mode
   knx_dns_sd_stop();

@@ -140,9 +140,9 @@ typedef struct mdns_knx_record_t
   {
     uint64_t iid;
     uint16_t ia;
-    char sn[SN_STR_LEN_MAX + 1];
-    char sp[5 + 1];
+    char sn[SN_STR_LEN_MAX + 1]; // +1 for null terminator
     bool pm;
+    uint16_t sp;          
   } knx;
 
 } mdns_knx_record_t;
@@ -154,9 +154,9 @@ static mdns_knx_record_t current_advertisement =
   {
       .iid = 0,
       .ia = 0,
-      .sn = "", // serial number, string with termination '/0'
-      .sp = "", // sleep period value, e.g. "30" (seconds), empty string = no SP record, string with termination '/0'
-      .pm = false
+      .sn = "", // serial number, default is empty string with termination '/0'
+      .pm = false,
+      .sp = 0,  // sleep period value, default is 0 -> value may be e.g. 30 (seconds) 
   }
 };
 
@@ -498,16 +498,20 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   }
 
   // TXT: optional SP=<seconds> (conditional) 
-  if (record->knx.sp[0] != '\0') 
+  if (record->knx.sp != 0) 
   {
+    // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
+    char sp_str[5 + 1];
+    (void)snprintf(sp_str, sizeof(sp_str), "%d", record->knx.sp);
+    
     // we have a non-empty string 
     additional[add_count].name.str = instance_name;
     additional[add_count].name.length = instance_len;
     additional[add_count].type = MDNS_RECORDTYPE_TXT;
     additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str = record->knx.sp;
-    additional[add_count].data.txt.value.length = strlen(record->knx.sp);
+    additional[add_count].data.txt.value.str = sp_str;
+    additional[add_count].data.txt.value.length = strlen(sp_str);
     add_count++;
   }
 
@@ -525,13 +529,15 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   if (if_count == 0)
   {
     OC_WRN("DNS-SD: No interfaces available for mDNS %s (network not ready?)!",  goodbye ? "goodbye" : "announce");
-    return 0;
+    return -1;
   }
 
-  for (int interface = 0; interface < if_count; interface++) 
+  int summary = 0;
+
+  for (int iface_idx = 0; iface_idx < if_count; iface_idx++) 
   {
     setsockopt(mdns_sock6, IPPROTO_IPV6, IPV6_MULTICAST_IF,
-               (const char *)&if_indices[interface], sizeof(if_indices[interface]));
+               (const char *)&if_indices[iface_idx], sizeof(if_indices[iface_idx]));
 
     int ret;
     if (goodbye) 
@@ -550,9 +556,13 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     OC_DBG("DNS-SD: mDNS %s %s on interface %u (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)", 
            goodbye ? "goodbye" : "announce",
            ret < 0 ? "failed" : "succeeded",
-           if_indices[interface], port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
+           if_indices[iface_idx], port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
+
+    // latch failure, once an interface fails, summary stays -1
+    if (ret < 0) { summary = -1; }
+
   }
-  return 0;
+  return summary;
 }
 
 
@@ -894,16 +904,21 @@ static int send_query_response(int sock, const char *ptr_name)
   }
 
   // TXT: optional SP=<seconds> (conditional) 
-  if (current_advertisement.knx.sp[0] != '\0') 
+  if (current_advertisement.knx.sp != 0) 
   {
-    // we have a non-empty string 
+    // we have a non-zero sleep period
+
+    // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
+    char sp_str[5 + 1];
+    (void) snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
+
     additional[add_count].name.str = instance_name;
     additional[add_count].name.length = instance_len;
     additional[add_count].type = MDNS_RECORDTYPE_TXT;
     additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str = current_advertisement.knx.sp;
-    additional[add_count].data.txt.value.length = strlen(current_advertisement.knx.sp);
+    additional[add_count].data.txt.value.str = sp_str;
+    additional[add_count].data.txt.value.length = strlen(sp_str);
     add_count++;
   }
 
@@ -1348,11 +1363,31 @@ static void stop_listener(void)
 
 int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
+  
+  if (!serial_no)
+  {
+    OC_WRN("DNS-SD: Invalid (NULL) serial number provided, cannot update service.");
+    return -1;
+  }
+  
   // goodbye for current_advertisement advertisement (if any, 'goodbye' may be already send out on stop listener)
   if (current_advertisement.valid) 
   {
     (void)send_announcement(&current_advertisement, true);
   }
+
+  /*
+     assign new announcement data
+     sn:
+     - new.knx.sn is already zero-initialised (C99 partial init rule);
+     - copying exactly SN_STR_LEN_MAX bytes is always safe because sn[SN_STR_LEN_MAX](index 12)
+       is never written and stays '\0', moreover sn with less than 12 bytes also have a terminator
+       right after the last character, so strlen() is safe to use on it
+     - safe for sn len > 12 ; copy stops at 12, sn[12] is '\0' and strlen() returns 12
+     sp:
+     - new.knx.sp is taken over from previous announcement, as long as it is not changed from outside 
+       it stays
+  */
 
   mdns_knx_record_t new = 
   {
@@ -1360,21 +1395,10 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     .knx.iid = iid, 
     .knx.ia = ia, 
     .knx.pm = pm, 
+    .knx.sp = current_advertisement.knx.sp
   };
 
-  /* 
-     assign new announcement data (sn):
-     - new.knx.sn is already zero-initialised (C99 partial init rule); 
-     - copying exactly SN_STR_LEN_MAX bytes is always safe because sn[SN_STR_LEN_MAX](index 12) 
-       is never written and stays '\0', moreover sn with less than 12 bytes also have a terminator 
-       right after the last character, so strlen() is safe to use on it
-     - safe for sn len > 12 ; copy stops at 12, sn[12] is '\0' and strlen() returns 12
-
-  */
   memcpy(new.knx.sn, serial_no, SN_STR_LEN_MAX);
-  
-  // assign present announcement data (sp) -> src string is always null-terminated 
-  memcpy(new.knx.sp, current_advertisement.knx.sp, sizeof(new.knx.sp));
 
   // new announcement
   const int ret = send_announcement(&new, false);
@@ -1399,24 +1423,18 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
   return ret;
 }
 
-void knx_dns_sd_set_sleep_period(int sp)
+void knx_dns_sd_set_sleep_period(uint16_t sp)
 {
-  if (sp) 
-  { // SP != 0
-    
-    // always places after last char '\0'
-    (void)snprintf(current_advertisement.knx.sp, sizeof(current_advertisement.knx.sp), "%d", sp);
-  } 
-  else 
+  if (sp == 0) 
   {
     /* 
-       SP = 0
+       SP = 0 and previous SP was NOT 0
        
        When clearing SP, send a goodbye (TTL=0) for the old SP TXT record so that mDNS listeners evict it 
        immediately (RFC 6762 11.x). A plain re-announcement WITHOUT the 'SP' key is not enough -> listeners keep 
        the cached record until its TTL expires.
     */
-    if (current_advertisement.valid && current_advertisement.knx.sp[0] != '\0')
+    if (current_advertisement.valid && current_advertisement.knx.sp != 0)
     {
       if (ensure_socket() == 0)
       {
@@ -1425,6 +1443,10 @@ void knx_dns_sd_set_sleep_period(int sp)
         (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE,
                        current_advertisement.knx.sn);
         
+        // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
+        char sp_str[5 +1]; 
+        (void)snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp); 
+
         const mdns_record_t sp_txt =
         {
           .name.str    = instance_name,
@@ -1432,18 +1454,17 @@ void knx_dns_sd_set_sleep_period(int sp)
           .type        = MDNS_RECORDTYPE_TXT,
           .data.txt.key.str       = "SP",
           .data.txt.key.length    = 2,
-          .data.txt.value.str     = current_advertisement.knx.sp,
-          .data.txt.value.length  = strlen(current_advertisement.knx.sp)
+          .data.txt.value.str     = sp_str,
+          .data.txt.value.length  = strlen(sp_str)
         };
 
         // send SP TXT goodbye (TTL=0) on every active interface
         unsigned int if_indices[MAX_IF_INDICES];
         const int if_count = collect_if_indices(if_indices);
-        
         for (int i = 0; i < if_count; i++)
         {
           setsockopt(mdns_sock6, IPPROTO_IPV6, IPV6_MULTICAST_IF,(const char *)&if_indices[i], sizeof(if_indices[i]));
-          
+
           (void)mdns_goodbye_multicast(mdns_sock6, mdns_buf, sizeof(mdns_buf),
                                        sp_txt,
                                        NULL, 0,
@@ -1451,10 +1472,10 @@ void knx_dns_sd_set_sleep_period(int sp)
         }
       }
     }
-
-    // clear SP in current advertisement (for next announcement)
-    memset(current_advertisement.knx.sp, 0, sizeof(current_advertisement.knx.sp));
   }
+  
+  // set SP in current advertisement (0 or > 0)
+  current_advertisement.knx.sp = sp;
 
   // reannounce immediately so the updated TXT record (SP=<n> or empty) is picked up w/o the caller having to call knx_dns_sd_update_service separately
   if (current_advertisement.valid) 
@@ -1468,12 +1489,6 @@ void knx_dns_sd_set_sleep_period(int sp)
 uint16_t knx_dns_sd_get_used_port(void)
 {
   return get_ip_context_for_device()->port;
-}
-
-void knx_dns_sd_clear_advertisement_record(void)
-{
-  // wipe the entire record, so the next update_service call starts clean (valid = false, no stale SP, IA, IID, pm, or sn)
-  memset(&current_advertisement, 0, sizeof(current_advertisement));
 }
 
 void knx_dns_sd_stop(void)

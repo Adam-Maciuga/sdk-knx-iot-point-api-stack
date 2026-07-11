@@ -263,7 +263,7 @@ uint16_t knx_dns_sd_get_used_port(void)
   return KNX_SRP_PORT;
 }
 
-void knx_dns_sd_set_sleep_period(int sp)
+void knx_dns_sd_set_sleep_period(uint16_t sp)
 {
   if (sp)
     // string includes "SP=xx"

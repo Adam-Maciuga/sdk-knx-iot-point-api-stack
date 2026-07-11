@@ -480,7 +480,7 @@ static int knx_clear_tables_cmd(const struct shell *sh, size_t argc, char **argv
     shell_print(sh, "Clearing KNX tables... ");
 
     /* Call KNX storage reset with code 7 (Factory Reset without IA) */
-    oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+    oc_knx_device_reset(RESET_TO_DEFAULT_WO_IA);
 
     shell_print(sh, "DONE");
     return 0;
@@ -492,7 +492,7 @@ static int knx_factory_reset_cmd(const struct shell *sh, size_t argc, char **arg
     shell_print(sh, "Resetting KNX parameters to factory settings... ");
 
     /* Call KNX storage reset with code 2 (Factory Reset to default state) */
-    oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+    oc_knx_device_reset(RESET_TO_DEFAULT_STATE);
 
     shell_print(sh, "DONE");
     return 0;

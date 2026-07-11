@@ -236,7 +236,7 @@ static oc_event_callback_retval_t reset(void* context)
   }
 
   // delete data (also resets the SPAKE handshake state, see oc_knx_device_storage_reset)
-  oc_knx_device_storage_reset(cached_erase_code_value);
+  oc_knx_device_reset(cached_erase_code_value);
 
   // application reset callback handler
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();
@@ -564,6 +564,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
       if (new_lsm_state == LSM_S_UNLOADED && old_lsm_state != LSM_S_UNLOADED)
       { // extra task on entering UNLOADED
 
+        knx_dns_sd_stop();
         // drop multicast memberships before clearing the tables
         oc_unregister_group_multicasts();
 

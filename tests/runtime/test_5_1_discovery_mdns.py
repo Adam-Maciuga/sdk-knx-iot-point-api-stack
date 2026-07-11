@@ -24,7 +24,7 @@ import time
 import cbor2
 import pytest
 
-from coap_client import APPLICATION_CBOR, LINK_FORMAT
+from coap_client import APPLICATION_CBOR, LINK_FORMAT, CoapClient
 from conftest import DEVICE_PASSWORD, ALL_SCOPES, DUT_IA, DUT_IID, auth_prepare, ia_prepare
 from knx_oscore import OscoreContext
 from knx_spake2plus import Spake2PlusClient
@@ -1679,10 +1679,45 @@ class _MdnsSnapshot:
         self.sp = None               # str value of SP= TXT key, or None
         self.sn_present: bool = False
         self.aaaa: list = []         # IPv6 address strings
+        self.port: int = 0           # CoAP port from SRV record, 0 if not seen
+
+    # ------------------------------------------------------------------
+    # Derived helpers -- parsed lazily from the ia<IID>-<IA> subtype label
+    # ------------------------------------------------------------------
+
+    def _ia_subtype(self):
+        """Return the raw 'ia<IID>-<IA>' subtype string, or None."""
+        for s in self.subtypes:
+            if s.startswith("ia"):
+                return s
+        return None
+
+    @property
+    def ia(self):
+        """Individual Address (hex string), e.g. '1101', or None if not present."""
+        sub = self._ia_subtype()
+        if sub:
+            parts = sub[2:].split("-")   # strip 'ia', split on '-'
+            return parts[1] if len(parts) == 2 else None
+        return None
+
+    @property
+    def iid(self):
+        """Installation ID (hex string), e.g. '1199887766', or None."""
+        sub = self._ia_subtype()
+        if sub:
+            parts = sub[2:].split("-")
+            return parts[0] if len(parts) == 2 else None
+        return None
+
+    @property
+    def pm(self):
+        """True if _pm subtype is advertised (device is in programming mode)."""
+        return "pm" in self.subtypes
 
     def __repr__(self):
         return (f"MdnsSnapshot(subtypes={self.subtypes}, sp={self.sp!r}, "
-                f"sn_present={self.sn_present}, aaaa={self.aaaa})")
+                f"sn_present={self.sn_present}, aaaa={self.aaaa}, port={self.port})")
 
 
 def _query_snapshot(iface_idx: int,
@@ -1735,6 +1770,11 @@ def _query_snapshot(iface_idx: int,
             if addr not in snap.aaaa:
                 snap.aaaa.append(addr)
 
+        # SRV records — capture the CoAP port
+        for _owner, port, _host in pkt.srv:
+            if snap.port == 0 and port > 0:
+                snap.port = port
+
         # TXT records — look for SP=
         for _owner, props in pkt.txt.items():
             for k, v in props.items():
@@ -1769,8 +1809,21 @@ class TestMdnsStateSync:
         """Query the DUT's current mDNS state and print a summary."""
         snap = _query_snapshot(self._iface_idx, timeout=timeout)
         print(f"\n[state_sync/{label}] snapshot: subtypes={snap.subtypes} "
-              f"sp={snap.sp!r} sn={snap.sn_present} aaaa={snap.aaaa}")
+              f"sp={snap.sp!r} sn={snap.sn_present} aaaa={snap.aaaa} port={snap.port}")
         return snap
+
+    @staticmethod
+    def _print_client_view(label: str, snap: "_MdnsSnapshot") -> None:
+        """Print a structured single-line client view: what an mDNS client sees."""
+        addr = snap.aaaa[0] if snap.aaaa else "(none)"
+        port = snap.port if snap.port else "(none)"
+        ia   = snap.ia  or "(none)"
+        iid  = snap.iid or "(none)"
+        pm   = "ON" if snap.pm else "off"
+        sp   = snap.sp if snap.sp is not None else "(none)"
+        print(f"[client-view/{label}]"
+              f"  addr=[{addr}]  port={port}"
+              f"  IA=0x{ia}  IID=0x{iid}  PM={pm}  SP={sp}")
 
     def _transition(self, label: str, trigger_fn,
                     timeout: float = TRANSITION_CAPTURE_TIMEOUT_S,
@@ -1976,7 +2029,24 @@ class TestMdnsStateSync:
         self._transition("restart/restart", _restart, timeout=20.0)
         time.sleep(2)
         coap.drain_socket(timeout=0.5)
-        auth_prepare(coap, oscore_ctx)   # OSCORE SSN resets after restart
+        # After restart the device resets its OSCORE replay table to empty and
+        # reloads the SSN from storage (with an osn-delay padding offset).
+        # The AT table and keys survive restart.
+        #
+        # The shared oscore_ctx.ssn may be AHEAD of where the device left off,
+        # which is fine — any SSN above the device's replay window is fresh.
+        # What we MUST NOT do is reset ssn=0 here, because that can race with
+        # CoAP CON retransmits: the device sends an async Echo-challenge for the
+        # low SSN, but the client's retransmit arrives first as REPLAY → hard
+        # 4.01 with no echo, and the session shared ssn ends up in a bad state
+        # for the next test.
+        #
+        # Instead, send a one-shot probe GET to allow the Echo-challenge cycle
+        # to complete cleanly and advance oscore_ctx.ssn past any ECHO zone.
+        # The probe result is intentionally not checked — we only care that the
+        # replay-table entry is established with a known rx_ssn.
+        coap.oscore_get(oscore_ctx, "/dev", timeout=COAP_TIMEOUT)
+        coap.drain_socket(timeout=0.5)
 
         # --- Step 5: query -- new IA must survive restart ---
         snap = self._snap("restart/after_restart_ia")
@@ -2116,4 +2186,319 @@ class TestMdnsStateSync:
         snap = self._snap("freset/after_reset_sn")
         assert snap.sn_present, (
             f"[freset] DUT serial number lost after factory reset")
+
+    # ------------------------------------------------------------------
+    # Restart address stability: mDNS-discovered endpoint is always
+    # reachable after a restart, regardless of whether IPv6/port changed.
+    # ------------------------------------------------------------------
+
+    def test_state_sync_restart_address_stability(self, coap, oscore_ctx):
+        """mDNS endpoint announced after restart is reachable by a fresh client.
+
+        Key invariant: an mDNS-aware client that re-queries after a device
+        restart will NEVER lose connection -- the post-restart announcement
+        always points to a valid, reachable CoAP endpoint.
+
+        IPv6 address and port stability are NOT asserted (they may legitimately
+        change after a network stack reinit).  What IS asserted is that:
+
+          1. The pre-restart mDNS announcement yields a reachable endpoint
+             (plain GET /a/lsm -> 4.03, the spec-correct response to an
+             unprotected request on an OSCORE-required resource).
+          2. The DUT sends a proper goodbye -> re-announce transition.
+          3. The post-restart mDNS announcement yields a reachable endpoint.
+
+        To make the before/after output more informative, a non-default IA is
+        provisioned before the restart so the mDNS IA subtype is visible.
+
+        Sequence:
+          0. Stage  -> set non-default IA so subtype shows IID/IA before restart
+          1. Query  -> capture full client view before restart
+          2. Probe  -> plain GET /a/lsm  -> 4.03 (liveness OK)
+          3. Action -> device restarts  (POST /test/restart)
+          4. Resync -> OSCORE probe-GET
+          5. Query  -> capture full client view after restart
+          6. Table  -> print before/after side by side
+          7. Probe  -> plain GET /a/lsm at new mDNS endpoint  -> 4.03
+        """
+        # --- Step 0: stage a non-default IA so the mDNS output is informative ---
+        staged_ia  = 0xA1B
+        staged_iid = 0x11223344AA
+
+        def _set_staged_ia():
+            resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                                    payload=cbor2.dumps({12: staged_ia,
+                                                         26: staged_iid}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST staged IA failed: {resp}")
+
+        self._transition("addr_stab/stage_ia", _set_staged_ia)
+
+        # --- Step 1: capture pre-restart client view ---
+        snap_before = self._snap("addr_stab/before")
+        assert snap_before.aaaa, (
+            "[addr_stab] DUT not advertising any AAAA record before restart")
+        assert snap_before.port > 0, (
+            "[addr_stab] DUT not advertising any SRV port before restart")
+
+        addr_before = snap_before.aaaa[0]
+        port_before = snap_before.port
+        self._print_client_view("BEFORE restart", snap_before)
+
+        # --- Step 2: probe reachability before restart ---
+        client_before = CoapClient(addr_before, port_before,
+                                   timeout=COAP_TIMEOUT)
+        try:
+            resp_before = client_before.get("/a/lsm", timeout=COAP_TIMEOUT)
+            assert resp_before is not None, (
+                f"[addr_stab] GET /a/lsm timed out at pre-restart "
+                f"[{addr_before}]:{port_before}")
+            assert resp_before.code_class == 4 and resp_before.code_detail in (0, 1, 3), (
+                f"[addr_stab] Expected 4.xx from /a/lsm before restart, "
+                f"got {resp_before.code_class}.{resp_before.code_detail:02d}")
+        finally:
+            client_before.close()
+
+        print(f"[addr_stab] pre-restart GET /a/lsm -> "
+              f"{resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
+
+        # --- Step 3: trigger restart and capture mDNS transition ---
+        def _restart():
+            resp = coap.oscore_post(oscore_ctx, "/test/restart",
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/restart failed: {resp}")
+
+        tr = self._transition("addr_stab/restart", _restart, timeout=20.0)
+        assert tr.goodbyes, (
+            "[addr_stab] No mDNS goodbye sent before restart")
+        assert tr.announces, (
+            "[addr_stab] No mDNS re-announcement after restart")
+
+        time.sleep(2)
+        coap.drain_socket(timeout=0.5)
+
+        # --- Step 4: resync OSCORE session ---
+        coap.oscore_get(oscore_ctx, "/dev", timeout=COAP_TIMEOUT)
+        coap.drain_socket(timeout=0.5)
+
+        # --- Step 5: capture post-restart client view ---
+        snap_after = self._snap("addr_stab/after")
+        assert snap_after.aaaa, (
+            "[addr_stab] DUT not advertising any AAAA record after restart")
+        assert snap_after.port > 0, (
+            "[addr_stab] DUT not advertising any SRV port after restart")
+
+        addr_after = snap_after.aaaa[0]
+        port_after = snap_after.port
+
+        # --- Step 6: print before/after table ---
+        addr_changed = (addr_after != addr_before)
+        port_changed = (port_after != port_before)
+        print()
+        print(f"[addr_stab] {'':=<62}")
+        print(f"[addr_stab]  {'Field':<14}  {'BEFORE restart':<28}  {'AFTER restart':<28}")
+        print(f"[addr_stab]  {'-'*14}  {'-'*28}  {'-'*28}")
+        print(f"[addr_stab]  {'IPv6 addr':<14}  {addr_before:<28}  {addr_after:<28}"
+              f"  {'<-- CHANGED' if addr_changed else ''}")
+        print(f"[addr_stab]  {'CoAP port':<14}  {port_before:<28}  {port_after:<28}"
+              f"  {'<-- CHANGED' if port_changed else ''}")
+        print(f"[addr_stab]  {'IID (hex)':<14}  {snap_before.iid or '?':<28}  {snap_after.iid or '?':<28}")
+        print(f"[addr_stab]  {'IA  (hex)':<14}  {snap_before.ia  or '?':<28}  {snap_after.ia  or '?':<28}")
+        print(f"[addr_stab]  {'PM':<14}  {'ON' if snap_before.pm else 'off':<28}  {'ON' if snap_after.pm else 'off':<28}")
+        print(f"[addr_stab]  {'SP':<14}  {snap_before.sp or '(none)':<28}  {snap_after.sp or '(none)':<28}")
+        print(f"[addr_stab] {'':=<62}")
+        if addr_changed or port_changed:
+            print(f"[addr_stab] NOTE: endpoint changed -- client MUST re-read mDNS")
+        else:
+            print(f"[addr_stab] endpoint unchanged (addr/port stable across restart)")
+
+        # --- Step 7: probe reachability after restart using fresh client ---
+        client_after = CoapClient(addr_after, port_after,
+                                  timeout=COAP_TIMEOUT)
+        try:
+            resp_after = client_after.get("/a/lsm", timeout=COAP_TIMEOUT)
+            assert resp_after is not None, (
+                f"[addr_stab] GET /a/lsm timed out at post-restart "
+                f"[{addr_after}]:{port_after} -- mDNS announcement is stale")
+            assert resp_after.code_class == 4 and resp_after.code_detail in (0, 1, 3), (
+                f"[addr_stab] Expected 4.xx from /a/lsm after restart at "
+                f"[{addr_after}]:{port_after}, "
+                f"got {resp_after.code_class}.{resp_after.code_detail:02d} "
+                f"-- post-restart mDNS endpoint is not reachable or incorrect")
+        finally:
+            client_after.close()
+
+        print(f"[addr_stab] post-restart GET /a/lsm -> "
+              f"{resp_after.code_class}.{resp_after.code_detail:02d} (liveness OK) "
+              f"-- mDNS endpoint is reachable across restart")
+
+    # ------------------------------------------------------------------
+    # Factory-reset address stability: mDNS-discovered endpoint is always
+    # reachable after a factory reset (erase_code=2), regardless of whether
+    # IPv6/port changed.
+    # ------------------------------------------------------------------
+
+    def test_state_sync_factory_reset_address_stability(self, coap, oscore_ctx):
+        """mDNS endpoint announced after factory reset (erase_code=2) is reachable.
+
+        Identical invariant to test_state_sync_restart_address_stability, but
+        the device lifecycle event is a factory reset rather than a plain
+        restart.  A factory reset wipes the AT table, so full re-provisioning
+        (auth_prepare + ia_prepare) is required before any OSCORE request can
+        be sent post-reset.
+
+        To make the before/after output maximally informative, a non-default
+        IA, PM=ON, and SP are staged before the reset so all fields are
+        populated in the BEFORE column and cleared in the AFTER column.
+
+        Sequence:
+          0. Stage  -> non-default IA + PM=ON + SP=750
+          1. Query  -> capture full client view before reset
+          2. Probe  -> plain GET /a/lsm  -> 4.03 (liveness OK)
+          3. Action -> factory reset  (POST /test/factory-reset, erase_code=2)
+          4a.Query  -> snapshot immediately post-reset (ia=ffff, iid=0, pm=off, sp=gone)
+          4b.Reprov -> auth_prepare + ia_prepare + SP clear (needed for OSCORE probe)
+          5. Table  -> print before/after side by side
+          6. Probe  -> plain GET /a/lsm at mDNS-announced endpoint  -> 4.03
+        """
+        # --- Step 0: stage non-default IA, PM=ON, SP=750 ---
+        staged_ia  = 0xB2C
+        staged_iid = 0xAABBCCDD11
+
+        def _set_staged_ia():
+            resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                                    payload=cbor2.dumps({12: staged_ia,
+                                                         26: staged_iid}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST staged IA failed: {resp}")
+
+        self._transition("addr_stab_freset/stage_ia", _set_staged_ia)
+
+        def _enable_pm():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: True}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=true failed: {resp}")
+
+        self._transition("addr_stab_freset/stage_pm", _enable_pm)
+
+        def _set_sp():
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=cbor2.dumps({1: 750}),
+                                    timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=750 failed: {resp}")
+
+        self._transition("addr_stab_freset/stage_sp", _set_sp, want_goodbye=False)
+
+        # --- Step 1: capture pre-reset client view ---
+        snap_before = self._snap("addr_stab_freset/before")
+        assert snap_before.aaaa, (
+            "[addr_stab_freset] DUT not advertising any AAAA record before reset")
+        assert snap_before.port > 0, (
+            "[addr_stab_freset] DUT not advertising any SRV port before reset")
+
+        addr_before = snap_before.aaaa[0]
+        port_before = snap_before.port
+        self._print_client_view("BEFORE factory-reset", snap_before)
+
+        # --- Step 2: probe reachability before reset ---
+        client_before = CoapClient(addr_before, port_before,
+                                   timeout=COAP_TIMEOUT)
+        try:
+            resp_before = client_before.get("/a/lsm", timeout=COAP_TIMEOUT)
+            assert resp_before is not None, (
+                f"[addr_stab_freset] GET /a/lsm timed out at pre-reset "
+                f"[{addr_before}]:{port_before}")
+            assert resp_before.code_class == 4 and resp_before.code_detail in (0, 1, 3), (
+                f"[addr_stab_freset] Expected 4.xx from /a/lsm before reset, "
+                f"got {resp_before.code_class}.{resp_before.code_detail:02d}")
+        finally:
+            client_before.close()
+
+        print(f"[addr_stab_freset] pre-reset GET /a/lsm -> "
+              f"{resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
+
+        # --- Step 3: trigger factory reset and capture mDNS transition ---
+        def _factory_reset():
+            resp = coap.post("/test/factory-reset", timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/factory-reset failed: {resp}")
+
+        tr = self._transition("addr_stab_freset/reset", _factory_reset, timeout=20.0)
+        assert tr.goodbyes, (
+            "[addr_stab_freset] No mDNS goodbye sent before factory reset")
+        assert tr.announces, (
+            "[addr_stab_freset] No mDNS re-announcement after factory reset")
+
+        time.sleep(2)
+        coap.drain_socket(timeout=0.5)
+
+        # --- Step 4a: snapshot BEFORE re-provisioning ---
+        # Capture what mDNS announces immediately after the reset, while the
+        # device is still in its factory-default state (ia=0xFFFF, iid=0,
+        # pm=off, sp=gone).  This is what a real client sees post-reset.
+        snap_after = self._snap("addr_stab_freset/after")
+        assert snap_after.aaaa, (
+            "[addr_stab_freset] DUT not advertising any AAAA record after reset")
+        assert snap_after.port > 0, (
+            "[addr_stab_freset] DUT not advertising any SRV port after reset")
+
+        addr_after = snap_after.aaaa[0]
+        port_after = snap_after.port
+
+        # --- Step 4b: full re-provisioning (needed so OSCORE probe works) ---
+        # auth_prepare re-runs SPAKE2+ (AT table was wiped by the reset).
+        # ia_prepare re-sets IA/IID so subsequent tests in the class are clean.
+        # _set_sleep_period(0) ensures SP does not bleed into later queries.
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        _set_sleep_period(coap, oscore_ctx, 0)
+        coap.drain_socket(timeout=0.5)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        # --- Step 5: print before/after table (factory-reset) ---
+        addr_changed = (addr_after != addr_before)
+        port_changed = (port_after != port_before)
+        print()
+        print(f"[addr_stab_freset] {'':=<62}")
+        print(f"[addr_stab_freset]  {'Field':<14}  {'BEFORE factory-reset':<28}  {'AFTER factory-reset':<28}")
+        print(f"[addr_stab_freset]  {'-'*14}  {'-'*28}  {'-'*28}")
+        print(f"[addr_stab_freset]  {'IPv6 addr':<14}  {addr_before:<28}  {addr_after:<28}"
+              f"  {'<-- CHANGED' if addr_changed else ''}")
+        print(f"[addr_stab_freset]  {'CoAP port':<14}  {port_before:<28}  {port_after:<28}"
+              f"  {'<-- CHANGED' if port_changed else ''}")
+        print(f"[addr_stab_freset]  {'IID (hex)':<14}  {snap_before.iid or '?':<28}  {snap_after.iid or '(reset=0)':<28}")
+        print(f"[addr_stab_freset]  {'IA  (hex)':<14}  {snap_before.ia  or '?':<28}  {snap_after.ia  or '(reset=ffff)':<28}")
+        print(f"[addr_stab_freset]  {'PM':<14}  {'ON' if snap_before.pm else 'off':<28}  {'ON' if snap_after.pm else 'off':<28}")
+        print(f"[addr_stab_freset]  {'SP':<14}  {snap_before.sp or '(none)':<28}  {snap_after.sp or '(none)':<28}")
+        print(f"[addr_stab_freset] {'':=<62}")
+        if addr_changed or port_changed:
+            print(f"[addr_stab_freset] NOTE: endpoint changed -- client MUST re-read mDNS")
+        else:
+            print(f"[addr_stab_freset] endpoint unchanged (addr/port stable across factory reset)")
+
+        # --- Step 7: probe reachability after reset using fresh client ---
+        client_after = CoapClient(addr_after, port_after,
+                                  timeout=COAP_TIMEOUT)
+        try:
+            resp_after = client_after.get("/a/lsm", timeout=COAP_TIMEOUT)
+            assert resp_after is not None, (
+                f"[addr_stab_freset] GET /a/lsm timed out at post-reset "
+                f"[{addr_after}]:{port_after} -- mDNS announcement is stale")
+            assert resp_after.code_class == 4 and resp_after.code_detail in (0, 1, 3), (
+                f"[addr_stab_freset] Expected 4.xx from /a/lsm after reset at "
+                f"[{addr_after}]:{port_after}, "
+                f"got {resp_after.code_class}.{resp_after.code_detail:02d} "
+                f"-- post-reset mDNS endpoint is not reachable or incorrect")
+        finally:
+            client_after.close()
+
+        print(f"[addr_stab_freset] post-reset GET /a/lsm -> "
+              f"{resp_after.code_class}.{resp_after.code_detail:02d} (liveness OK) "
+              f"-- mDNS endpoint is reachable across factory reset")
 

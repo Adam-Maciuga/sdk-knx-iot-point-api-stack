@@ -47,9 +47,9 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
  * @brief Set the advertised sleep period within the mDNS service.
  *
  * @param sp The period, in milliseconds. A value of 0 removes the
- * advertisement, signalling that the device is wakeful.
+ *           advertisement, signalling that the device is wakeful.
  */
-void knx_dns_sd_set_sleep_period(int sp);
+void knx_dns_sd_set_sleep_period(uint16_t sp);
 
  /**
  * @brief Returns the device used unicast port.
@@ -60,13 +60,6 @@ void knx_dns_sd_set_sleep_period(int sp);
  *
  */
 uint16_t knx_dns_sd_get_used_port(void);
-
-/**
- * @brief Clear the current DNS-SD advertisement record.
- *
- * Call this at the start of the stack.
- */
-void knx_dns_sd_clear_advertisement_record(void);
 
 /**
  * @brief Stop the device's DNS-SD service advertisement during shutdown.
