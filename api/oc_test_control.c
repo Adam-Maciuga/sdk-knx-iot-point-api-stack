@@ -73,7 +73,7 @@ static void post_test_restart(oc_request_t *request,
 static oc_event_callback_retval_t deferred_factory_reset_cb(void *data)
 {
   (void)data;
-  oc_knx_device_storage_reset(2 /* RESET_TO_DEFAULT_STATE */);
+  oc_knx_device_reset(2 /* RESET_TO_DEFAULT_STATE */);
   if (g_reset_dp_cb) {
     g_reset_dp_cb();
   }
@@ -192,7 +192,7 @@ static void post_test_sleep_period(oc_request_t *request,
   {
     if (rep->iname == 1 && rep->type == OC_REP_INT)
     {
-      sp = (int)rep->value.integer;
+      sp = (rep->value.integer > 0) ? (int)rep->value.integer : 0;
     }
     rep = rep->next;
   }

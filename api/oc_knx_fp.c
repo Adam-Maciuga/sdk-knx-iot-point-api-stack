@@ -3053,7 +3053,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         const uint32_t sending_ga = go_entry->ga[0];
         const oc_device_info_t* const device = oc_core_get_device_info();
 
-        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
+        OC_INF("Init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
 
         // find recipient entry for sending ga, contains both grpid and non flag
         oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
@@ -3079,13 +3079,13 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
     g_roi.got_idx++;
   }
 
-  OC_INF("init datapoints : done (all entries processed)");
+  OC_INF("Init datapoints : done (all entries processed)");
   return OC_EVENT_DONE;
 }
 
 void oc_init_datapoints_at_initialization(void)
 {
-  OC_INF("scan datapoints : for a possible cflag read on 'init' initialization ...");
+  OC_INF("Scan datapoints for a possible cflag read on 'init' initialization ...");
 
   // remove any pending callback from a previous run such as on two resets in a short time period (only one callback can be pending at a time)
   oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);

@@ -283,8 +283,8 @@ extern "C"
    *
    * @note
    * - iterates the publisher-table entries and calls unsubscribe_group_to_multicast_with_port() for each one
-   * - MUST be called before clearing the device 'iid' or group tables 'grpid' such as and on shutdown 
-   *   (both properties are used one or the other, for the unregistration process to compose the mc address)
+   * - MUST be called before clearing the device 'iid' or group tables 'grpid' such as and on shutdown/ LSM unload 
+   *   ('iid' and 'grpid' are used in uc/mc unregistration process to compose the mc address)
    */
   void oc_unregister_group_multicasts(void);
   
