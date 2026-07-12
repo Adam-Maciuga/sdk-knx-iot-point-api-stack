@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Headless KNX IoT test server for runtime (network-level) conformance tests.
  *
  * Boots the full stack with real networking (no mocks), registers EITT-style
@@ -47,7 +47,7 @@
 #define SLEEP_MS(ms) usleep((ms) * 1000)
 #endif
 
-/* ── Shutdown flag ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇ Shutdown flag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 static volatile int g_quit = 0;
 
 static void handle_signal(int sig)
@@ -56,7 +56,7 @@ static void handle_signal(int sig)
   g_quit = 1;
 }
 
-/* ── Event-loop synchronization ────────────────────────────────────────── */
+/* ΓöÇΓöÇ Event-loop synchronization ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 #ifdef _WIN32
 static CRITICAL_SECTION g_cs;
 static CONDITION_VARIABLE g_cv;
@@ -125,14 +125,14 @@ static void wait_for_event(oc_clock_time_t next_event)
 }
 #endif
 
-/* ── Datapoint values ──────────────────────────────────────────────────── */
+/* ΓöÇΓöÇ Datapoint values ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 static bool g_dp1 = false; /* LSAB SOO /p/1 */
 static bool g_dp2 = false; /* LSAB IOO /p/2 */
 static bool g_dp3 = false; /* LSSB SOO /p/3 */
 static bool g_dp4 = false; /* LSSB IOO /p/4 */
 static int  g_param = 0;   /* Test param  /p/p1 */
 
-/* ── Datapoint handlers ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇ Datapoint handlers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 static void get_bool_dp(oc_request_t *request,
                         oc_interface_mask_t iface_mask, void *user_data)
 {
@@ -222,9 +222,9 @@ static void put_int_dp(oc_request_t *request,
   oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 }
 
-/* ── Stack callbacks ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇ Stack callbacks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
-/* ── Test control callbacks (app-specific, used by oc_test_control) ──── */
+/* ΓöÇΓöÇ Test control callbacks (app-specific, used by oc_test_control) ΓöÇΓöÇΓöÇΓöÇ */
 static void test_set_dp(const char *path, bool value, bool has_value)
 {
   if (has_value) {
@@ -259,7 +259,7 @@ static void test_reset_dp(void)
   g_param = 0;
 }
 
-/* ── SWU (Software Update) callbacks ───────────────────────────────────── */
+/* ΓöÇΓöÇ SWU (Software Update) callbacks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 /* Track download progress */
 static size_t swu_total_size = 0;
@@ -292,7 +292,7 @@ static void swu_cb(oc_separate_response_t* response, size_t binary_size,
   printf("[swu] Received %zu / %zu bytes\n", swu_received, swu_total_size);
   fflush(stdout);
 
-  /* Detect download completion — set package metadata */
+  /* Detect download completion ΓÇö set package metadata */
   if (swu_total_size > 0 && swu_received >= swu_total_size) {
     printf("[swu] Download complete, setting package version 0.0.2\n");
     fflush(stdout);
@@ -367,9 +367,9 @@ static void register_resources(void)
 {
   oc_resource_t *res;
 
-  /* ── LSAB (FB 417, instance 1) ── */
+  /* ΓöÇΓöÇ LSAB (FB 417, instance 1) ΓöÇΓöÇ */
 
-  /* /p/1 — SOO (Switch On/Off) control */
+  /* /p/1 ΓÇö SOO (Switch On/Off) control */
   res = oc_new_resource("/p/1", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.417.61");
   oc_resource_bind_dpt(res, ":dpt.switch");
@@ -382,7 +382,7 @@ static void register_resources(void)
                                   OC_ACL_I, OC_IF_I);
   oc_add_resource(res);
 
-  /* /p/2 — IOO (Indicate On/Off) status — output interface (matches EITT) */
+  /* /p/2 ΓÇö IOO (Indicate On/Off) status ΓÇö output interface (matches EITT) */
   /* Observable: output datapoints are register-able for CoAP observe so
    * clients can be notified of value changes (used by the observe tests). */
   res = oc_new_resource("/p/2", 1);
@@ -395,9 +395,9 @@ static void register_resources(void)
                                   OC_ACL_O, OC_IF_O);
   oc_add_resource(res);
 
-  /* ── LSSB (FB 421, instance 1) ── */
+  /* ΓöÇΓöÇ LSSB (FB 421, instance 1) ΓöÇΓöÇ */
 
-  /* /p/3 — SOO control — output interface for LSSB (matches EITT) */
+  /* /p/3 ΓÇö SOO control ΓÇö output interface for LSSB (matches EITT) */
   /* Observable (see /p/2 note). */
   res = oc_new_resource("/p/3", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.421.61");
@@ -409,7 +409,7 @@ static void register_resources(void)
                                   OC_ACL_O, OC_IF_O);
   oc_add_resource(res);
 
-  /* /p/4 — IOO status */
+  /* /p/4 ΓÇö IOO status */
   res = oc_new_resource("/p/4", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.421.62");
   oc_resource_bind_dpt(res, ":dpt.switch");
@@ -422,7 +422,7 @@ static void register_resources(void)
                                   OC_ACL_I, OC_IF_I);
   oc_add_resource(res);
 
-  /* ── Test parameter (FB 65500, instance 0) ── */
+  /* ΓöÇΓöÇ Test parameter (FB 65500, instance 0) ΓöÇΓöÇ */
   res = oc_new_resource("/p/p1", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.65500.201");
   oc_resource_bind_dpt(res, ":dpt.propDataType");
@@ -434,11 +434,11 @@ static void register_resources(void)
                                   OC_ACL_P, OC_IF_P);
   oc_add_resource(res);
 
-  /* ── Test control endpoints (reusable module — oc_test_control.c) ── */
+  /* ΓöÇΓöÇ Test control endpoints (reusable module ΓÇö oc_test_control.c) ΓöÇΓöÇ */
   oc_test_control_register(test_set_dp, test_reset_dp);
 }
 
-/* ── SPAKE2+ offline registration record (required by the stack) ──────────
+/* ΓöÇΓöÇ SPAKE2+ offline registration record (required by the stack) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
  *
  * The stack (Verifier) uses only the precalculated offline registration record
  * (RFC 9383 sec. 3.2), never the plaintext password online.
@@ -481,7 +481,7 @@ const oc_spake_record_t *app_get_precalculated_spake_data(void)
   return &g_precalculated_spake_record;
 }
 
-/* ── Restart callback (resets datapoints to defaults, like demos do) ──── */
+/* ΓöÇΓöÇ Restart callback (resets datapoints to defaults, like demos do) ΓöÇΓöÇΓöÇΓöÇ */
 static void restart_cb(void *data)
 {
   (void)data;
@@ -490,7 +490,7 @@ static void restart_cb(void *data)
   test_reset_dp();
 }
 
-/* ── Main ──────────────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇ Main ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 int main(int argc, char *argv[])
 {
   (void)argc;
