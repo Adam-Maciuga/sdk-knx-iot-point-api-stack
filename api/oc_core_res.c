@@ -102,9 +102,9 @@ int oc_core_read_and_set_device_hostname(void)
 	// to have a fixed '\0' at the end of the (128 byte) buffer
 	#define MAX_HNAME_BUFFER_SIZE 129
   
-  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
+  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700" - if sn is not applied -> "knx-NULL"
   char hname[MAX_HNAME_BUFFER_SIZE] = ""; 
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string_checked(device->serialnumber));
 
   // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
   oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, MAX_HNAME_BUFFER_SIZE  - 1);
