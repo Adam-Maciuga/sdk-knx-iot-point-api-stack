@@ -1037,7 +1037,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   (void)from; (void)addrlen; (void)query_id; (void)rclass; (void)ttl;
   (void)record_offset; (void)record_length; (void)user_data;
 
-  // Only interested in questions
+  // only interested in questions
   if (entry != MDNS_ENTRYTYPE_QUESTION)
   {
     return 0;
@@ -1052,15 +1052,15 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
 
   /*
     Snapshot only the mutable scalar fields once. 
-    - sn is immutable after the first publish, so it is read directly from the global without copying. 
+    - sn is immutable after the first publish, so it is read directly from the global without copying 
     - iid/ia/pm are the only fields a reconfigure changes, reading each aligned scalar once 
-      (atomic on the target platforms) makes this answer internally consistent, the values used
-       for _ia matching and for building the _ia PTR come from one instant
+      (atomic on the target platforms) makes this answer internally consistent, the values are used
+       for _ia matching and for building the _ia PTR come from 'one snapshot'
   */
   const uint64_t adv_iid = current_advertisement.knx.iid;
   const uint16_t adv_ia = current_advertisement.knx.ia;
   const bool adv_pm = current_advertisement.knx.pm;
-  const char *const adv_sn = current_advertisement.knx.sn; // for consistency (ptr is always the same)
+  const char *const adv_sn = current_advertisement.knx.sn; // immutable, for consistency with other values here
 
   // filter to record types we handle
   if (rtype != MDNS_RECORDTYPE_PTR 
@@ -1383,21 +1383,24 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
      sp:
      - sp is preserved in current_advertisement across reconfigures and set separately via
        knx_dns_sd_set_sleep_period, so it is not touched here
-     Only the mutable scalar fields (iid/ia/pm) are updated in place. This avoids rebuilding and
-     whole-struct-copying a temporary (no redundant sn copy) and narrows the window that races with
-     the listener thread to three independent aligned scalar stores. On announce failure the previous
-     scalars are restored so current_advertisement keeps advertising the old, still-valid record.
+     
+     Only the mutable scalar fields (iid/ia/pm) are updated in place (same structure), this 
+     avoids to do an entire structure tmp creation/copy and (re) assignment. 
+     function is running, so we
   */
+
+  // tmp cpy from old state
   const uint64_t prev_iid = current_advertisement.knx.iid;
   const uint16_t prev_ia = current_advertisement.knx.ia;
   const bool prev_pm = current_advertisement.knx.pm;
   const bool prev_valid = current_advertisement.valid;
 
+  // assign
   memcpy(current_advertisement.knx.sn, serial_no, SN_STR_LEN_MAX);
   current_advertisement.knx.iid = iid;
   current_advertisement.knx.ia = ia;
   current_advertisement.knx.pm = pm;
-  current_advertisement.valid = true;
+  current_advertisement.valid = true; // mark as valid for the first time
 
   // new announcement
   const int ret = send_announcement(&current_advertisement, false);
@@ -1411,6 +1414,7 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
   */
   if (ret != 0)
   {
+    // restore old state on error
     current_advertisement.knx.iid = prev_iid;
     current_advertisement.knx.ia = prev_ia;
     current_advertisement.knx.pm = prev_pm;
