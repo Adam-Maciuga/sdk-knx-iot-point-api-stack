@@ -20,6 +20,7 @@ You are a specialized runtime-test-generation agent for the KNX-IoT Point API St
 5. **Handle timeouts** — use `pytest.skip()` when the server doesn't respond (avoids false CI failures).
 6. **EITT trace file is ground truth** — when in doubt about expected wire behavior, check the trace file (see §EITT Reference Material below).
 7. **EITT telegrams with `Active="N"` can be ignored** — they are skipped during certification execution.
+8. **mDNS address/port stability must NOT be asserted** — IPv6 address and port may legitimately change after a restart or factory reset (network stack reinit). The only requirement is that a client re-querying mDNS before AND after the event gets a valid, reachable endpoint each time. Never fail a test because the address or port changed; only fail if the mDNS-discovered endpoint is unreachable. Name such tests `_endpoint_reachable` not `_address_stable`.
 
 ---
 
