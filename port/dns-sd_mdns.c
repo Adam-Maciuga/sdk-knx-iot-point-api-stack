@@ -1050,6 +1050,18 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     return 0;
   }
 
+  /*
+    Snapshot only the mutable scalar fields once. 
+    - sn is immutable after the first publish, so it is read directly from the global without copying. 
+    - iid/ia/pm are the only fields a reconfigure changes, reading each aligned scalar once 
+      (atomic on the target platforms) makes this answer internally consistent, the values used
+       for _ia matching and for building the _ia PTR come from one instant
+  */
+  const uint64_t adv_iid = current_advertisement.knx.iid;
+  const uint16_t adv_ia = current_advertisement.knx.ia;
+  const bool adv_pm = current_advertisement.knx.pm;
+  const char *const adv_sn = current_advertisement.knx.sn; // for consistency (ptr is always the same)
+
   // filter to record types we handle
   if (rtype != MDNS_RECORDTYPE_PTR 
       && rtype != MDNS_RECORDTYPE_SRV
@@ -1069,11 +1081,11 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
 
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
   char instance_name[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
+  (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, adv_sn);
 
   // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
   char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
+  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", adv_sn);
 
   int ret;
 
@@ -1093,7 +1105,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     if (!ptr_respond && is_knx_subtype_query(qname, qstr.length))
     {
       // _pm subtype
-      if (current_advertisement.knx.pm)
+      if (adv_pm)
       {
         const char *pm_sub = "_pm._sub._knx._udp.local.";
         if (dns_name_equal(qname, qstr.length, pm_sub, strlen(pm_sub)))
@@ -1107,7 +1119,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       if (!ptr_respond)
       {
         char sub_sn[MAX_MDNS_RECORD_SIZE];
-        (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", current_advertisement.knx.sn);
+        (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", adv_sn);
         if (dns_name_equal(qname, qstr.length, sub_sn, strlen(sub_sn)))
         {
           OC_INF("DNS-SD: Received serial number subtype query.");
@@ -1121,7 +1133,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
         char sub_ia[MAX_MDNS_RECORD_SIZE];
         (void)snprintf(sub_ia, sizeof(sub_ia),
                        "_ia%" PRIx64 "-%x._sub._knx._udp.local.",
-                       current_advertisement.knx.iid, (unsigned)current_advertisement.knx.ia);
+                       adv_iid, (unsigned)adv_ia);
         if (dns_name_equal(qname, qstr.length, sub_ia, strlen(sub_ia)))
         {
           OC_INF("DNS-SD: Received IA subtype query.");
@@ -1363,40 +1375,46 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
   /*
      assign new announcement data
      sn:
-     - new.knx.sn is already zero-initialised (C99 partial init rule);
      - copying exactly SN_STR_LEN_MAX bytes is always safe because sn[SN_STR_LEN_MAX](index 12)
        is never written and stays '\0', moreover sn with less than 12 bytes also have a terminator
        right after the last character, so strlen() is safe to use on it
      - safe for sn len > 12 ; copy stops at 12, sn[12] is '\0' and strlen() returns 12
+     - sn never changes after the first publish, so it is written once and never copied again
      sp:
-     - new.knx.sp is taken over from previous announcement, as long as it is not changed from outside 
-       it stays
+     - sp is preserved in current_advertisement across reconfigures and set separately via
+       knx_dns_sd_set_sleep_period, so it is not touched here
+     Only the mutable scalar fields (iid/ia/pm) are updated in place. This avoids rebuilding and
+     whole-struct-copying a temporary (no redundant sn copy) and narrows the window that races with
+     the listener thread to three independent aligned scalar stores. On announce failure the previous
+     scalars are restored so current_advertisement keeps advertising the old, still-valid record.
   */
+  const uint64_t prev_iid = current_advertisement.knx.iid;
+  const uint16_t prev_ia = current_advertisement.knx.ia;
+  const bool prev_pm = current_advertisement.knx.pm;
+  const bool prev_valid = current_advertisement.valid;
 
-  mdns_knx_record_t new = 
-  {
-    .valid = true,
-    .knx.iid = iid, 
-    .knx.ia = ia, 
-    .knx.pm = pm, 
-    .knx.sp = current_advertisement.knx.sp
-  };
-
-  memcpy(new.knx.sn, serial_no, SN_STR_LEN_MAX);
+  memcpy(current_advertisement.knx.sn, serial_no, SN_STR_LEN_MAX);
+  current_advertisement.knx.iid = iid;
+  current_advertisement.knx.ia = ia;
+  current_advertisement.knx.pm = pm;
+  current_advertisement.valid = true;
 
   // new announcement
-  const int ret = send_announcement(&new, false);
+  const int ret = send_announcement(&current_advertisement, false);
 
   /* 
-     remember for next goodbye + for listener callback, on success store
+     on success keep the updated record; on failure roll back the mutable scalars
      - if failed and goodbye was successful -> no announcement is active
-     - if failed and goodbye was NOT successful -> current_advertisement is unchanged (still valid) 
-       and listener callback will still respond with old data 
+     - if failed and goodbye was NOT successful -> current_advertisement is restored to the old
+       (still valid) record and the listener callback will still respond with old data
        -> this is the best we can do, we cannot roll back the goodbye
   */
-  if (ret == 0)
+  if (ret != 0)
   {
-    current_advertisement = new;
+    current_advertisement.knx.iid = prev_iid;
+    current_advertisement.knx.ia = prev_ia;
+    current_advertisement.knx.pm = prev_pm;
+    current_advertisement.valid = prev_valid;
   }
 
   OC_DBG("DNS-SD: announcement %s", ret == 0 ? "succeeded" : "failed");
