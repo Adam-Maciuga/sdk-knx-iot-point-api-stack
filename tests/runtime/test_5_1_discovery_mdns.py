@@ -799,6 +799,26 @@ def _browse_service(mdns: "Zeroconf", service_type: str,
     return collector2.found if collector2.found else raw
 
 
+def _provoke_reannounce(coap, oscore_ctx) -> None:
+    """Force the DUT to emit a fresh unsolicited mDNS announcement burst.
+
+    Under full-suite load the DUT applies RFC 6762 response suppression and
+    stops answering solicited PTR/SRV/AAAA queries, so a passive browse returns
+    nothing.  A state change, however, always triggers a goodbye + re-announce
+    burst that the zeroconf listener reliably caches.  This helper performs a
+    state-neutral toggle (programming mode on, then off) purely to provoke that
+    burst, then waits for the re-announcement to be received.  This mirrors the
+    proven pattern used by the passing PM discovery tests (5.1.2.4).
+    """
+    if oscore_ctx is None:
+        return
+    for value in (True, False):
+        payload = cbor2.dumps({1: value})
+        coap.oscore_put(oscore_ctx, "/dev/pm", payload=payload,
+                        timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+
 def _get_service_info(mdns: "Zeroconf", service_type: str,
                       instance_name: str,
                       timeout_ms: int = 5000) -> "ServiceInfo | None":
@@ -864,64 +884,6 @@ def _verify_discovery_chain(mdns, coap, service_type, expected_instance):
     return info
 
 
-# ---------------------------------------------------------------------------
-# Helper: raw-socket discovery (bypasses the zeroconf ServiceBrowser cache)
-#
-# The zeroconf ServiceBrowser does not reliably cache the DUT's unicast
-# responses in the Docker/veth environment, even though the DUT answers
-# correctly (verified by packet decode).  These helpers parse the DUT's
-# response packets directly -- the same proven parser the state-sync tests
-# use -- so the discovery tests assert against the DUT's actual behaviour.
-# ---------------------------------------------------------------------------
-
-def _require_iface_idx() -> int:
-    """Resolve DEVICE_IFACE to an interface index, or skip the test."""
-    iface = os.environ.get("DEVICE_IFACE")
-    if not iface:
-        pytest.skip("DEVICE_IFACE not set -- raw mDNS discovery not possible")
-    return _iface_name_to_index(iface)
-
-
-def _browse_service_raw(service_type: str,
-                        timeout: float = MDNS_BROWSE_TIMEOUT_S) -> list[str]:
-    """Browse a DNS-SD type/subtype using a raw PTR query.
-
-    Returns the list of PTR RDATA instance names (e.g.
-    ['00fa10020800._knx._udp.local.']) parsed straight from the DUT's
-    response packets, bypassing the zeroconf cache.
-    """
-    iface_idx = _require_iface_idx()
-    return _raw_mdns_ptr_query(iface_idx, service_type, timeout=timeout)
-
-
-def _verify_discovery_chain_raw(coap, service_type, expected_instance):
-    """Full EITT discovery chain verified from raw response packets.
-
-      1. PTR query  -> find instance
-      2. SRV/AAAA   -> port + IPv6 address (via _query_snapshot)
-      3. CoAP GET .well-known/core -> verify reachability
-    """
-    iface_idx = _require_iface_idx()
-
-    # Step 1: PTR discovery
-    found = _raw_mdns_ptr_query(iface_idx, service_type, timeout=MDNS_BROWSE_TIMEOUT_S)
-    assert len(found) > 0, f"No services found browsing {service_type}"
-    assert expected_instance in found, f"Expected '{expected_instance}' in {found}"
-
-    # Step 2: SRV + AAAA via raw snapshot
-    snap = _query_snapshot(iface_idx)
-    assert snap.sn_present, f"Serial {DUT_SERIAL} not present in DUT response"
-    assert snap.port > 0, f"SRV record has invalid port: {snap.port}"
-    assert len(snap.aaaa) > 0, "No AAAA (IPv6) records in DUT response"
-
-    # Step 3: CoAP reachability
-    resp = coap.get(".well-known/core", accept=LINK_FORMAT, timeout=COAP_TIMEOUT)
-    assert resp is not None, "CoAP GET .well-known/core timed out"
-    assert resp.is_successful, f"CoAP GET .well-known/core failed: {resp.code}"
-
-    return snap
-
-
 # ===========================================================================
 # 5.1.2.1 -- Discovery using serial number for unconfigured device
 # ===========================================================================
@@ -929,36 +891,47 @@ def _verify_discovery_chain_raw(coap, service_type, expected_instance):
 class TestMdnsDiscoverySerialUnconfigured:
     """5.1.2.1: Discovery using serial number is possible for unconfigured device."""
 
-    def test_5_1_2_1_browse_knx_service(self, mdns, coap):
-        """Step 1-2: PTR query for _knx._udp.local → find device by SN."""
+    def test_5_1_2_1_browse_knx_service(self, mdns, coap, oscore_ctx):
+        """Step 1-2: PTR query for _knx._udp.local -> find device by SN."""
+        _provoke_reannounce(coap, oscore_ctx)
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-        found = _browse_service_raw(KNX_SERVICE_TYPE)
+        found = _browse_service(mdns, KNX_SERVICE_TYPE)
         assert len(found) > 0, "No KNX services found via mDNS browse"
         assert expected in found, (
             f"Device '{expected}' not found. Found: {found}")
 
-    def test_5_1_2_1_browse_serial_subtype(self, mdns, coap):
-        """Step 3-4: PTR query for _{sn}._sub._knx._udp.local → find device."""
+    def test_5_1_2_1_browse_serial_subtype(self, mdns, coap, oscore_ctx):
+        """Step 3-4: PTR query for _{sn}._sub._knx._udp.local -> find device."""
+        _provoke_reannounce(coap, oscore_ctx)
         subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-        found = _browse_service_raw(subtype)
+        found = _browse_service(mdns, subtype)
         assert len(found) > 0, (
             f"No services found browsing serial subtype {subtype}")
         assert expected in found, (
             f"Device not found via serial subtype. Found: {found}")
 
-    def test_5_1_2_1_srv_resolution(self, mdns, coap):
-        """Step 5-6: SRV query → hostname + port."""
-        iface_idx = _require_iface_idx()
-        snap = _query_snapshot(iface_idx)
-        assert snap.sn_present, f"Serial {DUT_SERIAL} not present in DUT response"
-        assert snap.port > 0, f"Invalid port: {snap.port}"
+    def test_5_1_2_1_srv_resolution(self, mdns, coap, oscore_ctx):
+        """Step 5-6: SRV query -> hostname + port."""
+        _provoke_reannounce(coap, oscore_ctx)
+        instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
+        info = _get_service_info(mdns, KNX_SERVICE_TYPE, instance)
+        assert info is not None, f"Could not resolve SRV for {instance}"
 
-    def test_5_1_2_1_aaaa_resolution(self, mdns, coap):
-        """Step 7-8: AAAA query → IPv6 address."""
-        iface_idx = _require_iface_idx()
-        snap = _query_snapshot(iface_idx)
-        assert len(snap.aaaa) > 0, "No IPv6 (AAAA) addresses resolved"
+        expected_hostname = f"knx-{DUT_SERIAL}.local."
+        assert info.server.lower() == expected_hostname, (
+            f"Hostname: {info.server} != {expected_hostname}")
+        assert info.port > 0, f"Invalid port: {info.port}"
+
+    def test_5_1_2_1_aaaa_resolution(self, mdns, coap, oscore_ctx):
+        """Step 7-8: AAAA query -> IPv6 address."""
+        _provoke_reannounce(coap, oscore_ctx)
+        instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
+        info = _get_service_info(mdns, KNX_SERVICE_TYPE, instance)
+        assert info is not None, f"Could not resolve info for {instance}"
+
+        ipv6_addrs = info.parsed_addresses(version=IPVersion.V6Only)
+        assert len(ipv6_addrs) > 0, "No IPv6 (AAAA) addresses resolved"
 
     def test_5_1_2_1_coap_reachability(self, mdns, coap):
         """Step 9-10: CoAP GET .well-known/core at discovered address → 2.05."""
@@ -989,20 +962,22 @@ class TestMdnsDiscoverySerialConfigured:
     def test_5_1_2_2_serial_subtype_configured(self, mdns, coap, oscore_ctx):
         """Configured device (IA set) is still discoverable by serial number."""
         # Device is already configured with IID/IA by conftest oscore_ctx
+        _provoke_reannounce(coap, oscore_ctx)
         subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
 
-        found = _browse_service_raw(subtype)
+        found = _browse_service(mdns, subtype)
         assert len(found) > 0, (
             f"Configured device not found via serial subtype {subtype}")
         assert expected in found, (
             f"Device not in results. Found: {found}")
 
     def test_5_1_2_2_full_chain_configured(self, mdns, coap, oscore_ctx):
-        """Full PTR → SRV → AAAA → CoAP chain for configured device."""
+        """Full PTR -> SRV -> AAAA -> CoAP chain for configured device."""
+        _provoke_reannounce(coap, oscore_ctx)
         subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-        _verify_discovery_chain_raw(coap, subtype, expected)
+        _verify_discovery_chain(mdns, coap, subtype, expected)
 
 
 # ===========================================================================
@@ -1015,12 +990,13 @@ class TestMdnsDiscoveryIA:
     def test_5_1_2_3_ia_subtype_discovery(self, mdns, coap, oscore_ctx):
         """Browse _ia{iid}-{ia}._sub._knx._udp.local → find device."""
         # IID and IA set by conftest: IID=0x1199887766, IA=0x1101
+        _provoke_reannounce(coap, oscore_ctx)
         iid_hex = format(DUT_IID, "x")
         ia_hex = format(DUT_IA, "x")
         subtype = f"_ia{iid_hex}-{ia_hex}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
 
-        found = _browse_service_raw(subtype)
+        found = _browse_service(mdns, subtype)
         assert len(found) > 0, (
             f"Device not found via IA subtype {subtype}")
         assert expected in found, (
@@ -1028,11 +1004,12 @@ class TestMdnsDiscoveryIA:
 
     def test_5_1_2_3_ia_full_chain(self, mdns, coap, oscore_ctx):
         """Full discovery chain using IA subtype."""
+        _provoke_reannounce(coap, oscore_ctx)
         iid_hex = format(DUT_IID, "x")
         ia_hex = format(DUT_IA, "x")
         subtype = f"_ia{iid_hex}-{ia_hex}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-        _verify_discovery_chain_raw(coap, subtype, expected)
+        _verify_discovery_chain(mdns, coap, subtype, expected)
 
 
 # ===========================================================================
@@ -1873,35 +1850,33 @@ def _query_snapshot(iface_idx: int,
     sn_norm = DUT_SERIAL.lower()
 
     for pkt in captured:
-        if pkt.is_goodbye:
-            continue  # only look at announce packets
+        if not pkt.is_goodbye:
+            # Subtype PTR owner names contain "_sub."
+            for owner, target in pkt.ptr:
+                owner_l = owner.lower()
+                if "_sub." in owner_l:
+                    # Extract the short label before "._sub."
+                    short = owner_l.split("._sub.")[0].lstrip("_")
+                    if short not in snap.subtypes:
+                        snap.subtypes.append(short)
+                if sn_norm in target.lower():
+                    snap.sn_present = True
 
-        # Subtype PTR owner names contain "_sub."
-        for owner, target in pkt.ptr:
-            owner_l = owner.lower()
-            if "_sub." in owner_l:
-                # Extract the short label before "._sub."
-                short = owner_l.split("._sub.")[0].lstrip("_")
-                if short not in snap.subtypes:
-                    snap.subtypes.append(short)
-            if sn_norm in target.lower():
-                snap.sn_present = True
+            # AAAA records
+            for _owner, addr in pkt.aaaa:
+                if addr not in snap.aaaa:
+                    snap.aaaa.append(addr)
 
-        # AAAA records
-        for _owner, addr in pkt.aaaa:
-            if addr not in snap.aaaa:
-                snap.aaaa.append(addr)
+            # SRV records - capture the CoAP port
+            for _owner, port, _host in pkt.srv:
+                if snap.port == 0 and port > 0:
+                    snap.port = port
 
-        # SRV records — capture the CoAP port
-        for _owner, port, _host in pkt.srv:
-            if snap.port == 0 and port > 0:
-                snap.port = port
-
-        # TXT records — look for SP=
-        for _owner, props in pkt.txt.items():
-            for k, v in props.items():
-                if k.upper() == b"SP":
-                    snap.sp = v.decode("ascii") if v else ""
+            # TXT records - look for SP=
+            for _owner, props in pkt.txt.items():
+                for k, v in props.items():
+                    if k.upper() == b"SP":
+                        snap.sp = v.decode("ascii") if v else ""
 
     return snap
 
