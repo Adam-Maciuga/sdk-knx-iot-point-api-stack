@@ -788,7 +788,27 @@ def oscore_ctx(coap):
         full_ctx, "/.well-known/knx/ia", payload=ia_iid_payload)
     assert resp_ia is not None, "IA/IID POST timed out"
     assert resp_ia.is_successful, f"IA/IID POST failed: {resp_ia.code}"
-    print("[conftest] Set IID=0x1199887766, IA=0x1101 for runtime state"
-          " (matches EITT)")
+    print("[conftest] Set IID=0x1199887766, IA=0x1101 for runtime state (matches EITT)")
 
     return full_ctx
+
+
+# ---------------------------------------------------------------------------
+# Per-test pass/fail output
+# ---------------------------------------------------------------------------
+
+def pytest_runtest_logreport(report):
+    """Print PASSED / FAILED / ERROR / SKIPPED in front of each test name when it ends."""
+    if report.when == "setup" and report.skipped:
+        status = "SKIPPED"
+    elif report.when == "setup" and report.failed:
+        status = "ERROR"
+    elif report.when == "call" and report.passed:
+        status = "PASSED"
+    elif report.when == "call" and report.failed:
+        status = "FAILED"
+    elif report.when == "call" and report.skipped:
+        status = "SKIPPED"
+    else:
+        return
+    print(f"[{status}] {report.nodeid}")

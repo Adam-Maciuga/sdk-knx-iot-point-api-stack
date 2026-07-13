@@ -200,9 +200,8 @@ def _raw_mdns_ptr_query(iface_idx: int, qname: str,
 
             # DIAG: dump packet header + hex of first response packets so we
             # can see exactly what the DUT returns in a full-suite run.
-            print(f"[mdns] DIAG pkt#{pkt_count} flags=0x{_flags:04x} "
-                  f"qd={_qdcount} an={ancount} ns={_nscount} ar={_arcount} "
-                  f"len={len(data)} hex={data.hex()}")
+            print(f"[mdns] DIAG pkt#{pkt_count} flags=0x{_flags:04x} qd={_qdcount} an={ancount}"
+                  f" ns={_nscount} ar={_arcount} len={len(data)} hex={data.hex()}")
 
             # Skip question section
             offset = 12
@@ -235,8 +234,7 @@ def _raw_mdns_ptr_query(iface_idx: int, qname: str,
             if ptr_results:
                 break  # got what we need
 
-        print(f"[mdns] raw query: received {pkt_count} packets, "
-              f"found {len(ptr_results)} PTR matches")
+        print(f"[mdns] raw query: received {pkt_count} packets, found {len(ptr_results)} PTR matches")
         return ptr_results
     finally:
         sock.close()
@@ -314,8 +312,7 @@ def _capture_mdns_announcements(iface_idx: int, target_ptr_name: str,
             if ptr_results:
                 break
 
-        print(f"[mdns] capture: received {pkt_count} packets, "
-              f"found {len(ptr_results)} PTR matches for {target_ptr_name}")
+        print(f"[mdns] capture: received {pkt_count} packets, found {len(ptr_results)} PTR matches for {target_ptr_name}")
         return ptr_results
     finally:
         sock.close()
@@ -454,9 +451,9 @@ DNS_TYPE_AAAA = 28
 
 # Max seconds we wait after triggering a change for both goodbye and
 # re-announcement to arrive before declaring the capture complete.
-# The stack sends goodbye+announce within ~2 ms; 3 s is more than enough
-# even under Docker CI load.  Was 8 s (unnecessarily conservative).
-TRANSITION_CAPTURE_TIMEOUT_S = 3.0
+# The stack sends goodbye+announce within ~2 ms; 1 s is more than enough
+# even under Docker CI load.  Was 3 s (unnecessarily conservative).
+TRANSITION_CAPTURE_TIMEOUT_S = 1.0
 
 # Goodbye re-announcement gap limit (RFC 6762 §8.3: should be < 1 s)
 MAX_GOODBYE_HELLO_GAP_S = 1.5
@@ -790,7 +787,7 @@ def _browse_service(mdns: "Zeroconf", service_type: str,
         iface_idx = _iface_name_to_index(iface)
     except (OSError, AttributeError):
         return []
-    print(f"[mdns] zeroconf got 0 results for {service_type!r}")
+    print(f"[mdns] _browse_service: zeroconf got 0 results for {service_type!r}, sending raw PTR query to wake DUT")
     raw = _raw_mdns_ptr_query(iface_idx, service_type, timeout=timeout)
     if not raw:
         return []
@@ -837,8 +834,7 @@ def _get_service_info(mdns: "Zeroconf", service_type: str,
                                      timeout=timeout_ms)
         if info is not None:
             return info
-        print(f"[mdns] _get_service_info: attempt {attempt + 1} returned None "
-              f"for {instance_name!r}, retrying")
+        print(f"[mdns] _get_service_info: attempt {attempt + 1} returned None for {instance_name!r}, retrying")
         time.sleep(1.5)
     return None
 
@@ -1503,15 +1499,12 @@ class TestMdnsTransitionAudit:
         """
         pkts = sorted(tr.packets, key=lambda p: p.timestamp)
         if not pkts:
-            print(f"\n[{label}] timeline: (no packets captured)")
+            print(f"[{label}] timeline: (no packets captured)")
             return
 
         t0 = pkts[0].timestamp
-        lines = [f"\n[{label}] mDNS transition timeline (T0={t0:.3f}):"]
-        lines.append(
-            f"  {'dt(s)':>8}  {'TYPE':^8}  {'SUBTYPES':<42}  "
-            f"{'AAAA':<39}  {'PORT':>6}  SP"
-        )
+        lines = [f"[{label}] mDNS transition timeline (T0={t0:.3f}):"]
+        lines.append(f"  {'dt(s)':>8}  {'TYPE':^8}  {'SUBTYPES':<42}  {'AAAA':<39}  {'PORT':>6}  SP")
         lines.append("  " + "-" * 118)
 
         for pkt in pkts:
@@ -1538,14 +1531,10 @@ class TestMdnsTransitionAudit:
                         sp_vals.append(v.decode("ascii") if v else "")
             sp_str = sp_vals[0] if sp_vals else "-"
 
-            lines.append(
-                f"  +{dt:>7.3f}s  {kind}  {subtypes_str:<42}  "
-                f"{aaaa_str:<39}  {port_str:>6}  {sp_str}"
-            )
+            lines.append(f"  +{dt:>7.3f}s  {kind}  {subtypes_str:<42}  {aaaa_str:<39}  {port_str:>6}  {sp_str}")
 
         if tr.gap_s is not None:
-            lines.append(f"\n  goodbye->announce gap: {tr.gap_s:.3f}s "
-                         f"(limit {MAX_GOODBYE_HELLO_GAP_S}s)")
+            lines.append(f"  goodbye->announce gap: {tr.gap_s:.3f}s (limit {MAX_GOODBYE_HELLO_GAP_S}s)")
         print("\n".join(lines))
 
     # ------------------------------------------------------------------
@@ -1734,7 +1723,7 @@ class TestMdnsTransitionAudit:
             assert resp is not None and resp.is_successful, (
                 f"POST /test/sleep-period sp=0 failed: {resp}")
 
-        tr = _run_transition(self._iface_idx, _trigger, timeout=20.0,
+        tr = _run_transition(self._iface_idx, _trigger,
                              want_goodbye=False)
 
         assert tr.announces, "[sp_clear] No re-announcement captured"
@@ -1908,8 +1897,8 @@ class TestMdnsStateSync:
     def _snap(self, label: str, timeout: float = 6.0) -> "_MdnsSnapshot":
         """Query the DUT's current mDNS state and print a summary."""
         snap = _query_snapshot(self._iface_idx, timeout=timeout)
-        print(f"\n[state_sync/{label}] snapshot: subtypes={snap.subtypes} "
-              f"sp={snap.sp!r} sn={snap.sn_present} aaaa={snap.aaaa} port={snap.port}")
+        print(f"[state_sync/{label}] snapshot: subtypes={snap.subtypes}"
+              f" sp={snap.sp!r} sn={snap.sn_present} aaaa={snap.aaaa} port={snap.port}")
         return snap
 
     @staticmethod
@@ -1921,9 +1910,7 @@ class TestMdnsStateSync:
         iid  = snap.iid or "(none)"
         pm   = "ON" if snap.pm else "off"
         sp   = snap.sp if snap.sp is not None else "(none)"
-        print(f"[client-view/{label}]"
-              f"  addr=[{addr}]  port={port}"
-              f"  IA=0x{ia}  IID=0x{iid}  PM={pm}  SP={sp}")
+        print(f"[client-view/{label}]  addr=[{addr}]  port={port}  IA=0x{ia}  IID=0x{iid}  PM={pm}  SP={sp}")
 
     def _transition(self, label: str, trigger_fn,
                     timeout: float = TRANSITION_CAPTURE_TIMEOUT_S,
@@ -1931,9 +1918,7 @@ class TestMdnsStateSync:
         """Fire a device-internal state change and capture the mDNS transition."""
         tr = _run_transition(self._iface_idx, trigger_fn,
                              timeout=timeout, want_goodbye=want_goodbye)
-        print(f"\n[state_sync/{label}] transition: "
-              f"goodbyes={len(tr.goodbyes)} announces={len(tr.announces)} "
-              f"gap={tr.gap_s}")
+        print(f"[state_sync/{label}] transition: goodbyes={len(tr.goodbyes)} announces={len(tr.announces)} gap={tr.gap_s}")
         return tr
 
     # ------------------------------------------------------------------
@@ -2050,7 +2035,7 @@ class TestMdnsStateSync:
                 f"POST /test/sleep-period sp=0 failed: {resp}")
 
         tr_clear = self._transition("sp/clear", _clear_sp,
-                                    timeout=20.0, want_goodbye=False)
+                                    timeout=3.0, want_goodbye=False)
         assert tr_clear.announces, "[sp_seq] No re-announcement after SP clear"
 
         # --- Step 5: query after SP clear ---
@@ -2360,8 +2345,7 @@ class TestMdnsStateSync:
         finally:
             client_before.close()
 
-        print(f"[addr_stab] pre-restart GET /a/lsm -> "
-              f"{resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
+        print(f"[addr_stab] pre-restart GET /a/lsm -> {resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
 
         # --- Step 3: trigger restart and capture mDNS transition ---
         def _restart():
@@ -2396,7 +2380,6 @@ class TestMdnsStateSync:
         # --- Step 6: print before/after table ---
         addr_changed = (addr_after != addr_before)
         port_changed = (port_after != port_before)
-        print()
         print(f"[addr_stab] {'':=<62}")
         print(f"[addr_stab]  {'Field':<14}  {'BEFORE restart':<28}  {'AFTER restart':<28}")
         print(f"[addr_stab]  {'-'*14}  {'-'*28}  {'-'*28}")
@@ -2430,9 +2413,8 @@ class TestMdnsStateSync:
         finally:
             client_after.close()
 
-        print(f"[addr_stab] post-restart GET /a/lsm -> "
-              f"{resp_after.code_class}.{resp_after.code_detail:02d} (liveness OK) "
-              f"-- mDNS endpoint is reachable across restart")
+        print(f"[addr_stab] post-restart GET /a/lsm -> {resp_after.code_class}.{resp_after.code_detail:02d}"
+              f" (liveness OK) -- mDNS endpoint is reachable across restart")
 
     # ------------------------------------------------------------------
     # Factory-reset address stability: mDNS-discovered endpoint is always
@@ -2520,8 +2502,8 @@ class TestMdnsStateSync:
         finally:
             client_before.close()
 
-        print(f"[addr_stab_freset] pre-reset GET /a/lsm -> "
-              f"{resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
+        print(f"[addr_stab_freset] pre-reset GET /a/lsm ->"
+              f" {resp_before.code_class}.{resp_before.code_detail:02d} (liveness OK)")
 
         # --- Step 3: trigger factory reset and capture mDNS transition ---
         def _factory_reset():
@@ -2564,7 +2546,6 @@ class TestMdnsStateSync:
         # --- Step 5: print before/after table (factory-reset) ---
         addr_changed = (addr_after != addr_before)
         port_changed = (port_after != port_before)
-        print()
         print(f"[addr_stab_freset] {'':=<62}")
         print(f"[addr_stab_freset]  {'Field':<14}  {'BEFORE factory-reset':<28}  {'AFTER factory-reset':<28}")
         print(f"[addr_stab_freset]  {'-'*14}  {'-'*28}  {'-'*28}")
@@ -2574,7 +2555,8 @@ class TestMdnsStateSync:
               f"  {'<-- CHANGED' if port_changed else ''}")
         print(f"[addr_stab_freset]  {'IID (hex)':<14}  {snap_before.iid or '?':<28}  {snap_after.iid or '(reset=0)':<28}")
         print(f"[addr_stab_freset]  {'IA  (hex)':<14}  {snap_before.ia  or '?':<28}  {snap_after.ia  or '(reset=ffff)':<28}")
-        print(f"[addr_stab_freset]  {'PM':<14}  {'ON' if snap_before.pm else 'off':<28}  {'ON' if snap_after.pm else 'off':<28}")
+        print(f"[addr_stab_freset]  {'PM':<14}  {'ON' if snap_before.pm else 'off':<28}"
+              f"  {'ON' if snap_after.pm else 'off':<28}")
         print(f"[addr_stab_freset]  {'SP':<14}  {snap_before.sp or '(none)':<28}  {snap_after.sp or '(none)':<28}")
         print(f"[addr_stab_freset] {'':=<62}")
         if addr_changed or port_changed:
@@ -2598,7 +2580,6 @@ class TestMdnsStateSync:
         finally:
             client_after.close()
 
-        print(f"[addr_stab_freset] post-reset GET /a/lsm -> "
-              f"{resp_after.code_class}.{resp_after.code_detail:02d} (liveness OK) "
-              f"-- mDNS endpoint is reachable across factory reset")
+        print(f"[addr_stab_freset] post-reset GET /a/lsm -> {resp_after.code_class}.{resp_after.code_detail:02d}"
+              f" (liveness OK) -- mDNS endpoint is reachable across factory reset")
 
