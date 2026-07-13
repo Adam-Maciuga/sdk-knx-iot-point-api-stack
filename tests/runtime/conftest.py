@@ -798,7 +798,7 @@ def oscore_ctx(coap):
 # ---------------------------------------------------------------------------
 
 def pytest_runtest_logreport(report):
-    """Print PASSED / FAILED / ERROR / SKIPPED in front of each test name when it ends."""
+    """Write PASSED / FAILED / ERROR / SKIPPED on its own line via the terminal reporter."""
     if report.when == "setup" and report.skipped:
         status = "SKIPPED"
     elif report.when == "setup" and report.failed:
@@ -811,4 +811,6 @@ def pytest_runtest_logreport(report):
         status = "SKIPPED"
     else:
         return
-    print(f"[{status}] {report.nodeid}")
+    import sys
+    sys.stdout.write(f"\n[{status}] {report.nodeid}\n")
+    sys.stdout.flush()
