@@ -52,9 +52,9 @@ KNX_SERVICE_TYPE = "_knx._udp.local."
 # Timeouts (ms for zeroconf, seconds for CoAP)
 MDNS_BROWSE_TIMEOUT_S = 2
 # How long to wait after a CoAP state-change before querying mDNS.
-# The stack re-announces within ~10 ms of the trigger; 1 s is well within
-# that margin even under Docker CI load.  Was 3 s (unnecessarily conservative).
-MDNS_ANNOUNCE_WAIT_S = 1
+# The stack re-announces within ~10 ms of the trigger; 2 s gives enough
+# headroom for ASAN CI load.  Was 3 s (unnecessarily conservative).
+MDNS_ANNOUNCE_WAIT_S = 2
 COAP_TIMEOUT = 5.0
 
 
@@ -448,9 +448,9 @@ DNS_TYPE_AAAA = 28
 
 # Max seconds we wait after triggering a change for both goodbye and
 # re-announcement to arrive before declaring the capture complete.
-# The stack sends goodbye+announce within ~2 ms; 1 s is more than enough
-# even under Docker CI load.  Was 3 s (unnecessarily conservative).
-TRANSITION_CAPTURE_TIMEOUT_S = 1.0
+# The stack sends goodbye+announce within ~2 ms; 2 s gives enough headroom
+# for ASAN CI load.  Was 3 s (unnecessarily conservative).
+TRANSITION_CAPTURE_TIMEOUT_S = 2.0
 
 # Goodbye re-announcement gap limit (RFC 6762 §8.3: should be < 1 s)
 MAX_GOODBYE_HELLO_GAP_S = 1.5
