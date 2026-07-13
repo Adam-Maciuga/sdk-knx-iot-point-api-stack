@@ -180,7 +180,6 @@ linux-runtime-test:
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
       tests/runtime/test_5_10_generic.py
-      
       -v --tb=short --junit-xml=build/linux-test-gcc/runtime-report.xml
   artifacts:
     when: always
