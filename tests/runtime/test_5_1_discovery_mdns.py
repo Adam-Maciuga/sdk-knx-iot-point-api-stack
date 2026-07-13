@@ -50,7 +50,7 @@ DUT_SERIAL = "00fa10020800"
 KNX_SERVICE_TYPE = "_knx._udp.local."
 
 # Timeouts (ms for zeroconf, seconds for CoAP)
-MDNS_BROWSE_TIMEOUT_S = 5
+MDNS_BROWSE_TIMEOUT_S = 2
 # How long to wait after a CoAP state-change before querying mDNS.
 # The stack re-announces within ~10 ms of the trigger; 1 s is well within
 # that margin even under Docker CI load.  Was 3 s (unnecessarily conservative).
@@ -790,8 +790,7 @@ def _browse_service(mdns: "Zeroconf", service_type: str,
         iface_idx = _iface_name_to_index(iface)
     except (OSError, AttributeError):
         return []
-    print(f"[mdns] _browse_service: zeroconf got 0 results for {service_type!r}, "
-          f"sending raw PTR query to wake DUT")
+    print(f"[mdns] zeroconf got 0 results for {service_type!r}")
     raw = _raw_mdns_ptr_query(iface_idx, service_type, timeout=timeout)
     if not raw:
         return []
