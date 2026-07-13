@@ -198,10 +198,7 @@ def _raw_mdns_ptr_query(iface_idx: int, qname: str,
             if not is_response:
                 continue
 
-            # DIAG: dump packet header + hex of first response packets so we
-            # can see exactly what the DUT returns in a full-suite run.
-            print(f"[mdns] DIAG pkt#{pkt_count} flags=0x{_flags:04x} qd={_qdcount} an={ancount}"
-                  f" ns={_nscount} ar={_arcount} len={len(data)} hex={data.hex()}")
+            print(f"[mdns] DIAG pkt#{pkt_count} flags=0x{_flags:04x} qd={_qdcount} an={ancount} ns={_nscount} ar={_arcount} len={len(data)}")
 
             # Skip question section
             offset = 12

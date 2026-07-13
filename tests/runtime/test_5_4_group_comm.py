@@ -536,7 +536,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
         try:
             scope_id = socket.if_nametoindex(device_iface)
         except (OSError, AttributeError):
-            print(f"[malformed-disco] Warning: could not resolve "
+            print(f"[malformed-discovery] Warning: could not resolve "
                   f"'{device_iface}'")
 
     # Multicast socket - receives the DUT's discovery GET on port 5683
@@ -548,7 +548,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
     uc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     uc_sock.bind(("", 0))  # ephemeral port
     uc_port = uc_sock.getsockname()[1]
-    print(f"[malformed-disco] Unicast socket on port {uc_port}")
+    print(f"[malformed-discovery] Unicast socket on port {uc_port}")
 
     # Join all-CoAP-nodes multicast (link-local + site-local)
     joined = []
@@ -562,7 +562,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
                                socket.IPV6_JOIN_GROUP, mreq)
             joined.append(mreq)
         except OSError as exc:
-            print(f"[malformed-disco] Warning: join {maddr} failed: {exc}")
+            print(f"[malformed-discovery] Warning: join {maddr} failed: {exc}")
 
     def _answer(addr, tkl, token, mid):
         """Send a NON 2.05 link-format response carrying *ep_payload*."""
@@ -624,17 +624,17 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
                     result["got_get"] = True
                     result["get_count"] += 1
                     last_get_time = time.monotonic()
-                    print(f"[malformed-disco] GET #{result['get_count']} "
+                    print(f"[malformed-discovery] GET #{result['get_count']} "
                           f"from {addr[0]}:{addr[1]} mid={mid} tkl={tkl}")
                     _answer(addr, tkl, token, mid)
-                    print(f"[malformed-disco] Answered with ep={ep_payload!r}")
+                    print(f"[malformed-discovery] Answered with ep={ep_payload!r}")
                     continue
 
                 # POST = unicast s-mode message (arrives on uc_sock) -> the
                 # DUT accepted the ep and resolved the recipient.
                 if code_class == 0 and code_detail == 2:
                     msg = CoapClient.parse_coap_message(data)
-                    print(f"[malformed-disco] Captured POST from "
+                    print(f"[malformed-discovery] Captured POST from "
                           f"{addr[0]}:{addr[1]} type={msg['type']}")
                     result["post"] = (msg, addr)
                     break
