@@ -51,7 +51,10 @@ KNX_SERVICE_TYPE = "_knx._udp.local."
 
 # Timeouts (ms for zeroconf, seconds for CoAP)
 MDNS_BROWSE_TIMEOUT_S = 5
-MDNS_ANNOUNCE_WAIT_S = 3
+# How long to wait after a CoAP state-change before querying mDNS.
+# The stack re-announces within ~10 ms of the trigger; 1 s is well within
+# that margin even under Docker CI load.  Was 3 s (unnecessarily conservative).
+MDNS_ANNOUNCE_WAIT_S = 1
 COAP_TIMEOUT = 5.0
 
 
@@ -451,7 +454,9 @@ DNS_TYPE_AAAA = 28
 
 # Max seconds we wait after triggering a change for both goodbye and
 # re-announcement to arrive before declaring the capture complete.
-TRANSITION_CAPTURE_TIMEOUT_S = 8.0
+# The stack sends goodbye+announce within ~2 ms; 3 s is more than enough
+# even under Docker CI load.  Was 8 s (unnecessarily conservative).
+TRANSITION_CAPTURE_TIMEOUT_S = 3.0
 
 # Goodbye re-announcement gap limit (RFC 6762 §8.3: should be < 1 s)
 MAX_GOODBYE_HELLO_GAP_S = 1.5
@@ -1819,7 +1824,7 @@ class _MdnsSnapshot:
 
 
 def _query_snapshot(iface_idx: int,
-                    timeout: float = 6.0) -> "_MdnsSnapshot":
+                    timeout: float = 2.0) -> "_MdnsSnapshot":
     """Fire a raw PTR query and capture the DUT's full mDNS response.
 
     Starts a background capture thread (using _parse_mdns_packets) then
