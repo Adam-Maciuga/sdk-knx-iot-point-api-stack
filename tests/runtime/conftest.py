@@ -797,20 +797,3 @@ def oscore_ctx(coap):
 # Per-test pass/fail output
 # ---------------------------------------------------------------------------
 
-def pytest_runtest_logreport(report):
-    """Write PASSED / FAILED / ERROR / SKIPPED on its own line via the terminal reporter."""
-    if report.when == "setup" and report.skipped:
-        status = "SKIPPED"
-    elif report.when == "setup" and report.failed:
-        status = "ERROR"
-    elif report.when == "call" and report.passed:
-        status = "PASSED"
-    elif report.when == "call" and report.failed:
-        status = "FAILED"
-    elif report.when == "call" and report.skipped:
-        status = "SKIPPED"
-    else:
-        return
-    import sys
-    sys.stdout.write(f"\n[{status}] {report.nodeid}\n")
-    sys.stdout.flush()

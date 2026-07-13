@@ -145,7 +145,7 @@ finally {
 # Extract failing/erroring test IDs from pytest's short summary (-rfE) lines,
 # e.g. "FAILED tests/runtime/test_5_9_observe.py::test_x - AssertionError".
 $failed = $output |
-    Select-String -Pattern '^(FAILED|ERROR) ' |
+    Select-String -Pattern ' (FAILED|ERROR)' |
     ForEach-Object { $_.ToString().Trim() }
 
 Write-Host ""
