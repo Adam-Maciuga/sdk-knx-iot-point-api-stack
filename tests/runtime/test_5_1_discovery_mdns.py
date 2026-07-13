@@ -540,11 +540,12 @@ def _parse_mdns_packets(iface_idx: int,
                 rdata = data[offset: offset + rdlen]
                 offset += rdlen
 
-                # A packet is a goodbye when it contains at least one PTR
-                # record with TTL=0.  AAAA records may have TTL>0 even in a
-                # goodbye packet, so only PTR TTLs determine the goodbye flag.
-                # Packets with no PTR records at all are announcements.
-                if rr_type == DNS_TYPE_PTR and rr_ttl == 0:
+                # Goodbye classification:
+                # - PTR TTL=0  → full service goodbye
+                # - TXT TTL=0  → standalone TXT record goodbye (SP cleared)
+                # AAAA records may have TTL>0 even in a goodbye packet.
+                # Packets with no PTR/TXT records at all are announcements.
+                if rr_ttl == 0 and rr_type in (DNS_TYPE_PTR, DNS_TYPE_TXT):
                     pkt.is_goodbye = True
 
                 rr_norm = rr_name.lower().rstrip(".")
@@ -1435,7 +1436,10 @@ def _set_sp_and_get_txt(coap, oscore_ctx, iface_idx: int,
                         break
                     rdata = data[offset: offset + rdlen]
                     offset += rdlen
-                    if rr_type == DNS_TYPE_PTR and rr_ttl == 0:
+                    # Goodbye classification:
+                    # - PTR TTL=0  → full service goodbye
+                    # - TXT TTL=0  → standalone TXT record goodbye (SP cleared)
+                    if rr_ttl == 0 and rr_type in (DNS_TYPE_PTR, DNS_TYPE_TXT):
                         pkt.is_goodbye = True
                     rr_norm = rr_name.lower().rstrip(".")
                     sn_norm = DUT_SERIAL.lower()
@@ -1488,7 +1492,7 @@ class TestMdnsSleepPeriod:
       sp >  0  -> TXT record SP=<sp> present
     Reachable at runtime via POST /test/sleep-period {1: <int>}.
 
-    SP buffer is char sp[6] (max 5 digits + NUL), so values up to 99999.
+    SP buffer is char sp[6] (max 5 digits + NUL), so values up to 65535 (uint16_t).
     """
 
     @pytest.fixture(autouse=True)

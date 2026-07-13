@@ -484,7 +484,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   // TXT: optional SP=<seconds> (conditional) 
   if (record->knx.sp != 0) 
   {
-    // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
+    // uint16_t max = 65535 (5 digits) + NUL terminator
     char sp_str[5 + 1];
     (void)snprintf(sp_str, sizeof(sp_str), "%d", record->knx.sp);
     
@@ -892,7 +892,7 @@ static int send_query_response(int sock, const char *ptr_name)
   {
     // we have a non-zero sleep period
 
-    // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
+    // uint16_t max = 65535 (5 digits) + NUL terminator
     char sp_str[5 + 1];
     (void) snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
 
@@ -1449,9 +1449,9 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
         (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE,
                        current_advertisement.knx.sn);
         
-        // always places after last char a '\0' - even if sp is larger than 5 digits such as 123456 = 12345 + '\0' (truncated)
-        char sp_str[5 +1]; 
-        (void)snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp); 
+        // uint16_t max = 65535 (5 digits) + NUL terminator
+        char sp_str[5 + 1];
+        (void)snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
 
         const mdns_record_t sp_txt =
         {
