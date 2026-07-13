@@ -100,6 +100,8 @@ linux-runtime-test-asan:
       tests/runtime/test_5_1_discovery.py
       tests/runtime/test_5_1_discovery_multicast.py
       tests/runtime/test_5_1_discovery_extended.py
+      tests/runtime/test_5_1_discovery_mdns.py
+      tests/runtime/test_5_2_reset.py
       tests/runtime/test_5_2_wellknown_knx.py
       tests/runtime/test_5_2_fingerprint.py
       tests/runtime/test_5_2_device_resources.py
@@ -112,8 +114,6 @@ linux-runtime-test-asan:
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
       tests/runtime/test_5_10_generic.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
       -v --tb=short --junit-xml=build/linux-test-asan/runtime-report.xml
   artifacts:
     when: always
@@ -166,6 +166,8 @@ linux-runtime-test:
       tests/runtime/test_5_1_discovery.py
       tests/runtime/test_5_1_discovery_multicast.py
       tests/runtime/test_5_1_discovery_extended.py
+      tests/runtime/test_5_1_discovery_mdns.py
+      tests/runtime/test_5_2_reset.py
       tests/runtime/test_5_2_wellknown_knx.py
       tests/runtime/test_5_2_fingerprint.py
       tests/runtime/test_5_2_device_resources.py
@@ -178,8 +180,7 @@ linux-runtime-test:
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
       tests/runtime/test_5_10_generic.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
+      
       -v --tb=short --junit-xml=build/linux-test-gcc/runtime-report.xml
   artifacts:
     when: always
