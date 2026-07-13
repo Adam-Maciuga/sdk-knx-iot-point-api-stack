@@ -321,20 +321,23 @@ def _capture_mdns_announcements(iface_idx: int, target_ptr_name: str,
 
 def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
                         timeout: float = 5.0) -> "dict[bytes, bytes | None] | None":
-    """Send a raw mDNS PTR query and return TXT key/value pairs for instance_name.
+    """Send a raw mDNS ANY query for instance_name and return TXT key/value pairs.
 
-    The DUT responds to PTR queries with a full record set (PTR + SRV + AAAA +
-    optional TXT SP=<n> in the additional section).  We parse all RRs in
-    the response, collect TXT records whose owner name matches instance_name,
-    and return the parsed properties.
+    Querying DNS_TYPE_ANY (255) directly for the instance name (e.g.
+    <serial>._knx._udp.local.) avoids RFC 6762 PTR duplicate-response
+    suppression, which causes the DUT to silently drop PTR responses after
+    recent announcements.  The DUT responds with its full record set (SRV +
+    AAAA + optional TXT SP=<n>); we collect TXT records from the answer and
+    additional sections and return the parsed properties.
 
     Returns:
-        dict  - TXT response received (may be empty if no keys present)
-        None  - no PTR response received within timeout
+        dict  - response received (may be empty if no TXT keys present)
+        None  - no response received within timeout
     """
+    DNS_TYPE_ANY = 255
     header = struct.pack("!HHHHHH", 0, 0, 1, 0, 0, 0)
-    question = (_encode_dns_name(KNX_SERVICE_TYPE)
-                + struct.pack("!HH", DNS_TYPE_PTR, DNS_CLASS_IN))
+    question = (_encode_dns_name(instance_name)
+                + struct.pack("!HH", DNS_TYPE_ANY, DNS_CLASS_IN))
     packet = header + question
 
     instance_norm = instance_name.lower().rstrip(".")
@@ -388,11 +391,10 @@ def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
                 _name, offset = _decode_dns_name(data, offset)
                 offset += 4
 
-            # Parse all RR sections; collect TXT RRs for our instance and PTR hits
+            # Parse all RR sections; collect TXT RRs for our instance
             total_rr = ancount + _nscount + _arcount
-            got_ptr = False
             txt_props: "dict[bytes, bytes | None]" = {}
-            found_txt = False
+            got_response = False
 
             for _ in range(total_rr):
                 if offset >= len(data):
@@ -409,20 +411,13 @@ def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
                 rdata = data[offset: offset + rdlen]
                 offset += rdlen
 
-                # Track whether this response is for our service (PTR hit)
-                if rr_type == DNS_TYPE_PTR:
-                    try:
-                        ptr_target, _ = _decode_dns_name(data,
-                                                         offset - rdlen)
-                        if ptr_target.lower().rstrip(".") == instance_norm:
-                            got_ptr = True
-                    except Exception:
-                        pass
+                # Any RR whose owner name matches our instance = valid response
+                if rr_name.lower().rstrip(".") == instance_norm:
+                    got_response = True
 
                 # Collect TXT records for our instance
                 if (rr_type == DNS_TYPE_TXT
                         and rr_name.lower().rstrip(".") == instance_norm):
-                    found_txt = True
                     pos = 0
                     while pos < len(rdata):
                         slen = rdata[pos]
@@ -437,12 +432,12 @@ def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
                         else:
                             txt_props[entry] = None
 
-            if got_ptr or found_txt:
-                # We got a response from our DUT — return what TXT we found
-                # (empty dict means PTR/SRV were in the response but no TXT)
+            if got_response:
+                # We got a response from our DUT — return whatever TXT we found
+                # (empty dict means SRV/AAAA were present but no TXT record)
                 return txt_props
 
-        return None  # no PTR response received within timeout
+        return None  # no response received within timeout
     finally:
         sock.close()
 
