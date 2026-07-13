@@ -1502,25 +1502,25 @@ class TestMdnsSleepPeriod:
             pytest.skip("DEVICE_IFACE not set — passive mDNS capture not possible")
         self._iface_idx = _iface_name_to_index(iface)
 
-    def test_sp_not_present_by_default(self, coap, oscore_ctx):
+    def test_5_1_3_1_sp_not_present_by_default(self, coap, oscore_ctx):
         """SP TXT record is absent when sleep period is 0 (default)."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 0)
         assert sp_val is None, (
             f"Expected no SP TXT record when sp=0, got SP={sp_val!r}")
 
-    def test_sp_200(self, coap, oscore_ctx):
+    def test_5_1_3_2_sp_200(self, coap, oscore_ctx):
         """SP=200 appears in the TXT record after setting sp=200."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 200)
         assert sp_val == "200", (
             f"Expected SP=200 in TXT, got SP={sp_val!r}")
 
-    def test_sp_20000(self, coap, oscore_ctx):
+    def test_5_1_3_3_sp_20000(self, coap, oscore_ctx):
         """SP=20000 appears in the TXT record after setting sp=20000."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 20000)
         assert sp_val == "20000", (
             f"Expected SP=20000 in TXT, got SP={sp_val!r}")
 
-    def test_sp_cleared(self, coap, oscore_ctx):
+    def test_5_1_3_4_sp_cleared(self, coap, oscore_ctx):
         """Setting sp=0 after a non-zero value removes the TXT record."""
         # First set a value so the TXT record is present
         sp_before = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 30)
