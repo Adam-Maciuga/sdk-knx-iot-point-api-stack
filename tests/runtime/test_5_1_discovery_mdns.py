@@ -356,15 +356,23 @@ def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
         sock.sendto(packet, (MDNS_MULTICAST_ADDR, MDNS_PORT, 0, iface_idx))
 
         deadline = time.monotonic() + timeout
+        next_resend = time.monotonic() + 1.2
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
-            sock.settimeout(remaining)
+            if time.monotonic() >= next_resend:
+                try:
+                    sock.sendto(packet,
+                                (MDNS_MULTICAST_ADDR, MDNS_PORT, 0, iface_idx))
+                except OSError:
+                    pass
+                next_resend = time.monotonic() + 1.2
+            sock.settimeout(min(remaining, 1.0))
             try:
                 data, _addr = sock.recvfrom(4096)
             except socket.timeout:
-                break
+                continue
 
             if len(data) < 12:
                 continue
@@ -537,7 +545,10 @@ def _parse_mdns_packets(iface_idx: int,
                 rdata = data[offset: offset + rdlen]
                 offset += rdlen
 
-                if rr_ttl != 0:
+                # A packet is a goodbye if its PTR records have TTL=0.
+                # AAAA records may have TTL>0 even in a goodbye, so only
+                # PTR TTLs determine the goodbye flag.
+                if rr_type == DNS_TYPE_PTR and rr_ttl != 0:
                     pkt.is_goodbye = False
 
                 rr_norm = rr_name.lower().rstrip(".")
