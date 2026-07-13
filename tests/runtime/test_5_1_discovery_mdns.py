@@ -1502,25 +1502,25 @@ class TestMdnsSleepPeriod:
             pytest.skip("DEVICE_IFACE not set — passive mDNS capture not possible")
         self._iface_idx = _iface_name_to_index(iface)
 
-    def test_5_1_3_1_sp_not_present_by_default(self, coap, oscore_ctx):
+    def test_5_1_900_1_sp_not_present_by_default(self, coap, oscore_ctx):
         """SP TXT record is absent when sleep period is 0 (default)."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 0)
         assert sp_val is None, (
             f"Expected no SP TXT record when sp=0, got SP={sp_val!r}")
 
-    def test_5_1_3_2_sp_200(self, coap, oscore_ctx):
+    def test_5_1_900_2_sp_200(self, coap, oscore_ctx):
         """SP=200 appears in the TXT record after setting sp=200."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 200)
         assert sp_val == "200", (
             f"Expected SP=200 in TXT, got SP={sp_val!r}")
 
-    def test_5_1_3_3_sp_20000(self, coap, oscore_ctx):
+    def test_5_1_900_3_sp_20000(self, coap, oscore_ctx):
         """SP=20000 appears in the TXT record after setting sp=20000."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 20000)
         assert sp_val == "20000", (
             f"Expected SP=20000 in TXT, got SP={sp_val!r}")
 
-    def test_5_1_3_4_sp_cleared(self, coap, oscore_ctx):
+    def test_5_1_900_4_sp_cleared(self, coap, oscore_ctx):
         """Setting sp=0 after a non-zero value removes the TXT record."""
         # First set a value so the TXT record is present
         sp_before = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 30)
@@ -1647,7 +1647,7 @@ class TestMdnsTransitionAudit:
     # IA / IID change
     # ------------------------------------------------------------------
 
-    def test_transition_ia_change(self, coap, oscore_ctx):
+    def test_5_1_901_1_transition_ia_change(self, coap, oscore_ctx):
         """IA/IID change: old _ia subtype in goodbye, new _ia subtype in
         re-announcement; SN, AAAA, and gap all verified."""
         old_iid_hex = format(DUT_IID, "x")
@@ -1694,7 +1694,7 @@ class TestMdnsTransitionAudit:
     # PM enable
     # ------------------------------------------------------------------
 
-    def test_transition_pm_enable(self, coap, oscore_ctx):
+    def test_5_1_901_2_transition_pm_enable(self, coap, oscore_ctx):
         """PM enabled: _pm subtype appears in re-announcement but not goodbye;
         SN, AAAA, and gap all verified."""
         # Ensure PM starts disabled
@@ -1735,7 +1735,7 @@ class TestMdnsTransitionAudit:
     # PM disable
     # ------------------------------------------------------------------
 
-    def test_transition_pm_disable(self, coap, oscore_ctx):
+    def test_5_1_901_3_transition_pm_disable(self, coap, oscore_ctx):
         """PM disabled: _pm subtype present in goodbye, absent in
         re-announcement; SN, AAAA, and gap all verified."""
         # Ensure PM starts enabled
@@ -1771,7 +1771,7 @@ class TestMdnsTransitionAudit:
     # SP set (0 → 500)
     # ------------------------------------------------------------------
 
-    def test_transition_sp_set(self, coap, oscore_ctx):
+    def test_5_1_901_4_transition_sp_set(self, coap, oscore_ctx):
         """SP set from 0 to 500: no goodbye expected (nothing to retract);
         SP=500 appears in re-announcement TXT; SN, AAAA, and gap verified."""
         # Ensure SP starts at 0
@@ -1815,7 +1815,7 @@ class TestMdnsTransitionAudit:
     # SP clear (500 → 0): standalone TXT goodbye + re-announcement
     # ------------------------------------------------------------------
 
-    def test_transition_sp_clear(self, coap, oscore_ctx):
+    def test_5_1_901_5_transition_sp_clear(self, coap, oscore_ctx):
         """SP cleared from 500 to 0: re-announcement without SP TXT;
         SN and AAAA verified."""
         # Ensure SP starts at 500
@@ -2031,7 +2031,7 @@ class TestMdnsStateSync:
     # PM on/off sequence
     # ------------------------------------------------------------------
 
-    def test_state_sync_pm_sequence(self, coap, oscore_ctx):
+    def test_5_1_902_1_state_sync_pm_sequence(self, coap, oscore_ctx):
         """PM state is reflected correctly in mDNS across on/off cycle.
 
         Sequence:
@@ -2098,7 +2098,7 @@ class TestMdnsStateSync:
     # SP set / clear sequence
     # ------------------------------------------------------------------
 
-    def test_state_sync_sp_sequence(self, coap, oscore_ctx):
+    def test_5_1_902_2_state_sync_sp_sequence(self, coap, oscore_ctx):
         """Sleep-period TXT record stays in sync across set / clear cycle.
 
         Sequence:
@@ -2156,7 +2156,7 @@ class TestMdnsStateSync:
     # Restart: IA preserved (stored), PM cleared (spec mandate)
     # ------------------------------------------------------------------
 
-    def test_state_sync_restart_preserves_state(self, coap, oscore_ctx):
+    def test_5_1_902_3_state_sync_restart_preserves_state(self, coap, oscore_ctx):
         """IA survives a restart; PM is always cleared by restart (spec).
 
         POST /.well-known/knx/ia writes IA+IID to persistent storage
@@ -2262,7 +2262,7 @@ class TestMdnsStateSync:
     # SP cleared; SN survives (hardware-fixed)
     # ------------------------------------------------------------------
 
-    def test_state_sync_factory_reset_clears_state(self, coap, oscore_ctx):
+    def test_5_1_902_4_state_sync_factory_reset_clears_state(self, coap, oscore_ctx):
         """Factory reset (erase_code=2) resets IA/IID to defaults, clears PM and SP.
 
         oc_knx_device_storage_reset(2) sets ia=0xFFFF, iid=0, pm=false and
@@ -2383,7 +2383,7 @@ class TestMdnsStateSync:
     # reachable after a restart, regardless of whether IPv6/port changed.
     # ------------------------------------------------------------------
 
-    def test_state_sync_restart_address_stability(self, coap, oscore_ctx):
+    def test_5_1_902_5_state_sync_restart_address_stability(self, coap, oscore_ctx):
         """mDNS endpoint announced after restart is reachable by a fresh client.
 
         Key invariant: an mDNS-aware client that re-queries after a device
@@ -2528,10 +2528,10 @@ class TestMdnsStateSync:
     # IPv6/port changed.
     # ------------------------------------------------------------------
 
-    def test_state_sync_factory_reset_address_stability(self, coap, oscore_ctx):
+    def test_5_1_902_6_state_sync_factory_reset_address_stability(self, coap, oscore_ctx):
         """mDNS endpoint announced after factory reset (erase_code=2) is reachable.
 
-        Identical invariant to test_state_sync_restart_address_stability, but
+        Identical invariant to test_5_1_902_5_state_sync_restart_address_stability, but
         the device lifecycle event is a factory reset rather than a plain
         restart.  A factory reset wipes the AT table, so full re-provisioning
         (auth_prepare + ia_prepare) is required before any OSCORE request can

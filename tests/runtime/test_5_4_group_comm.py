@@ -1505,8 +1505,8 @@ class TestReadOnInitNetworkGate:
             f"Expected ga=65535, got {data[5][7]}")
 
     # -- network up from the beginning -----------------------------------
-    def test_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
-                                                    device_iface):
+    def test_5_4_900_1_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
+                                                               device_iface):
         """ULA present before restart -> DUT sends the init read promptly."""
         _roi_set_network_up()
         time.sleep(1.5)  # allow netlink RTM_NEWADDR + DAD to settle
@@ -1534,8 +1534,8 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(received)
 
     # -- withheld while the network is down ------------------------------
-    def test_read_on_init_withheld_while_down(self, coap, oscore_ctx,
-                                              device_iface):
+    def test_5_4_900_2_read_on_init_withheld_while_down(self, coap, oscore_ctx,
+                                                         device_iface):
         """Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles)."""
         # Network is already down via the per-test reset fixture.
         mcast_addr_str = _mcast_addr()
@@ -1561,8 +1561,8 @@ class TestReadOnInitNetworkGate:
             f"present, but a message was received: {received}")
 
     # -- released once the network comes up (~600 ms) --------------------
-    def test_read_on_init_released_after_network_up(self, coap, oscore_ctx,
-                                                    device_iface):
+    def test_5_4_900_3_read_on_init_released_after_network_up(self, coap, oscore_ctx,
+                                                               device_iface):
         """Network down from the start, then up after ~600 ms -> read fires.
 
         Mirrors the user's scenario: the read-on-init s-mode read is withheld
@@ -1625,8 +1625,8 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(released)
 
     # -- abandoned after the max-retry cap -------------------------------
-    def test_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
-                                                      device_iface):
+    def test_5_4_900_4_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
+                                                                  device_iface):
         """Network never comes up -> read is abandoned after the 20-cycle cap.
 
         With KNX_READ_ON_INIT_DELAY_MILLISECONDS=100 ms the cap (>20) is
@@ -2233,8 +2233,8 @@ class TestUnicastNonReResolution:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_unicast_non_re_resolution(self, coap, oscore_ctx,
-                                       device_iface):
+    def test_5_4_901_1_unicast_non_re_resolution(self, coap, oscore_ctx,
+                                                   device_iface):
         """Trigger the sensor repeatedly; the DUT sends unicast NON POSTs
         that go unanswered.  After 4 failures the recipient is marked
         UNRESOLVED and the DUT issues a second discovery GET.
