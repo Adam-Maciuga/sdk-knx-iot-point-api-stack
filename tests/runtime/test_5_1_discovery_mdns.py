@@ -522,7 +522,7 @@ def _parse_mdns_packets(iface_idx: int,
                 offset += 4
 
             total_rr = ancount + _nscount + _arcount
-            pkt = MdnsPacketInfo(timestamp=ts, is_goodbye=True)
+            pkt = MdnsPacketInfo(timestamp=ts, is_goodbye=False)
             relevant = False
 
             for _ in range(total_rr):
@@ -540,11 +540,12 @@ def _parse_mdns_packets(iface_idx: int,
                 rdata = data[offset: offset + rdlen]
                 offset += rdlen
 
-                # A packet is a goodbye if its PTR records have TTL=0.
-                # AAAA records may have TTL>0 even in a goodbye, so only
-                # PTR TTLs determine the goodbye flag.
-                if rr_type == DNS_TYPE_PTR and rr_ttl != 0:
-                    pkt.is_goodbye = False
+                # A packet is a goodbye when it contains at least one PTR
+                # record with TTL=0.  AAAA records may have TTL>0 even in a
+                # goodbye packet, so only PTR TTLs determine the goodbye flag.
+                # Packets with no PTR records at all are announcements.
+                if rr_type == DNS_TYPE_PTR and rr_ttl == 0:
+                    pkt.is_goodbye = True
 
                 rr_norm = rr_name.lower().rstrip(".")
 
@@ -1356,26 +1357,126 @@ def _set_sleep_period(coap, oscore_ctx, sp: int) -> None:
     time.sleep(MDNS_ANNOUNCE_WAIT_S)
 
 
-def _get_txt_sp(mdns: "Zeroconf") -> "str | None":
-    """Return the SP TXT value advertised by the DUT, or None if absent.
-
-    Uses a raw mDNS TXT query (bypasses the zeroconf cache) so the result
-    always reflects the current on-wire state — essential for the
-    'SP cleared' test where the cached value would otherwise linger.
-    """
-    iface = os.environ.get("DEVICE_IFACE")
-    if not iface:
-        pytest.skip("DEVICE_IFACE not set — raw mDNS TXT query not possible")
-    iface_idx = _iface_name_to_index(iface)
-    instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-    props = _raw_mdns_txt_query(iface_idx, instance, timeout=5.0)
-    if props is None:
-        return None
-    # TXT keys are bytes; search case-insensitively
-    for k, v in props.items():
-        if k.upper() == b"SP":
-            return v.decode("ascii") if v is not None else ""
+def _get_txt_sp_from_packets(packets: "list[MdnsPacketInfo]") -> "str | None":
+    """Extract the SP value from the TXT records of announce packets."""
+    for pkt in packets:
+        if pkt.is_goodbye:
+            continue
+        for _owner, props in pkt.txt.items():
+            for k, v in props.items():
+                if k.upper() == b"SP":
+                    return v.decode("ascii") if v is not None else ""
     return None
+
+
+def _set_sp_and_get_txt(coap, oscore_ctx, iface_idx: int,
+                        sp: int) -> "str | None":
+    """POST /test/sleep-period and capture the DUT's proactive re-announcement.
+
+    Starts the passive mDNS capture BEFORE posting the change so that the
+    re-announcement burst is not missed.  The DUT always sends a full
+    PTR+SRV+AAAA+(TXT) re-announcement after a sleep-period change; reading
+    that proactive packet avoids RFC 6762 duplicate-response suppression that
+    would silence a query-based approach.
+
+    Returns the SP TXT value string, or None if the TXT record was absent.
+    """
+    instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+    capture_timeout = COAP_TIMEOUT + MDNS_ANNOUNCE_WAIT_S + 2.0
+
+    import threading
+    packets: "list[MdnsPacketInfo]" = []
+    ready = threading.Event()
+
+    def _capture():
+        # Signal the main thread that the socket is bound and listening
+        # before it fires the POST.
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM,
+                             socket.IPPROTO_UDP)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, "SO_REUSEPORT"):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock.bind(("::", MDNS_PORT))
+            mreq = socket.inet_pton(socket.AF_INET6, MDNS_MULTICAST_ADDR)
+            mreq += struct.pack("I", iface_idx)
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+            sock.settimeout(0.5)
+            ready.set()
+            deadline = time.monotonic() + capture_timeout
+            while time.monotonic() < deadline:
+                try:
+                    data, _addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    continue
+                if len(data) < 12:
+                    continue
+                _id, _flags, _qdcount, ancount, _nscount, _arcount = (
+                    struct.unpack("!HHHHHH", data[:12]))
+                if not (_flags & 0x8000):
+                    continue
+                offset = 12
+                for _ in range(_qdcount):
+                    _, offset = _decode_dns_name(data, offset)
+                    offset += 4
+                total_rr = ancount + _nscount + _arcount
+                pkt = MdnsPacketInfo(timestamp=time.monotonic(), is_goodbye=False)
+                relevant = False
+                for _ in range(total_rr):
+                    if offset >= len(data):
+                        break
+                    rr_name, offset = _decode_dns_name(data, offset)
+                    if offset + 10 > len(data):
+                        break
+                    rr_type, _rr_class, rr_ttl, rdlen = struct.unpack(
+                        "!HHIH", data[offset: offset + 10])
+                    offset += 10
+                    if offset + rdlen > len(data):
+                        break
+                    rdata = data[offset: offset + rdlen]
+                    offset += rdlen
+                    if rr_type == DNS_TYPE_PTR and rr_ttl == 0:
+                        pkt.is_goodbye = True
+                    rr_norm = rr_name.lower().rstrip(".")
+                    sn_norm = DUT_SERIAL.lower()
+                    if sn_norm not in rr_norm:
+                        if rr_type == DNS_TYPE_PTR:
+                            try:
+                                target, _ = _decode_dns_name(data, offset - rdlen)
+                                if sn_norm in target.lower():
+                                    relevant = True
+                            except Exception:
+                                pass
+                        continue
+                    relevant = True
+                    if rr_type == DNS_TYPE_TXT:
+                        props: "dict[bytes, bytes | None]" = {}
+                        pos = 0
+                        while pos < len(rdata):
+                            slen = rdata[pos]; pos += 1
+                            if pos + slen > len(rdata):
+                                break
+                            entry = rdata[pos: pos + slen]; pos += slen
+                            if b"=" in entry:
+                                k, v = entry.split(b"=", 1)
+                                props[k] = v
+                            else:
+                                props[entry] = None
+                        pkt.txt[rr_name] = props
+                if relevant:
+                    packets.append(pkt)
+        finally:
+            sock.close()
+
+    t = threading.Thread(target=_capture, daemon=True)
+    t.start()
+    ready.wait(timeout=2.0)
+
+    _set_sleep_period(coap, oscore_ctx, sp)
+
+    t.join(timeout=capture_timeout + 1.0)
+    announces = [p for p in packets if not p.is_goodbye]
+    return _get_txt_sp_from_packets(announces)
 
 
 class TestMdnsSleepPeriod:
@@ -1390,42 +1491,40 @@ class TestMdnsSleepPeriod:
     SP buffer is char sp[6] (max 5 digits + NUL), so values up to 99999.
     """
 
-    def test_sp_not_present_by_default(self, mdns, coap, oscore_ctx):
-        """SP TXT record is absent when sleep period is 0 (default)."""
-        # Ensure SP is cleared
-        _set_sleep_period(coap, oscore_ctx, 0)
+    @pytest.fixture(autouse=True)
+    def _require_iface(self):
+        iface = os.environ.get("DEVICE_IFACE")
+        if not iface:
+            pytest.skip("DEVICE_IFACE not set — passive mDNS capture not possible")
+        self._iface_idx = _iface_name_to_index(iface)
 
-        sp_val = _get_txt_sp(mdns)
+    def test_sp_not_present_by_default(self, coap, oscore_ctx):
+        """SP TXT record is absent when sleep period is 0 (default)."""
+        sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 0)
         assert sp_val is None, (
             f"Expected no SP TXT record when sp=0, got SP={sp_val!r}")
 
-    def test_sp_200(self, mdns, coap, oscore_ctx):
+    def test_sp_200(self, coap, oscore_ctx):
         """SP=200 appears in the TXT record after setting sp=200."""
-        _set_sleep_period(coap, oscore_ctx, 200)
-
-        sp_val = _get_txt_sp(mdns)
+        sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 200)
         assert sp_val == "200", (
             f"Expected SP=200 in TXT, got SP={sp_val!r}")
 
-    def test_sp_20000(self, mdns, coap, oscore_ctx):
+    def test_sp_20000(self, coap, oscore_ctx):
         """SP=20000 appears in the TXT record after setting sp=20000."""
-        _set_sleep_period(coap, oscore_ctx, 20000)
-
-        sp_val = _get_txt_sp(mdns)
+        sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 20000)
         assert sp_val == "20000", (
             f"Expected SP=20000 in TXT, got SP={sp_val!r}")
 
-    def test_sp_cleared(self, mdns, coap, oscore_ctx):
+    def test_sp_cleared(self, coap, oscore_ctx):
         """Setting sp=0 after a non-zero value removes the TXT record."""
         # First set a value so the TXT record is present
-        _set_sleep_period(coap, oscore_ctx, 30)
-        sp_before = _get_txt_sp(mdns)
+        sp_before = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 30)
         assert sp_before == "30", (
             f"Precondition failed: expected SP=30, got {sp_before!r}")
 
         # Now clear it
-        _set_sleep_period(coap, oscore_ctx, 0)
-        sp_after = _get_txt_sp(mdns)
+        sp_after = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 0)
         assert sp_after is None, (
             f"Expected SP TXT record to be absent after sp=0, got {sp_after!r}")
 
