@@ -1064,7 +1064,6 @@ class TestMdnsDiscoveryIAUnconfigured:
     the session OSCORE context for subsequent tests.
     """
 
-    @pytest.mark.skip(reason="mDNS subtype query unreliable in Docker CI veth — needs stack-side fix for IPV6_MULTICAST_IF on listener socket")
     def test_5_1_2_3b_ia_unconfigured_subtype(self, mdns, coap, oscore_ctx):
         """Factory-reset device should advertise _ia0-ffff subtype."""
         subtype = f"_ia0-ffff._sub.{KNX_SERVICE_TYPE}"

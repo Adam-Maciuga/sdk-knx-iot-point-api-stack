@@ -68,6 +68,10 @@ ip link set veth-test up
 sysctl -w net.ipv6.conf.veth-dut.disable_ipv6=0
 sysctl -w net.ipv6.conf.veth-test.disable_ipv6=0
 sleep 3
+# Add default multicast route.
+# mdns_listen_sock6 replies with sin6_scope_id=0, so the kernel needs a route 
+# to know which interface to send multicast out of.
+ip -6 route add ff00::/8 dev veth-test
 DUT_ADDR=`$(ip -6 -o addr show dev veth-dut scope link | awk '{print `$4}' | cut -d/ -f1)
 echo "DUT address=`${DUT_ADDR} on veth-dut / veth-test"
 echo '--- Building runtime_test_server ($Preset) ---'
