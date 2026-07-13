@@ -766,8 +766,33 @@ static bool is_knx_subtype_query(const char *qname, size_t q_len)
   return true;
 }
 
+/*
+ * Set IPV6_MULTICAST_IF on sock to the first known unicast interface index.
+ *
+ * mdns_multicast_send() in mdns.h sends to [FF02::FB]:5353 via sendto() with
+ * sin6_scope_id=0, which lets the kernel pick the outgoing interface.  On a
+ * Docker veth pair there is no default IPv6 multicast route, so the kernel may
+ * choose the wrong interface or drop the packet entirely.  Explicitly setting
+ * IPV6_MULTICAST_IF before every response send -- mirroring the proactive
+ * announcement path -- pins the outgoing interface to the one the stack is
+ * bound to.
+ *
+ * Best-effort: failures are silently ignored because the caller's
+ * mdns_query_answer_multicast() return value is the authoritative result.
+ */
+static void set_multicast_if(int sock)
+{
+  unsigned int if_indices[MAX_IF_INDICES];
+  const int if_count = collect_if_indices(if_indices);
+  if (if_count > 0)
+  {
+    setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+               (const char *)&if_indices[0], sizeof(if_indices[0]));
+  }
+}
+
 /**
- * @brief Build and send the current service records on `sock`.
+ * @brief Build and send the current service records on sock.
  *
  * @param sock       The mDNS socket to send on.
  * @param ptr_name   The name for the PTR answer record.  For a general
@@ -779,8 +804,10 @@ static bool is_knx_subtype_query(const char *qname, size_t q_len)
  */
 static int send_query_response(int sock, const char *ptr_name)
 {
-  
-  // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
+  /* Pin outgoing interface so mdns_multicast_send() sendto() reaches the correct veth. */
+  set_multicast_if(sock);
+
+  // Instance:
   char instance_name[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
   const size_t instance_len = strlen(instance_name);
@@ -926,7 +953,10 @@ static int send_query_response(int sock, const char *ptr_name)
  */
 static int send_srv_response(int sock)
 {
-  // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
+  /* Pin outgoing interface so mdns_multicast_send() sendto() reaches the correct veth. */
+  set_multicast_if(sock);
+
+  // Instance:
   char instance_name[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
   const size_t instance_len = strlen(instance_name);
@@ -980,7 +1010,10 @@ static int send_srv_response(int sock)
  */
 static int send_aaaa_response(int sock)
 {
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD)
+  /* Pin outgoing interface so mdns_multicast_send() sendto() reaches the correct veth. */
+  set_multicast_if(sock);
+
+  // Hostname:
   char hostname[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
   const size_t hostname_len = strlen(hostname);
