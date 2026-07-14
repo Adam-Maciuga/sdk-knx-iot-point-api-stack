@@ -264,7 +264,7 @@ int oc_main_init(const oc_handler_t* handler)
 
   OC_INF("Reregister DNS-SD service after stack initialization");
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 
   #ifdef OC_CLIENT
   // called one time on startup after all network initialization

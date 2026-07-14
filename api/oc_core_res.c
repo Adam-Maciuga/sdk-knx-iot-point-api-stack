@@ -72,16 +72,14 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
 
 int oc_core_set_device_hwt(const char* hardware_type)
 {
-	oc_free_string(&oc_device_info.hwt);
-  oc_new_string(&oc_device_info.hwt, hardware_type, strlen(hardware_type));
+	oc_device_info.hwt = hardware_type;
 
 	return 0;
 }
 
 int oc_core_set_device_model(const char* model)
 {
-	oc_free_string(&oc_device_info.iot_model);
-  oc_new_string(&oc_device_info.iot_model, model, strlen(model));
+	oc_device_info.iot_model = model;
 
 	return 0;
 }
@@ -104,7 +102,7 @@ int oc_core_read_and_set_device_hostname(void)
   
   // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700" - if sn is not applied -> "knx-NULL"
   char hname[MAX_HNAME_BUFFER_SIZE] = ""; 
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string_checked(device->serialnumber));
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, device->serialnumber ? device->serialnumber : "NULL");
 
   // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
   oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, MAX_HNAME_BUFFER_SIZE  - 1);
@@ -156,9 +154,8 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-  // caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
-  oc_free_string(&oc_device_info.serialnumber);
-  oc_new_string(&oc_device_info.serialnumber, serialnumber, SERIAL_NUM_SIZE);
+  // caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long
+  oc_device_info.serialnumber = serialnumber;
 }
 
 void oc_core_set_device_res(void)

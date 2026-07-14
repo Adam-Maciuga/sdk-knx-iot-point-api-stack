@@ -214,7 +214,7 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     if (isInitialized == false)
     {
         /* Set SRP Client Host name and */
-        knx_set_srp_host(thrInstancePtr, oc_string(device->serialnumber));
+        knx_set_srp_host(thrInstancePtr, device->serialnumber);
 
         /* Set SRP static subtypes */
         knx_set_static_subtypes();
@@ -232,7 +232,7 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
 
         while (service != NULL)
         {
-            if (!strcmp(service->mInstanceName, oc_string(device->serialnumber)) && !strcmp(service->mName, KNX_SRP_SERVICE_NAME))
+            if (!strcmp(service->mInstanceName, device->serialnumber) && !strcmp(service->mName, KNX_SRP_SERVICE_NAME))
             {
                 break;
             }

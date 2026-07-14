@@ -81,7 +81,7 @@ static int knx_iid_to_str(uint64_t iid, char *buf, int size)
 static int knx_serial_number_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     oc_device_info_t *device = oc_core_get_device_info();
-    shell_print(sh, "%s", oc_string(device->serialnumber));
+    shell_print(sh, "%s", device->serialnumber);
     return 0;
 }
 
@@ -97,7 +97,7 @@ static int knx_hw_version_cmd(const struct shell *sh, size_t argc, char **argv)
 static int knx_hw_type_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     oc_device_info_t *device = oc_core_get_device_info();
-    shell_print(sh, "%s", oc_string(device->hwt));
+    shell_print(sh, "%s", device->hwt);
     return 0;
 }
 
@@ -128,7 +128,7 @@ static int knx_app_name_cmd(const struct shell *sh, size_t argc, char **argv)
 static int knx_model_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     oc_device_info_t *device = oc_core_get_device_info();
-    shell_print(sh, "%s", oc_string(device->iot_model));
+    shell_print(sh, "%s", device->iot_model);
     return 0;
 }
 
@@ -431,13 +431,13 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     oc_device_info_t *device = oc_core_get_device_info();
 
-    shell_print(sh, "Serial number      : %s", oc_string(device->serialnumber));
+    shell_print(sh, "Serial number      : %s", device->serialnumber);
     shell_print(sh, "Hardware version   : %d.%d.%d", device->hwv.major, device->hwv.minor, device->hwv.patch);
-    shell_print(sh, "Hardware type      : %s", oc_string(device->hwt));
+    shell_print(sh, "Hardware type      : %s", device->hwt);
     shell_print(sh, "Firmware version   : %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
     shell_print(sh, "Application version: %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
     shell_print(sh, "Application name   : %s", application_name);
-    shell_print(sh, "Model              : %s", oc_string(device->iot_model));
+    shell_print(sh, "Model              : %s", device->iot_model);
     shell_print(sh, "Hostname           : %s", oc_string(device->iot_hostname));
 
     /* QR code */

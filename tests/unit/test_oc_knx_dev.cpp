@@ -161,11 +161,11 @@ protected:
     oc_mmem_init();
 
     /* The string-valued device fields are serialised verbatim by the GET
-     * handlers; a NULL oc_string would crash strlen(), so give them values. */
+     * handlers, so give them values with static lifetime. */
     oc_device_info_t *dev = oc_core_get_device_info();
-    init_string(&dev->serialnumber, "0000-0000-0000");
-    init_string(&dev->hwt, "myhwt");
-    init_string(&dev->iot_model, "mymodel");
+    dev->serialnumber = "000000000000";
+    dev->hwt = "myhwt";
+    dev->iot_model = "mymodel";
     init_string(&dev->iot_hostname, "knxhost");
 
     memset(&request, 0, sizeof(request));

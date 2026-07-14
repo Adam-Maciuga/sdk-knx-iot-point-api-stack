@@ -36,10 +36,7 @@ protected:
 
   static void set_serial(const char *sn)
   {
-    oc_device_info_t *dev = oc_core_get_device_info();
-    oc_free_string(&dev->serialnumber);
-    /* the production code always copies SERIAL_NUM_SIZE chars */
-    oc_new_string(&dev->serialnumber, sn, SERIAL_NUM_SIZE);
+    oc_core_get_device_info()->serialnumber = sn;
   }
 };
 
@@ -138,19 +135,19 @@ TEST_F(DeviceInfo, SetManufacturerId)
 TEST_F(DeviceInfo, SetHardwareType)
 {
   EXPECT_EQ(oc_core_set_device_hwt("MYHW"), 0);
-  EXPECT_STREQ(oc_string(oc_core_get_device_info()->hwt), "MYHW");
+  EXPECT_STREQ(oc_core_get_device_info()->hwt, "MYHW");
 }
 
 TEST_F(DeviceInfo, SetSerialNumber)
 {
   oc_core_set_device_sn("aabbccddeeff");
-  EXPECT_STREQ(oc_string(oc_core_get_device_info()->serialnumber), "aabbccddeeff");
+  EXPECT_STREQ(oc_core_get_device_info()->serialnumber, "aabbccddeeff");
 }
 
 TEST_F(DeviceInfo, SetModel)
 {
   EXPECT_EQ(oc_core_set_device_model("model-x"), 0);
-  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_model), "model-x");
+  EXPECT_STREQ(oc_core_get_device_info()->iot_model, "model-x");
 }
 
 TEST_F(DeviceInfo, SetAndStoreIaInRange)

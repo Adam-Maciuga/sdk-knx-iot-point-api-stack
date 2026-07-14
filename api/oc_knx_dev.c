@@ -36,7 +36,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request,
 
   // cbor with payload: serial number
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->serialnumber));
+  oc_rep_i_set_text_string(root, 1, device->serialnumber);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -177,7 +177,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request,
   const oc_device_info_t* const device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->hwt));
+  oc_rep_i_set_text_string(root, 1, device->hwt);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -215,7 +215,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request,
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->iot_model));
+  oc_rep_i_set_text_string(root, 1, device->iot_model);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -357,7 +357,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 
             OC_INF("Re-register DNS-SD service after writing IID)");
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+            knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
           }
 
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -1188,7 +1188,8 @@ void oc_knx_device_reset(int reset_mode)
 
     // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
     char hname[HNAME_SIZE];
-    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string_checked(device->serialnumber));
+    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE,
+                   device->serialnumber ? device->serialnumber : "NULL");
     oc_core_set_device_hostname(hname);
 
     // delete iot device tables
@@ -1219,7 +1220,7 @@ void oc_knx_device_reset(int reset_mode)
     oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
      // reannounce mDNS advertisement with new data
-    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 
     return;
   }
@@ -1255,7 +1256,7 @@ void oc_knx_device_reset(int reset_mode)
     // don't reset security related "replay window size" and "osn delay"
 
     // reannounce mDNS advertisement with new data
-    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
   }
 }
 
@@ -1270,7 +1271,7 @@ void oc_knx_device_set_programming_mode(bool programming_mode)
   oc_device_info_t* const device = oc_core_get_device_info();
   device->pm = programming_mode;
 
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 }
 
 void oc_knx_device_restart(void) 
@@ -1309,5 +1310,5 @@ void oc_knx_device_restart(void)
   oc_init_datapoints_at_initialization();
 
   // reannounce mDNS advertisement with new data
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 }

@@ -176,8 +176,7 @@ static void get_int_dp(oc_request_t *request,
   if (oc_query_value_exists(request, "m") != -1) {
     char *m_value;
     int m_len = oc_get_query_value(request, "m", &m_value);
-    oc_string_t sn = oc_core_get_device_info()->serialnumber;
-    const char *sn_str = oc_string(sn);
+    const char *sn_str = oc_core_get_device_info()->serialnumber ;
     const char *uri_str = oc_string(request->resource->uri);
     if (m_len == 1 && m_value[0] == '*') {
       /* Full metadata */

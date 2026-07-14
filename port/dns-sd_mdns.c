@@ -1357,7 +1357,7 @@ static void stop_listener(void)
 /* Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
   
   if (!serial_no)
