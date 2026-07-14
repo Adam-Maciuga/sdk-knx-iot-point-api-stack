@@ -133,14 +133,14 @@ static ip_context_t *get_ip_context_for_device(void)
 
 static mdns_knx_record_t current_advertisement =
 {
-  .valid = false,
+  .valid = false, // false after stack start as long as no announcement has been scheduled
   .knx = 
   {
       .iid = 0,
       .ia = 0,
-      .sn = "", // serial number, default is empty string with termination '/0'
+      .sn = "",   // serial number, default is empty string with termination '/0'
       .pm = false,
-      .sp = 0,  // sleep period value, default is 0 -> value may be e.g. 30 (seconds) 
+      .sp = 0,    // sleep period value, default is 0 -> value may be e.g. 30 (seconds) 
   }
 };
 
@@ -248,6 +248,8 @@ static int open_mdns_send_socket_ipv6(void)
  * @brief Ensure the mDNS IPv6 socket is open.
  * Per spec 2.6.1.2.1: "mDNS SHALL use UDP port 5353 with multicast IP
  * address FF02::FB for IPv6."
+ *
+ * @return true if the socket is open, false if it could not be opened
  */
 static int ensure_socket(void)
 {
@@ -256,7 +258,7 @@ static int ensure_socket(void)
     mdns_sock6 = open_mdns_send_socket_ipv6();
     if (mdns_sock6 < 0)
     {
-      OC_ERR("DNS-SD: Failed to open mDNS IPv6 socket!");
+      OC_WRN("DNS-SD: Failed to open mDNS IPv6 socket, error at runtime, warning on stack startup -> socket not yet prepared!");
       return -1;
     }
   }
@@ -1515,6 +1517,7 @@ void knx_dns_sd_stop(void)
   stop_listener();
 
   // close the send socket
+  OC_DBG("DNS-SD: Socket %s.", mdns_sock6 >= 0 ? "was open - will be closed" : "already closed");
   if (mdns_sock6 >= 0) 
   {
     #ifdef _WIN32
@@ -1523,5 +1526,7 @@ void knx_dns_sd_stop(void)
     close(mdns_sock6);
     #endif
     mdns_sock6 = -1;
+    
   }
+  
 }

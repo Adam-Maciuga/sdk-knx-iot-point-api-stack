@@ -1188,8 +1188,7 @@ void oc_knx_device_reset(int reset_mode)
 
     // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
     char hname[HNAME_SIZE];
-    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE,
-                   device->serialnumber ? device->serialnumber : "NULL");
+    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, device->serialnumber ? device->serialnumber : "NULL");
     oc_core_set_device_hostname(hname);
 
     // delete iot device tables
