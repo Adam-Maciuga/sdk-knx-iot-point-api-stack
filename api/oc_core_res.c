@@ -33,7 +33,7 @@
 #include "port/oc_assert.h"
 #include "port/oc_storage.h"
 
-static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL
+static oc_device_info_t oc_device_info = {0};	// common device 0 data pointer - cannot be NULL
 
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
@@ -154,41 +154,31 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
   return false;
 }
 
-void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
+void oc_core_set_device_sn(const char* serialnumber)
 {
-
-	// release ALL strings (e.g. after a device restart/ reset) -> device content is wiped below
+  // caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
   oc_free_string(&oc_device_info.serialnumber);
-  oc_free_string(&oc_device_info.hwt);
-  oc_free_string(&oc_device_info.iot_model);
-  oc_free_string(&oc_device_info.iot_hostname);
-  oc_free_string(&oc_device_info.app_friendly_name);
-
-	// clear old device context 
-  memset(&oc_device_info, 0, sizeof(oc_device_info_t));
-
-	// caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
   oc_new_string(&oc_device_info.serialnumber, serialnumber, SERIAL_NUM_SIZE);
+}
 
-	// device application  friendly name
-	oc_new_string(&oc_device_info.app_friendly_name, app_friendly_name, strlen(app_friendly_name));
-	
-	// init tables
-	oc_create_knx_table_resources();
-	oc_create_knx_sec_resources();
-	oc_create_knx_swu_resources();
+void oc_core_set_device_res(void)
+{
+  // init tables
+  oc_create_knx_table_resources();
+  oc_create_knx_sec_resources();
+  oc_create_knx_swu_resources();
 
-	/*
-	  init connectivity ip addresses
-	  - SHOULD use the default unicast port as specified in clause 2.6.3.1 with COAP_DEFAULT_PORT = 5683
-	  - NOTE: the optional put /dev/port is not implemented, the chosen port is used all the time
-		- NOTE: if the port below is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
-	*/
+  /*
+    init connectivity ip addresses
+    - SHOULD use the default unicast port as specified in clause 2.6.3.1 with COAP_DEFAULT_PORT = 5683
+    - NOTE: the optional put /dev/port is not implemented, the chosen port is used all the time
+    - NOTE: if the port below is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
+  */
   oc_connectivity_set_port(KNX_UNICAST_PORT);
-	if (oc_connectivity_init() < 0)
-	{
-		oc_abort("error initializing connectivity for device");
-	}
+  if (oc_connectivity_init() < 0)
+  {
+    oc_abort("error initializing connectivity for device");
+  }
 }
 
 void oc_check_uri(const char* uri)

@@ -66,7 +66,7 @@ void oc_knx_load_device(void);
  *    - group object / recipient / publisher object table
  *    - access token table (except entries with 'if.sec')
  *
- * @param reset_mode the KNX reset mode
+ * @param reset_mode the KNX reset mode that will be used (2 or 7) 
  */
 void oc_knx_device_reset(int reset_mode);
 

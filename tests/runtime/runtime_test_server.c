@@ -348,13 +348,15 @@ static void swu_upgrade_cb(int defer_time, void* data)
 static int app_init(void)
 {
   /* Same values as EITT test template */
-  oc_core_set_device("00fa10020800", "RuntimeTestServer");
+  oc_core_set_device_sn("00fa10020800");
   { oc_knx_version_info_t hwv = {0, 0, 1}; oc_core_set_device_hwv(&hwv); }
   { oc_knx_version_info_t fwv = {0, 0, 1}; oc_core_set_and_store_device_fwv(&fwv); }
   
+  oc_core_set_device_res();
+  oc_core_set_device_mid(667);
   oc_core_set_device_hwt("Linux");
   oc_core_set_device_model("KNX Certification");
-  oc_core_set_device_mid(667);
+  
 
   /* Set manufacturing date for /swu/lastupdate (same as EITT template) */
   oc_swu_set_last_update("2020-04-12T23:20:50.52Z");

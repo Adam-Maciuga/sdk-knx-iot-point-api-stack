@@ -81,21 +81,28 @@ extern "C" {
 		uint64_t iid;                 // 40-bit knx installation id (mod)
 		bool pm;                      // knx programming mode (mod)
 		oc_lsm_state_t lsm_s;         // knx lsm states (mod)
-    oc_string_t app_friendly_name;// knx application 'friendly' name, currently not able to retrieve from any endpoint (fix)
 	} oc_device_info_t;
 
 	/**
-	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
+	 * @brief Set device serial number 
 	 *
-   * @note Must be called before any other initialization of the device resources, 
-   *       otherwise the device resources will not be properly initialized
-           and may cause errors when accessed.
+   * @note Must be called before any other initialization of the stack, 
+   *       otherwise some device resources may not be properly initialized
+           and may cause errors when accessed 
+           (such as to build a device host name on a 'reset').
 	 * 
 	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\')
-	 * @param app_friendly_name the user-friendly name of the application
 
 	 */
-  void oc_core_set_device(const char* serialnumber, const char* app_friendly_name);
+  void oc_core_set_device_sn(const char* serialnumber);
+
+	/**
+   * @brief Set device resources by loading knx publisher/recipient/security tables and init's the 
+   *        (socket) connectivity for the device, including the CoAP unicast default port (5683 or random, 
+   *        see COAP_DEFAULT_PORT in CMake) and the multicast discovery port (5683)
+   *
+   */
+  void oc_core_set_device_res(void);
 
 	/**
 	 * @brief sets and stores the firmware version
