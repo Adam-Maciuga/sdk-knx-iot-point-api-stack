@@ -251,14 +251,20 @@ int oc_main_init(const oc_handler_t* handler)
 
   /* 
      Synchronously populate the endpoint list so the mDNS announcement
-     can include AAAA records.  oc_connectivity_init() only starts the
-     network thread; the endpoints are not yet enumerated at this point. 
+     can include AAAA records.  
+     
+     - oc_connectivity_init() only starts the  network thread; the endpoints are 
+       not yet enumerated at this point
+
+     - dns-sd updates are scheduled here (stack init) but also on interface up events (oc_network_interface_up) 
+       to handle the case where the network is not yet up at stack init time 
+       (may lead to situation that 2 x dns-sd is triggered).
   */
   oc_network_refresh_endpoints();
 
-  OC_INF("Re-register DNS-SD service after stack initialization)");
+  OC_INF("Reregister DNS-SD service after stack initialization");
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 
   #ifdef OC_CLIENT
   // called one time on startup after all network initialization
@@ -273,7 +279,7 @@ int oc_main_init(const oc_handler_t* handler)
 
  
   // add as last step to avoid half init's 
-  OC_DBG("stack initialized ...");
+  OC_DBG("Stack initialized ...");
   initialized = true;
 
   return 0;

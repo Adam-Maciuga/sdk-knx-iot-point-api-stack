@@ -536,7 +536,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
         try:
             scope_id = socket.if_nametoindex(device_iface)
         except (OSError, AttributeError):
-            print(f"[malformed-disco] Warning: could not resolve "
+            print(f"[malformed-discovery] Warning: could not resolve "
                   f"'{device_iface}'")
 
     # Multicast socket - receives the DUT's discovery GET on port 5683
@@ -548,7 +548,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
     uc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     uc_sock.bind(("", 0))  # ephemeral port
     uc_port = uc_sock.getsockname()[1]
-    print(f"[malformed-disco] Unicast socket on port {uc_port}")
+    print(f"[malformed-discovery] Unicast socket on port {uc_port}")
 
     # Join all-CoAP-nodes multicast (link-local + site-local)
     joined = []
@@ -562,7 +562,7 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
                                socket.IPV6_JOIN_GROUP, mreq)
             joined.append(mreq)
         except OSError as exc:
-            print(f"[malformed-disco] Warning: join {maddr} failed: {exc}")
+            print(f"[malformed-discovery] Warning: join {maddr} failed: {exc}")
 
     def _answer(addr, tkl, token, mid):
         """Send a NON 2.05 link-format response carrying *ep_payload*."""
@@ -624,17 +624,17 @@ def _serve_discovery_payload_and_capture(device_iface, ep_payload,
                     result["got_get"] = True
                     result["get_count"] += 1
                     last_get_time = time.monotonic()
-                    print(f"[malformed-disco] GET #{result['get_count']} "
+                    print(f"[malformed-discovery] GET #{result['get_count']} "
                           f"from {addr[0]}:{addr[1]} mid={mid} tkl={tkl}")
                     _answer(addr, tkl, token, mid)
-                    print(f"[malformed-disco] Answered with ep={ep_payload!r}")
+                    print(f"[malformed-discovery] Answered with ep={ep_payload!r}")
                     continue
 
                 # POST = unicast s-mode message (arrives on uc_sock) -> the
                 # DUT accepted the ep and resolved the recipient.
                 if code_class == 0 and code_detail == 2:
                     msg = CoapClient.parse_coap_message(data)
-                    print(f"[malformed-disco] Captured POST from "
+                    print(f"[malformed-discovery] Captured POST from "
                           f"{addr[0]}:{addr[1]} type={msg['type']}")
                     result["post"] = (msg, addr)
                     break
@@ -1505,8 +1505,8 @@ class TestReadOnInitNetworkGate:
             f"Expected ga=65535, got {data[5][7]}")
 
     # -- network up from the beginning -----------------------------------
-    def test_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
-                                                    device_iface):
+    def test_5_4_900_1_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
+                                                               device_iface):
         """ULA present before restart -> DUT sends the init read promptly."""
         _roi_set_network_up()
         time.sleep(1.5)  # allow netlink RTM_NEWADDR + DAD to settle
@@ -1534,8 +1534,8 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(received)
 
     # -- withheld while the network is down ------------------------------
-    def test_read_on_init_withheld_while_down(self, coap, oscore_ctx,
-                                              device_iface):
+    def test_5_4_900_2_read_on_init_withheld_while_down(self, coap, oscore_ctx,
+                                                         device_iface):
         """Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles)."""
         # Network is already down via the per-test reset fixture.
         mcast_addr_str = _mcast_addr()
@@ -1561,8 +1561,8 @@ class TestReadOnInitNetworkGate:
             f"present, but a message was received: {received}")
 
     # -- released once the network comes up (~600 ms) --------------------
-    def test_read_on_init_released_after_network_up(self, coap, oscore_ctx,
-                                                    device_iface):
+    def test_5_4_900_3_read_on_init_released_after_network_up(self, coap, oscore_ctx,
+                                                               device_iface):
         """Network down from the start, then up after ~600 ms -> read fires.
 
         Mirrors the user's scenario: the read-on-init s-mode read is withheld
@@ -1625,8 +1625,8 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(released)
 
     # -- abandoned after the max-retry cap -------------------------------
-    def test_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
-                                                      device_iface):
+    def test_5_4_900_4_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
+                                                                  device_iface):
         """Network never comes up -> read is abandoned after the 20-cycle cap.
 
         With KNX_READ_ON_INIT_DELAY_MILLISECONDS=100 ms the cap (>20) is
@@ -2233,8 +2233,8 @@ class TestUnicastNonReResolution:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_unicast_non_re_resolution(self, coap, oscore_ctx,
-                                       device_iface):
+    def test_5_4_901_1_unicast_non_re_resolution(self, coap, oscore_ctx,
+                                                   device_iface):
         """Trigger the sensor repeatedly; the DUT sends unicast NON POSTs
         that go unanswered.  After 4 failures the recipient is marked
         UNRESOLVED and the DUT issues a second discovery GET.

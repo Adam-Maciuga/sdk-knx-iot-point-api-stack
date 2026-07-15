@@ -13,6 +13,7 @@
 #include "oc_knx_client.h"
 #include "oc_knx_dev.h"
 #include "port/oc_connectivity.h"
+#include "port/dns-sd.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -72,7 +73,7 @@ static void post_test_restart(oc_request_t *request,
 static oc_event_callback_retval_t deferred_factory_reset_cb(void *data)
 {
   (void)data;
-  oc_knx_device_storage_reset(2 /* RESET_TO_DEFAULT_STATE */);
+  oc_knx_device_reset(2 /* RESET_TO_DEFAULT_STATE */);
   if (g_reset_dp_cb) {
     g_reset_dp_cb();
   }
@@ -171,6 +172,39 @@ static void post_test_trigger(oc_request_t *request,
   oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 }
 
+/* ── POST /test/sleep-period ──────────────────────────────────────────────── */
+
+/*
+ * Accepts CBOR {1: <int>}.
+ * sp > 0  -> sets the mDNS TXT SP= record to that value and re-announces.
+ * sp == 0 -> clears the SP record from the mDNS announcement.
+ */
+static void post_test_sleep_period(oc_request_t *request,
+                                   oc_interface_mask_t iface_mask,
+                                   void *user_data)
+{
+  (void)iface_mask;
+  (void)user_data;
+
+  int sp = 0;
+  oc_rep_t *rep = request->request_payload;
+  while (rep)
+  {
+    if (rep->iname == 1 && rep->type == OC_REP_INT)
+    {
+      sp = (rep->value.integer > 0) ? (int)rep->value.integer : 0;
+    }
+    rep = rep->next;
+  }
+
+  printf("[test-ctrl] Sleep period set to %d via POST /test/sleep-period\n", sp);
+  fflush(stdout);
+
+  knx_dns_sd_set_sleep_period(sp);
+
+  oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+}
+
 /* ── Public registration ───────────────────────────────────────────────── */
 void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
                                oc_test_control_reset_dp_fn reset_dp)
@@ -204,7 +238,15 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
                                   OC_ACL_I, OC_IF_I);
   oc_add_resource(res);
 
+  /* /test/sleep-period — set mDNS TXT SP= value */
+  res = oc_new_resource((char *)"/test/sleep-period", 1);
+  oc_resource_bind_resource_type(res, "urn:knx:test.ctrl");
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
+  oc_resource_set_request_handler(res, COAP_POST, post_test_sleep_period, NULL,
+                                  OC_ACL_I, OC_IF_I);
+  oc_add_resource(res);
+
   printf("[test-ctrl] Test control endpoints registered: "
-         "/test/restart, /test/factory-reset, /test/trigger\n");
+         "/test/restart, /test/factory-reset, /test/trigger, /test/sleep-period\n");
   fflush(stdout);
 }

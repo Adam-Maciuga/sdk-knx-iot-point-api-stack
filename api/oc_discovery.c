@@ -398,7 +398,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// (m0)
 	if (request->query_len == 0 && request->origin && request->origin->flags & MULTICAST)
 	{
-	  response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
+		response_length = frame_sn(device->serialnumber, device->iid, device->ia);
 		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		return;
 	}
@@ -531,7 +531,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				// get sn from request, fix position
 				const char* ep_serialnumber = ep_request + 9;
 
-				if (strncmp(oc_string(device->serialnumber), ep_serialnumber, strlen(oc_string(device->serialnumber))) != 0)
+				if (strncmp(device->serialnumber, ep_serialnumber, strlen(device->serialnumber)) != 0)
 				{ // SN does NOT match, xx data can be anything
 
 					OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
@@ -561,7 +561,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				else
 				{
 					// add sn to response for unicast/multicast (but don't send now)
-					response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
+					response_length = frame_sn(device->serialnumber, device->iid, device->ia);
 					query_parameter_key_value_pair_matches++;
 				}
 
@@ -644,7 +644,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				// converted iid = 0 is accepted, but usually the device will not have 0 assigned
         if (errno == 0 && iid == device->iid)
         {
-          response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
+          response_length = frame_sn(device->serialnumber, device->iid, device->ia);
           oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
           return;
         }
@@ -700,17 +700,17 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
         // copy SN part size 0..12 , but don't copy > 12 chars
         strncpy(sn_substr, ep_serialnumber_start_pos, ep_sn_len > SN_STR_LEN_MAX ? SN_STR_LEN_MAX : ep_sn_len);
-        part_sn = strstr(oc_string(device->serialnumber), sn_substr) != NULL;
+        part_sn = strstr(device->serialnumber, sn_substr) != NULL;
       }
       else
       { // full compare (device has a string, ep_request has a stream without /0 
-        full_sn = strncmp(oc_string(device->serialnumber), ep_serialnumber_start_pos, oc_string_len(device->serialnumber)) == 0;
+        full_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, strlen(device->serialnumber)) == 0;
       }
     }
 
 		if (only_wildcard || full_sn || part_sn)
 		{
-			response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
+			response_length = frame_sn(device->serialnumber, device->iid, device->ia);
 			oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		}
 		else

@@ -14,7 +14,7 @@ import cbor2
 import pytest
 
 from coap_client import APPLICATION_CBOR, LINK_FORMAT
-from conftest import (DEVICE_PASSWORD, ALL_SCOPES,
+from conftest import (DEVICE_PASSWORD, ALL_SCOPES, DUT_SERIAL_NUMBER,
                       set_lsm, parse_link_format)
 
 
@@ -164,8 +164,9 @@ class TestParameterMetadata:
             f"GET /p/p1?m=id failed: {resp.code if resp else 'timeout'}")
         assert resp.payload, "GET /p/p1?m=id returned empty payload"
         data = cbor2.loads(resp.payload)
-        has_id = (0 in data) or ("id" in data)
-        assert has_id, f"Response should contain only 'id': {data}"
+        expected = {0: f"knx://sn:{DUT_SERIAL_NUMBER}/p/p1"}
+        assert data == expected, (
+            f"Expected only the integer-keyed id {expected}, got {data}")
 
     def test_5_8_3_2_read_metadata_value(self, coap, oscore_ctx):
         """GET /p/p1?m=value returns only the value field.

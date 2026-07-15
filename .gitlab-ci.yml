@@ -74,6 +74,12 @@ linux-runtime-test-asan:
     - ip link set veth-dut up
     - ip link set veth-test up
     - sleep 2
+    # Add multicast routes on both veth interfaces.
+    # mdns_listen_sock6 sends responses via sendto() with sin6_scope_id=0;
+    # without an explicit route the kernel cannot pick the outgoing interface
+    # on a veth pair (no default IPv6 multicast route in Docker/GitLab CI).
+    - ip -6 route add ff00::/8 dev veth-dut || true
+    - ip -6 route add ff00::/8 dev veth-test || true
     - export DUT_ADDR=$(ip -6 -o addr show dev veth-dut scope link | awk '{print $4}' | cut -d/ -f1)
     - echo "DUT address=${DUT_ADDR} on veth-dut / veth-test"
     - cmake --preset=linux-test-asan -DOC_DEBUG_ENABLED=OFF -DOC_PRINT_ENABLED=OFF -DOC_DEBUG_OSCORE_ENABLED=OFF
@@ -94,6 +100,8 @@ linux-runtime-test-asan:
       tests/runtime/test_5_1_discovery.py
       tests/runtime/test_5_1_discovery_multicast.py
       tests/runtime/test_5_1_discovery_extended.py
+      tests/runtime/test_5_1_discovery_mdns.py
+      tests/runtime/test_5_2_reset.py
       tests/runtime/test_5_2_wellknown_knx.py
       tests/runtime/test_5_2_fingerprint.py
       tests/runtime/test_5_2_device_resources.py
@@ -106,8 +114,6 @@ linux-runtime-test-asan:
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
       tests/runtime/test_5_10_generic.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
       -v --tb=short --junit-xml=build/linux-test-asan/runtime-report.xml
   artifacts:
     when: always
@@ -132,6 +138,12 @@ linux-runtime-test:
     - ip link set veth-dut up
     - ip link set veth-test up
     - sleep 2  # wait for IPv6 DAD / link-local assignment
+    # Add multicast routes on both veth interfaces.
+    # mdns_listen_sock6 sends responses via sendto() with sin6_scope_id=0;
+    # without an explicit route the kernel cannot pick the outgoing interface
+    # on a veth pair (no default IPv6 multicast route in Docker/GitLab CI).
+    - ip -6 route add ff00::/8 dev veth-dut || true
+    - ip -6 route add ff00::/8 dev veth-test || true
     # Discover the DUT's link-local address on veth-dut
     - export DUT_ADDR=$(ip -6 -o addr show dev veth-dut scope link | awk '{print $4}' | cut -d/ -f1)
     - echo "DUT address=${DUT_ADDR} on veth-dut / veth-test"
@@ -154,6 +166,8 @@ linux-runtime-test:
       tests/runtime/test_5_1_discovery.py
       tests/runtime/test_5_1_discovery_multicast.py
       tests/runtime/test_5_1_discovery_extended.py
+      tests/runtime/test_5_1_discovery_mdns.py
+      tests/runtime/test_5_2_reset.py
       tests/runtime/test_5_2_wellknown_knx.py
       tests/runtime/test_5_2_fingerprint.py
       tests/runtime/test_5_2_device_resources.py
@@ -166,8 +180,6 @@ linux-runtime-test:
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
       tests/runtime/test_5_10_generic.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
       -v --tb=short --junit-xml=build/linux-test-gcc/runtime-report.xml
   artifacts:
     when: always

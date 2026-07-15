@@ -42,7 +42,7 @@ static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
 static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive)
-static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains foreign 'iid' entries
+static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains 'iid' entries from external projects
 bool pub_table_contains_no_iid(void) {return g_gpt_contains_no_iid;} 
 #endif
 
@@ -2914,7 +2914,7 @@ static void oc_handle_group_multicasts(bool subscribe)
 
         // (un)register the grpid/iid from the PUB table (if present) or with defaults
         uint32_t grpid = 0;
-        uint64_t iid = device->iid;
+        uint64_t iid = device->iid; // 'iid' is from a local project (default)
 
         if (entry)
         {
@@ -2924,13 +2924,13 @@ static void oc_handle_group_multicasts(bool subscribe)
           {
             // one single hit is enough to set the bool globally
             g_gpt_contains_no_iid = false;
-            iid = entry->iid;
+            iid = entry->iid; // 'iid' is from an external project
           }
         }
 
         if (grpid > 0)
         {
-          // FF3X::30: <ULA-routing-prefix>::<group id>, create the multicast address from group and scope
+          // FF3X::30: <ULA-routing-prefix>::<group id>, create the multicast address from 'grpid', local or external 'iid' and scope
           oc_endpoint_t group_mcast_endpoint = {0};
           group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
 
@@ -3053,7 +3053,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         const uint32_t sending_ga = go_entry->ga[0];
         const oc_device_info_t* const device = oc_core_get_device_info();
 
-        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
+        OC_INF("Init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
 
         // find recipient entry for sending ga, contains both grpid and non flag
         oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
@@ -3079,13 +3079,13 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
     g_roi.got_idx++;
   }
 
-  OC_INF("init datapoints : done (all entries processed)");
+  OC_INF("Init datapoints : done (all entries processed)");
   return OC_EVENT_DONE;
 }
 
 void oc_init_datapoints_at_initialization(void)
 {
-  OC_INF("scan datapoints : for a possible cflag read on 'init' initialization ...");
+  OC_INF("Scan datapoints for a possible cflag read on 'init' initialization ...");
 
   // remove any pending callback from a previous run such as on two resets in a short time period (only one callback can be pending at a time)
   oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);

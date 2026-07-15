@@ -33,7 +33,7 @@
 #include "port/oc_assert.h"
 #include "port/oc_storage.h"
 
-static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL
+static oc_device_info_t oc_device_info = {0};	// common device 0 data pointer - cannot be NULL
 
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
@@ -72,16 +72,14 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
 
 int oc_core_set_device_hwt(const char* hardware_type)
 {
-	oc_free_string(&oc_device_info.hwt);
-  oc_new_string(&oc_device_info.hwt, hardware_type, strlen(hardware_type));
+	oc_device_info.hwt = hardware_type;
 
 	return 0;
 }
 
 int oc_core_set_device_model(const char* model)
 {
-	oc_free_string(&oc_device_info.iot_model);
-  oc_new_string(&oc_device_info.iot_model, model, strlen(model));
+	oc_device_info.iot_model = model;
 
 	return 0;
 }
@@ -102,9 +100,9 @@ int oc_core_read_and_set_device_hostname(void)
 	// to have a fixed '\0' at the end of the (128 byte) buffer
 	#define MAX_HNAME_BUFFER_SIZE 129
   
-  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
+  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700" - if sn is not applied -> "knx-NULL"
   char hname[MAX_HNAME_BUFFER_SIZE] = ""; 
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, device->serialnumber ? device->serialnumber : "NULL");
 
   // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
   oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, MAX_HNAME_BUFFER_SIZE  - 1);
@@ -154,44 +152,30 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
   return false;
 }
 
-void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
+void oc_core_set_device_sn(const char* serialnumber)
 {
+  // caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long
+  oc_device_info.serialnumber = serialnumber;
+}
 
-	// release strings (e.g. after a device restart/ reset)
-  oc_free_string(&oc_device_info.serialnumber);
-  oc_free_string(&oc_device_info.hwt);
-  oc_free_string(&oc_device_info.iot_model);
-  oc_free_string(&oc_device_info.iot_hostname);
-  oc_free_string(&oc_device_info.app_friendly_name);
+void oc_core_set_device_res(void)
+{
+  // init tables
+  oc_create_knx_table_resources();
+  oc_create_knx_sec_resources();
+  oc_create_knx_swu_resources();
 
-	// clear old device context 
-  memset(&oc_device_info, 0, sizeof(oc_device_info_t));
-
-	// assign default ia 
-  oc_device_info.ia = 0xffff;
-
-	// caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
-  oc_new_string(&oc_device_info.serialnumber, serialnumber, SERIAL_NUM_SIZE);
-
-	// device application  friendly name
-	oc_new_string(&oc_device_info.app_friendly_name, app_friendly_name, strlen(app_friendly_name));
-	
-	// init tables
-	oc_create_knx_table_resources();
-	oc_create_knx_sec_resources();
-	oc_create_knx_swu_resources();
-
-	/*
-	  init connectivity ip addresses
-	  - SHOULD use the default unicast port as specified in clause 2.6.3.1 with COAP_DEFAULT_PORT = 5683
-	  - NOTE: the optional put /dev/port is not implemented, the chosen port is used all the time
-		- NOTE: if the port below is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
-	*/
+  /*
+    init connectivity ip addresses
+    - SHOULD use the default unicast port as specified in clause 2.6.3.1 with COAP_DEFAULT_PORT = 5683
+    - NOTE: the optional put /dev/port is not implemented, the chosen port is used all the time
+    - NOTE: if the port below is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
+  */
   oc_connectivity_set_port(KNX_UNICAST_PORT);
-	if (oc_connectivity_init() < 0)
-	{
-		oc_abort("error initializing connectivity for device");
-	}
+  if (oc_connectivity_init() < 0)
+  {
+    oc_abort("error initializing connectivity for device");
+  }
 }
 
 void oc_check_uri(const char* uri)

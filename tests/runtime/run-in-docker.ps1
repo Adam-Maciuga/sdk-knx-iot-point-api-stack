@@ -68,6 +68,13 @@ ip link set veth-test up
 sysctl -w net.ipv6.conf.veth-dut.disable_ipv6=0
 sysctl -w net.ipv6.conf.veth-test.disable_ipv6=0
 sleep 3
+# Add default multicast route on both veth interfaces.
+# The DUT (veth-dut) sends query responses via mdns_listen_sock6 using
+# sendto() with sin6_scope_id=0, so the kernel needs a multicast route
+# on veth-dut to resolve the outgoing interface.  The test client
+# (veth-test) also needs the route to send its raw PTR queries to FF02::FB.
+ip -6 route add ff00::/8 dev veth-dut || true
+ip -6 route add ff00::/8 dev veth-test || true
 DUT_ADDR=`$(ip -6 -o addr show dev veth-dut scope link | awk '{print `$4}' | cut -d/ -f1)
 echo "DUT address=`${DUT_ADDR} on veth-dut / veth-test"
 echo '--- Building runtime_test_server ($Preset) ---'
@@ -135,10 +142,10 @@ finally {
     Remove-Item $List -ErrorAction SilentlyContinue
 }
 
-# Extract failing/erroring test IDs from pytest's short summary (-rfE) lines,
-# e.g. "FAILED tests/runtime/test_5_9_observe.py::test_x - AssertionError".
+# Extract failing/erroring test IDs from pytest's -v result lines:
+# e.g. "tests/runtime/test_x.py::Class::method FAILED [ 42%]"
 $failed = $output |
-    Select-String -Pattern '^(FAILED|ERROR) ' |
+    Select-String -Pattern '^tests/runtime/\S+\s+(FAILED|ERROR)\s+\[' |
     ForEach-Object { $_.ToString().Trim() }
 
 Write-Host ""

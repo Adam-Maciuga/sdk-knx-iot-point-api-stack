@@ -1,22 +1,10 @@
 /*
-// Copyright (c) 2021 Cascoda Ltd
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/**
-  @brief knx /dev resource implementation
-  @file
-*/
+ * Copyright (c) 2022-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef OC_KNX_DEV_INTERNAL_H
 #define OC_KNX_DEV_INTERNAL_H
 
@@ -53,9 +41,17 @@ extern "C" {
 void oc_knx_load_device(void);
 
 /**
- * @brief clear the persistent storage
- * reset behavior according to the supplied erase code
- * - reset = 2 (Factory Reset) :
+ * @brief reset the device by: 
+ *        - set device default values in the persistent device storage (according to the reset_mode)
+ *        - terminate pase sessions, unregister mc groups
+ *        - clear request (repeat) / response (replay) buffers
+ *        - clear old mDNS and reannounce new mDNS with the new values
+ *
+ *   The factory preset/reset callback handler is NOT called in this method, it is called 
+*    only on an inbound message together with this method.
+ * 
+ * @note  reset behavior according to the supplied reset_mode
+ * - 2 (Factory Reset) :
  *   - host name (hname)
  *   - Installation ID (iid)
  *   - programming mode (pm)
@@ -65,14 +61,14 @@ void oc_knx_load_device(void);
  *   - load state machine 
  *   - group object / recipient / publisher object table
  *   - access token table
- * - reset = 7 (Factory Reset without IA):
- *   - load state machine 
- *   - group object / recipient / publisher object table
- *   - access token table (except entries with 'if.sec')
+ * - 7 (Factory Reset without IA):
+ *    - load state machine 
+ *    - group object / recipient / publisher object table
+ *    - access token table (except entries with 'if.sec')
  *
- * @param reset_mode the KNX reset mode
+ * @param reset_mode the KNX reset mode that will be used (2 or 7) 
  */
-void oc_knx_device_storage_reset(int reset_mode);
+void oc_knx_device_reset(int reset_mode);
 
 /**
  * @brief function checks if the device is in programming mode
@@ -93,15 +89,14 @@ void oc_knx_device_set_programming_mode(bool programming_mode);
 /**
  * @brief Restart the KNX device
  *
- * Performs the KNX restart operation:
+ * @note Performs the KNX restart operation:
  * - resets programming mode to false
  * - terminates PASE token
  * - applies configuration parameters
- * - calls application restart callback handler
+ * - clear old mDNS and reannounce new mDNS with the new values
  *
  */
 void oc_knx_device_restart(void);
-
 
 #ifdef __cplusplus
 }

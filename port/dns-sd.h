@@ -40,16 +40,16 @@ extern "C" {
 
    
  */
-int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
+int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 
  
 /**
  * @brief Set the advertised sleep period within the mDNS service.
  *
  * @param sp The period, in milliseconds. A value of 0 removes the
- * advertisement, signalling that the device is wakeful.
+ *           advertisement, signalling that the device is wakeful.
  */
-void knx_dns_sd_set_sleep_period(int sp);
+void knx_dns_sd_set_sleep_period(uint16_t sp);
 
  /**
  * @brief Returns the device used unicast port.
@@ -60,6 +60,39 @@ void knx_dns_sd_set_sleep_period(int sp);
  *
  */
 uint16_t knx_dns_sd_get_used_port(void);
+
+/** Maximum serial-number string length (12 lower-case hex chars, excluding null terminator). */
+#define SN_STR_LEN_MAX (12)
+
+/**
+ * @brief Snapshot of the current mDNS advertisement state.
+ *
+ * Returned by value from knx_dns_sd_get_current_record(). When valid is false
+ * the remaining fields are zero/empty and no mDNS service is being announced.
+ */
+typedef struct mdns_knx_record_t
+{
+  bool valid; /**< true = mDNS is currently announced */
+  struct knx
+  {
+    uint64_t iid;                      /**< KNX installation ID */
+    uint16_t ia;                       /**< KNX individual address */
+    char sn[SN_STR_LEN_MAX + 1];      /**< lower-case hex serial number, null-terminated */
+    bool pm;                           /**< programming mode */
+    uint16_t sp;                       /**< sleep period in seconds (0 = wakeful) */
+  } knx;
+} mdns_knx_record_t;
+
+/**
+ * @brief Return a by-value snapshot of the current mDNS advertisement record.
+ *
+ * Safe to call at any time. When the returned record's valid field is false,
+ * no mDNS service is currently being announced and all other fields are zero.
+ *
+ * IP addresses and port are not included; obtain them from
+ * oc_connectivity_get_endpoints() and knx_dns_sd_get_used_port().
+ */
+mdns_knx_record_t knx_dns_sd_get_current_record(void);
 
 /**
  * @brief Stop the device's DNS-SD service advertisement during shutdown.
