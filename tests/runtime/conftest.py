@@ -650,11 +650,30 @@ def ia_prepare(coap, oscore_ctx, ia=DUT_IA, iid=DUT_IID):
 
 
 def set_lsm(coap, oscore_ctx, cmd):
-    """Set LSM state: 1=loading, 2=loaded, 4=unload. Returns response."""
+    """Set LSM state: 1=loading, 2=loaded, 4=unload. Returns response.
+
+    The unload (cmd=4) deletes the group tables from NVS inline in the device
+    handler. On a real device that delete can take several seconds (NVS garbage
+    collection as the store fills), longer than the default CoAP timeout, so a
+    slow but valid unload would be misreported as a timeout. Use a 10 s timeout
+    so a late response is still accepted, and print the round trip for slow
+    operations so the on-device delete cost stays visible. The worst unload
+    observed was about 7 s, so 10 s clears it with margin.
+    """
+    start = time.monotonic()
     resp = coap.oscore_post(
-        oscore_ctx, "/a/lsm", payload=cbor2.dumps({2: cmd}))
+        oscore_ctx, "/a/lsm", payload=cbor2.dumps({2: cmd}), timeout=10)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    # Only report slow ops. Loading and loaded (cmd 1/2) do no NVS delete and
+    # finish in a few ms. The unload (cmd 4) table delete is the interesting
+    # case (hundreds of ms to seconds), so a 500 ms floor separates the signal
+    # from the noise.
+    if elapsed_ms >= 500:
+        print(f"[timing] set_lsm cmd={cmd} -> "
+              f"{resp.code if resp else 'timeout'} after {elapsed_ms} ms")
     assert resp is not None and resp.is_successful, (
-        f"LSM cmd={cmd} failed: {resp.code if resp else 'timeout'}")
+        f"LSM cmd={cmd} failed after {elapsed_ms} ms: "
+        f"{resp.code if resp else 'timeout'}")
     return resp
 
 
