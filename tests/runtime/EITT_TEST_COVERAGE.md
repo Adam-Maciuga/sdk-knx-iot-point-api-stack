@@ -1,4 +1,4 @@
-# EITT Test Coverage Tracking
+﻿# EITT Test Coverage Tracking
 
 > **Source of truth** for mapping EITT spec test IDs to our runtime tests.
 > Authoritative EITT ID list extracted from `tests/EITT_REFERENCE_PROJECT/EittProject.xml`.
@@ -17,13 +17,13 @@
 
 ## Legend
 
-- **DONE** — Fully covered by one or more test functions
-- **TODO** — Not yet implemented, but feasible
-- **BLOCKED:timer** — Requires SPAKE2+ handover timing not implemented in stack
+- **DONE** ΓÇö Fully covered by one or more test functions
+- **TODO** ΓÇö Not yet implemented, but feasible
+- **BLOCKED:timer** ΓÇö Requires SPAKE2+ handover timing not implemented in stack
 
 ---
 
-## 5.1 Discovery (42 IDs — 42 DONE)
+## 5.1 Discovery (42 IDs ΓÇö 42 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -42,21 +42,21 @@
 | 5.1.1.5 | ?if=urn:knx:if.pm query, Multicast, device in PM | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.5b | ?if=urn:knx:if.pm query, Multicast, not in PM ignores | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.5c | ?if=urn:knx:if.pm query, Unicast, device in PM responds | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.5d | ?if=urn:knx:if.pm query, Unicast, not in PM → error | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.5d | ?if=urn:knx:if.pm query, Unicast, not in PM ΓåÆ error | DONE | test_5_1_discovery_extended.py | |
 | 5.1.1.6 | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Multicast, PM found | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.6b | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Multicast, not in PM ignores | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.6c | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Multicast, different SN ignores | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.6d | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Unicast, device in PM | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.6e | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Unicast, not in PM → error | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.6e | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Unicast, not in PM ΓåÆ error | DONE | test_5_1_discovery_extended.py | |
 | 5.1.1.6f | ?if=urn:knx:if.pm&ep=knx://sn.{sn}, Unicast, different SN | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7 | ?d=urn:knx:g.s. query, Multicast, GA → single GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7b | ?d=urn:knx:g.s. query, Multicast, GA → multiple GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7c | ?d=urn:knx:g.s. query, Multicast, GA → no GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7d | ?d=urn:knx:g.s. query, Multicast, multiple GAs → one GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7e | ?d=urn:knx:g.s. query, Unicast, GA → single GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7f | ?d=urn:knx:g.s. query, Unicast, GA → multiple GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7g | ?d=urn:knx:g.s. query, Unicast, GA → no GO | DONE | test_5_1_discovery_extended.py | |
-| 5.1.1.7h | ?d=urn:knx:g.s. query, Unicast, multiple GAs → one GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7 | ?d=urn:knx:g.s. query, Multicast, GA ΓåÆ single GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7b | ?d=urn:knx:g.s. query, Multicast, GA ΓåÆ multiple GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7c | ?d=urn:knx:g.s. query, Multicast, GA ΓåÆ no GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7d | ?d=urn:knx:g.s. query, Multicast, multiple GAs ΓåÆ one GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7e | ?d=urn:knx:g.s. query, Unicast, GA ΓåÆ single GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7f | ?d=urn:knx:g.s. query, Unicast, GA ΓåÆ multiple GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7g | ?d=urn:knx:g.s. query, Unicast, GA ΓåÆ no GO | DONE | test_5_1_discovery_extended.py | |
+| 5.1.1.7h | ?d=urn:knx:g.s. query, Unicast, multiple GAs ΓåÆ one GO | DONE | test_5_1_discovery_extended.py | |
 | 5.1.1.8 | Invalid ?d=urn:knx:g.s.* wildcard rejected | DONE | test_5_1_discovery_extended.py | |
 | 5.1.1.9a | ?ep=knx://ia.{iid}.{ia}, Multicast, correct IID+IA | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
 | 5.1.1.9b | ?ep=knx://ia.{iid}.{ia}, Multicast, wrong IID | DONE | test_5_1_discovery_multicast.py | Requires DEVICE_IFACE |
@@ -70,7 +70,7 @@
 | 5.1.2.5a | Unsolicited mDNS responses on PM change | DONE | test_5_1_discovery_mdns.py | |
 | 5.1.2.5b | Unsolicited mDNS responses on IA change | DONE | test_5_1_discovery_mdns.py | |
 
-## 5.2 Device Resources (19 IDs — 19 DONE)
+## 5.2 Device Resources (19 IDs ΓÇö 19 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -79,13 +79,13 @@
 | 5.2.2.2 | Reset device without network info (erase-code 7) | DONE | test_5_2_reset.py | |
 | 5.2.2.3 | Restarting device | DONE | test_5_2_wellknown_knx.py | |
 | 5.2.3.1 | Setting Installation ID and Individual Address | DONE | test_5_2_wellknown_knx.py | |
-| 5.2.3.1b | Invalid GET /.well-known/knx/ia → fails | DONE | test_5_2_wellknown_knx.py | |
+| 5.2.3.1b | Invalid GET /.well-known/knx/ia ΓåÆ fails | DONE | test_5_2_wellknown_knx.py | |
 | 5.2.3.2 | Setting Fabric ID alongside IID and IA | DONE | test_5_2_wellknown_knx.py | |
 | 5.2.4.1 | Read fingerprint in loaded state | DONE | test_5_2_fingerprint.py | |
 | 5.2.4.1b | Invalid POST to fingerprint | DONE | test_5_2_fingerprint.py | |
 | 5.2.4.1c | Invalid PUT to fingerprint | DONE | test_5_2_fingerprint.py | |
-| 5.2.4.2 | Read fingerprint in loading state → 5.03 | DONE | test_5_2_fingerprint.py | |
-| 5.2.4.3 | Read fingerprint in unloaded state → 5.03 | DONE | test_5_2_fingerprint.py | |
+| 5.2.4.2 | Read fingerprint in loading state ΓåÆ 5.03 | DONE | test_5_2_fingerprint.py | |
+| 5.2.4.3 | Read fingerprint in unloaded state ΓåÆ 5.03 | DONE | test_5_2_fingerprint.py | |
 | 5.2.5.1 | Read list of device data property-ids | DONE | test_5_2_device_resources.py | |
 | 5.2.6.1 | Read specific device data for various property-ids | DONE | test_5_2_device_resources.py | |
 | 5.2.7.1 | Write specific device data for various property-ids | DONE | test_5_2_device_resources.py | |
@@ -94,7 +94,7 @@
 | 5.2.9.1 | Read specific SWU data during PUSH update | DONE | test_5_2_swu.py | |
 | 5.2.10.1b | Invalid PUT on read-only SWU resource | DONE | test_5_2_swu.py | |
 
-## 5.3 Security (44 IDs — 41 DONE, 3 BLOCKED)
+## 5.3 Security (44 IDs ΓÇö 41 DONE, 3 BLOCKED)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -122,8 +122,8 @@
 | 5.3.9.3a | Read AT list without security (unconfigured) | DONE | test_5_3_security.py | |
 | 5.3.9.3b | Read AT list without security (configured) | DONE | test_5_3_security.py | |
 | 5.3.10.1 | Read specific AT by token id | DONE | test_5_3_security.py | |
-| 5.3.10.2a | Read AT without security → fails | DONE | test_5_3_security.py | |
-| 5.3.10.2b | Read AT without if.sec scope → fails | DONE | test_5_3_security.py | |
+| 5.3.10.2a | Read AT without security ΓåÆ fails | DONE | test_5_3_security.py | |
+| 5.3.10.2b | Read AT without if.sec scope ΓåÆ fails | DONE | test_5_3_security.py | |
 | 5.3.11.1 | Delete specific AT by token id | DONE | test_5_3_security.py | |
 | 5.3.12.1 | Read list of OSCORE related resources | DONE | test_5_3_security.py | |
 | 5.3.13.1 | Read replay window size | DONE | test_5_3_security.py | |
@@ -143,29 +143,29 @@
 | 5.3.19.6 | Master Salt + Context ID for Config Messages | DONE | test_5_3_security.py | |
 | 5.3.20.1 | Access control via interface scopes on AT | DONE | test_5_3_security.py | 5 sub-tests |
 
-## 5.4 Group Communication — S-Mode (16 IDs — 16 DONE)
+## 5.4 Group Communication ΓÇö S-Mode (16 IDs ΓÇö 16 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
 | 5.4.1.1 | Unicast write group message to device (POST /k) | DONE | test_5_4_group_comm.py | |
-| 5.4.1.1b | Unicast write with unauthorized GA → 4.03 | DONE | test_5_4_group_comm.py | |
+| 5.4.1.1b | Unicast write with unauthorized GA ΓåÆ 4.03 | DONE | test_5_4_group_comm.py | |
 | 5.4.1.2 | Multicast write group message | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
-| 5.4.1.3 | Multicast read group message → response | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
-| 5.4.1.4 | Unicast read group message → response | DONE | test_5_4_group_comm.py | |
-| 5.4.1.5 | Unicast write → update multiple GOs | DONE | test_5_4_group_comm.py | |
+| 5.4.1.3 | Multicast read group message ΓåÆ response | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
+| 5.4.1.4 | Unicast read group message ΓåÆ response | DONE | test_5_4_group_comm.py | |
+| 5.4.1.5 | Unicast write ΓåÆ update multiple GOs | DONE | test_5_4_group_comm.py | |
 | 5.4.1.6 | Trigger device multicast write | DONE | test_5_4_group_comm.py | Deferred trigger via /test/trigger |
 | 5.4.1.7 | Trigger device multicast write (first GA) | DONE | test_5_4_group_comm.py | Deferred trigger |
-| 5.4.1.8 | Trigger in loading state → no send | DONE | test_5_4_group_comm.py | |
-| 5.4.1.9 | Init flag → s-mode on startup | DONE | test_5_4_group_comm.py | Uses /test/restart |
+| 5.4.1.8 | Trigger in loading state ΓåÆ no send | DONE | test_5_4_group_comm.py | |
+| 5.4.1.9 | Init flag ΓåÆ s-mode on startup | DONE | test_5_4_group_comm.py | Uses /test/restart |
 | 5.4.1.9b | Read-on-init network-up gate + max-retry cap (ADDITIONAL, non-EITT) | DONE | test_5_4_group_comm.py | Requires DUT_IFACE + privileged (ip -6 addr); skips otherwise. Probes oc_init_read_next scope gate and 20-cycle cap |
-| 5.4.1.10 | Multicast response → device update | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
+| 5.4.1.10 | Multicast response ΓåÆ device update | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
 | 5.4.1.11 | Multicast write/response ignored in loading | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
 | 5.4.1.12 | Updating own GOs for outgoing messages | DONE | test_5_4_group_comm.py | |
 | 5.4.1.13 | Receiving support for long Group Addresses | DONE | test_5_4_group_comm.py | 4 sub-tests: ga=0,256,65535,max |
 | 5.4.1.14 | Sending support for long Group Addresses | DONE | test_5_4_group_comm.py | Deferred trigger |
-| 5.4.1.15 | Trigger sending Confirmable messages (unicast) | DONE | test_5_4_group_comm.py | Discovery responder resolves IA→IPv6 |
+| 5.4.1.15 | Trigger sending Confirmable messages (unicast) | DONE | test_5_4_group_comm.py | Discovery responder resolves IAΓåÆIPv6 |
 
-## 5.5 Function Point Tables (35 IDs — 35 DONE)
+## 5.5 Function Point Tables (35 IDs ΓÇö 35 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -205,7 +205,7 @@
 | 5.5.12.1 | Delete publisher entry via identifier | DONE | test_5_5_fp_tables.py | |
 | 5.5.12.2 | Invalid delete non-existing publisher | DONE | test_5_5_fp_tables.py | |
 
-## 5.6 Application Program (7 IDs — 7 DONE)
+## 5.6 Application Program (7 IDs ΓÇö 7 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -217,14 +217,14 @@
 | 5.6.3.1 | Read list of application program resources | DONE | test_5_6_app_program.py | |
 | 5.6.4.1 | Write and Read /ap/pv (program version) | DONE | test_5_6_app_program.py | |
 
-## 5.7 Functional Blocks (2 IDs — 2 DONE)
+## 5.7 Functional Blocks (2 IDs ΓÇö 2 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
 | 5.7.1.1 | Read list of functional block instances | DONE | test_5_7_functional_blocks.py | |
 | 5.7.2.1 | Read list of datapoints of a FB | DONE | test_5_7_functional_blocks.py | |
 
-## 5.8 Parameters & Diagnostics (5 IDs — 5 DONE)
+## 5.8 Parameters & Diagnostics (5 IDs ΓÇö 5 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -234,7 +234,7 @@
 | 5.8.3.2 | Read meta data for parameter or diagnostic property | DONE | test_5_8_parameters.py | GET /p/p1?m=* and ?m=id and ?m=value |
 | 5.8.4.1 | Write single parameter via PUT | DONE | test_5_8_parameters.py | |
 
-## 5.10 Generic Tests (9 IDs — 9 DONE)
+## 5.10 Generic Tests (9 IDs ΓÇö 9 DONE)
 
 | Spec ID | Description | Status | Test File | Notes |
 |---------|-------------|--------|-----------|-------|
@@ -244,9 +244,9 @@
 | 5.10.1.5 | Invalid List Metadata Query Parameter l | DONE | test_5_10_generic.py | |
 | 5.10.1.6 | Pagination with Link to next Page | DONE | test_5_10_generic.py | Follow p.next links with ps=2 |
 | 5.10.4.1 | Read DPT associated with Group Object | DONE | test_5_10_generic.py | |
-| 5.10.5.1 | Accept Option omitted → default | DONE | test_5_10_generic.py | |
-| 5.10.5.2 | Content-Format Option omitted → default | DONE | test_5_10_generic.py | |
-| 5.10.5.3 | Unknown Critical Option → Bad Option | DONE | test_5_10_generic.py | |
+| 5.10.5.1 | Accept Option omitted ΓåÆ default | DONE | test_5_10_generic.py | |
+| 5.10.5.2 | Content-Format Option omitted ΓåÆ default | DONE | test_5_10_generic.py | |
+| 5.10.5.3 | Unknown Critical Option ΓåÆ Bad Option | DONE | test_5_10_generic.py | |
 
 ---
 
@@ -282,4 +282,4 @@ They provide additional coverage beyond the certification scope.
 
 **Coverage: 176/179 = 98.3% (DONE)**
 **Remaining TODO: 0**
-**Remaining BLOCKED: 3 (5.3.1.4b/c/d — SPAKE2+ handover timing)**
+**Remaining BLOCKED: 3 (5.3.1.4b/c/d ΓÇö SPAKE2+ handover timing)**

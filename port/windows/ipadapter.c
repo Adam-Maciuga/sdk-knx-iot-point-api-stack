@@ -1302,7 +1302,7 @@ static void network_interface_event_handler(oc_interface_event_t event)
     oc_register_group_multicasts();
     oc_device_info_t *device = oc_core_get_device_info();
     if (device) {
-      knx_dns_sd_update_service(oc_string(device->serialnumber),
+      knx_dns_sd_update_service(device->serialnumber,
                                 device->iid,
                                 device->ia,
                                 device->pm);

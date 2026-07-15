@@ -1,4 +1,4 @@
-# Runtime (EITT-style) Tests — CoAP Observe / Notifications
+﻿# Runtime (EITT-style) Tests ΓÇö CoAP Observe / Notifications
 
 > **Status:** IMPLEMENTED. This document originated as the scope/design
 > proposal; the tests it describes now ship in
@@ -16,8 +16,8 @@ This document defines the **runtime (wire-behaviour) layer** for CoAP Observe.
 The tests are implemented in `tests/runtime/test_5_4_observe.py`. The stack
 gained / reworked the observe path:
 
-- `coap_notify_k_observers()` — S-Mode `/k` notification fan-out
-- `coap_notify_observers()` — `/p` and core-resource notifications
+- `coap_notify_k_observers()` ΓÇö S-Mode `/k` notification fan-out
+- `coap_notify_observers()` ΓÇö `/p` and core-resource notifications
 - observe register / deregister refactor (lifetime `lt`, non-confirmable `non`)
 - OSCORE AAD-for-observe fix (notification AAD must include the Observe option)
 
@@ -31,9 +31,9 @@ untested. This proposal defines that runtime layer.
 
 | Clause | Topic |
 |--------|-------|
-| **2.6.10.1** | Subscriptions — CoAP observe is the default mechanism; `if.g.s` / `if.o` Points SHALL support it; re-subscribe with a **new token**; server replaces a subscription by **source IP+port**, *not* by token |
+| **2.6.10.1** | Subscriptions ΓÇö CoAP observe is the default mechanism; `if.g.s` / `if.o` Points SHALL support it; re-subscribe with a **new token**; server replaces a subscription by **source IP+port**, *not* by token |
 | **2.5.9.1** | `/k` S-Mode notification resource (`rt=urn:knx:if.g.s`); first notification = `{ "sia": <ia> }` only; later notifications include the `s` object with `st="w"` |
-| **2.5.9.3** | `lt` lifetime for `/k`; missing → `4.00 Bad Request`; device must support values up to at least 86400 s |
+| **2.5.9.3** | `lt` lifetime for `/k`; missing ΓåÆ `4.00 Bad Request`; device must support values up to at least 86400 s |
 | **2.5.11.6** | `lt` lifetime for parameter/diagnostic Points; same rules |
 | **2.5.9.4** | `non` query parameter; default is **confirmable** (`non=false`) |
 
@@ -73,9 +73,9 @@ Each test below lists: **goal**, **setup**, **stimulus**, **expected**, and the
 **implementing function** in `test_5_4_observe.py`. They are intentionally
 behaviour-only (response codes, payload shape, CON/NON, encryption).
 
-### Group A — Subscription lifecycle on a `/p` datapoint
+### Group A ΓÇö Subscription lifecycle on a `/p` datapoint
 
-#### OBS-A1 · Register observe returns current value
+#### OBS-A1 ┬╖ Register observe returns current value
 - **Implemented by:** `test_5_4_2_1_obs_a1_register_returns_current_value`
 - **Goal:** A valid observe registration succeeds and yields the first notification.
 - **Setup:** Device loaded; datapoint `/p/1` has a known value.
@@ -83,7 +83,7 @@ behaviour-only (response codes, payload shape, CON/NON, encryption).
 - **Expected:** `2.05 Content`; response carries the **Observe option** and the
   current datapoint value as the first notification.
 
-#### OBS-A2 · Value change triggers a notification
+#### OBS-A2 ┬╖ Value change triggers a notification
 - **Implemented by:** `test_5_4_2_2_obs_a2_value_change_notifies`
 - **Goal:** A registered observer is notified when the value changes.
 - **Setup:** OBS-A1 active.
@@ -91,21 +91,21 @@ behaviour-only (response codes, payload shape, CON/NON, encryption).
 - **Expected:** Observer receives a follow-up notification with the new value and
   an **incremented Observe sequence number**.
 
-#### OBS-A3 · Deregister stops notifications
+#### OBS-A3 ┬╖ Deregister stops notifications
 - **Implemented by:** `test_5_4_2_3_obs_a3_deregister_stops_notifications`
 - **Goal:** Explicit deregistration ends the relationship.
 - **Setup:** OBS-A1/A2 active.
 - **Stimulus:** `GET /p/1` with `Observe=1` (same token), then change the value.
 - **Expected:** Deregister acknowledged; **no further notifications** arrive.
 
-#### OBS-A3b · `DELETE /sub` removes subscription
+#### OBS-A3b ┬╖ `DELETE /sub` removes subscription
 - **Implemented by:** `test_5_4_2_4_obs_a3b_delete_sub_removes_subscription`
 - **Goal:** `DELETE /sub` is a third deregistration path distinct from `Observe=1`.
 - **Setup:** OBS-A1/A2 active.
 - **Stimulus:** `DELETE /sub` (unicast, same security context), then change the value.
 - **Expected:** `2.02 Deleted`; **no further notifications** arrive.
 
-#### OBS-A4 · Re-subscribe replaces by IP+port, not token
+#### OBS-A4 ┬╖ Re-subscribe replaces by IP+port, not token
 - **Implemented by:** `test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port`
 - **Goal:** A new subscription from the same client replaces the old one (2.6.10.1).
 - **Setup:** OBS-A1 active from a given source IP+port.
@@ -113,53 +113,53 @@ behaviour-only (response codes, payload shape, CON/NON, encryption).
 - **Expected:** Exactly **one** active subscription remains; a single value change
   produces a **single** notification (no duplicate from the stale subscription).
 
-### Group B — Lifetime (`lt`)
+### Group B ΓÇö Lifetime (`lt`)
 
-#### OBS-B1 · Missing `lt` is rejected
+#### OBS-B1 ┬╖ Missing `lt` is rejected
 - **Implemented by:** `test_5_4_3_1_obs_b1_missing_lt_rejected`
 - **Stimulus:** `GET /p/1` with `Observe=0` and **no** `lt`.
 - **Expected:** `4.00 Bad Request` (2.5.9.3 / 2.5.11.6).
 
-#### OBS-B2 · `lt=0` is rejected
+#### OBS-B2 ┬╖ `lt=0` is rejected
 - **Implemented by:** `test_5_4_3_2_obs_b2_lt_zero_rejected`
 - **Stimulus:** `GET /p/1` with `Observe=0` and `lt=0`.
 - **Expected:** `4.00 Bad Request`.
 
-#### OBS-B3 · Lifetime expiry stops notifications
+#### OBS-B3 ┬╖ Lifetime expiry stops notifications
 - **Implemented by:** `test_5_4_3_3_obs_b3_expired_lt_stops_notifications`
 - **Goal:** Device stops notifying after `lt` elapses.
 - **Note:** The spec requires the device to support `lt` up to at least 86400 s,
   but small values are also valid. The test uses a short `lt` and accepts the
   brief wait rather than waiting 24 h.
 
-### Group C — Confirmable vs non-confirmable (`non`)
+### Group C ΓÇö Confirmable vs non-confirmable (`non`)
 
-#### OBS-C1 · Default notifications are confirmable (CON)
+#### OBS-C1 ┬╖ Default notifications are confirmable (CON)
 - **Implemented by:** `test_5_4_4_1_obs_c1_default_confirmable`
 - **Stimulus:** Register observe **without** `non`; trigger a change.
 - **Expected:** Notification arrives as **CON**; device expects an **ACK**.
 
-#### OBS-C2 · `non=true` yields non-confirmable (NON)
+#### OBS-C2 ┬╖ `non=true` yields non-confirmable (NON)
 - **Implemented by:** `test_5_4_4_2_obs_c2_non_true_non_confirmable`
 - **Stimulus:** Register observe with `non=true`; trigger a change.
 - **Expected:** Notification arrives as **NON** (no ACK expected).
 
-### Group D — `/k` S-Mode notifications (drives `coap_notify_k_observers`)
+### Group D ΓÇö `/k` S-Mode notifications (drives `coap_notify_k_observers`)
 
-#### OBS-D1 · First `/k` notification carries only `sia`
+#### OBS-D1 ┬╖ First `/k` notification carries only `sia`
 - **Implemented by:** `test_5_4_5_1_obs_d1_first_k_notification_sia_only`
 - **Stimulus:** `GET /k` with `Observe=0`, `lt=86400`.
 - **Expected:** `2.05 Content`; first payload is exactly `{ "sia": <ia> }`
-  (**no** `s` object) — per 2.5.9.1.
+  (**no** `s` object) ΓÇö per 2.5.9.1.
 
-#### OBS-D2 · Subsequent `/k` notification includes the `s` object
+#### OBS-D2 ┬╖ Subsequent `/k` notification includes the `s` object
 - **Implemented by:** `test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object`
 - **Setup:** OBS-D1 active.
 - **Stimulus:** Trigger the device to emit an outbound s-mode **"w"** message.
 - **Expected:** Subscriber receives a follow-up `/k` notification whose payload
   **includes** the `s` object with `st="w"`.
 
-#### OBS-D3 · `/k` deregister (Observe=1) stops notifications
+#### OBS-D3 ┬╖ `/k` deregister (Observe=1) stops notifications
 - **Implemented by:** `test_5_4_5_3_obs_d3_k_deregister_stops_notifications`
 - **Setup:** OBS-D1/D2 active on `/k`.
 - **Stimulus:** `GET /k` with `Observe=1` (same token), then trigger another
@@ -167,7 +167,7 @@ behaviour-only (response codes, payload shape, CON/NON, encryption).
 - **Expected:** Deregister acknowledged; **no further `/k` notifications** arrive
   (2.5.9.1 / 2.6.10.1).
 
-#### OBS-D4 · Inbound s-mode POST to `/k` does not echo to observers
+#### OBS-D4 ┬╖ Inbound s-mode POST to `/k` does not echo to observers
 - **Implemented by:** `test_5_4_5_4_obs_d4_inbound_post_k_not_echoed`
 - **Goal:** Confirm the documented rule "does not notify on `/k` for inbound POST".
 - **Setup:** A `/k` observer is registered.
@@ -175,39 +175,39 @@ behaviour-only (response codes, payload shape, CON/NON, encryption).
 - **Expected:** The observer does **not** receive a notification for that inbound
   message.
 
-#### OBS-D5 · Plain GET on `/k` (no Observe) returns `sia`, never pushes
+#### OBS-D5 ┬╖ Plain GET on `/k` (no Observe) returns `sia`, never pushes
 - **Implemented by:** `test_5_4_5_5_obs_d5_plain_get_k_no_subsequent`
 - **Stimulus:** `GET /k` **without** the Observe option.
 - **Expected:** Returns `{ "sia": <ia> }`; **no** subscription is created and
   **no** subsequent notifications follow (2.5.9.1).
 
-### Group E — OSCORE-protected notifications (drives the AAD fix)
+### Group E ΓÇö OSCORE-protected notifications (drives the AAD fix)
 
-#### OBS-E1 · Encrypted subscription delivers decryptable notifications
+#### OBS-E1 ┬╖ Encrypted subscription delivers decryptable notifications
 - **Implemented by:** `test_5_4_6_1_obs_e1_encrypted_notifications_decrypt`
 - **Stimulus:** Register observe over an **OSCORE-protected** request; trigger a
   change.
 - **Expected:** Notifications are **encrypted** and decrypt correctly with the
   established context; sequence numbers still advance.
 
-#### OBS-E2 · Notification AAD binds the request PIV (regression for the fix)
+#### OBS-E2 ┬╖ Notification AAD binds the request PIV (regression for the fix)
 - **Implemented by:** `test_5_4_6_2_obs_e2_notification_aad_binds_request_piv`
-- **Goal:** Guard the bug the AAD fix addressed — the notification AAD must bind
-  the original request's PIV (RFC 8613 §8.3).
+- **Goal:** Guard the bug the AAD fix addressed ΓÇö the notification AAD must bind
+  the original request's PIV (RFC 8613 ┬º8.3).
 - **Stimulus:** Verify the AAD used for a notification decrypts only with the
   correct request-PIV binding.
-- **Expected:** Correct AAD → decrypt OK; wrong binding → reject.
+- **Expected:** Correct AAD ΓåÆ decrypt OK; wrong binding ΓåÆ reject.
 
-### Group F — Robustness / multiple observers
+### Group F ΓÇö Robustness / multiple observers
 
-#### OBS-F1 · Independent sequence counters per observer
+#### OBS-F1 ┬╖ Independent sequence counters per observer
 - **Implemented by:** `test_5_4_7_1_obs_f1_independent_seq_per_observer`
 - **Setup:** Two subscribers on the same resource.
 - **Stimulus:** Trigger changes.
 - **Expected:** Each subscriber gets its own notifications with **independent**
   sequence numbers.
 
-#### OBS-F2 · Expired/silent observer is dropped, others still notified
+#### OBS-F2 ┬╖ Expired/silent observer is dropped, others still notified
 - **Implemented by:** `test_5_4_7_2_obs_f2_stale_observer_pruned`
 - **Setup:** Two subscribers; one stops responding / is removed.
 - **Stimulus:** Trigger a change.

@@ -8,9 +8,10 @@
  * Registers three non-standard CoAP resources that automate actions
  * normally performed by a human operator in the EITT GUI:
  *
- *   POST /test/restart       — soft-restart the device
- *   POST /test/factory-reset — clear all AT/group tables, reset LSM
- *   POST /test/trigger       — toggle/set a datapoint and send s-mode
+ *   POST /test/restart        — soft-restart the device
+ *   POST /test/factory-reset  — clear all AT/group tables, reset LSM
+ *   POST /test/trigger        — toggle/set a datapoint and send s-mode
+ *   POST /test/sleep-period   — set mDNS TXT SP= value (CBOR {1: <int>}, 0 = clear)
  *
  * Link the kisTestControl library and call oc_test_control_register()
  * after oc_main_init() to enable these endpoints in any application.

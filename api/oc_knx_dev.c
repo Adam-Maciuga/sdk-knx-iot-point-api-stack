@@ -36,7 +36,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request,
 
   // cbor with payload: serial number
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->serialnumber));
+  oc_rep_i_set_text_string(root, 1, device->serialnumber);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -177,7 +177,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request,
   const oc_device_info_t* const device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->hwt));
+  oc_rep_i_set_text_string(root, 1, device->hwt);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -215,7 +215,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request,
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->iot_model));
+  oc_rep_i_set_text_string(root, 1, device->iot_model);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -357,7 +357,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 
             OC_INF("Re-register DNS-SD service after writing IID)");
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+            knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
           }
 
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -1165,14 +1165,20 @@ void oc_knx_load_device(void)
   */
 }
 
-void oc_knx_device_storage_reset(int reset_mode) 
+void oc_knx_device_reset(int reset_mode) 
 {
   oc_device_info_t* const device = oc_core_get_device_info();
 
-  if (reset_mode == RESET_TO_DEFAULT_STATE) 
+  if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
+
+    // send the DNS-SD goodbye while the interface is still up, before leaving the multicast groups
+    knx_dns_sd_stop();
+    
+    // drop multicast memberships before clearing the tables AND resetting device IID
+    oc_unregister_group_multicasts();
 
     // set to KNX defaults (ports see below)
     device->pm = false;
@@ -1182,11 +1188,8 @@ void oc_knx_device_storage_reset(int reset_mode)
 
     // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
     char hname[HNAME_SIZE];
-    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
+    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, device->serialnumber ? device->serialnumber : "NULL");
     oc_core_set_device_hostname(hname);
-
-    // drop multicast memberships before clearing the tables
-    oc_unregister_group_multicasts();
 
     // delete iot device tables
     oc_delete_group_object_table();
@@ -1196,7 +1199,7 @@ void oc_knx_device_storage_reset(int reset_mode)
     // terminate any in-flight PASE handshake so its state machine is reset to IDLE
     oc_spake_reset_pase_session();
 
-    // clear the CoAP request cache 
+    // clear the CoAP request cache
     oc_coap_clear_request_history();
 
     // clear the CoAP response cache
@@ -1215,35 +1218,44 @@ void oc_knx_device_storage_reset(int reset_mode)
     uint16_t d_size = DEFAULT_OSN_DELAY;
     oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
+     // reannounce mDNS advertisement with new data
+    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+
     return;
   }
 
-  if (reset_mode == RESET_TO_DEFAULT_WO_IA) 
+  if (reset_mode == RESET_TO_DEFAULT_WO_IA)
   {
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
-    // set the to KNX defaults (ports see above)
-    device->pm = false;
-
-    // drop multicast memberships before clearing the tables
+    // send the DNS-SD goodbye while the interface is still up, before leaving the multicast groups
+    knx_dns_sd_stop();
+    
+    // drop multicast memberships before clearing the tables AND resetting device IID
     oc_unregister_group_multicasts();
+
+    // set the KNX defaults (ports see above)
+    device->pm = false;
 
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
-    
+
     // first remove PASE token, then delete AT table, then reinit contexts
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
 
-    // (re)create the secure contexts from AT table (except PASE, see above) 
+    // (re)create the secure contexts from AT table (except PASE, see above)
     oc_init_oscore_from_storage(true);
 
     // terminate any in-flight PASE handshake so its state machine is reset to IDLE
     oc_spake_reset_pase_session();
 
     // don't reset security related "replay window size" and "osn delay"
+
+    // reannounce mDNS advertisement with new data
+    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
   }
 }
 
@@ -1258,8 +1270,7 @@ void oc_knx_device_set_programming_mode(bool programming_mode)
   oc_device_info_t* const device = oc_core_get_device_info();
   device->pm = programming_mode;
 
-  OC_INF("Re-register DNS-SD service after device PRG mode change)");
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 }
 
 void oc_knx_device_restart(void) 
@@ -1273,13 +1284,17 @@ void oc_knx_device_restart(void)
      - send read requests for all GO's with i-flag
      - call individual application restart callback handler
 
-    @note After the actions factory restart callback handler is called.
+    @note The factory restart callback handler is NOT called in this method, it is called 
+          only on an inbound message together with this method.
 
   */
 
   OC_INF("restart device");
 
   oc_device_info_t* const device = oc_core_get_device_info();
+
+  // send the DNS-SD goodbye while the interface is still up, before change of 'pm' mode
+  knx_dns_sd_stop();
 
   // disable PROG mode
   device->pm = false;
@@ -1293,13 +1308,6 @@ void oc_knx_device_restart(void)
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
-  // application restart callback handler
-  const oc_restart_t* my_restart = oc_get_restart_cb();
-  if (my_restart && my_restart->cb)
-  {
-    my_restart->cb(my_restart->data);
-  }
-
-  OC_INF("Re-register DNS-SD service after device restart)");
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  // reannounce mDNS advertisement with new data
+  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
 }

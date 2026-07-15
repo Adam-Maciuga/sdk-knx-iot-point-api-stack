@@ -64,16 +64,17 @@ extern "C" {
 	 * - some properties maybe changed at runtime via a PUT/POST service, or as a consequence of a reset (code 2/7)
 	 *   or restart, marked with (mod)
 	 * - some properties are set to a fixed value at device startup and cannot be changed at all, marked with (fix)
+	 *   here only a pointer is stored, handed over from application on start
 	 
 	 */
 	typedef struct oc_device_info_t
 	{
-		oc_string_t serialnumber;     // knx serial number, binary 6 bytes, in hex 12 bytes (fix)
+		const char *serialnumber;     // knx serial number, binary 6 bytes, in hex 12 bytes (fix)
 		oc_knx_version_info_t hwv;    // hardware ver, :dpt.version -> U5U5U6 (fix)
 		oc_knx_version_info_t fwv;    // firmware ver, :dpt.version -> U5U5U6 (fix)
 		oc_knx_version_info_t apv;    // application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) (mod)
-		oc_string_t hwt;              // knx hardware type, should not be larger than 6 chars (fix)
-		oc_string_t iot_model;        // knx model, former mask version (fix), name is specific due to vast amount of "hostname" in other code
+		const char *hwt;              // knx hardware type, should not be larger than 6 chars (fix)
+		const char *iot_model;        // knx model, former mask version (fix), name is specific due to vast amount of "hostname" in other code
     oc_string_t iot_hostname;			// knx host name (mod), see above
 		uint32_t mid;                 // knx manufacturer id (fix)
 		uint64_t fid;                 // knx fabric id (mod)(mod)
@@ -81,21 +82,28 @@ extern "C" {
 		uint64_t iid;                 // 40-bit knx installation id (mod)
 		bool pm;                      // knx programming mode (mod)
 		oc_lsm_state_t lsm_s;         // knx lsm states (mod)
-    oc_string_t app_friendly_name;// knx application 'friendly' name, currently not able to retrieve from any endpoint (fix)
 	} oc_device_info_t;
 
 	/**
-	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
+	 * @brief Set device serial number 
 	 *
-   * @note Must be called before any other initialization of the device resources, 
-   *       otherwise the device resources will not be properly initialized
-           and may cause errors when accessed.
+   * @note Must be called before any other initialization of the stack, 
+   *       otherwise some device resources may not be properly initialized
+           and may cause errors when accessed 
+           (such as to build a device host name on a 'reset').
 	 * 
-	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\')
-	 * @param app_friendly_name the user-friendly name of the application
-
+	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\0').
+   *                     The pointed-to string must remain valid for the device lifetime.
 	 */
-  void oc_core_set_device(const char* serialnumber, const char* app_friendly_name);
+  void oc_core_set_device_sn(const char* serialnumber);
+
+	/**
+   * @brief Set device resources by loading knx publisher/recipient/security tables and init's the 
+   *        (socket) connectivity for the device, including the CoAP unicast default port (5683 or random, 
+   *        see COAP_DEFAULT_PORT in CMake) and the multicast discovery port (5683)
+   *
+   */
+  void oc_core_set_device_res(void);
 
 	/**
 	 * @brief sets and stores the firmware version
@@ -142,7 +150,7 @@ extern "C" {
 	 * @brief sets the hardware type (string)
 	 * input string should not be larger than 6
 	 *
-	 * @param hardware_type the hardware type
+	 * @param hardware_type the hardware type. The pointed-to string must remain valid for the device lifetime.
 	 * @return int error status, 0 = OK
 	 */
 	int oc_core_set_device_hwt(const char* hardware_type);
@@ -150,7 +158,7 @@ extern "C" {
 	/**
 	 * @brief sets the model (string)
 	 *
-	 * @param model the device model
+	 * @param model the device model. The pointed-to string must remain valid for the device lifetime.
 	 * @return int error status, 0 = OK
 	 */
 	int oc_core_set_device_model(const char* model);

@@ -133,16 +133,6 @@ void oc_send_s_mode_unicast_message(
  */
 oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* data);
 
-/**
- * @brief Process pending s-mode messages for a resolved IA
- *
- * Called after IPv6 resolution completes to send any queued messages
- * that were waiting for this IA to be resolved.
- *
- * @param ia Individual Address that was just resolved
- */
-void oc_knx_process_pending_messages_for_a_recipient_ia(uint32_t ia);
-
 #ifdef __cplusplus
 }
 #endif

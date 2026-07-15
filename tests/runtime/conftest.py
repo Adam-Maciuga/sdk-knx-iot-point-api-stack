@@ -807,7 +807,12 @@ def oscore_ctx(coap):
         full_ctx, "/.well-known/knx/ia", payload=ia_iid_payload)
     assert resp_ia is not None, "IA/IID POST timed out"
     assert resp_ia.is_successful, f"IA/IID POST failed: {resp_ia.code}"
-    print("[conftest] Set IID=0x1199887766, IA=0x1101 for runtime state"
-          " (matches EITT)")
+    print("[conftest] Set IID=0x1199887766, IA=0x1101 for runtime state (matches EITT)")
 
     return full_ctx
+
+
+# ---------------------------------------------------------------------------
+# Per-test pass/fail output
+# ---------------------------------------------------------------------------
+
