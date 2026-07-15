@@ -41,6 +41,10 @@ install/
 integration_test_storage_*/
 runtime_test_storage_*/
 
+# Unit-test persistent storage
+knx_storage_unit_test/
+knx_storage_fp_unit_test/
+
 # DUT runtime data (persistent storage created by eitt_virtual)
 knx_iot_virtual_eitt_*/
 
