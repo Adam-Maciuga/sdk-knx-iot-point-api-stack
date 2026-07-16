@@ -27,6 +27,7 @@
 #include "oc_core_res.h"
 #include "oc_events.h"
 #include "oc_network_events.h"
+#include "oc_signal_event_loop.h"
 #ifdef OC_TCP
 #include "oc_session_events.h"
 #endif
@@ -838,6 +839,12 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
       oc_etimer_set(&event_cb->timer, ticks);
     OC_PROCESS_CONTEXT_END(&timed_callback_events);
     oc_list_add(timed_callbacks, event_cb);
+
+    /* Wake the event loop so ports that sleep until signaled (e.g. Zephyr)
+     * re-evaluate their next wakeup and service this new timer on time.
+     * Without this, a timed callback scheduled from another context (e.g. a
+     * button press) can be missed until an unrelated event wakes the loop. */
+    _oc_signal_event_loop();
   }
   else
   {
