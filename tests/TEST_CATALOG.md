@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **1033 unit tests** (50 files) + **293 runtime tests** (17 files) = **1326 total**
+> **1112 unit tests** (50 files) + **293 runtime tests** (17 files) = **1405 total**
 >
-> Branch: `work_in_progress` | Unit: 1033 passed (windows-test-gcc, GCC/CTest).
+> Branch: `work_in_progress` | Unit: 1112 registered; focused discovery run: 62 passed, 1 skipped (windows-test-gcc, GCC/CTest).
 > Runtime (Docker `linux-test-gcc`, full suite): 287 passed, 6 skipped, 0 failed, 0 errors (293 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -645,7 +645,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (15 tests)
+### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (63 tests)
 
 **Source:** `api/oc_discovery.c`
 
@@ -653,6 +653,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `DiscoveryBase` (add-payload) | 8 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) |
 | `DiscoveryBase` (check-request) | 7 | Discoverability + rt-query filtering, first-entry skipping, uninitialised core |
+| `WellKnownCoreHandler` | 42 | Accept handling; rt/if/ep/d/l/pn/ps queries; PM, SN, IA, sector errors, next-page links, combined filters, multicast suppression |
+| `WellKnownCorePmEndpoint` | 6 | PM on/off with exact, wildcard, and mismatching SN endpoints; PM-on wildcard skipped as F-006 |
 
 ---
 

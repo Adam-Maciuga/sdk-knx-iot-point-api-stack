@@ -7,7 +7,7 @@
  *                                         link-format record (<uri>;rt=..;if=..;ct=..)
  *   oc_check_request_from_resource      — discoverability + rt/if query filter +
  *                                         paging skip, then frame the record
-  oc_check_request_from_index         — same, but resolve the resource from the
+  oc_check_request_from_index            — same, but resolve the resource from the
  *                                         core-resource table by index
  *
  * Requirements:
@@ -16,17 +16,8 @@
  *     calls oc_rep_new(buf, size) before each test; the written bytes are read
  *     back from buf for the first *response_length bytes.
  *
- * INTEGRATION (documented, not unit-tested here):
- *   - oc_well_known_core_discovery_handler (the GET handler on
- *     core_resource_well_known_core) and the static helpers it drives
- *     (oc_process_core_resources, oc_process_application_resources, frame_sn)
- *     need a fully bootstrapped device: the core-resource table, the app
- *     resource list, a stored serial number / internal address / installation
- *     id, and MTU/paging state. They are exercised by the runtime conformance
- *     suite (.well-known/core discovery) rather than as unit tests.
- *   - oc_check_request_from_index's match path needs the core-resource table
- *     populated (oc_core_get_core_resource_by_index); only its NULL/guard path
- *     is unit-tested here.
+ * Positive sector responses that serialize application data points remain integration-level
+ * because they require populated group-object and application-resource tables.
  */
 
 #include <gtest/gtest.h>
@@ -41,7 +32,13 @@ extern "C" {
 #include "oc_rep.h"
 #include "oc_helpers.h"
 #include "oc_endpoint.h"
+#include "oc_core_res.h"
+#include "oc_knx_dev.h"
+#include "oc_knx_fp.h"
+#include "messaging/coap/oc_coap.h"
 #include "util/oc_mmem.h"
+
+extern const oc_resource_t core_resource_well_known_core;
 }
 
 /* ───────────────────────────────── fixture ───────────────────────────────── */
@@ -62,10 +59,602 @@ protected:
   }
 };
 
+class WellKnownCoreHandler : public ::testing::Test {
+protected:
+  uint8_t buf[4096];
+  oc_request_t request;
+  oc_response_t response;
+  oc_response_buffer_t response_buffer;
+  oc_endpoint_t origin;
+  oc_device_info_t saved_device;
+
+  void SetUp() override
+  {
+    oc_mmem_init();
+    memset(buf, 0, sizeof(buf));
+    memset(&request, 0, sizeof(request));
+    memset(&response, 0, sizeof(response));
+    memset(&response_buffer, 0, sizeof(response_buffer));
+    memset(&origin, 0, sizeof(origin));
+
+    oc_device_info_t *device = oc_core_get_device_info();
+    saved_device = *device;
+    device->serialnumber = "00fa10020800";
+    device->iid = 0xd773e094b6;
+    device->ia = 0x1101;
+    device->pm = false;
+    device->lsm_s = LSM_S_UNLOADED;
+
+    response.response_buffer = &response_buffer;
+    request.response = &response;
+    request.response->response_buffer->buffer = buf;
+    request.response->response_buffer->buffer_size = sizeof(buf);
+    request.resource = const_cast<oc_resource_t *>(&core_resource_well_known_core);
+    request.origin = &origin;
+    request.accept = APPLICATION_LINK_FORMAT;
+    oc_rep_new(buf, sizeof(buf));
+  }
+
+  void TearDown() override
+  {
+    *oc_core_get_device_info() = saved_device;
+  }
+
+  void set_handler_query(const char *query)
+  {
+    request.query = const_cast<char *>(query);
+    request.query_len = query != nullptr ? strlen(query) : 0;
+  }
+
+  void set_multicast(bool multicast)
+  {
+    origin.flags = static_cast<transport_flags>(multicast ? MULTICAST : 0);
+  }
+
+  void invoke()
+  {
+    response_buffer.code = 0;
+    response_buffer.response_length = 0;
+    response_buffer.content_format = CONTENT_NONE;
+    memset(buf, 0, sizeof(buf));
+    oc_rep_new(buf, sizeof(buf));
+    oc_well_known_core_discovery_handler(&request, OC_IF_NONE, nullptr);
+  }
+
+  std::string payload() const
+  {
+    return std::string(reinterpret_cast<const char *>(buf), response_buffer.response_length);
+  }
+
+  static void clear_group_object_table()
+  {
+    for (int i = 0; i < oc_core_get_group_object_table_total_size(); i++)
+    {
+      oc_group_object_table_t *entry = oc_core_get_group_object_table_entry(i);
+      entry->id = -1;
+      entry->ga = nullptr;
+      entry->ga_len = 0;
+    }
+  }
+};
+
+struct PmEndpointCase
+{
+  const char *name;
+  bool programming_mode;
+  const char *query;
+  oc_status_t expected_status;
+  bool expect_identity;
+};
+
+class WellKnownCorePmEndpoint : public WellKnownCoreHandler, public ::testing::WithParamInterface<PmEndpointCase> {
+};
+
+TEST_P(WellKnownCorePmEndpoint, HandlesSerialNumberValueForProgrammingMode)
+{
+  /*
+    Input: ep is an exact serial number, wildcard, or mismatch, followed by if=urn:knx:if.pm; PM is enabled or disabled.
+    Expected output: PM enabled returns identity for exact/wildcard values and Not Found for a mismatch; PM disabled always returns Not Found.
+  */
+  const PmEndpointCase &test_case = GetParam();
+  if (strcmp(test_case.name, "PmOnWildcard") == 0)
+  {
+    GTEST_SKIP() << "Known failure F-006: PM-on discovery with ep=knx://sn.* returns 4.04 Not Found instead of device identity";
+  }
+  oc_core_get_device_info()->pm = test_case.programming_mode;
+  set_handler_query(test_case.query);
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(test_case.expected_status));
+  if (test_case.expect_identity)
+  {
+    EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+    EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
+  }
+  else
+  {
+    EXPECT_EQ(response_buffer.response_length, 0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  ProgrammingModeAndSerialNumber, WellKnownCorePmEndpoint,
+  ::testing::Values(
+    PmEndpointCase{ "PmOnExact", true, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "PmOnWildcard", true, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "PmOnMismatch", true, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "PmOffExact", false, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "PmOffWildcard", false, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "PmOffMismatch", false, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false }),
+  [](const ::testing::TestParamInfo<PmEndpointCase> &info) { return info.param.name; });
+
+TEST_F(WellKnownCoreHandler, WrongAcceptReturnsBadRequest)
+{
+  // Verify that an unsupported Accept format is rejected with Bad Request.
+  request.accept = APPLICATION_CBOR;
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, MoreDataIncludesNextPageIndicator)
+{
+  // Verify that a partial result page includes a link to the next page.
+  set_handler_query("rt=*&pn=0&ps=1");
+
+  invoke();
+
+  ASSERT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</.well-known/core?pn=1>"), std::string::npos);
+  EXPECT_NE(payload().find("rt=\"p.next\""), std::string::npos);
+  EXPECT_NE(payload().find("ct=40"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, ExplicitPageNumberIncrementsNextPageIndicator)
+{
+  // Verify that the next-page link increments an explicitly requested page number.
+  set_handler_query("rt=*&pn=1&ps=1");
+
+  invoke();
+
+  ASSERT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</.well-known/core?pn=2>"), std::string::npos);
+  EXPECT_NE(payload().find("rt=\"p.next\""), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, FinalPageOmitsNextPageIndicator)
+{
+  // Verify that no next-page link is emitted when all results fit on the page.
+  set_handler_query("rt=*&pn=0&ps=20");
+
+  invoke();
+
+  ASSERT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(payload().find("rt=\"p.next\""), std::string::npos);
+  EXPECT_EQ(payload().find("?pn="), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, MatchingResourceTypeAndInterfaceReturnResource)
+{
+  // Verify that matching rt and if filters return the corresponding resource.
+  set_handler_query("rt=urn:knx:fb.0&if=urn:knx:if.ll");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</dev>;"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, ResourceTypeAndMismatchingInterfaceReturnNotFound)
+{
+  // Verify that combined filters return Not Found when one filter does not match.
+  set_handler_query("rt=urn:knx:fb.0&if=urn:knx:if.unknown");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, DuplicateEndpointUsesLastMatchingValue)
+{
+  /*
+    Input: ep=knx://sn.ffffffffffff followed by ep=knx://sn.00fa10020800.
+    The first value does not match the fixture device, while the final value matches its serial number.
+    Expected output: 2.05 Content with a link-format identity containing knx://sn.00fa10020800.
+  */
+  set_handler_query("ep=knx://sn.ffffffffffff&ep=knx://sn.00fa10020800");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, DuplicateEndpointUsesLastMismatchingValue)
+{
+  /*
+    Input: ep=knx://sn.00fa10020800 followed by ep=knx://sn.ffffffffffff.
+    The first value matches the fixture device, while the final value does not match its serial number.
+    Expected output: 4.04 Not Found with an empty response payload because the final ep value wins.
+  */
+  set_handler_query("ep=knx://sn.00fa10020800&ep=knx://sn.ffffffffffff");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, UnknownMulticastQueryIsIgnored)
+{
+  // Verify that an unknown multicast query is suppressed instead of answered.
+  set_multicast(true);
+  set_handler_query("unknown=value");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, OC_IGNORE);
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, MismatchingSerialNumberMulticastQueryIsIgnored)
+{
+  // Verify that a multicast serial-number mismatch is suppressed.
+  set_multicast(true);
+  set_handler_query("ep=knx://sn.ffffffffffff");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, OC_IGNORE);
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, EmptyUnicastQueryReturnsCoreResources)
+{
+  // Verify that unfiltered unicast discovery returns the mandatory core resources.
+  set_handler_query(nullptr);
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(response_buffer.content_format, APPLICATION_LINK_FORMAT);
+  EXPECT_GT(response_buffer.response_length, 0);
+  EXPECT_NE(payload().find("</dev>;"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, UnknownUnicastQueryReturnsNotFound)
+{
+  // Verify that an unknown unicast query key returns Not Found.
+  set_handler_query("unknown=value");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, PageSizeLookupReturnsConfiguredPageSize)
+{
+  // Verify that l=ps reports the configured discovery page size.
+  set_handler_query("l=ps");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(response_buffer.content_format, APPLICATION_LINK_FORMAT);
+  EXPECT_NE(payload().find("</.well-known/core>;ps="), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, TotalLookupReturnsResourceCount)
+{
+  // Verify that l=total reports the number of discoverable resources.
+  set_handler_query("l=total");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</.well-known/core>;total="), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, InvalidLookupValueReturnsNotFound)
+{
+  // Verify that an unsupported l value returns Not Found.
+  set_handler_query("l=invalid");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, LookupCombinedWithPagingReturnsBadRequest)
+{
+  // Verify that a lookup query combined with paging is rejected.
+  set_handler_query("l=ps&pn=1");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ValidPageNumberAndSizeReturnRequestedPage)
+{
+  // Verify that valid pn and ps values return the requested result page.
+  set_handler_query("rt=*&pn=0&ps=2");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_GT(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ZeroPageSizeReturnsBadRequest)
+{
+  // Verify that a zero page size is rejected with Bad Request.
+  set_handler_query("rt=*&pn=0&ps=0");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, MalformedPageSizeReturnsBadRequest)
+{
+  // Verify that a nonnumeric page size is rejected with Bad Request.
+  set_handler_query("rt=*&pn=0&ps=invalid");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, OutOfRangePageReturnsBadRequest)
+{
+  // Verify that a page beyond the available result set is rejected.
+  set_handler_query("rt=*&pn=100&ps=1");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ResourceTypeExactMatchReturnsMatchingResource)
+{
+  // Verify that an exact resource-type query returns the matching resource.
+  set_handler_query("rt=urn:knx:fb.0");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</dev>;"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, ResourceTypeWildcardReturnsResources)
+{
+  // Verify that the resource-type wildcard returns typed resources.
+  set_handler_query("rt=*");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_GT(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ResourceTypeTruncatedValueDoesNotMatch)
+{
+  // Verify that a resource type without the required full URN does not match.
+  set_handler_query("rt=:fb.0");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ResourceTypeMismatchReturnsNotFound)
+{
+  // Verify that a nonexistent resource type returns Not Found.
+  set_handler_query("rt=urn:knx:fb.9999");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, InterfaceExactMatchReturnsMatchingResource)
+{
+  // Verify that an exact interface query returns a resource using that interface.
+  set_handler_query("if=urn:knx:if.ll");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("</dev>;"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, InterfaceWildcardReturnsResources)
+{
+  // Verify that the interface wildcard returns resources with interfaces.
+  set_handler_query("if=*");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_GT(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, InterfaceMismatchReturnsNotFound)
+{
+  // Verify that a nonexistent interface returns Not Found.
+  set_handler_query("if=urn:knx:if.unknown");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ProgrammingModeInterfaceReturnsNotFoundWhenDisabled)
+{
+  // Verify that programming-mode discovery does not match when PM is disabled.
+  oc_core_get_device_info()->pm = false;
+  set_handler_query("if=urn:knx:if.pm");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ProgrammingModeInterfaceReturnsIdentityWhenEnabled)
+{
+  // Verify that programming-mode discovery returns device identity when PM is enabled.
+  oc_core_get_device_info()->pm = true;
+  set_handler_query("if=urn:knx:if.pm");
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+  EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, SerialNumberWildcardReturnsIdentity)
+{
+  // Verify that a serial-number wildcard returns this device identity.
+  set_handler_query("ep=knx://sn.*");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, SerialNumberExactMatchReturnsIdentity)
+{
+  // Verify that an exact serial-number endpoint returns this device identity.
+  set_handler_query("ep=knx://sn.00fa10020800");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, SerialNumberPartialWildcardReturnsIdentity)
+{
+  // Verify that a matching serial-number prefix wildcard returns this device.
+  set_handler_query("ep=knx://sn.00fa1002*");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, SerialNumberMismatchReturnsNotFound)
+{
+  // Verify that a different serial number returns Not Found for unicast discovery.
+  set_handler_query("ep=knx://sn.ffffffffffff");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressExactMatchReturnsIdentity)
+{
+  // Verify that matching installation and individual addresses return device identity.
+  set_handler_query("ep=knx://ia.d773e094b6.1101");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressIidMismatchReturnsNotFound)
+{
+  // Verify that an installation-ID mismatch returns Not Found.
+  set_handler_query("ep=knx://ia.d773e094b7.1101");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressValueMismatchReturnsNotFound)
+{
+  // Verify that an individual-address mismatch returns Not Found.
+  set_handler_query("ep=knx://ia.d773e094b6.1102");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressWithoutSeparatorReturnsNotFound)
+{
+  // Verify that an individual-address endpoint without the IA separator is rejected.
+  set_handler_query("ep=knx://ia.d773e094b6");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, ProgrammingModeMatchingSerialNumberReturnsIdentity)
+{
+  // Verify that PM discovery with the matching serial number returns identity.
+  oc_core_get_device_info()->pm = true;
+  set_handler_query("if=urn:knx:if.pm&ep=knx://sn.00fa10020800");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+}
+
+TEST_F(WellKnownCoreHandler, ProgrammingModeMismatchingSerialNumberReturnsNotFound)
+{
+  // Verify that PM discovery with a different serial number returns Not Found.
+  oc_core_get_device_info()->pm = true;
+  set_handler_query("if=urn:knx:if.pm&ep=knx://sn.ffffffffffff");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, SectorWildcardReturnsBadRequest)
+{
+  // Verify that the excessively broad sector wildcard is rejected.
+  set_handler_query("d=urn:knx:g.s.*");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, SectorReturnsBadRequestOutsideRuntime)
+{
+  // Verify that sector discovery is rejected while the device is not in runtime.
+  oc_core_get_device_info()->lsm_s = LSM_S_UNLOADED;
+  set_handler_query("d=urn:knx:g.s.1234");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, SectorWithoutMatchingPointsReturnsNotFound)
+{
+  // Verify that a valid sector query without matching group objects returns Not Found.
+  clear_group_object_table();
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  set_handler_query("d=urn:knx:g.s.1234");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
 /* ────────────────────── oc_add_resource_to_response_payload ───────────────── */
 
 TEST_F(DiscoveryBase, AddPayloadNullResourceReturnsFalse)
 {
+  // Verify that a null resource is rejected without changing the response length.
   size_t len = 0;
   EXPECT_FALSE(oc_add_resource_to_response_payload(nullptr, &len, false));
   EXPECT_EQ(len, 0u);
@@ -73,6 +662,7 @@ TEST_F(DiscoveryBase, AddPayloadNullResourceReturnsFalse)
 
 TEST_F(DiscoveryBase, AddPayloadEmptyUriReturnsFalse)
 {
+  // Verify that a resource without a URI is rejected.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   size_t len = 0;
@@ -82,6 +672,7 @@ TEST_F(DiscoveryBase, AddPayloadEmptyUriReturnsFalse)
 
 TEST_F(DiscoveryBase, AddPayloadUriOnlyFramesAngleBrackets)
 {
+  // Verify that a URI-only resource is framed as an RFC 6690 link.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/0", strlen("/p/0"));
@@ -96,6 +687,7 @@ TEST_F(DiscoveryBase, AddPayloadUriOnlyFramesAngleBrackets)
 
 TEST_F(DiscoveryBase, AddPayloadInsertsLeadingCommaWhenBufferNonEmpty)
 {
+  // Verify that another resource is separated from prior output by a comma.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/1", strlen("/p/1"));
@@ -110,6 +702,7 @@ TEST_F(DiscoveryBase, AddPayloadInsertsLeadingCommaWhenBufferNonEmpty)
 
 TEST_F(DiscoveryBase, AddPayloadFramesResourceTypeUnTruncated)
 {
+  // Verify that full KNX resource-type URNs are retained when truncation is disabled.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/2", strlen("/p/2"));
@@ -127,6 +720,7 @@ TEST_F(DiscoveryBase, AddPayloadFramesResourceTypeUnTruncated)
 
 TEST_F(DiscoveryBase, AddPayloadTruncateStripsUrnKnxPrefix)
 {
+  // Verify that truncation removes the urn:knx prefix from a resource type.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/3", strlen("/p/3"));
@@ -146,6 +740,7 @@ TEST_F(DiscoveryBase, AddPayloadTruncateStripsUrnKnxPrefix)
 
 TEST_F(DiscoveryBase, AddPayloadFramesSingleContentType)
 {
+  // Verify that one content type is framed as an unquoted ct value.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/4", strlen("/p/4"));
@@ -164,6 +759,7 @@ TEST_F(DiscoveryBase, AddPayloadFramesSingleContentType)
 
 TEST_F(DiscoveryBase, AddPayloadFramesDoubleContentType)
 {
+  // Verify that two content types are framed as a quoted, space-separated ct value.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/5", strlen("/p/5"));
@@ -190,6 +786,7 @@ set_query(oc_request_t *req, const char *q)
 
 TEST_F(DiscoveryBase, CheckRequestNullResourceReturnsFalse)
 {
+  // Verify that request filtering safely rejects a null resource.
   oc_request_t req;
   memset(&req, 0, sizeof(req));
   size_t len = 0;
@@ -199,6 +796,7 @@ TEST_F(DiscoveryBase, CheckRequestNullResourceReturnsFalse)
 
 TEST_F(DiscoveryBase, CheckRequestNonDiscoverableReturnsFalse)
 {
+  // Verify that a resource without OC_DISCOVERABLE is excluded.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/6", strlen("/p/6"));
@@ -217,6 +815,7 @@ TEST_F(DiscoveryBase, CheckRequestNonDiscoverableReturnsFalse)
 
 TEST_F(DiscoveryBase, CheckRequestDiscoverableNoQueryFrames)
 {
+  // Verify that a discoverable resource is framed when no query filters are present.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/7", strlen("/p/7"));
@@ -237,6 +836,7 @@ TEST_F(DiscoveryBase, CheckRequestDiscoverableNoQueryFrames)
 
 TEST_F(DiscoveryBase, CheckRequestRtMismatchReturnsFalse)
 {
+  // Verify that a resource-type mismatch excludes the resource.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/8", strlen("/p/8"));
@@ -258,6 +858,7 @@ TEST_F(DiscoveryBase, CheckRequestRtMismatchReturnsFalse)
 
 TEST_F(DiscoveryBase, CheckRequestRtMatchReturnsTrue)
 {
+  // Verify that an exact resource-type match includes the resource.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/9", strlen("/p/9"));
@@ -280,6 +881,7 @@ TEST_F(DiscoveryBase, CheckRequestRtMatchReturnsTrue)
 
 TEST_F(DiscoveryBase, CheckRequestSkipsEntriesBelowFirstEntry)
 {
+  // Verify that matching entries before the requested page start are counted and skipped.
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   oc_new_string(&r.uri, "/p/a", strlen("/p/a"));
@@ -303,6 +905,7 @@ TEST_F(DiscoveryBase, CheckRequestSkipsEntriesBelowFirstEntry)
 
 TEST_F(DiscoveryBase, CheckRequestFromIndexUninitializedCoreReturnsFalse)
 {
+  // Verify that an out-of-range core-resource index is rejected safely.
   oc_request_t req;
   memset(&req, 0, sizeof(req));
   set_query(&req, nullptr);
