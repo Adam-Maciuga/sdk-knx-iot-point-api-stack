@@ -20,13 +20,22 @@ extern "C" {
 /* Time Resolution */
 typedef uint64_t oc_clock_time_t;
 /* Note:
- * Clock tick rate must match oc_clock_time() which returns k_uptime_get() (milliseconds).
- * CONFIG_SYS_CLOCK_TICKS_PER_SEC is 1000 on ESP32-C6, giving 1 tick = 1 ms — correct.
- * Do NOT use CLOCKS_PER_SEC here: picolibc defines it as 1 000 000, which would make
- * all CoAP retransmit timers (e.g. COAP_RESPONSE_TIMEOUT_TICKS = 5 * 1 000 000 ticks)
- * expire after ~83 minutes instead of 5 seconds.
+ * oc_clock_time() returns k_uptime_get(), which is ALWAYS in milliseconds,
+ * independent of the kernel tick rate. The Contiki/etimer layer treats
+ * OC_CLOCK_CONF_TICKS_PER_SECOND as the number of oc_clock_time() units per
+ * second, so it MUST be 1000 to match the millisecond clock.
+ *
+ * Do NOT bind this to CONFIG_SYS_CLOCK_TICKS_PER_SEC: that is the kernel tick
+ * rate (1000 on ESP32-C6, but 10000 on frdm_rw612, 32768 on nRF, ...), which is
+ * unrelated to k_uptime_get()'s millisecond resolution. Using it makes
+ * oc_set_delayed_callback(n) fire after n * (ticks_per_sec / 1000) seconds — e.g.
+ * a 2 s SWU-upgrade timer fires after 20 s on frdm_rw612, so the EITT
+ * firmware-update state never returns to IDLE within the test window.
+ *
+ * Do NOT use CLOCKS_PER_SEC either: picolibc defines it as 1 000 000, which would
+ * make all CoAP retransmit timers expire after ~83 minutes instead of 5 seconds.
  */
-#define OC_CLOCK_CONF_TICKS_PER_SECOND CONFIG_SYS_CLOCK_TICKS_PER_SEC
+#define OC_CLOCK_CONF_TICKS_PER_SECOND 1000
 
 /* Security Layer */
 // Max inactivity timeout before tearing down DTLS connection.

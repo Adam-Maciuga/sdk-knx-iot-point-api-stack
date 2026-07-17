@@ -82,6 +82,7 @@ static int mcast_sock  = -1;
 static k_tid_t rx_tid  = NULL;
 
 static uint16_t g_unicast_port = 0; // 0 -> Let the OS assign an ephemeral port. Set via oc_connectivity_set_port().
+static uint16_t g_bound_unicast_port = 0; // Actual port server_sock is bound to (OS-assigned when g_unicast_port==0). Advertised via DNS-SD; mirrors the Windows ipadapter dev->port.
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -518,13 +519,16 @@ int oc_connectivity_init(void)
         return -1;
     }
 
-    /* Discover and log the actual ephemeral port assigned to server_sock. */
+    /* Capture the actual bound port (OS-assigned when g_unicast_port==0). This
+     * is the port advertised via DNS-SD and the source port of unicast replies,
+     * so they must agree. Mirrors the Windows ipadapter (dev->port). */
     {
         struct sockaddr_in6 sa = {0};
         socklen_t sa_len = sizeof(sa);
         if (zsock_getsockname(server_sock, (struct sockaddr *)&sa, &sa_len) == 0) {
-            OC_DBG("Unicast socket ready, fd=%d, ephemeral port=%u.",
-                   server_sock, (unsigned)ntohs(sa.sin6_port));
+            g_bound_unicast_port = ntohs(sa.sin6_port);
+            OC_DBG("Unicast socket ready, fd=%d, bound port=%u.",
+                   server_sock, (unsigned)g_bound_unicast_port);
         } else {
             OC_DBG("Unicast socket ready, fd=%d.", server_sock);
         }
@@ -587,7 +591,8 @@ int oc_connectivity_get_new_port(void) {
     struct sockaddr_in6 sa = {0};
     socklen_t sa_len = sizeof(sa);
     if (zsock_getsockname(server_sock, (struct sockaddr *)&sa, &sa_len) == 0) {
-        OC_INF("New CoAP unicast port: %u.", (unsigned)ntohs(sa.sin6_port));
+        g_bound_unicast_port = ntohs(sa.sin6_port);
+        OC_INF("New CoAP unicast port: %u.", (unsigned)g_bound_unicast_port);
     }
 
     k_mutex_unlock(&socket_mutex);
@@ -818,7 +823,9 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
             continue;
         }
         wifi_endpoints[n].flags         = IPV6;
-        wifi_endpoints[n].addr.ipv6.port = COAP_PORT_UNSECURED;
+        /* Advertise the real bound unicast port (matches server_sock's source
+         * port on replies), not the fixed CoAP port. Mirrors Windows dev->port. */
+        wifi_endpoints[n].addr.ipv6.port = g_bound_unicast_port;
         wifi_endpoints[n].interface_index = net_if_get_by_iface(iface);
         memcpy(wifi_endpoints[n].addr.ipv6.address,
                ipv6->unicast[i].address.in6_addr.s6_addr, 16);
