@@ -21,8 +21,10 @@
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
 #include "port/oc_network_interface.h"
+#include "util/oc_list.h"
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/openthread.h>
 #include <openthread/instance.h>
 #include <openthread/message.h>
 #include <openthread.h>
@@ -30,12 +32,15 @@
 
 #define COAP_PORT_UNSECURED (5683)
 
+OC_LIST(oc_network_interface_cb_list);
+
 static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
 
 K_MUTEX_DEFINE(network_mutex);
 
 static otInstance *sInstance = NULL;
 static otUdpSocket mSocket;
+static oc_endpoint_t g_endpoint;
 
 static uint16_t g_unicast_port = COAP_PORT_UNSECURED; // Set via oc_connectivity_set_port() before oc_connectivity_init().
 
@@ -197,8 +202,70 @@ oc_send_discovery_request(oc_message_t *message)
     oc_send_buffer(message);
 }
 
-oc_endpoint_t *oc_connectivity_get_endpoints()
+oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
+    const otNetifAddress *addr;
+    struct openthread_context *ot_context;
+
+    if (sInstance == NULL)
+    {
+        return NULL;
+    }
+
+    ot_context = openthread_get_default_context();
+
+    for (addr = otIp6GetUnicastAddresses(sInstance);
+         addr != NULL;
+         addr = addr->mNext)
+    {
+        if (!addr->mValid)
+        {
+            continue;
+        }
+
+        if (!addr->mPreferred)
+        {
+            continue;
+        }
+
+        /* Skip RLOC addresses */
+        if (addr->mRloc)
+        {
+            continue;
+        }
+
+        /* Skip Mesh Local EID addresses */
+        if (addr->mMeshLocal)
+        {
+            continue;
+        }
+
+        /* Skip Link Local addresses (fe80::/10) */
+        if (otIp6IsLinkLocalUnicast(&addr->mAddress))
+        {
+            continue;
+        }
+
+        memset(&g_endpoint, 0, sizeof(g_endpoint));
+
+        g_endpoint.flags = IPV6;
+
+        memcpy(g_endpoint.addr.ipv6.address,
+               addr->mAddress.mFields.m8,
+               sizeof(g_endpoint.addr.ipv6.address));
+
+        g_endpoint.addr.ipv6.port = g_unicast_port;
+
+        if ((ot_context != NULL) &&
+            (ot_context->iface != NULL))
+        {
+            g_endpoint.interface_index =
+                net_if_get_by_iface(ot_context->iface);
+        }
+
+        return &g_endpoint;
+    }
+
     return NULL;
 }
 
@@ -252,4 +319,18 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 int oc_network_refresh_endpoints(void)
 {
     return 0;
+}
+
+void handle_network_interface_event_callback(oc_interface_event_t event)
+
+{
+    if (oc_list_length(oc_network_interface_cb_list) > 0)
+    {
+        oc_network_interface_cb_t *cb_item =
+            oc_list_head(oc_network_interface_cb_list);
+        while (cb_item) {
+            cb_item->handler(event);
+            cb_item = cb_item->next;
+        }
+    }
 }
