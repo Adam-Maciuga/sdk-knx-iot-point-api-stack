@@ -158,7 +158,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_protocol_data;
-const oc_resource_t core_resource_knx_swu_protocol = {(oc_resource_t*)&core_resource_knx_swu_maxdefer,
+const oc_resource_t core_resource_knx_swu_protocol = {&core_resource_knx_swu_maxdefer,
                                                       {NULL, sizeof("/swu/protocol"), "/swu/protocol"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.protocols"), "urn:knx:dpt.protocols"},
@@ -223,7 +223,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_maxdefer_data;
 const oc_resource_t core_resource_knx_swu_maxdefer = {
-  (oc_resource_t*)&core_resource_knx_swu_hwref,
+  &core_resource_knx_swu_hwref,
   {NULL, sizeof("/swu/maxdefer"), "/swu/maxdefer"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.timePeriodSec"), "urn:knx:dpt.timePeriodSec"},
@@ -261,7 +261,7 @@ static void oc_knx_swu_hwref_get_handler(oc_request_t* request, oc_interface_mas
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_hwref_data;
 const oc_resource_t core_resource_knx_swu_hwref = {
-  (oc_resource_t*)&core_resource_knx_swu_method,
+  &core_resource_knx_swu_method,
   {NULL, sizeof("/swu/hwref"), "/swu/hwref"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8559_1"), "urn:knx:dpt.varString8559_1"},
@@ -331,7 +331,7 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_method_data;
 const oc_resource_t core_resource_knx_swu_method = {
-  (oc_resource_t*)&core_resource_knx_swu_lastupdate,
+  &core_resource_knx_swu_lastupdate,
   {NULL, sizeof("/swu/method"), "/swu/method"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.transferMethod"), "urn:knx:dpt.transferMethod"},
@@ -388,7 +388,7 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_lastupdate_data;
 const oc_resource_t core_resource_knx_swu_lastupdate = {
-  (oc_resource_t*)&core_resource_knx_swu_result,
+  &core_resource_knx_swu_result,
   {NULL, sizeof("/swu/lastupdate"), "/swu/lastupdate"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -425,7 +425,7 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_result_data;
-const oc_resource_t core_resource_knx_swu_result = {(oc_resource_t*)&core_resource_knx_swu_state,
+const oc_resource_t core_resource_knx_swu_result = {&core_resource_knx_swu_state,
                                                     {NULL, sizeof("/swu/result"), "/swu/result"},
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("urn:knx:dpt.updateResult"), "urn:knx:dpt.updateResult"},
@@ -462,7 +462,7 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_state_data;
-const oc_resource_t core_resource_knx_swu_state = {(oc_resource_t*)&core_resource_knx_swu_update,
+const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update,
                                                    {NULL, sizeof("/swu/state"), "/swu/state"},
                                                    {NULL, 0, NULL},
                                                    {NULL, sizeof("urn:knx:dpt.dldState"), "urn:knx:dpt.dldState"},
@@ -581,7 +581,7 @@ static void oc_knx_swu_update_get_handler(oc_request_t* request, oc_interface_ma
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_update_data;
 const oc_resource_t core_resource_knx_swu_update = {
-  (oc_resource_t*)&core_resource_knx_swu_pkgv,
+  &core_resource_knx_swu_pkgv,
   {NULL, sizeof("/swu/update"), "/swu/update"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.timePeriodSecZ"), "urn:knx:dpt.timePeriodSecZ"},
@@ -628,7 +628,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgv_data;
-const oc_resource_t core_resource_knx_swu_pkgv = {(oc_resource_t*)&core_resource_knx_swu_pkgcmd,
+const oc_resource_t core_resource_knx_swu_pkgv = {&core_resource_knx_swu_pkgcmd,
                                                   {NULL, sizeof("/swu/pkgv"), "/swu/pkgv"},
                                                   {NULL, 0, NULL},
                                                   {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -857,7 +857,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgcmd_data;
-const oc_resource_t core_resource_knx_swu_pkgcmd = {(oc_resource_t*)&core_resource_knx_swu_pkgbytes,
+const oc_resource_t core_resource_knx_swu_pkgcmd = {&core_resource_knx_swu_pkgbytes,
                                                     {NULL, sizeof("/a/swu"), "/a/swu"},
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("urn:knx:dpt.file"), "urn:knx:dpt.file"},
@@ -894,7 +894,7 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgbytes_data;
-const oc_resource_t core_resource_knx_swu_pkgbytes = {(oc_resource_t*)&core_resource_knx_swu_pkgqurl,
+const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkgqurl,
                                                       {NULL, sizeof("/swu/pkgbytes"), "/swu/pkgbytes"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.value4UCount"), "urn:knx:dpt.value4UCount"},
@@ -956,7 +956,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgqurl_data;
-const oc_resource_t core_resource_knx_swu_pkgqurl = {(oc_resource_t*)&core_resource_knx_swu_pkgnames,
+const oc_resource_t core_resource_knx_swu_pkgqurl = {&core_resource_knx_swu_pkgnames,
                                                      {NULL, sizeof("/swu/pkgqurl"), "/swu/pkgqurl"},
                                                      {NULL, 0, NULL},
                                                      {NULL, sizeof("urn:knx:dpt.url"), "urn:knx:dpt.url"},
@@ -1003,7 +1003,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgnames_data;
 const oc_resource_t core_resource_knx_swu_pkgnames = {
-  (oc_resource_t*)&core_resource_knx_swu,
+  &core_resource_knx_swu,
   {NULL, sizeof("/swu/pkgname"), "/swu/pkgname"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -1097,7 +1097,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_data;
-const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
+const oc_resource_t core_resource_knx_swu = {&core_resource_sub,
                                              {NULL, sizeof("/swu"), "/swu"},
                                              {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.swu"}},
                                              {NULL, 0, NULL},

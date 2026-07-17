@@ -41,7 +41,7 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_sub_data;
 const oc_resource_t core_resource_sub = {
-  (oc_resource_t*)&core_resource_a_sen,
+  &core_resource_a_sen,
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },

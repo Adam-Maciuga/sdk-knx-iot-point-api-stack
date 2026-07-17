@@ -457,7 +457,7 @@ typedef struct oc_resource_data_t {
  *
  */
 struct oc_resource {
-  struct oc_resource* next;             /**< link to next res. (can't be const since an application resources have volatile pointers */
+  const struct oc_resource* next;       /**< link to the next resource; static core links are const and application links are assigned at runtime */
   oc_string_t uri;                      /**< resource path (e.g. '/p/lsab/soo') */
   oc_string_array_t types;              /**< resource type array (for a DPA such as 'urn:knx:dpa.0.58' -> dev/da, for an FB such as 'fb.0' -> dev/) */
   oc_string_t dpt;                      /**< resource datapoint type */

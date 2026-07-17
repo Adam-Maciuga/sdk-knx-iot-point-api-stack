@@ -832,7 +832,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 static oc_resource_data_t core_resource_well_known_core_data;
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition
 {
-	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
+	NULL,																		 																		                  // ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
 	{ NULL, 0, NULL },																														// resource types, see comment above
 	{ NULL, 0, NULL },																						 								// datapoint type, see comment above - if none => 3 x NULL
@@ -842,8 +842,8 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// put callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// post callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// delete callback, if not defined use if.none, to return 4.05 instead of 4.01
-	{{NULL}, NULL},																										 		// property get callback
-	{{NULL}, NULL},																										 		// property set callback
+	{{NULL}, NULL},																										 	// property get callback
+	{{NULL}, NULL},																										 	// property set callback
 	0,																																												 		// observe period
 	0,																																												 		// FB instance
 	true,																																											 		// is static precompiled resource
