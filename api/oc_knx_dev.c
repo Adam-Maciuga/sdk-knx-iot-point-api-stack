@@ -546,7 +546,6 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_device_info_t* const device = oc_core_get_device_info();
   const oc_rep_t* rep = request->request_payload;
   const oc_programming_mode_t* my_cb = oc_get_programming_mode_cb();
 
