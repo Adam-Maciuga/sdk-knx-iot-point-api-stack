@@ -194,7 +194,7 @@ static void knx_set_dynamic_subtypes(uint32_t iid, uint32_t ia, bool pm)
     }
 }
 
-int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
     otInstance * thrInstancePtr = openthread_get_default_instance();
     oc_device_info_t *device = oc_core_get_device_info();
