@@ -3,7 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * KNX-IoT connectivity backend for Wi-Fi using Zephyr BSD socket API.
+ * KNX-IoT connectivity backend using Zephyr's POSIX/BSD socket API.
+ * Used for both Wi-Fi and Ethernet L2 backends (see zephyr/CMakeLists.txt).
  *
  * Implements the oc_connectivity_*  and  oc_network_event_handler_mutex_*
  * interfaces declared in port/oc_connectivity.h.  The design mirrors
@@ -338,14 +339,14 @@ static int open_and_bind_socket(uint16_t port, const char *description)
     return fd;
 }
 
-/* Pin multicast sends to the WiFi STA interface and (re)join the all-CoAP-nodes
- * multicast groups on mcast_sock so discovery requests reach the device
- * regardless of GOT configuration. Mirrors the Linux ipadapter
+/* Pin multicast sends to the active network interface and (re)join the
+ * all-CoAP-nodes multicast groups on mcast_sock so discovery requests reach
+ * the device regardless of GOT configuration. Mirrors the Linux ipadapter
  * add_mcast_sock_to_ipv6_mcast_group().
  *
  * Safe to call repeatedly. It is invoked once from oc_connectivity_init (where
  * the interface may have no address yet, e.g. when the stack starts before
- * Wi-Fi is up, in which case it returns early without joining) and again on
+ * the link is up, in which case it returns early without joining) and again on
  * every NETWORK_INTERFACE_UP event once the interface is actually up. Each group
  * is dropped before being re-added so a re-join after reconnect does not fail
  * with EADDRINUSE. */
@@ -367,11 +368,11 @@ static void setup_multicast_interface(void)
      * both Ethernet and WiFi (e.g. FRDM-RW612), so we explicitly look up the
      * first WiFi interface instead. Fall back to default for Ethernet-only
      * builds where no WiFi interface exists. */
-    struct net_if *wifi_iface = net_if_get_first_wifi();
-    if (!wifi_iface) {
-        wifi_iface = net_if_get_default();
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
     }
-    int ifidx = wifi_iface ? net_if_get_by_iface(wifi_iface) : -1;
+    int ifidx = iface ? net_if_get_by_iface(iface) : -1;
     if (ifidx <= 0) {
         OC_WRN("No network interface available, skipping multicast interface binding!");
         return;
@@ -543,17 +544,18 @@ int oc_connectivity_init(void)
     }
     OC_DBG("Multicast socket ready, fd=%d, port=%u.", mcast_sock, COAP_PORT_UNSECURED);
 
-    /* Pin multicast sends to the WiFi STA interface and join the all-CoAP-nodes
-     * multicast groups. Best-effort here: when the stack starts before Wi-Fi is
-     * up the interface has no address yet and the join fails harmlessly. It is
-     * retried on the NETWORK_INTERFACE_UP event once the interface is up. */
+    /* Pin multicast sends to the active network interface and join the
+     * all-CoAP-nodes multicast groups. Best-effort here: when the stack starts
+     * before the link is up the interface has no address yet and the join
+     * fails harmlessly. It is retried on the NETWORK_INTERFACE_UP event once
+     * the interface is up. */
     setup_multicast_interface();
 
     rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
                              K_THREAD_STACK_SIZEOF(rx_thread_stack),
                              rx_thread, NULL, NULL, NULL,
                              RX_THREAD_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(rx_tid, "coap_rx_wifi");
+    k_thread_name_set(rx_tid, "coap_rx");
     OC_DBG("CoAP RX thread started.");
 
     net_mgmt_init_event_callback(&ipv6_addr_event_callback, ipv6_addr_event_handler,
@@ -561,7 +563,7 @@ int oc_connectivity_init(void)
     net_mgmt_add_event_callback(&ipv6_addr_event_callback);
     oc_add_network_interface_event_callback(network_interface_event_handler);
 
-    OC_INF("WiFi connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
+    OC_INF("Connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;
 }
 
@@ -616,7 +618,7 @@ static bool is_ula(const uint8_t *a)
     return (a[0] & 0xfe) == 0xfc;
 }
 
-/* Select a source address for the WiFi interface based on the destination
+/* Select a source address for the network interface based on the destination
  * scope, implementing RFC 6724 Rule 2: prefer the source whose scope is the
  * smallest value that is still >= the destination scope. Rule 5 (simplified):
  * prefer a global address over a ULA when the scopes are equal. The destination
@@ -718,11 +720,11 @@ int oc_send_buffer(oc_message_t *message)
      * (scope 5) telegram would not leave the link. */
     if (to.sin6_addr.s6_addr[0] == 0xff &&
         message->endpoint.interface_index == 0) {
-        struct net_if *mif = net_if_get_first_wifi();
-        if (!mif) {
-            mif = net_if_get_default();
+        struct net_if *iface = net_if_get_first_wifi();
+        if (!iface) {
+            iface = net_if_get_default();
         }
-        int ifidx = mif ? net_if_get_by_iface(mif) : 0;
+        int ifidx = iface ? net_if_get_by_iface(iface) : 0;
         message->endpoint.interface_index = ifidx;
 
         if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
@@ -793,10 +795,10 @@ void oc_send_discovery_request(oc_message_t *message)
     oc_send_buffer(message);
 }
 
-/* Static snapshot of the WiFi interface's IPv6 unicast addresses.
+/* Static snapshot of the network interface's IPv6 unicast addresses.
  * Rebuilt on every call; callers must not hold the pointer across yields. */
-#define MAX_WIFI_ENDPOINTS 5
-static oc_endpoint_t wifi_endpoints[MAX_WIFI_ENDPOINTS];
+#define MAX_ENDPOINTS 5
+static oc_endpoint_t local_endpoints[MAX_ENDPOINTS];
 
 oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
@@ -815,27 +817,27 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
         return NULL;
     }
 
-    memset(wifi_endpoints, 0, sizeof(wifi_endpoints));
+    memset(local_endpoints, 0, sizeof(local_endpoints));
     int n = 0;
 
-    for (int i = 0; i < NET_IF_MAX_IPV6_ADDR && n < MAX_WIFI_ENDPOINTS; i++) {
+    for (int i = 0; i < NET_IF_MAX_IPV6_ADDR && n < MAX_ENDPOINTS; i++) {
         if (!ipv6->unicast[i].is_used) {
             continue;
         }
-        wifi_endpoints[n].flags         = IPV6;
+        local_endpoints[n].flags         = IPV6;
         /* Advertise the real bound unicast port (matches server_sock's source
          * port on replies), not the fixed CoAP port. Mirrors Windows dev->port. */
-        wifi_endpoints[n].addr.ipv6.port = g_bound_unicast_port;
-        wifi_endpoints[n].interface_index = net_if_get_by_iface(iface);
-        memcpy(wifi_endpoints[n].addr.ipv6.address,
+        local_endpoints[n].addr.ipv6.port = g_bound_unicast_port;
+        local_endpoints[n].interface_index = net_if_get_by_iface(iface);
+        memcpy(local_endpoints[n].addr.ipv6.address,
                ipv6->unicast[i].address.in6_addr.s6_addr, 16);
         if (n > 0) {
-            wifi_endpoints[n - 1].next = &wifi_endpoints[n];
+            local_endpoints[n - 1].next = &local_endpoints[n];
         }
         n++;
     }
 
-    return (n > 0) ? &wifi_endpoints[0] : NULL;
+    return (n > 0) ? &local_endpoints[0] : NULL;
 }
 
 void oc_connectivity_shutdown(void)
@@ -893,11 +895,11 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    struct net_if *wifi_if = net_if_get_first_wifi();
-    if (!wifi_if) {
-        wifi_if = net_if_get_default();
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
     }
-    mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
+    mreq.ipv6mr_ifindex = iface ? (unsigned int)net_if_get_by_iface(iface) : 0;
 
     OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     /* Serialize against the rx thread's zsock_poll, which registers mcast_sock
@@ -922,11 +924,11 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    struct net_if *wifi_if = net_if_get_first_wifi();
-    if (!wifi_if) {
-        wifi_if = net_if_get_default();
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
     }
-    mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
+    mreq.ipv6mr_ifindex = iface ? (unsigned int)net_if_get_by_iface(iface) : 0;
 
     OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     /* Serialize against the rx thread's zsock_poll, which registers mcast_sock
