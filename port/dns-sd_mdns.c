@@ -121,7 +121,12 @@ static ip_context_t *get_ip_context_for_device(void)
 
   if (ctx.port == 0)
   {
-    OC_ERR("DNS-SD: No bound unicast IPv6 endpoint found, advertised SRV port is invalid!");
+    // Expected at stack init before the network link is up (oc_main_init()
+    // eagerly calls knx_dns_sd_update_service() once before the interface has
+    // an address; the NETWORK_INTERFACE_UP/DAD-succeed retry in
+    // connectivity_posix.c re-announces once a usable endpoint exists). Not an
+    // error condition, so log at DBG to avoid a boot-time ERR burst.
+    OC_DBG("DNS-SD: No bound unicast IPv6 endpoint found yet, advertised SRV port is invalid!");
   }
   return &ctx;
 }
@@ -657,7 +662,10 @@ static int open_mdns_listen_socket_ipv6(void)
 
   if (joined == 0)
   {
-    OC_ERR("mDNS: Could not join FF02::FB on any interface!");
+    // Retryable: no interface has a usable address yet at this point (e.g.
+    // Zephyr cold boot before link-up/DAD completes). Matches the severity of
+    // the sibling "network not ready?" warning in send_announcement().
+    OC_WRN("mDNS: Could not join FF02::FB on any interface (network not ready?)!");
     #ifdef _WIN32
     closesocket(sock);
     #else
@@ -1284,9 +1292,12 @@ static void start_listener(void)
   }
 
   mdns_listen_sock6 = open_mdns_listen_socket_ipv6();
-  if (mdns_listen_sock6 < 0) 
+  if (mdns_listen_sock6 < 0)
   {
-    OC_ERR("DNS-SD: Query responder not started (mDNS listen socket unavailable)!");
+    // Retryable: listener_running stays false, so the next
+    // knx_dns_sd_update_service() call (e.g. on NETWORK_INTERFACE_UP/DAD
+    // succeed) retries start_listener() automatically.
+    OC_WRN("DNS-SD: Query responder not started yet (mDNS listen socket unavailable, network not ready?)!");
     return;
   }
 

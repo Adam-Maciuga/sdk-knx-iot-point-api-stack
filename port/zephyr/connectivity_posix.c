@@ -440,7 +440,17 @@ static void ipv6_addr_event_handler(struct net_mgmt_event_callback *cb,
     ARG_UNUSED(cb);
     ARG_UNUSED(iface);
 
-    if (mgmt_event == NET_EVENT_IPV6_ADDR_ADD) {
+    /* NET_EVENT_IPV6_ADDR_ADD fires as soon as an address is added, while it
+     * is still NET_ADDR_TENTATIVE (duplicate-address-detection in progress)
+     * and therefore not yet usable — oc_connectivity_get_endpoints() will not
+     * return it. Without also handling DAD completion, a DNS-SD/multicast
+     * (re)join attempt triggered by ADDR_ADD alone can fail here and never
+     * retry, leaving the device permanently unreachable via mDNS.
+     * NET_EVENT_IPV6_DAD_SUCCEED fires once the address actually becomes
+     * usable (NET_ADDR_PREFERRED), so re-run the NETWORK_INTERFACE_UP path
+     * then as well. */
+    if (mgmt_event == NET_EVENT_IPV6_ADDR_ADD ||
+        mgmt_event == NET_EVENT_IPV6_DAD_SUCCEED) {
         oc_network_interface_event(NETWORK_INTERFACE_UP);
     } else if (mgmt_event == NET_EVENT_IPV6_ADDR_DEL) {
         oc_network_interface_event(NETWORK_INTERFACE_DOWN);
@@ -576,7 +586,8 @@ int oc_connectivity_init(void)
     OC_DBG("CoAP RX thread started.");
 
     net_mgmt_init_event_callback(&ipv6_addr_event_callback, ipv6_addr_event_handler,
-                                 NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL);
+                                 NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL |
+                                 NET_EVENT_IPV6_DAD_SUCCEED);
     net_mgmt_add_event_callback(&ipv6_addr_event_callback);
     oc_add_network_interface_event_callback(network_interface_event_handler);
 
