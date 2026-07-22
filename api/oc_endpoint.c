@@ -242,8 +242,8 @@ int oc_ipv6_endpoint_is_link_local(oc_endpoint_t* endpoint)
  * RFC 6724 Section 3.2 scope of a 16-byte IPv6 address.
  *
  * Loopback (::1) and link-local (fe80::/10) return 2.
- * Deprecated site-local (fec0::/10) returns 5.
- * Everything wider (ULA fc00::/7 and global) returns 14.
+ * Deprecated site-local (fec0::/10) and ULA (fc00::/7, RFC 4193) return 5.
+ * Everything wider (global) returns 14.
  */
 int oc_ipv6_address_scope(const uint8_t* address)
 {
@@ -264,6 +264,17 @@ int oc_ipv6_address_scope(const uint8_t* address)
   if (address[0] == 0xfe && (address[1] & 0xc0) == 0xc0)
   {
     // fec0::/10 = deprecated site local
+    return 5;
+  }
+
+  if ((address[0] & 0xfe) == 0xfc)
+  {
+    // fc00::/7 = Unique Local Address (RFC 4193), site-local scope per
+    // RFC 6724 policy table (row for fc00::/7 -> scope 5). Without this,
+    // a device's own ULA source address reports the same scope (14) as a
+    // global destination, so RFC 6724 Rule 2 never selects a narrower
+    // (e.g. link-local) source for narrower-scope destinations reached
+    // via a ULA-addressed peer.
     return 5;
   }
 
