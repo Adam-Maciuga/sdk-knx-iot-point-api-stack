@@ -238,12 +238,13 @@ list(APPEND PORT_SOURCES
 )
 
 # Network backend selection:
-#   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (DNS-SD and OT_SRP)
-#   Wi-Fi       — connectivity_wifi.c    +  port/dns-sd_mdns.c    (DNS-SD and mDNS)
+#   OpenThread   — connectivity_thread.c  +  dns-sd-thread.c   (DNS-SD and OT_SRP)
+#   Wi-Fi/Ether. — connectivity_posix.c   +  port/dns-sd_mdns.c (DNS-SD and mDNS)
 # Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
 # Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
 #       provides oc_connectivity_init, oc_send_buffer, etc.
-# Note: connectivity_wifi.c provides Wi-Fi connectivity (Zephyr BSD sockets).
+# Note: connectivity_posix.c provides connectivity over Zephyr's POSIX/BSD socket
+#       API (zsock_*), used for both Wi-Fi and Ethernet L2 backends.
 #       The shared port/dns-sd_mdns.c provides DNS-SD and mDNS, the same implementation
 #       used on Linux and Windows.
 if(CONFIG_NET_L2_OPENTHREAD)
@@ -253,7 +254,7 @@ if(CONFIG_NET_L2_OPENTHREAD)
     )
 elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
     list(APPEND PORT_SOURCES
-        ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
+        ${STACK_ROOT}/port/zephyr/connectivity_posix.c
         ${STACK_ROOT}/port/dns-sd_mdns.c
     )
 else()
