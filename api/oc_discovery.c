@@ -514,28 +514,75 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	if (if_len == 13 && strncmp(if_request, "urn:knx:if.pm", 13) == 0)
 	{
 		if (oc_knx_device_in_programming_mode())
-		{ // PRG mode on
+		{ 
 			/*
-				 - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface
-					 is if.pm && device is in programming mode, return immediately (do not process any other query params)
+				 device PRG mode on + if=urn:knx:if.pm 
 
-				 - the ep=knx://sn.* and if=urn:knx:if.pm concatenation is ignored since HERE only
-					 needs to respond when the device is in programming mode
+         (a) sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
+         (b) sn.00fa...  fits to the sn entirely (useful on mc)
+         (c) sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
+
+         (a/b/c) 
+         - add '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' 
+         - return immediately (do not process any other (possible) query params after if.pm and sn.xyz EVEN if they would invalidate the query)
+			
 			*/
 
-			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on");
+			if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+      { // (a/b/c)
 
-			if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
-			{ // query parameter if=urn:knx:if.pm AND ep=knx://sn. AND some extra xx data present
+				#define EP_STR_LEN_DOT_SN (9) // knx://sn.
+        #define SN_STR_LEN_MAX (12)   // max SN length
+			  
+			  /*
+           SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
+           - max sn len is between 1..12 -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
+           - so limit to max 12
+           - 0 will end up in NOT FOUND on full_sn no size match
+        */
+        char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
+        const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
+        const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
+        char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
 
-				// get sn from request, fix position
-				const char* ep_serialnumber = ep_request + 9;
+				// a ('*' is next char after '.') / b / c
+        const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos;
+        bool full_sn = false;
+        bool part_sn = false;
 
-				if (strncmp(device->serialnumber, ep_serialnumber, strlen(device->serialnumber)) != 0)
-				{ // SN does NOT match, xx data can be anything
+				if (!only_wildcard)
+        { // do not check anything else if only wildcard = true, result is already clear
 
-					OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
+          if (ep_wildcard_pos)
+          { // partial compare somewhere in sn string
 
+            // empty max len SN + string termination '\0'
+            char sn_substr[SN_STR_LEN_MAX + 1] = "";
+
+            // SN can be of 1..12 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
+            size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
+
+            // copy SN part size 0..12 , but don't copy > 12 chars
+            strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
+            part_sn = strstr(device->serialnumber, sn_substr) != NULL;
+          }
+          else
+          { // full compare (device has a string, ep_request has a stream without /0, inbound sn > 12 or == 0 is never a match)
+            full_sn = ep_sn_len == SN_STR_LEN_MAX
+											&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
+          }
+        }
+
+				if (only_wildcard || full_sn || part_sn)
+        {
+          OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN match");
+				  response_length = frame_sn(device->serialnumber, device->iid, device->ia);
+          oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
+        }
+        else
+				{ 
+
+					OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no match");
 					if (request->origin && request->origin->flags & MULTICAST)
 					{
             // on multicast request w/ query parameter and NO hit
@@ -546,31 +593,27 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
             // on unicast request w/ query parameter and NO hit
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 					}
-					return;
 				}
-				OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
-				// SN does match 1:1, leaves here and continues on 'handle serial number' (with double code)
+        return;
+			}
+			
+			// query parameter is if=urn:knx:if.pm AND something extra, but no 'knx://sn.'  
+			if (skipped < first_entry)
+			{ // do not add, is lower than needed for this page
+				skipped++;
 			}
 			else
-			{ // query parameter if=urn:knx:if.pm AND some extra xx (nothing up to wildcard)  
-
-				if (skipped < first_entry)
-				{ // do not add, is lower than needed for this page
-					skipped++;
-				}
-				else
-				{
-					// add sn to response for unicast/multicast (but don't send now)
-					response_length = frame_sn(device->serialnumber, device->iid, device->ia);
-					query_parameter_key_value_pair_matches++;
-				}
-
-				OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
-				// SN may match, leaves here and continues on 'handle serial number' (with double code)
+			{
+				// add sn to response for unicast/multicast (but don't send now)
+				response_length = frame_sn(device->serialnumber, device->iid, device->ia);
+				query_parameter_key_value_pair_matches++;
 			}
+
+			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, but no ep=knx://sn.xyz");
+			// leaves here and continues on check other query key/values 
 		}
 		else
-		{ // PRG mode off
+    { // device PRG mode off - return immediately
 
 			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode off");
 
@@ -665,15 +708,23 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	}
 
 	// handle serial number
-	if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+	if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 	{
 
 		#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.
-		#define SN_STR_LEN_MAX    (12)  // max SN length
+		#define SN_STR_LEN_MAX (12)     // max SN length
 
-		// SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn + 1)
+		
+		/*
+       SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
+       - max sn len is between 1..12 -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
+       - so limit to max 12
+       - 0 will end up in NOT FOUND on full_sn no size match
+    */
 		char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
-		char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', SN_STR_LEN_MAX + 1);
+    const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
+    const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
+		char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
 
 		/*
      (a) sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
@@ -682,7 +733,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
     */
 
 		// a ('*' is next char after '.') / b / c
-    const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos + 1;
+    const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos;
     bool full_sn = false;
     bool part_sn = false;
 
@@ -695,26 +746,29 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
         // empty max len SN + string termination '\0'
         char sn_substr[SN_STR_LEN_MAX + 1] = "";
 
-        // SN can be of 1..12 chars (valid) or > 12 (attack/error)
-        size_t ep_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
+        // SN can be of 1..12 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
+        size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
 
         // copy SN part size 0..12 , but don't copy > 12 chars
-        strncpy(sn_substr, ep_serialnumber_start_pos, ep_sn_len > SN_STR_LEN_MAX ? SN_STR_LEN_MAX : ep_sn_len);
+        strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
         part_sn = strstr(device->serialnumber, sn_substr) != NULL;
       }
       else
-      { // full compare (device has a string, ep_request has a stream without /0 
-        full_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, strlen(device->serialnumber)) == 0;
+      { // full compare (device has a string, ep_request has a stream without /0, inbound sn > 12 or == 0 is never a match) 
+				full_sn = ep_sn_len == SN_STR_LEN_MAX
+									&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
       }
     }
 
 		if (only_wildcard || full_sn || part_sn)
 		{
-			response_length = frame_sn(device->serialnumber, device->iid, device->ia);
+      OC_INF("oc_well_known_core_discovery_handler SN HANDLING: SN match");
+		  response_length = frame_sn(device->serialnumber, device->iid, device->ia);
 			oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		}
 		else
 		{
+      OC_INF("oc_well_known_core_discovery_handler SN HANDLING: SN no match");
       if (request->origin && request->origin->flags & MULTICAST)
       {
         // multicast request w/ query parameter and NO hit

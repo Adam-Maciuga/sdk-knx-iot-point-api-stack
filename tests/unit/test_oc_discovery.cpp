@@ -142,6 +142,7 @@ struct PmEndpointCase
 {
   const char *name;
   bool programming_mode;
+  bool multicast;
   const char *query;
   oc_status_t expected_status;
   bool expect_identity;
@@ -153,20 +154,24 @@ class WellKnownCorePmEndpoint : public WellKnownCoreHandler, public ::testing::W
 TEST_P(WellKnownCorePmEndpoint, HandlesSerialNumberValueForProgrammingMode)
 {
   /*
-    Input: ep is an exact serial number, wildcard, or mismatch, followed by if=urn:knx:if.pm; PM is enabled or disabled.
-    Expected output: PM enabled returns identity for exact/wildcard values and Not Found for a mismatch; PM disabled always returns Not Found.
+    Input: ep is an exact serial number, wildcard, partial wildcard, mismatch, or empty value, followed by if=urn:knx:if.pm; PM is enabled or disabled.
+    Expected output: PM enabled returns identity for matching values and Not Found for a mismatch or empty value; PM disabled always returns Not Found.
   */
   const PmEndpointCase &test_case = GetParam();
-  if (strcmp(test_case.name, "PmOnWildcard") == 0)
-  {
-    GTEST_SKIP() << "Known failure F-006: PM-on discovery with ep=knx://sn.* returns 4.04 Not Found instead of device identity";
-  }
   oc_core_get_device_info()->pm = test_case.programming_mode;
+  set_multicast(test_case.multicast);
   set_handler_query(test_case.query);
 
   invoke();
 
-  EXPECT_EQ(response_buffer.code, oc_status_code(test_case.expected_status));
+  if (test_case.multicast && !test_case.expect_identity)
+  {
+    EXPECT_EQ(response_buffer.code, OC_IGNORE);
+  }
+  else
+  {
+    EXPECT_EQ(response_buffer.code, oc_status_code(test_case.expected_status));
+  }
   if (test_case.expect_identity)
   {
     EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
@@ -181,13 +186,89 @@ TEST_P(WellKnownCorePmEndpoint, HandlesSerialNumberValueForProgrammingMode)
 INSTANTIATE_TEST_SUITE_P(
   ProgrammingModeAndSerialNumber, WellKnownCorePmEndpoint,
   ::testing::Values(
-    PmEndpointCase{ "PmOnExact", true, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_OK, true },
-    PmEndpointCase{ "PmOnWildcard", true, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_OK, true },
-    PmEndpointCase{ "PmOnMismatch", true, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
-    PmEndpointCase{ "PmOffExact", false, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
-    PmEndpointCase{ "PmOffWildcard", false, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
-    PmEndpointCase{ "PmOffMismatch", false, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false }),
+    PmEndpointCase{ "UnicastPmOnExact", true, false, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "MulticastPmOnExact", true, true, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "UnicastPmOnWildcard", true, false, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "MulticastPmOnWildcard", true, true, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "UnicastPmOnPartial", true, false, "ep=knx://sn.00fa1002*&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "MulticastPmOnPartial", true, true, "ep=knx://sn.00fa1002*&if=urn:knx:if.pm", OC_STATUS_OK, true },
+    PmEndpointCase{ "UnicastPmOnMismatch", true, false, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOnMismatch", true, true, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOnEmpty", true, false, "ep=knx://sn.&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOnEmpty", true, true, "ep=knx://sn.&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOffExact", false, false, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOffExact", false, true, "ep=knx://sn.00fa10020800&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOffWildcard", false, false, "ep=knx://sn.*&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOffWildcard", false, true, "ep=knx://sn.*&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOffPartial", false, false, "ep=knx://sn.00fa1002*&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOffPartial", false, true, "ep=knx://sn.00fa1002*&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOffMismatch", false, false, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOffMismatch", false, true, "ep=knx://sn.ffffffffffff&if=urn:knx:if.pm", OC_IGNORE, false },
+    PmEndpointCase{ "UnicastPmOffEmpty", false, false, "ep=knx://sn.&if=urn:knx:if.pm", OC_STATUS_NOT_FOUND, false },
+    PmEndpointCase{ "MulticastPmOffEmpty", false, true, "ep=knx://sn.&if=urn:knx:if.pm", OC_IGNORE, false }),
   [](const ::testing::TestParamInfo<PmEndpointCase> &info) { return info.param.name; });
+
+struct SerialNumberEndpointCase
+{
+  const char *name;
+  bool multicast;
+  const char *query;
+  oc_status_t expected_status;
+  bool expect_identity;
+};
+
+class WellKnownCoreSerialNumberEndpoint : public WellKnownCoreHandler,
+                                          public ::testing::WithParamInterface<SerialNumberEndpointCase> {
+};
+
+TEST_P(WellKnownCoreSerialNumberEndpoint, HandlesSerialNumberValue)
+{
+  // Verify identical SN filters for unicast and multicast, including transport-specific no-match behavior.
+  const SerialNumberEndpointCase &test_case = GetParam();
+  set_multicast(test_case.multicast);
+  set_handler_query(test_case.query);
+
+  invoke();
+
+  if (test_case.multicast && !test_case.expect_identity)
+  {
+    EXPECT_EQ(response_buffer.code, OC_IGNORE);
+  }
+  else
+  {
+    EXPECT_EQ(response_buffer.code, oc_status_code(test_case.expected_status));
+  }
+  if (test_case.expect_identity)
+  {
+    EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+    EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
+  }
+  else
+  {
+    EXPECT_EQ(response_buffer.response_length, 0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  UnicastAndMulticastSerialNumber, WellKnownCoreSerialNumberEndpoint,
+  ::testing::Values(
+    SerialNumberEndpointCase{ "UnicastExact", false, "ep=knx://sn.00fa10020800", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "MulticastExact", true, "ep=knx://sn.00fa10020800", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "UnicastWildcard", false, "ep=knx://sn.*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "MulticastWildcard", true, "ep=knx://sn.*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "UnicastPartial", false, "ep=knx://sn.00fa1002*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "MulticastPartial", true, "ep=knx://sn.00fa1002*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "UnicastPartialMismatch", false, "ep=knx://sn.ffffffff*", OC_STATUS_NOT_FOUND, false },
+    SerialNumberEndpointCase{ "MulticastPartialMismatch", true, "ep=knx://sn.ffffffff*", OC_IGNORE, false },
+    SerialNumberEndpointCase{ "UnicastMaximumLengthPattern", false, "ep=knx://sn.00fa1002080*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "MulticastMaximumLengthPattern", true, "ep=knx://sn.00fa1002080*", OC_STATUS_OK, true },
+    SerialNumberEndpointCase{ "UnicastOverlongPattern", false, "ep=knx://sn.00fa10020800*", OC_STATUS_NOT_FOUND, false },
+    SerialNumberEndpointCase{ "MulticastOverlongPattern", true, "ep=knx://sn.00fa10020800*", OC_IGNORE, false },
+    SerialNumberEndpointCase{ "UnicastMismatch", false, "ep=knx://sn.ffffffffffff", OC_STATUS_NOT_FOUND, false },
+    SerialNumberEndpointCase{ "MulticastMismatch", true, "ep=knx://sn.ffffffffffff", OC_IGNORE, false },
+    SerialNumberEndpointCase{ "UnicastEmpty", false, "ep=knx://sn.", OC_STATUS_NOT_FOUND, false },
+    SerialNumberEndpointCase{ "MulticastEmpty", true, "ep=knx://sn.", OC_IGNORE, false }),
+  [](const ::testing::TestParamInfo<SerialNumberEndpointCase> &info) { return info.param.name; });
 
 TEST_F(WellKnownCoreHandler, WrongAcceptReturnsBadRequest)
 {
@@ -294,18 +375,6 @@ TEST_F(WellKnownCoreHandler, UnknownMulticastQueryIsIgnored)
   // Verify that an unknown multicast query is suppressed instead of answered.
   set_multicast(true);
   set_handler_query("unknown=value");
-
-  invoke();
-
-  EXPECT_EQ(response_buffer.code, OC_IGNORE);
-  EXPECT_EQ(response_buffer.response_length, 0);
-}
-
-TEST_F(WellKnownCoreHandler, MismatchingSerialNumberMulticastQueryIsIgnored)
-{
-  // Verify that a multicast serial-number mismatch is suppressed.
-  set_multicast(true);
-  set_handler_query("ep=knx://sn.ffffffffffff");
 
   invoke();
 
@@ -526,42 +595,6 @@ TEST_F(WellKnownCoreHandler, ProgrammingModeInterfaceReturnsIdentityWhenEnabled)
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
   EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
   EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
-}
-
-TEST_F(WellKnownCoreHandler, SerialNumberWildcardReturnsIdentity)
-{
-  // Verify that a serial-number wildcard returns this device identity.
-  set_handler_query("ep=knx://sn.*");
-  invoke();
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
-}
-
-TEST_F(WellKnownCoreHandler, SerialNumberExactMatchReturnsIdentity)
-{
-  // Verify that an exact serial-number endpoint returns this device identity.
-  set_handler_query("ep=knx://sn.00fa10020800");
-  invoke();
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_NE(payload().find("knx://ia.d773e094b6.1101"), std::string::npos);
-}
-
-TEST_F(WellKnownCoreHandler, SerialNumberPartialWildcardReturnsIdentity)
-{
-  // Verify that a matching serial-number prefix wildcard returns this device.
-  set_handler_query("ep=knx://sn.00fa1002*");
-  invoke();
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
-}
-
-TEST_F(WellKnownCoreHandler, SerialNumberMismatchReturnsNotFound)
-{
-  // Verify that a different serial number returns Not Found for unicast discovery.
-  set_handler_query("ep=knx://sn.ffffffffffff");
-  invoke();
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
-  EXPECT_EQ(response_buffer.response_length, 0);
 }
 
 TEST_F(WellKnownCoreHandler, IndividualAddressExactMatchReturnsIdentity)

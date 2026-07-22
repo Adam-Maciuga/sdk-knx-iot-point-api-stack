@@ -93,13 +93,33 @@ Bugs and issues discovered during unit test development.
   passes (value stays unchanged with w=0) and the positive case
   `test_5_4_1_10_multicast_answer_updates_value` (cflag=0x90) still updates.
 
-## F-006: PM discovery with a serial-number wildcard returns Not Found
+## F-006: ~~PM discovery with a serial-number wildcard returns Not Found~~ - RESOLVED
 
-- **Status:** Open - KNX IoT specification confirmation pending.
+- **Status:** Resolved.
 - **File:** `api/oc_discovery.c`, `oc_well_known_core_discovery_handler()` programming-mode branch.
 - **Severity:** Low/Medium - affects discovery filtering when PM is enabled and a serial-number wildcard is combined with `if.pm`.
 - **Found by:** `ProgrammingModeAndSerialNumber/WellKnownCorePmEndpoint.HandlesSerialNumberValueForProgrammingMode/PmOnWildcard`.
 - **Input:** `ep=knx://sn.*&if=urn:knx:if.pm` with programming mode enabled.
-- **Observed behavior:** The PM-specific branch compares `*` directly with the configured serial number and returns `4.04 Not Found`.
+- **Original behavior:** The PM-specific branch compared `*` directly with the configured serial number and returned `4.04 Not Found`.
 - **Expected behavior under test:** Return `2.05 Content` with the device SN and IA identity, consistent with general `ep=knx://sn.*` wildcard discovery.
-- **Test status:** Skipped with `GTEST_SKIP()` until the handler is corrected, AH -> there must be a extra compare that sn is checked against sn.*
+- **Resolution:** PM endpoint handling now recognizes exact, full wildcard, and partial wildcard SN values. The active `PmOnWildcard` test returns `2.05 Content`.
+
+## F-007: ~~A 12-character serial number followed by `*` matched as an exact SN~~ - RESOLVED
+
+- **File:** `api/oc_discovery.c`, serial-number handling in `oc_well_known_core_discovery_handler()`.
+- **Severity:** Low/Medium - an invalid 13-character SN pattern was accepted when its first 12 characters matched the device SN.
+- **Found by:** `WellKnownCoreHandler.SerialNumberOverlongPatternReturnsNotFound`.
+- **Input:** `ep=knx://sn.00fa10020800*`, where the 12-character device SN is followed by `*`.
+- **Expected behavior:** Return `4.04 Not Found`; a wildcard pattern may contain at most 11 SN characters followed by `*`.
+- **Resolution:** Exact matching now also requires the query SN length to equal the configured serial-number length, so overlong patterns are rejected.
+
+## F-008: ~~An empty serial-number endpoint returned the device identity~~ - RESOLVED
+
+- **Status:** Resolved.
+- **File:** `api/oc_discovery.c`, serial-number handling in `oc_well_known_core_discovery_handler()`.
+- **Severity:** Low/Medium - an empty SN filter did not constrain discovery and could return the device identity.
+- **Found by:** `WellKnownCoreHandler.SerialNumberEmptyReturnsNotFound` and the `PmOnEmpty` parameterized case.
+- **Input:** `ep=knx://sn.` alone or followed by `if=urn:knx:if.pm` while programming mode is enabled.
+- **Original behavior:** The SN branches required `ep_len > 9`, so the nine-character empty-SN endpoint bypassed SN matching and returned identity.
+- **Expected behavior:** Treat the empty value as a non-match and return `4.04 Not Found` for unicast discovery.
+- **Resolution:** The SN branches now accept the prefix length with `ep_len >= 9`; the existing no-match path rejects the zero-length SN. Both empty-SN tests pass.
