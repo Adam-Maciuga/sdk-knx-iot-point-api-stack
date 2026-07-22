@@ -104,7 +104,7 @@ int oc_storage_erase(const char* store)
   if (err != 0)
   {
     OC_ERR("Error %d while erasing KNX key %s from storage!", err, store);
-    return -1;
+    return -ENOENT;
   }
 
   return 0;
