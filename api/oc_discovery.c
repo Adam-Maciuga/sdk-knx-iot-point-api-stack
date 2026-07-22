@@ -16,9 +16,11 @@
 // limitations under the License.
 */
 
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <strings.h>
 #include "oc_client_state.h"
 #include "oc_api.h"
 #include "oc_discovery.h"
@@ -700,11 +702,18 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
         // copy SN part size 0..12 , but don't copy > 12 chars
         strncpy(sn_substr, ep_serialnumber_start_pos, ep_sn_len > SN_STR_LEN_MAX ? SN_STR_LEN_MAX : ep_sn_len);
-        part_sn = strstr(device->serialnumber, sn_substr) != NULL;
+        // case-insensitive substring match: lowercase both sides
+        char dev_sn_lower[SN_STR_LEN_MAX + 1] = "";
+        strncpy(dev_sn_lower, device->serialnumber, SN_STR_LEN_MAX);
+        for (int ci = 0; dev_sn_lower[ci]; ci++)
+          dev_sn_lower[ci] = (char)tolower((unsigned char)dev_sn_lower[ci]);
+        for (int ci = 0; sn_substr[ci]; ci++)
+          sn_substr[ci] = (char)tolower((unsigned char)sn_substr[ci]);
+        part_sn = strstr(dev_sn_lower, sn_substr) != NULL;
       }
       else
-      { // full compare (device has a string, ep_request has a stream without /0 
-        full_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, strlen(device->serialnumber)) == 0;
+      { // full compare (device has a string, ep_request has a stream without /0
+        full_sn = strncasecmp(device->serialnumber, ep_serialnumber_start_pos, strlen(device->serialnumber)) == 0;
       }
     }
 
