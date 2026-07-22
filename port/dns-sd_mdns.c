@@ -1129,7 +1129,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
         }
       }
 
-      // _<sn> subtype
+      // _<sn> subtype (RFC 6716, clause 16 demands lower/ upper case, but KNX IoT specification 2.6.1.2. demands ONLY lower case) 
       if (!ptr_respond)
       {
         char sub_sn[MAX_MDNS_RECORD_SIZE];
