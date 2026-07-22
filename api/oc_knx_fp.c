@@ -2991,7 +2991,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
 
   if (!g_roi.net_up)
   {
-    if (oc_connectivity_get_network_scope() > SCOPE_SITE_LOCAL)
+    if (oc_connectivity_get_network_scope() >= SCOPE_SITE_LOCAL)
     {
       // one time available with at least a ULA IPv6 address scope, mark network up
       g_roi.net_up = true;
@@ -2999,16 +2999,17 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
     else
     {
       /*
-        Wait once for at least a ULA IPv6 before we start sending 
+        Wait once for at least a ULA IPv6 before we start sending
         - once up we keep going (network down later is tolerated)
         - while not up, reschedule the read on init callback
-        
-        Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out
-        until the network is up with a correct scope. The following scopes are defined in RFC 4291:
 
-        - loopback / link local = 2
-        - site local (SLA, deprecated) = 5
-        - unique local address (ULA), global = 14
+        Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out
+        until the network is up with a correct scope. oc_ipv6_address_scope() (api/oc_endpoint.c) returns,
+        per the RFC 6724 policy table:
+
+        - loopback / link local (fe80::/10) = 2
+        - site local (deprecated, fec0::/10) or unique local address (ULA, fc00::/7, RFC 4193) = 5
+        - global = 14
 
         After 20 attempts stop try to send.
       */

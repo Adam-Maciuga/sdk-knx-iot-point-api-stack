@@ -828,16 +828,17 @@ def _decrypt_smode(msg, rx_ctx):
 #
 # The stack withholds read-on-init s-mode reads until the DUT has a usable
 # IPv6 scope (oc_init_read_next gates on oc_connectivity_get_network_scope()
-# <= 5; see api/oc_knx_fp.c and api/oc_endpoint.c).  In the veth harness the
+# >= 5; see api/oc_knx_fp.c and api/oc_endpoint.c).  In the veth harness the
 # DUT only has a link-local address (scope 2 -> withheld).  Adding a ULA
-# (fd00::/8 -> scope 14) opens the gate; the Linux port re-enumerates
-# endpoints live via a netlink RTM_NEWADDR event (port/linux/ipadapter.c).
+# (fd00::/8 -> scope 5, RFC 6724 policy table / RFC 4193) opens the gate; the
+# Linux port re-enumerates endpoints live via a netlink RTM_NEWADDR event
+# (port/linux/ipadapter.c).
 
 # Interface the DUT binds to (veth-dut in the Docker/veth CI harness).  This
 # is distinct from DEVICE_IFACE (the test-side veth-test interface).
 DUT_IFACE = os.environ.get("DUT_IFACE")
 
-# ULA added to the DUT interface to flip its widest scope 2 -> 14 (up).
+# ULA added to the DUT interface to flip its widest scope 2 -> 5 (up).
 ROI_ULA_ADDR = "fd00:5704:0:1::1"
 ROI_ULA_PREFIX = 64
 
@@ -876,7 +877,7 @@ def _roi_network_control_available():
 
 
 def _roi_set_network_up():
-    """Add the ULA to the DUT interface (scope 14 -> gate open).
+    """Add the ULA to the DUT interface (scope 5 -> gate open).
 
     Uses `nodad` so the address is immediately usable (no DAD tentative
     window), making the live network-up transition deterministic.
@@ -1441,15 +1442,16 @@ class TestInitFlagStartup:
 # ===========================================================================
 #
 # Probes the network-up gate added to oc_init_read_next (api/oc_knx_fp.c):
-#   * scope <= 5 (loopback/link-local=2, site-local=5) -> read withheld,
+#   * scope < 5 (loopback/link-local=2)                     -> read withheld,
 #     callback reschedules every KNX_READ_ON_INIT_DELAY_MILLISECONDS (100 ms);
-#   * scope  > 5 (ULA/global=14)                       -> read released;
+#   * scope >= 5 (site-local=5, ULA=5, global=14)            -> read released;
 #   * the reschedule loop is capped: `if (++g_roi.counter > 20)` aborts and
 #     stops rescheduling (~2 s at 100 ms) when the network never comes up.
 #
 # The veth DUT only has a link-local address (scope 2) by default, so the gate
-# is closed; adding a ULA (fd00::/8 -> scope 14) on DUT_IFACE opens it and the
-# Linux port re-enumerates endpoints live via a netlink RTM_NEWADDR event.
+# is closed; adding a ULA (fd00::/8 -> scope 5, RFC 6724 policy table / RFC
+# 4193) on DUT_IFACE opens it and the Linux port re-enumerates endpoints live
+# via a netlink RTM_NEWADDR event.
 
 class TestReadOnInitNetworkGate:
     """Read-on-init s-mode 'r' reads are gated on a usable IPv6 scope.
@@ -1459,7 +1461,7 @@ class TestReadOnInitNetworkGate:
     AT: multicast
 
     The init-flagged GO makes the DUT emit a multicast s-mode read (st:"r")
-    on startup -- but only once oc_connectivity_get_network_scope() > 5.
+    on startup -- but only once oc_connectivity_get_network_scope() >= 5.
     """
 
     @pytest.fixture(autouse=True, scope="class")
@@ -1529,7 +1531,7 @@ class TestReadOnInitNetworkGate:
         listener.join(timeout=10.0)
 
         assert len(received) == 1, (
-            "Expected an init s-mode read while a ULA (scope 14) is present, "
+            "Expected an init s-mode read while a ULA (scope 5) is present, "
             "but none was received")
         self._assert_init_read(received)
 
@@ -1567,7 +1569,7 @@ class TestReadOnInitNetworkGate:
 
         Mirrors the user's scenario: the read-on-init s-mode read is withheld
         while the network is down (only link-local, scope 2), and is emitted
-        once the network comes up (a ULA, scope 14) ~600 ms later.
+        once the network comes up (a ULA, scope 5) ~600 ms later.
 
         Phase 1 proves the read is withheld for >= 600 ms (6x100 ms reschedule
         cycles, well under the 20-cycle cap). Phase 2 brings the network up and
@@ -1621,7 +1623,7 @@ class TestReadOnInitNetworkGate:
 
         assert len(released) == 1, (
             "Expected the init read to be released once the network came up "
-            "(a ULA, scope 14) after the withhold period, but none was received")
+            "(a ULA, scope 5) after the withhold period, but none was received")
         self._assert_init_read(released)
 
     # -- abandoned after the max-retry cap -------------------------------
