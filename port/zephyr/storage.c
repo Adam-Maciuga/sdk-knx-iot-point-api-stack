@@ -40,8 +40,8 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 {
   char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1] = {0};
 
-  // to be able to concat KNX_KEY_PREFIX"/" and store, + 1 for end char
-  const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1;
+  // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1) 
+  const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
   oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
 
   // Generate the name of the key, as known by the NVS/Settings module
@@ -70,7 +70,11 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 
 long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
-  char key_name[KNX_SETTINGS_MAX_NAME_LEN];
+  char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1];
+
+  // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1)
+  const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
+  oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
 
   // Generate the name of the key, as known by the NVS/Settings module
   (void) sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
@@ -87,7 +91,11 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 
 int oc_storage_erase(const char* store)
 {
-  char key_name[KNX_SETTINGS_MAX_NAME_LEN];
+  char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1];
+
+  // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1)
+  const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
+  oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
 
   // Generate the name of the key, as known by the NVS/Settings module
   (void)sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
