@@ -26,11 +26,10 @@
 
 int oc_storage_config(const char* store)
 {
-  int ret;
-  ret = settings_subsys_init();
+  const int ret = settings_subsys_init();
   if (ret != 0)
   {
-    OC_ERR("Unable to initialize settings sub system (ret %d)!", ret);	// TODO harmonize wording
+    OC_ERR("Unable to initialize settings sub system (ret %d)!", ret);
     return -1;
   }
 
@@ -40,29 +39,30 @@ int oc_storage_config(const char* store)
 long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 {
   char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1] = {0};
-  unsigned key_name_len = 0;
-  ssize_t ret;
 
   // to be able to concat KNX_KEY_PREFIX"/" and store, + 1 for end char
-  key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1;
+  const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1;
   oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
 
-  /* Generate the name of the key, as known by the NVS/Settings module */
-  sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
+  // Generate the name of the key, as known by the NVS/Settings module
+  (void)sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
 
-  /* Keyed O(1) read via the NVS settings backend csi_load_one (requires the
-   * settings_nvs.c.nvs_cache_patch applied to Zephyr). Returns >0 bytes on
-   * success, 0 if the key is absent, <0 on error. */
-  ret = settings_load_one(key_name, buf, size);
+  /* 
+     Keyed O(1) read via the NVS settings backend csi_load_one (requires the
+     settings_nvs.c.nvs_cache_patch applied to Zephyr). Returns >0 bytes on
+     success, 0 if the key is absent, <0 on error. 
+  */
+  ssize_t ret = settings_load_one(key_name, buf, size);
   if (ret < 0)
   {
     OC_ERR("Error %d while reading KNX key %s from storage!", (int)ret, store);
     return -EIO;
   }
-  else if (ret == 0)
+  
+  if (ret == 0)
   {
+    // compiler will remove empty 'if' in release build
     OC_ERR("KNX key %s not found in storage!", store);
-    return 0;
   }
 
   return ret;
@@ -70,12 +70,12 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 
 long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
-  int err;
   char key_name[KNX_SETTINGS_MAX_NAME_LEN];
 
-  /* Generate the name of the key, as known by the NVS/Settings module */
-  sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
-  err = settings_save_one(key_name, buf, size);
+  // Generate the name of the key, as known by the NVS/Settings module
+  (void) sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
+  const int err = settings_save_one(key_name, buf, size);
+  
   if (err != 0)
   {
     OC_ERR("Error %d while writing KNX key %s to storage!", err, store);
@@ -87,15 +87,16 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 
 int oc_storage_erase(const char* store)
 {
-  int err;
   char key_name[KNX_SETTINGS_MAX_NAME_LEN];
 
-  /* Generate the name of the key, as known by the NVS/Settings module */
-  sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
-  err = settings_delete(key_name);
+  // Generate the name of the key, as known by the NVS/Settings module
+  (void)sprintf(key_name, KNX_KEY_PREFIX "/%s", store);
+  const int err = settings_delete(key_name);
+  
   if (err != 0)
   {
     OC_ERR("Error %d while erasing KNX key %s from storage!", err, store);
+    return -1;
   }
 
   return 0;
