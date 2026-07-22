@@ -40,6 +40,10 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 {
   char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1] = {0};
 
+  // check first, before retrieve strlen or buffer access
+  oc_assert(store != NULL);
+  oc_assert(buf != NULL);
+
   // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1) 
   const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
   oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
@@ -72,6 +76,10 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
   char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1];
 
+  // check first, before retrieve strlen or buffer access
+  oc_assert(store != NULL);
+  oc_assert(buf != NULL);
+
   // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1)
   const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
   oc_assert(key_name_len <= (KNX_SETTINGS_MAX_NAME_LEN + 1));
@@ -92,6 +100,9 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 int oc_storage_erase(const char* store)
 {
   char key_name[KNX_SETTINGS_MAX_NAME_LEN + 1];
+
+  // check first, before retrieve strlen
+  oc_assert(store != NULL);
 
   // to be able to concat store + KNX_KEY_PREFIX(3) + '/'(1) + string end '\0'(1)
   const unsigned key_name_len = strlen(store) + strlen(KNX_KEY_PREFIX) + 1 + 1;
