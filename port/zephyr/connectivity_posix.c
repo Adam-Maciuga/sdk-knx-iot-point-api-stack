@@ -32,6 +32,7 @@
 #include "port/dns-sd.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
+#include "port/oc_network_interface.h"
 #include "util/oc_list.h"
 
 #include <zephyr/kernel.h>
@@ -43,6 +44,29 @@
 
 /* CoAP unencrypted port (RFC 7252) */
 #define COAP_PORT_UNSECURED  5683
+
+/* Select the network interface to use for CoAP traffic.
+ *
+ * When oc_network_get_interface_filter() is non-zero, honors it exactly
+ * (mirrors the Linux/Windows ipadapter interface filter). Otherwise falls
+ * back to the first Wi-Fi interface, since net_if_get_default() may return
+ * the Ethernet interface on boards with both Ethernet and Wi-Fi (e.g.
+ * FRDM-RW612); if no Wi-Fi interface exists (Ethernet-only builds), falls
+ * back to the default interface.
+ */
+static struct net_if *select_target_interface(void)
+{
+    uint32_t filter = oc_network_get_interface_filter();
+    if (filter != 0) {
+        return net_if_get_by_index((int)filter);
+    }
+
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
+    }
+    return iface;
+}
 
 /* All CoAP nodes multicast addresses (RFC 7252 §12.8), three scopes.
  * Joined unconditionally so CoAP discovery requests reach this socket.
@@ -364,14 +388,7 @@ static void setup_multicast_interface(void)
         return;
     }
 
-    /* net_if_get_default() may return the Ethernet interface on boards with
-     * both Ethernet and WiFi (e.g. FRDM-RW612), so we explicitly look up the
-     * first WiFi interface instead. Fall back to default for Ethernet-only
-     * builds where no WiFi interface exists. */
-    struct net_if *iface = net_if_get_first_wifi();
-    if (!iface) {
-        iface = net_if_get_default();
-    }
+    struct net_if *iface = select_target_interface();
     int ifidx = iface ? net_if_get_by_iface(iface) : -1;
     if (ifidx <= 0) {
         OC_WRN("No network interface available, skipping multicast interface binding!");
@@ -638,10 +655,7 @@ static void select_source_address(uint8_t *address, const uint8_t *dest)
         dest_scope = oc_ipv6_address_scope(dest);
     }
 
-    struct net_if *iface = net_if_get_first_wifi();
-    if (!iface) {
-        iface = net_if_get_default();
-    }
+    struct net_if *iface = select_target_interface();
     if (!iface) {
         return;
     }
@@ -720,10 +734,7 @@ int oc_send_buffer(oc_message_t *message)
      * (scope 5) telegram would not leave the link. */
     if (to.sin6_addr.s6_addr[0] == 0xff &&
         message->endpoint.interface_index == 0) {
-        struct net_if *iface = net_if_get_first_wifi();
-        if (!iface) {
-            iface = net_if_get_default();
-        }
+        struct net_if *iface = select_target_interface();
         int ifidx = iface ? net_if_get_by_iface(iface) : 0;
         message->endpoint.interface_index = ifidx;
 
@@ -796,16 +807,15 @@ void oc_send_discovery_request(oc_message_t *message)
 }
 
 /* Static snapshot of the network interface's IPv6 unicast addresses.
- * Rebuilt on every call; callers must not hold the pointer across yields. */
-#define MAX_ENDPOINTS 5
+ * Rebuilt on every call; callers must not hold the pointer across yields.
+ * Sized to the interface's own maximum so no usable address is ever silently
+ * dropped (mirrors Linux/Windows, which build a dynamically-sized list). */
+#define MAX_ENDPOINTS NET_IF_MAX_IPV6_ADDR
 static oc_endpoint_t local_endpoints[MAX_ENDPOINTS];
 
 oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
-    struct net_if *iface = net_if_get_first_wifi();
-    if (!iface) {
-        iface = net_if_get_default();
-    }
+    struct net_if *iface = select_target_interface();
 
     if (!iface) {
         return NULL;
@@ -822,6 +832,13 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
 
     for (int i = 0; i < NET_IF_MAX_IPV6_ADDR && n < MAX_ENDPOINTS; i++) {
         if (!ipv6->unicast[i].is_used) {
+            continue;
+        }
+        /* Skip tentative (duplicate-address-detection in progress, not yet
+         * usable) and deprecated (about to expire) addresses. Mirrors the
+         * Linux ipadapter IFA_F_TEMPORARY exclusion in get_interface_addresses(). */
+        if (ipv6->unicast[i].addr_state == NET_ADDR_TENTATIVE ||
+            ipv6->unicast[i].addr_state == NET_ADDR_DEPRECATED) {
             continue;
         }
         local_endpoints[n].flags         = IPV6;
@@ -895,10 +912,7 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    struct net_if *iface = net_if_get_first_wifi();
-    if (!iface) {
-        iface = net_if_get_default();
-    }
+    struct net_if *iface = select_target_interface();
     mreq.ipv6mr_ifindex = iface ? (unsigned int)net_if_get_by_iface(iface) : 0;
 
     OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
@@ -924,10 +938,7 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    struct net_if *iface = net_if_get_first_wifi();
-    if (!iface) {
-        iface = net_if_get_default();
-    }
+    struct net_if *iface = select_target_interface();
     mreq.ipv6mr_ifindex = iface ? (unsigned int)net_if_get_by_iface(iface) : 0;
 
     OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
@@ -946,5 +957,11 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 
 int oc_network_refresh_endpoints(void)
 {
+    /* oc_connectivity_get_endpoints() is stateless (rebuilt fresh on every
+     * call), so there is no endpoint cache to invalidate here. Re-run the
+     * multicast interface pinning/join so a filter change made via
+     * oc_network_set_interface_filter() takes effect immediately, instead of
+     * waiting for the next NETWORK_INTERFACE_UP event. */
+    setup_multicast_interface();
     return 0;
 }

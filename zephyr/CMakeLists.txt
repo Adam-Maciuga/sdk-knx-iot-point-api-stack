@@ -229,6 +229,7 @@ list(APPEND PORT_SOURCES
     ${STACK_ROOT}/port/zephyr/clock.c
     ${STACK_ROOT}/port/zephyr/random.c
     ${STACK_ROOT}/port/zephyr/storage.c
+    ${STACK_ROOT}/port/zephyr/oc_network_interface.c
 )
 
 # Platform port - Zephyr-specific - Optional
