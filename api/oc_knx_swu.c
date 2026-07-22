@@ -683,7 +683,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       const long int temp = strtol(value, &endptr, 10);
       
       // validate: conversion error, invalid chars (only decimal digits allowed), out of range
-      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
+      if (errno || endptr != value + value_len || temp < 0 || temp > INT_MAX)
       {
         OC_ERR("invalid 'po' parameter: %s", value);
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
