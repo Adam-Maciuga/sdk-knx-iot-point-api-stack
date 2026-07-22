@@ -28,7 +28,7 @@ linux-build:
 # ----------------------------------------------------------
 # Unit Tests (Linux)
 # ----------------------------------------------------------
-linux-test:
+linux-unit-test:
   stage: test
   image: itgesellschaft/knxiot-knx-ci:latest
   script:
@@ -44,7 +44,7 @@ linux-test:
 # ----------------------------------------------------------
 # Sanitizer Tests (ASan + UBSan) — Unit Tests
 # ----------------------------------------------------------
-linux-test-asan:
+linux-unit-test-asan:
   stage: test
   image: itgesellschaft/knxiot-knx-ci:latest
   script:
