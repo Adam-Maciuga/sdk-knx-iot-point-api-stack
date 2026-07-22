@@ -1070,9 +1070,10 @@ class CoapClient:
                        interface: Optional[str] = None,
                        collect_timeout: float = 2.0,
                        port: int = 5683,
+                       stop_after_first: bool = False,
                        ) -> list[CoapResponse]:
         """Send a NON CoAP request to a KNX multicast address and collect
-        all responses within collect_timeout seconds.
+        responses within collect_timeout seconds.
 
         Args:
             method: CoAP method (GET, POST, etc.)
@@ -1085,9 +1086,17 @@ class CoapClient:
                        If None, uses the DEVICE_IFACE env var, or 0 (OS default).
             collect_timeout: How long to listen for responses (seconds)
             port: Destination port for multicast (default 5683, the CoAP standard port)
+            stop_after_first: Return as soon as the first response is received
+                       instead of waiting out the full collect_timeout. Only
+                       use this when the test asserts on the first/any response
+                       (e.g. `len(responses) >= 1`) and is not verifying an
+                       exact/multiple-responder count or the absence of
+                       further responses -- callers checking for "no response"
+                       must still pass the full collect_timeout with this off.
 
         Returns:
-            List of CoapResponse from all responders.
+            List of CoapResponse from all responders (a single-element list
+            when stop_after_first is set and a response arrives).
         """
         mcast_addr = KNX_MULTICAST_ADDRESSES.get(scope)
         if not mcast_addr:
@@ -1188,6 +1197,9 @@ class CoapClient:
                       f"{resp.code} payload_len={len(payload_data)}")
             responses.append(resp)
 
+            if stop_after_first:
+                break
+
         mcast_sock.close()
         _dbg_coap(f"[coap] multicast: collected {len(responses)} response(s)")
         return responses
@@ -1196,23 +1208,27 @@ class CoapClient:
                       accept: Optional[int] = None,
                       interface: Optional[str] = None,
                       collect_timeout: float = 2.0,
+                      stop_after_first: bool = False,
                       ) -> list[CoapResponse]:
         """Send a multicast GET and collect responses."""
         return self.send_multicast(GET, path, accept=accept, scope=scope,
                                   interface=interface,
-                                  collect_timeout=collect_timeout)
+                                  collect_timeout=collect_timeout,
+                                  stop_after_first=stop_after_first)
 
     def multicast_post(self, path: str, payload: bytes = b"",
                        content_format: int = APPLICATION_CBOR,
                        scope: int = _DEFAULT_MC_SCOPE,
                        interface: Optional[str] = None,
                        collect_timeout: float = 2.0,
+                       stop_after_first: bool = False,
                        ) -> list[CoapResponse]:
         """Send a multicast POST and collect responses."""
         return self.send_multicast(POST, path, payload=payload,
                                   content_format=content_format, scope=scope,
                                   interface=interface,
-                                  collect_timeout=collect_timeout)
+                                  collect_timeout=collect_timeout,
+                                  stop_after_first=stop_after_first)
 
     def oscore_multicast_post(self, oscore_ctx, path: str,
                               payload: bytes = b"",

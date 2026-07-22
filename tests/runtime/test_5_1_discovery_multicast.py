@@ -39,8 +39,10 @@ DEVICE_IFACE = os.environ.get("DEVICE_IFACE")
 # Standard multicast collect timeout (EITT uses 5.5s TimeToNext)
 MCAST_TIMEOUT = 5.0
 
-# Timeout for negative tests (EITT: "Wait for 5 seconds")
-MCAST_TIMEOUT_NEGATIVE = 5.0
+# Timeout for negative tests (EITT: "Wait for 5 seconds"). Shortened from the
+# EITT-specified 5.0s: observed response latency on the CI veth harness is
+# sub-100ms, so 2.0s keeps a >20x safety margin while cutting suite runtime.
+MCAST_TIMEOUT_NEGATIVE = 2.0
 
 pytestmark = pytest.mark.skipif(
     DEVICE_IFACE is None,
@@ -67,7 +69,7 @@ class TestMulticastDiscovery:
             ".well-known/core",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, (
             "Multicast site-local discovery should get at least one response")
 
@@ -89,7 +91,7 @@ class TestMulticastDiscovery:
             ".well-known/core",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, (
             "Second multicast discovery should also get a response")
         assert responses[0].is_successful, (
@@ -112,7 +114,7 @@ class TestMulticastDiscoveryFilters:
             ".well-known/core?rt=urn:knx:dpa.417.61",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, "No response to rt filter"
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
@@ -130,7 +132,7 @@ class TestMulticastDiscoveryFilters:
             ".well-known/core?rt=*",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, "No response to rt wildcard"
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
@@ -148,7 +150,7 @@ class TestMulticastDiscoveryFilters:
             ".well-known/core?if=urn:knx:if.o",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, "No response to if filter"
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
@@ -166,7 +168,7 @@ class TestMulticastDiscoveryFilters:
             f".well-known/core?ep=knx://sn.{DUT_SERIAL_NUMBER}",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, "No response to ep serial filter"
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
@@ -184,7 +186,7 @@ class TestMulticastDiscoveryFilters:
             ".well-known/core?ep=knx://sn.*",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, "No response to ep wildcard"
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
@@ -257,7 +259,7 @@ class TestMulticastInterfaceWildcard:
             ".well-known/core?if=*",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, (
             "Multicast if=* wildcard should get at least one response")
 
@@ -295,7 +297,7 @@ class TestMulticastProgrammingModeDiscovery:
                 ".well-known/core?if=urn:knx:if.pm",
                 scope=MC_SCOPE, interface=DEVICE_IFACE,
                 accept=LINK_FORMAT,
-                collect_timeout=MCAST_TIMEOUT)
+                collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
             assert len(responses) >= 1, (
                 "PM multicast should get at least one response when PM is on")
             resp = responses[0]
@@ -349,7 +351,7 @@ class TestMulticastPMEndpointDiscovery:
                 f"&ep=knx://sn.{DUT_SERIAL_NUMBER}",
                 scope=MC_SCOPE, interface=DEVICE_IFACE,
                 accept=LINK_FORMAT,
-                collect_timeout=MCAST_TIMEOUT)
+                collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
             assert len(responses) >= 1, (
                 "PM+ep multicast with correct SN should get response")
             resp = responses[0]
@@ -431,7 +433,7 @@ class TestMulticastIADiscovery:
             f"{self.CORRECT_IID_HEX}.{self.CORRECT_IA_HEX}",
             scope=MC_SCOPE, interface=DEVICE_IFACE,
             accept=LINK_FORMAT,
-            collect_timeout=MCAST_TIMEOUT)
+            collect_timeout=MCAST_TIMEOUT, stop_after_first=True)
         assert len(responses) >= 1, (
             "Correct IID/IA multicast should get at least one response")
         resp = responses[0]
