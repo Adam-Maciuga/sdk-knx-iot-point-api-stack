@@ -312,10 +312,13 @@ extern "C"
    * @param[in] response the instance of an internal struct that is used to track
    *                     the state of the separate response
    * @param[in] binary_size the full size of the binary
-   * @param[in] block_offset the offset (in the file)
+   * @param[in] block_offset the offset (in the file)  
    * @param[in] block_data the block data
    * @param[in] block_len the size of the block_data
    * @param[in] data the user supplied data
+   *
+   * @note ETS 6.4 does not support binary_size (pgks) yet; ETS 6.5 will
+   *       provide the fix. (TODO: remove once 6.5 is the baseline)
    *
    */
   typedef void (*oc_swu_cb_t)(oc_separate_response_t* response, size_t binary_size, size_t block_offset,
