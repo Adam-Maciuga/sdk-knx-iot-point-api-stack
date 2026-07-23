@@ -508,24 +508,38 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		return;
 	}
 
+	#define LEN_DOT_SECTOR (12) // urn:knx:g.s.
+  #define GA_LEN_MAX (5)     // max GA length in decimal coded digits (16 bit max, 65535 = 5 digits)
+
 	// handle sector, if device belongs to a GA ?d=urn:knx:g.s.[ga] list the data points to which the GA applies to
-	if (d_len > 12 && strncmp(d_request, "urn:knx:g.s.", 12) == 0)
+  if (d_len >= LEN_DOT_SECTOR && strncmp(d_request, "urn:knx:g.s.", LEN_DOT_SECTOR) == 0)
 	{
-		
-		if (strncmp(d_request, "urn:knx:g.s.*", 13) == 0)
+		const int ga_len = d_len - LEN_DOT_SECTOR;
+
+		if (ga_len == 0 || ga_len > GA_LEN_MAX)
     {
-      // quote from EITT test 5.1.1.8: "Must fail since the response would likely be excessively large"
-      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+      // no GA value present or GA value too long
+		  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
       return;
     }
-	  
-	  // ga must be decimal coded and at least one digit long, if ga value exceeds 32 bit it is cut to 32 bit 
+
+		for (int i = 0; i < ga_len; i++)
+		{
+			if (d_request[LEN_DOT_SECTOR + i] < '0' || d_request[LEN_DOT_SECTOR + i] > '9')
+			{
+        // not a decimal coded GA value
+			  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+				return;
+			}
+		}
+
+		// GA must be decimal coded, 1..5 digits long, and within the 16-bit range
 	  errno = 0;
-    const uint32_t group_address = strtol(&d_request[12], NULL, 10);
+    const uint32_t group_address = strtol(&d_request[LEN_DOT_SECTOR], NULL, 10);
     OC_DBG("group address: %04x", group_address);
 
 		// if not in 'runtime' or a conversion error just return
-    if (!oc_is_device_in_runtime() || errno)
+    if (!oc_is_device_in_runtime() || errno || group_address > 0xFFFF)
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
 			OC_ERR("device not at 'runtime' or ga conversion error");

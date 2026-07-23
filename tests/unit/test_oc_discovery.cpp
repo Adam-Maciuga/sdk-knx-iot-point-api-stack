@@ -791,6 +791,76 @@ TEST_F(WellKnownCoreHandler, SectorWildcardReturnsBadRequest)
   EXPECT_EQ(response_buffer.response_length, 0);
 }
 
+struct SectorInvalidGaCase
+{
+  const char *name;
+  const char *query;
+  bool multicast;
+};
+
+class WellKnownCoreInvalidSectorGa : public WellKnownCoreHandler,
+                                     public ::testing::WithParamInterface<SectorInvalidGaCase> {
+};
+
+TEST_P(WellKnownCoreInvalidSectorGa, ReturnsBadRequest)
+{
+  // Verify that an empty GA or a wildcard at any GA digit position is rejected for both transports.
+  const SectorInvalidGaCase &test_case = GetParam();
+  clear_group_object_table();
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  set_multicast(test_case.multicast);
+  set_handler_query(test_case.query);
+
+  invoke();
+
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  EmptyAndWildcardGa, WellKnownCoreInvalidSectorGa,
+  ::testing::Values(
+    SectorInvalidGaCase{ "UnicastEmpty", "d=urn:knx:g.s.", false },
+    SectorInvalidGaCase{ "MulticastEmpty", "d=urn:knx:g.s.", true },
+    SectorInvalidGaCase{ "UnicastOverlong", "d=urn:knx:g.s.000001", false },
+    SectorInvalidGaCase{ "MulticastOverlong", "d=urn:knx:g.s.000001", true },
+    SectorInvalidGaCase{ "UnicastAboveMaximum", "d=urn:knx:g.s.65536", false },
+    SectorInvalidGaCase{ "MulticastAboveMaximum", "d=urn:knx:g.s.65536", true },
+    SectorInvalidGaCase{ "UnicastWildcard0", "d=urn:knx:g.s.*2345", false },
+    SectorInvalidGaCase{ "MulticastWildcard0", "d=urn:knx:g.s.*2345", true },
+    SectorInvalidGaCase{ "UnicastWildcard1", "d=urn:knx:g.s.1*345", false },
+    SectorInvalidGaCase{ "MulticastWildcard1", "d=urn:knx:g.s.1*345", true },
+    SectorInvalidGaCase{ "UnicastWildcard2", "d=urn:knx:g.s.12*45", false },
+    SectorInvalidGaCase{ "MulticastWildcard2", "d=urn:knx:g.s.12*45", true },
+    SectorInvalidGaCase{ "UnicastWildcard3", "d=urn:knx:g.s.123*5", false },
+    SectorInvalidGaCase{ "MulticastWildcard3", "d=urn:knx:g.s.123*5", true },
+    SectorInvalidGaCase{ "UnicastWildcard4", "d=urn:knx:g.s.1234*", false },
+    SectorInvalidGaCase{ "MulticastWildcard4", "d=urn:knx:g.s.1234*", true }),
+  [](const ::testing::TestParamInfo<SectorInvalidGaCase> &info) { return info.param.name; });
+
+TEST_F(WellKnownCoreHandler, SectorMaximumGaWithoutMatchingPointsReturnsNotFound)
+{
+  // Verify that the maximum 16-bit GA value is valid and reaches normal unicast no-match handling.
+  clear_group_object_table();
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  set_handler_query("d=urn:knx:g.s.65535");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, SectorMaximumGaMulticastWithoutMatchingPointsIsIgnored)
+{
+  // Verify that the maximum 16-bit GA value is valid and reaches normal multicast no-match handling.
+  clear_group_object_table();
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  set_multicast(true);
+  set_handler_query("d=urn:knx:g.s.65535");
+  invoke();
+  EXPECT_EQ(response_buffer.code, OC_IGNORE);
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
 TEST_F(WellKnownCoreHandler, SectorReturnsBadRequestOutsideRuntime)
 {
   // Verify that sector discovery is rejected while the device is not in runtime.
