@@ -34,12 +34,13 @@
  *   other resources may be added in real products, certification tests demands only the mandatory
  * - use int type to satisfy directly function call by using the array
  */
-const int core_resources_for_well_known[] = {
-  OC_DEV, // mandatory
-  OC_KNX_K, // mandatory
-  OC_KNX_SWU, // mandatory
-  OC_KNX_AUTH, // mandatory
-  OC_APP // optional
+const int core_resources_for_well_known[] = 
+{
+  OC_DEV,					// mandatory
+  OC_KNX_K,				// mandatory
+  OC_KNX_SWU,			// mandatory
+  OC_KNX_AUTH,		// mandatory
+  OC_APP					// optional
 };
 
 // number of core resources to be considered for well-known requests  
@@ -328,7 +329,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	char* d_request = NULL;		// 'd'
 	int d_len = 0;
 
-	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
+	#define EP_STR_LEN_DOT_SN (9) // knx://sn.
+  
+  int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
 	size_t response_length = 0;
   int skipped = 0;	// ignore resources that do not fit to the requested page
 	int query_pn = PAGE_NUMBER;
@@ -531,9 +534,6 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
       { // (a/b/c)
 
-				#define EP_STR_LEN_DOT_SN (9) // knx://sn.
-        #define SN_STR_LEN_MAX (12)   // max SN length
-			  
 			  /*
            SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
            - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
@@ -710,11 +710,6 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// handle serial number
 	if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 	{
-
-		#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.
-		#define SN_STR_LEN_MAX (12)     // max SN length
-
-		
 		/*
        SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
        - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
