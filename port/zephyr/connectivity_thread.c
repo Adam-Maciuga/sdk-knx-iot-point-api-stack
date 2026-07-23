@@ -129,12 +129,20 @@ int oc_connectivity_init(void)
 	/* Subscribe to site-local all-CoAP-nodes multicast address so the device
 	 * is discoverable via ETS without manual 'ot ipmaddr add ff05::fd'.
 	 * Safe to call before Thread network is joined — OT stores it locally
-	 * and advertises it once the device attaches to the mesh.
+	 * and advertises it once the device attaches to the mesh. Idempotent:
+	 * re-subscribing returns OT_ERROR_ALREADY.
 	 */
-	if (ret == 0)
+	if (sInstance != NULL)
 	{
-		otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
-		OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)\r\n");
+		otError merr = otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
+		if (merr == OT_ERROR_NONE || merr == OT_ERROR_ALREADY)
+		{
+			OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)\r\n");
+		}
+		else
+		{
+			OC_ERR("Multicast subscribe failed with %u\r\n", merr);
+		}
 	}
 
 exit:
