@@ -19,9 +19,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "oc_helpers.h"
-#include "oc_buffer.h"
 #include "oc_endpoint.h"
 
 typedef enum replay_state

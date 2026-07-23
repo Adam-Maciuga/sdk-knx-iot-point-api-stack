@@ -12,8 +12,6 @@
 */
 #ifndef OC_KNX_CLIENT_INTERNAL_H
 #define OC_KNX_CLIENT_INTERNAL_H
-
-#include "oc_core_res.h"
 #include "oc_knx_fp.h"
 
 #ifdef __cplusplus
