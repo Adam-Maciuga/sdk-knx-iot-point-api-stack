@@ -20,6 +20,9 @@
 #ifndef OC_TEST_CONTROL_H
 #define OC_TEST_CONTROL_H
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,4 +61,4 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
 }
 #endif
 
-#endif
+#endif /* OC_TEST_CONTROL_H */

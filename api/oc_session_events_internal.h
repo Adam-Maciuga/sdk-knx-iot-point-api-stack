@@ -41,4 +41,4 @@ bool oc_session_events_is_ongoing(void);
 }
 #endif
 
-#endif 
+#endif /* OC_SESSION_EVENTS_INTERNAL_H */

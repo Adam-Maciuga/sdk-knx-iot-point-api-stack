@@ -22,4 +22,4 @@
 
 #include <stddef.h>
 
-#endif 
+#endif /* OC_KNX_SUB_INTERNAL_H */

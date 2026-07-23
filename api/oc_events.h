@@ -22,6 +22,8 @@
 */
 #ifndef OC_EVENTS_H
 #define OC_EVENTS_H
+
+#include "oc_config.h"
 #include "util/oc_process.h"
 
 #ifdef __cplusplus
