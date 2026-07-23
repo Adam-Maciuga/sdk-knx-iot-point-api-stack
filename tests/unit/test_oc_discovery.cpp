@@ -23,6 +23,8 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 extern "C" {
 #include "oc_api.h"
@@ -283,6 +285,83 @@ INSTANTIATE_TEST_SUITE_P(
     SerialNumberEndpointCase{ "UnicastEmpty", false, "ep=knx://sn.", OC_STATUS_NOT_FOUND, false },
     SerialNumberEndpointCase{ "MulticastEmpty", true, "ep=knx://sn.", OC_IGNORE, false }),
   [](const ::testing::TestParamInfo<SerialNumberEndpointCase> &info) { return info.param.name; });
+
+struct IndividualAddressLengthCase
+{
+  std::string name;
+  int iid_length;
+  int ia_length;
+  bool multicast;
+  std::string query;
+  uint64_t iid;
+  uint16_t ia;
+};
+
+void PrintTo(const IndividualAddressLengthCase &value, std::ostream *os)
+{
+  *os << "name=" << value.name << ", query=\"" << value.query << "\", iid_length=" << value.iid_length
+      << ", ia_length=" << value.ia_length << ", transport=" << (value.multicast ? "multicast" : "unicast")
+      << ", iid=0x" << std::hex << value.iid << ", ia=0x" << value.ia << std::dec;
+}
+
+class WellKnownCoreIndividualAddressLength : public WellKnownCoreHandler,
+                                             public ::testing::WithParamInterface<IndividualAddressLengthCase> {
+};
+
+static std::vector<IndividualAddressLengthCase> individual_address_length_cases()
+{
+  std::vector<IndividualAddressLengthCase> cases;
+  for (int iid_length = 0; iid_length <= 10; iid_length++)
+  {
+    for (int ia_length = 0; ia_length <= 4; ia_length++)
+    {
+      const std::string iid_text(iid_length, '1');
+      const std::string ia_text(ia_length, '1');
+      for (bool multicast : { false, true })
+      {
+        cases.push_back(IndividualAddressLengthCase{
+          std::string(multicast ? "Multicast" : "Unicast") + "Iid" + std::to_string(iid_length) + "Ia"
+            + std::to_string(ia_length),
+          iid_length,
+          ia_length,
+          multicast,
+          "ep=knx://ia." + iid_text + "." + ia_text,
+          iid_text.empty() ? 1 : strtoull(iid_text.c_str(), nullptr, 16),
+          static_cast<uint16_t>(ia_text.empty() ? 1 : strtoul(ia_text.c_str(), nullptr, 16)) });
+      }
+    }
+  }
+  return cases;
+}
+
+TEST_P(WellKnownCoreIndividualAddressLength, HandlesIidAndIaLengthCombination)
+{
+  // Verify every IID length 0..10 with every IA length 0..4 for both unicast and multicast.
+  const IndividualAddressLengthCase &test_case = GetParam();
+  oc_core_get_device_info()->iid = test_case.iid;
+  oc_core_get_device_info()->ia = test_case.ia;
+  set_multicast(test_case.multicast);
+  set_handler_query(test_case.query.c_str());
+
+  invoke();
+
+  const bool valid_lengths = test_case.iid_length >= 1 && test_case.ia_length >= 1;
+  if (valid_lengths)
+  {
+    EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+    EXPECT_NE(payload().find("knx://sn.00fa10020800"), std::string::npos);
+  }
+  else
+  {
+    EXPECT_EQ(response_buffer.code, test_case.multicast ? OC_IGNORE : oc_status_code(OC_STATUS_NOT_FOUND));
+    EXPECT_EQ(response_buffer.response_length, 0);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  IidAndIaLengths, WellKnownCoreIndividualAddressLength,
+  ::testing::ValuesIn(individual_address_length_cases()),
+  [](const ::testing::TestParamInfo<IndividualAddressLengthCase> &info) { return info.param.name; });
 
 TEST_F(WellKnownCoreHandler, WrongAcceptReturnsBadRequest)
 {
@@ -642,6 +721,42 @@ TEST_F(WellKnownCoreHandler, IndividualAddressWithoutSeparatorReturnsNotFound)
 {
   // Verify that an individual-address endpoint without the IA separator is rejected.
   set_handler_query("ep=knx://ia.d773e094b6");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressEmptyValueReturnsNotFound)
+{
+  // Verify that an empty individual-address value after the separator is rejected.
+  set_handler_query("ep=knx://ia.d773e094b6.");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressOverlongValueReturnsNotFound)
+{
+  // Verify that an individual-address value longer than four characters is rejected instead of truncated.
+  set_handler_query("ep=knx://ia.d773e094b6.01101");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressEmptyIidReturnsNotFound)
+{
+  // Verify that an empty installation identifier before the IA separator is rejected.
+  set_handler_query("ep=knx://ia..1101");
+  invoke();
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
+  EXPECT_EQ(response_buffer.response_length, 0);
+}
+
+TEST_F(WellKnownCoreHandler, IndividualAddressOverlongIidReturnsNotFound)
+{
+  // Verify that an installation identifier longer than ten characters is rejected instead of truncated.
+  set_handler_query("ep=knx://ia.0d773e094b6.1101");
   invoke();
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));
   EXPECT_EQ(response_buffer.response_length, 0);

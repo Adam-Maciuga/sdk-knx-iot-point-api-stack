@@ -606,37 +606,55 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 	}
 
-	// handle individual address 
-	if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://ia.", 9) == 0)
+	#define LEN_DOT_IA (9)       // knx://ia.
+  #define IID_STR_LEN_MAX (10) // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
+  #define IA_STR_LEN_MAX (4)   // max IA length in hex coded ASCII (2 octets = 16 bit)
+	
+  // handle individual address 
+	if (ep_request && ep_len >= LEN_DOT_IA && strncmp(ep_request, "knx://ia.", LEN_DOT_IA) == 0)
 	{
 		/* 
 		   same principle as on outbound discovery for unicast s-mode messages
 		   
-		   request with knx://ia.IID.IA -> knx://ia.d773e094b6.1101 (no leading IID zeros)
+		   request with knx://ia.IID.IA -> knx://ia.d773e094b6.1101 (no leading IID zeros in this example)
 			 the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 		*/
 
-		#define LEN_DOT_IA (9)				// knx://ia.
-		#define IID_STR_LEN_MAX (10)	// max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
-		#define IA_STR_LEN_MAX  (4)		// max IA length in hex coded ASCII (2 octets = 16 bit)
-
 		// IID pos is fixed after first '.', IA pos follows after second '.' (max size to be searched for second '.' = max iid + 1)
     char* ep_iid_start_pos = ep_request + LEN_DOT_IA;
-    char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', IID_STR_LEN_MAX + 1);
+    const int ep_ia_len = ep_len - LEN_DOT_IA;
+    const int dot_scan_len = ep_ia_len < IID_STR_LEN_MAX + 1 ? ep_ia_len : IID_STR_LEN_MAX + 1;
+    const char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', dot_scan_len);
 
 		if (ep_ia_dot_pos)
     { // convert only if a '.' was found 
 
-		  // empty max len IA + string termination '\0'
-		  char ia_str[IA_STR_LEN_MAX + 1] = "";
+			// 1..10 
+		  const size_t ep_iid_len = ep_ia_dot_pos - ep_iid_start_pos;
 
-			// IA can be of 0..4 chars (valid) or > 4 (attack/error)
-			char* ep_ia_start_pos = ep_ia_dot_pos + 1; 
-			char* ep_ia_end_pos = ep_request + ep_len - 1;
-      size_t ep_ia_len = ep_ia_end_pos - ep_ia_dot_pos;
-		  
-		  // copy IA size 0..4 , but don't copy > 4 chars
-      strncpy(ia_str, ep_ia_start_pos, ep_ia_len > IA_STR_LEN_MAX ? IA_STR_LEN_MAX : ep_ia_len);
+			if (ep_iid_len == 0 || ep_iid_len > IID_STR_LEN_MAX)
+			{
+				oc_discovery_prepare_no_match_response(request);
+				return;
+			}
+
+			// IA can be of 1..4 chars; 0 or > 4 is invalid
+			const char* ep_ia_start_pos = ep_ia_dot_pos + 1;
+
+			// 1..4
+			const size_t ep_ia_part_len = ep_request + ep_len - ep_ia_start_pos;
+
+			if (ep_ia_part_len == 0 || ep_ia_part_len > IA_STR_LEN_MAX)
+			{
+				oc_discovery_prepare_no_match_response(request);
+				return;
+			}
+
+			// empty max len IA + string termination '\0'
+      char ia_str[IA_STR_LEN_MAX + 1] = "";
+
+			// copy valid IA size 1..4
+			strncpy(ia_str, ep_ia_start_pos, ep_ia_part_len);
 
 			errno = 0; 
       // string is hex formatted
@@ -649,11 +667,8 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
         // empty max len IID + string termination '\0'
         char iid_str[IID_STR_LEN_MAX + 1] = "";
 
-				// IID can be of 1..10 chars (valid) or > 10 (attack/error)
-				size_t ep_iid_len = ep_ia_dot_pos - ep_iid_start_pos;
-
-        // copy IID size 0..10 , but don't copy > 10 chars
-        strncpy(iid_str, ep_iid_start_pos, ep_iid_len > IID_STR_LEN_MAX ? IID_STR_LEN_MAX : ep_iid_len);
+				// copy valid IID size 1..10
+				strncpy(iid_str, ep_iid_start_pos, ep_iid_len);
 
 				errno = 0; 
         // string is hex formatted, on conversion error = 0 device will not have IID = 0 -> ignores request
