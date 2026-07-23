@@ -154,7 +154,17 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-  // caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long
+	// fails if NULL, not 12 bytes, not all lower case, see below
+  oc_assert(serialnumber != NULL);
+  oc_assert(strlen(serialnumber) == SN_STR_LEN_MAX);
+
+	for (int i = 0; i < SN_STR_LEN_MAX; i++)
+  {
+    const unsigned char c = (unsigned char)serialnumber[i];
+	  oc_assert((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
+  }
+
+	// caller MUST ensure above conditions
   oc_device_info.serialnumber = serialnumber;
 }
 
