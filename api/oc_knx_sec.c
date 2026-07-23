@@ -1300,13 +1300,10 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  // sub resources of /auth, in the order they are listed in 3/10/5 Table 45
-  static const int auth_sub_resources[] = { OC_KNX_AUTH_AT, OC_KNX_AUTH_O };
-
-  int first_entry = 0; // first entry number of a resource that will
+  int first_entry = OC_KNX_AUTH_O; // first entry number of a resource that will
   // be placed on a page
-  int last_entry = (int)(sizeof(auth_sub_resources) / sizeof(auth_sub_resources[0])); // last entry
-  // number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_AT_X; // last entry number of a resource that
+  // will be placed on a page
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
@@ -1350,8 +1347,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    int skipped = 0; // paging is applied by the loop bounds
-    if (oc_check_request_from_index(auth_sub_resources[i], request, &response_length, &skipped, 0, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
