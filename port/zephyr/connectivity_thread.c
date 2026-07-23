@@ -29,6 +29,7 @@
 #include <openthread/message.h>
 #include <openthread.h>
 #include <openthread/udp.h>
+#include <openthread/ip6.h>
 
 #define COAP_PORT_UNSECURED (5683)
 
@@ -41,6 +42,9 @@ K_MUTEX_DEFINE(network_mutex);
 static otInstance *sInstance = NULL;
 static otUdpSocket mSocket;
 static oc_endpoint_t g_endpoint;
+
+static const otIp6Address ALL_COAP_NODES_SL = { .mFields.m8 = {
+    0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } };
 
 static uint16_t g_unicast_port = COAP_PORT_UNSECURED; // Set via oc_connectivity_set_port() before oc_connectivity_init().
 
@@ -120,6 +124,17 @@ int oc_connectivity_init(void)
 	else
 	{
 		OC_ERR("Socket already open!\r\n");
+	}
+
+	/* Subscribe to site-local all-CoAP-nodes multicast address so the device
+	 * is discoverable via ETS without manual 'ot ipmaddr add ff05::fd'.
+	 * Safe to call before Thread network is joined — OT stores it locally
+	 * and advertises it once the device attaches to the mesh.
+	 */
+	if (ret == 0)
+	{
+		otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
+		OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)\r\n");
 	}
 
 exit:
