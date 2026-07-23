@@ -518,9 +518,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			/*
 				 device PRG mode on + if=urn:knx:if.pm 
 
-         (a) sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
-         (b) sn.00fa...  fits to the sn entirely (useful on mc)
-         (c) sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
+         (a) sn.*												fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
+         (b) sn.00fa12345678						fits to the sn entirely (useful on mc)
+         (c) sn.0* ... sn.00fa1234567*  fits to the sn partly (clause 2.6.1.3.4)
 
          (a/b/c) 
          - add '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' 
@@ -536,7 +536,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			  
 			  /*
            SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
-           - max sn len is between 1..12 -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
+           - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
            - so limit to max 12
            - 0 will end up in NOT FOUND on full_sn no size match
         */
@@ -559,15 +559,15 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
             // empty max len SN + string termination '\0'
             char sn_substr[SN_STR_LEN_MAX + 1] = "";
 
-            // SN can be of 1..12 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
+            // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
             size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
 
-            // copy SN part size 0..12 , but don't copy > 12 chars
+            // copy SN part size 1..11 , but don't copy > 11 chars
             strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
             part_sn = strstr(device->serialnumber, sn_substr) != NULL;
           }
           else
-          { // full compare (device has a string, ep_request has a stream without /0, inbound sn > 12 or == 0 is never a match)
+          { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match)
             full_sn = ep_sn_len == SN_STR_LEN_MAX
 											&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
           }
@@ -717,7 +717,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		
 		/*
        SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
-       - max sn len is between 1..12 -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
+       - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
        - so limit to max 12
        - 0 will end up in NOT FOUND on full_sn no size match
     */
@@ -727,9 +727,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
 
 		/*
-     (a) sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
-     (b) sn.00fa...  fits to the sn entirely (useful on mc)
-     (c) sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
+     (a) sn.*												fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
+     (b) sn.00fa12345678						fits to the sn entirely (useful on mc)
+     (c) sn.0* ... sn.00fa1234567*  fits to the sn partly (clause 2.6.1.3.4)
     */
 
 		// a ('*' is next char after '.') / b / c
@@ -746,15 +746,15 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
         // empty max len SN + string termination '\0'
         char sn_substr[SN_STR_LEN_MAX + 1] = "";
 
-        // SN can be of 1..12 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
+        // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
         size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
 
-        // copy SN part size 0..12 , but don't copy > 12 chars
+        // copy SN part size 1..11 , but don't copy > 11 chars
         strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
         part_sn = strstr(device->serialnumber, sn_substr) != NULL;
       }
       else
-      { // full compare (device has a string, ep_request has a stream without /0, inbound sn > 12 or == 0 is never a match) 
+      { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match) 
 				full_sn = ep_sn_len == SN_STR_LEN_MAX
 									&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
       }
