@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1143 unit tests** (50 files) + **293 runtime tests** (17 files) = **1436 total**
+> **1151 unit tests** (50 files) + **293 runtime tests** (17 files) = **1444 total**
 >
-> Branch: `work_in_progress` | Unit: 1143 registered and passed; focused discovery run: 94 passed (windows-test-gcc, GCC/CTest).
+> Branch: `work_in_progress` | Unit: 1151 registered and passed; focused discovery run: 102 passed (windows-test-gcc, GCC/CTest).
 > Runtime (Docker `linux-test-gcc`, full suite): 287 passed, 6 skipped, 0 failed, 0 errors (293 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -645,7 +645,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (94 tests)
+### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (102 tests)
 
 **Source:** `api/oc_discovery.c`
 
@@ -654,7 +654,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `DiscoveryBase` (add-payload) | 8 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) |
 | `DiscoveryBase` (check-request) | 7 | Discoverability + rt-query filtering, first-entry skipping, uninitialised core |
 | `WellKnownCoreHandler` | 37 | Accept handling; rt/if/ep/d/l/pn/ps queries; PM, IA, sector errors, next-page links, combined filters, multicast suppression |
-| `WellKnownCorePmEndpoint` | 24 | Synchronized unicast/multicast PM on/off cases with exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, and empty SN endpoints |
+| `WellKnownCorePmEndpoint` | 32 | Synchronized unicast/multicast PM on/off cases with exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, empty, maximum-length, and overlong SN endpoints |
 | `WellKnownCoreSerialNumberEndpoint` | 18 | Synchronized unicast/multicast exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, empty, maximum-length, and overlong SN endpoints |
 
 ---

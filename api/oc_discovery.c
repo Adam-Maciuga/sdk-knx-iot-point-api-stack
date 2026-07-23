@@ -46,6 +46,59 @@ const int core_resources_for_well_known[] =
 // number of core resources to be considered for well-known requests  
 #define RESOURCES_FOR_WELL_KNOWN (5)
 
+#define EP_STR_LEN_DOT_SN (9)
+
+static bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber)
+{
+	/*
+	 * SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
+	 * - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
+	 * - so limit to max 12
+	 * - 0 will end up in NOT FOUND on full SN no size match
+	 *
+	 * (a) sn.*                         fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
+	 * (b) sn.00fa12345678              fits to the SN entirely (useful on mc)
+	 * (c) sn.0* ... sn.00fa1234567*   fits to the SN partly (clause 2.6.1.3.4)
+	 */
+	char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
+	const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
+	const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
+	const char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
+
+	if (ep_wildcard_pos == ep_serialnumber_start_pos)
+	{
+		// a ('*' is next char after '.')
+		return true;
+	}
+
+	if (ep_wildcard_pos)
+	{
+		// partial compare somewhere in SN string, SN can be of 1..11 chars
+		const size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
+		// compare SN prefix size 1..11
+		return strncmp(serialnumber, ep_serialnumber_start_pos, ep_partial_sn_len) == 0;
+	}
+
+	// full compare (device has a string, ep_request has a stream without /0, inbound SN != 12 is never a match)
+	return ep_sn_len == SN_STR_LEN_MAX
+				 && strncmp(serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
+}
+
+// multicast ignore, unicast respond with 4.04 Not Found (Len 0)
+static void oc_discovery_prepare_no_match_response(oc_request_t* request)
+{
+  if (request->origin && request->origin->flags & MULTICAST)
+	{
+    OC_DBG("discovery multicast request, no match -> ignore it");
+    oc_ignore_request(request);
+	}
+	else
+	{
+    OC_DBG("discovery unicast request, no match -> send unicast response with length = 0");
+	  oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+	}
+}
+
 bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, bool truncate)
 {
 
@@ -451,16 +504,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// on any query parameter present but no query parameter KEY match 
 	if (request->query_len > 0 && !query_parameter_key_match)
 	{
-		if (request->origin && request->origin->flags & MULTICAST)
-		{
-      // multicast: query parameter key NOT found = ignore request (response suppression)
-      oc_ignore_request(request);
-		}
-		else
-		{
-      // unicast: query parameter key NOT found
-      oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-		}
+		oc_discovery_prepare_no_match_response(request);
 		return;
 	}
 
@@ -499,16 +543,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 		else
 		{
-			if (request->origin && request->origin->flags & MULTICAST)
-			{
-        // on multicast request w/ query parameter and NO hit
-        oc_ignore_request(request);
-			}
-			else
-			{ 
-        // on unicast request w/ query parameter and NO hit
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-			}
+			oc_discovery_prepare_no_match_response(request);
 		}
 		return;
 	}
@@ -531,45 +566,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			
 			*/
 
-			if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+			if (ep_request && ep_len >= EP_STR_LEN_DOT_SN && strncmp(ep_request, "knx://sn.", EP_STR_LEN_DOT_SN) == 0)
       { // (a/b/c)
-
-			  /*
-           SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
-           - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
-           - so limit to max 12
-           - 0 will end up in NOT FOUND on full_sn no size match
-        */
-        char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
-        const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
-        const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
-        char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
-
-				// a ('*' is next char after '.') / b / c
-        const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos;
-        bool full_sn = false;
-        bool part_sn = false;
-
-				if (!only_wildcard)
-        { // do not check anything else if only wildcard = true, result is already clear
-
-          if (ep_wildcard_pos)
-          { // partial compare somewhere in sn string
-
-            // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
-            size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
-
-						// compare SN prefix size 1..11
-						part_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, ep_partial_sn_len) == 0;
-          }
-          else
-          { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match)
-            full_sn = ep_sn_len == SN_STR_LEN_MAX
-											&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
-          }
-        }
-
-				if (only_wildcard || full_sn || part_sn)
+				if (oc_discovery_sn_matches(ep_request, ep_len, device->serialnumber))
         {
           OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN match");
 				  response_length = frame_sn(device->serialnumber, device->iid, device->ia);
@@ -577,18 +576,8 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
         }
         else
 				{ 
-
 					OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no match");
-					if (request->origin && request->origin->flags & MULTICAST)
-					{
-            // on multicast request w/ query parameter and NO hit
-            oc_ignore_request(request);
-					}
-					else
-					{
-            // on unicast request w/ query parameter and NO hit
-            oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-					}
+					oc_discovery_prepare_no_match_response(request);
 				}
         return;
 			}
@@ -612,17 +601,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
     { // device PRG mode off - return immediately
 
 			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode off");
-
-			if (request->origin && request->origin->flags & MULTICAST)
-			{
-        // multicast request w/ query parameter and NO PRG mode set
-        oc_ignore_request(request);
-			}
-			else
-			{
-        // unicast request w/ query parameter and NO PRG mode set
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-			}
+			oc_discovery_prepare_no_match_response(request);
 			return;
 		}
 	}
@@ -690,64 +669,14 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
       }
     }
 
-		if (request->origin && request->origin->flags & MULTICAST)
-    {
-      // multicast request w/ query parameter and NO hit
-      oc_ignore_request(request);
-    }
-    else
-    {
-      // unicast request w/ query parameter and NO hit
-      oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-    }
+		oc_discovery_prepare_no_match_response(request);
     return;
 	}
 
 	// handle serial number
-	if (ep_request && ep_len >= 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+	if (ep_request && ep_len >= EP_STR_LEN_DOT_SN && strncmp(ep_request, "knx://sn.", EP_STR_LEN_DOT_SN) == 0)
 	{
-		/*
-       SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
-       - max sn len is -> ep_len >= 9 - EP_STR_LEN_DOT_SN(9) = 0..12, but may be > 12 (attack/error)
-       - so limit to max 12
-       - 0 will end up in NOT FOUND on full_sn no size match
-    */
-		char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
-    const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
-    const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
-		char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
-
-		/*
-     (a) sn.*												fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
-     (b) sn.00fa12345678						fits to the sn entirely (useful on mc)
-     (c) sn.0* ... sn.00fa1234567*  fits to the sn partly (clause 2.6.1.3.4)
-    */
-
-		// a ('*' is next char after '.') / b / c
-    const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos;
-    bool full_sn = false;
-    bool part_sn = false;
-
-		if (!only_wildcard)
-    { // do not check anything else if only wildcard = true, result is already clear
-
-      if (ep_wildcard_pos)
-      { // partial compare somewhere in sn string
-
-        // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
-        size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
-
-				// compare SN prefix size 1..11
-				part_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, ep_partial_sn_len) == 0;
-      }
-      else
-      { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match) 
-				full_sn = ep_sn_len == SN_STR_LEN_MAX
-									&& strncmp(device->serialnumber, ep_serialnumber_start_pos, SN_STR_LEN_MAX) == 0;
-      }
-    }
-
-		if (only_wildcard || full_sn || part_sn)
+		if (oc_discovery_sn_matches(ep_request, ep_len, device->serialnumber))
 		{
       OC_INF("oc_well_known_core_discovery_handler SN HANDLING: SN match");
 		  response_length = frame_sn(device->serialnumber, device->iid, device->ia);
@@ -756,16 +685,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		else
 		{
       OC_INF("oc_well_known_core_discovery_handler SN HANDLING: SN no match");
-      if (request->origin && request->origin->flags & MULTICAST)
-      {
-        // multicast request w/ query parameter and NO hit
-        oc_ignore_request(request);
-      }
-      else
-      {
-        // unicast request w/ query parameter and NO hit
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-      }
+			oc_discovery_prepare_no_match_response(request);
 		}
 		return;
 	}
@@ -834,16 +754,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		// m=0;l>0 : -- > n/a (no query parameter KEY/VALUE pair but a hit ....)
 		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device
 
-		if (request->origin && request->origin->flags & MULTICAST)
-		{ // multicast request
-      OC_DBG("oc_well_known_core_discovery_handler multicast request, no match -> ignore it");
-      oc_ignore_request(request);
-		}
-		else
-		{ // unicast request
-      OC_DBG("oc_well_known_core_discovery_handler unicast request, no match -> send unicast response with length = 0");
-      oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-		}
+		oc_discovery_prepare_no_match_response(request);
 	}
 }
 
