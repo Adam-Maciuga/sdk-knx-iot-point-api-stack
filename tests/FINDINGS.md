@@ -123,3 +123,14 @@ Bugs and issues discovered during unit test development.
 - **Original behavior:** The SN branches required `ep_len > 9`, so the nine-character empty-SN endpoint bypassed SN matching and returned identity.
 - **Expected behavior:** Treat the empty value as a non-match and return `4.04 Not Found` for unicast discovery.
 - **Resolution:** The SN branches now accept the prefix length with `ep_len >= 9`; the existing no-match path rejects the zero-length SN. Both empty-SN tests pass.
+
+## F-009: ~~A partial SN wildcard matched an internal substring~~ - RESOLVED
+
+- **Status:** Resolved.
+- **File:** `api/oc_discovery.c`, partial serial-number matching in `oc_well_known_core_discovery_handler()`.
+- **Severity:** Low/Medium - a partial wildcard could select a device when the characters before `*` occurred anywhere in its SN.
+- **Found by:** The synchronized `InternalSubstring` SN-only and SN+PM parameterized cases.
+- **Input:** `ep=knx://sn.fa*` for device SN `00fa10020800`, with and without `if=urn:knx:if.pm`.
+- **Original behavior:** `strstr()` accepted `fa` because it occurs inside the configured serial number.
+- **Expected behavior:** Characters before `*` must match the beginning of the device SN; unicast returns `4.04 Not Found` and multicast is suppressed when they do not.
+- **Resolution:** Both SN branches now use a bounded `strncmp()` from the beginning of the configured serial number. All synchronized transport cases pass.

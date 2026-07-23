@@ -556,15 +556,11 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
           if (ep_wildcard_pos)
           { // partial compare somewhere in sn string
 
-            // empty max len SN + string termination '\0'
-            char sn_substr[SN_STR_LEN_MAX + 1] = "";
-
             // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
             size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
 
-            // copy SN part size 1..11 , but don't copy > 11 chars
-            strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
-            part_sn = strstr(device->serialnumber, sn_substr) != NULL;
+						// compare SN prefix size 1..11
+						part_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, ep_partial_sn_len) == 0;
           }
           else
           { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match)
@@ -738,15 +734,11 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
       if (ep_wildcard_pos)
       { // partial compare somewhere in sn string
 
-        // empty max len SN + string termination '\0'
-        char sn_substr[SN_STR_LEN_MAX + 1] = "";
-
         // SN can be of 1..11 chars (valid), wildcard pos cannot be larger than 12, see above max 'ep_wildcard_pos'
         size_t ep_partial_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
 
-        // copy SN part size 1..11 , but don't copy > 11 chars
-        strncpy(sn_substr, ep_serialnumber_start_pos, ep_partial_sn_len);
-        part_sn = strstr(device->serialnumber, sn_substr) != NULL;
+				// compare SN prefix size 1..11
+				part_sn = strncmp(device->serialnumber, ep_serialnumber_start_pos, ep_partial_sn_len) == 0;
       }
       else
       { // full compare (device has a string, ep_request has a stream without /0, inbound sn != 12 is never a match) 
