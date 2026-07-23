@@ -13,10 +13,9 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include "../api/oc_knx_fp.h"  // for oc_ip_status_t
+#include "oc_knx.h"
 
 /**
-   TODO 13 FIXME Review mDNS vs DNS-SD terminology in the API and docs.
    @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.
   
    @param serial_no KNX serial number
@@ -42,7 +41,6 @@ extern "C" {
  */
 int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 
- 
 /**
  * @brief Set the advertised sleep period within the mDNS service.
  *
@@ -60,9 +58,6 @@ void knx_dns_sd_set_sleep_period(uint16_t sp);
  *
  */
 uint16_t knx_dns_sd_get_used_port(void);
-
-/** Maximum serial-number string length (12 lower-case hex chars, excluding null terminator). */
-#define SN_STR_LEN_MAX (12)
 
 /**
  * @brief Snapshot of the current mDNS advertisement state.

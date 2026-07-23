@@ -67,15 +67,12 @@ extern "C" {
     S_MODE_CON_REQUEST = 1 << 12,   // an own initiated (OSCORE) s-mode 'request' (con:uc) message, allowed to be challenged with echo response
   } transport_flags_t;
 
-
-  #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
-
   /*
     default host name size  = device serial number and leading
     'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
     header defined by specification
   */
-  #define HNAME_SIZE (4 + SERIAL_NUM_SIZE + 1)
+  #define HNAME_SIZE (4 + SN_STR_LEN_MAX + 1)
   #define HNAME_TYPE ("knx-%s")
   
   // reset/set a specific bit from above, used to suppress compiler warnings

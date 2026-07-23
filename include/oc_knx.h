@@ -30,13 +30,16 @@ extern "C"
 {
 #endif
 
+  // KNX raw serial number (string) length (12 lower-case hex chars, excluding the string null terminator)
+  #define SN_STR_LEN_MAX (12)  
+ 
   // reset status
-#define RESET_NO_ERROR (0)
-#define RESET_UNSUPPORTED_ERASE_CODE (2)
+  #define RESET_NO_ERROR (0)
+  #define RESET_UNSUPPORTED_ERASE_CODE (2)
 
-// reset cmd
-#define RESET_TO_DEFAULT_STATE (2)  // factory reset
-#define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
+  // reset cmd
+  #define RESET_TO_DEFAULT_STATE (2)  // factory reset
+  #define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
 
   /*
    * KNX-IoT specific SPAKE2+ parameters for the PASE handshake.
@@ -52,11 +55,11 @@ extern "C"
    * sec. 3.2. Per KNX-IoT specification 3/10/5 clause 3.6.6.3 the password is a
    * string of min 6 and max 32 characters.
    */
-#define KNX_IOT_SPAKE2PLUS_CONTEXT       "knxpase"
-#define KNX_IOT_SPAKE2PLUS_ID_PROVER     ""
-#define KNX_IOT_SPAKE2PLUS_ID_VERIFIER   ""
-#define KNX_IOT_SPAKE2PLUS_SALT_LENGTH   (32)
-#define KNX_IOT_SPAKE2PLUS_RND_LENGTH    (32)
+  #define KNX_IOT_SPAKE2PLUS_CONTEXT       "knxpase"
+  #define KNX_IOT_SPAKE2PLUS_ID_PROVER     ""
+  #define KNX_IOT_SPAKE2PLUS_ID_VERIFIER   ""
+  #define KNX_IOT_SPAKE2PLUS_SALT_LENGTH   (32)
+  #define KNX_IOT_SPAKE2PLUS_RND_LENGTH    (32)
 
   /**
    * @brief PASE Resource Object
