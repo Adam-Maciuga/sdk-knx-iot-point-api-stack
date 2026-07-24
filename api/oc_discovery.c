@@ -750,10 +750,18 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		{
 			OC_INF("oc_well_known_core_discovery_handler add functional block resources ...");
 
-			// note that this function is reusing the number of counted FBs 
+			// note that this function is reusing the number of counted FBs
 		  oc_add_functional_blocks_from_application_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 		}
 	}
+
+	// decide the next-page hint from the entries actually added to this page, after
+	// all steps (core + application + functional blocks) have run. Each step stops
+	// once query_ps entries are placed (query_ps > 0 is guaranteed above), so a full
+	// page is the signal that matching resources may be left over. current_page_is_full
+	// cannot be used here: the functional-block step does not feed its result back into
+	// it, so an unfiltered request that overflows on FBs would drop the hint.
+	const bool more_request_needed = query_parameter_key_value_pair_matches >= query_ps;
 
 	if (query_parameter_key_value_pair_matches > 0 && response_length > 0)
 	{
@@ -761,9 +769,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		// matches/response_length >0/>0
 		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device AND added to the response
 
-		// add a page hint only when a page was filled up, hence matching resources
+		// add a page hint only when the page filled up, hence matching resources
 		// are left over for the next page
-		if (current_page_is_full)
+		if (more_request_needed)
 		{
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
