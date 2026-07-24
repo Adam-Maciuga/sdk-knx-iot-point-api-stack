@@ -1087,7 +1087,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
-  {APPLICATION_LINK_FORMAT, APPLICATION_CBOR},
+  {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
   {oc_core_auth_at_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
