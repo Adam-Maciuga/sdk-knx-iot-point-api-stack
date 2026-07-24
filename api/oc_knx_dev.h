@@ -8,6 +8,8 @@
 #ifndef OC_KNX_DEV_INTERNAL_H
 #define OC_KNX_DEV_INTERNAL_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

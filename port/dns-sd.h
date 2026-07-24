@@ -8,12 +8,14 @@
 #ifndef DNS_SD_H
 #define DNS_SD_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "oc_knx.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
-#include "oc_knx.h"
 
 /**
    @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.

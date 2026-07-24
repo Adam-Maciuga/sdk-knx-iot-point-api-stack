@@ -20,8 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "oc_knx_swu.h"
-#include "include/oc_helpers.h"
-#include "include/oc_ri.h"
+#include "oc_helpers.h"
+#include "oc_ri.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"

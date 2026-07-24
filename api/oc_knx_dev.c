@@ -10,9 +10,8 @@
 #include <inttypes.h>
 #include "oc_api.h"
 #include "oc_knx_dev.h"
-
-#include "engine.h"
-#include "include/oc_helpers.h"
+#include "messaging/coap/engine.h"
+#include "oc_helpers.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_helpers.h"
 #include "oc_knx_sec.h"
@@ -20,7 +19,6 @@
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
 #include "oc_core_res.h"
-#include "oc_replay.h"
 #include "oc_discovery.h"
 
 static void oc_core_dev_sn_get_handler(oc_request_t* request, 
