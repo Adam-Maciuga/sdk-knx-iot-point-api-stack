@@ -22,7 +22,6 @@
 #include "oc_knx_fp.h"
 #include "oc_knx_sec.h"
 #include "oc_core_res.h"
-#include "oc_endpoint.h" // SERIAL_NUM_SIZE
 #include "api/oc_knx_dev.h"
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
@@ -144,8 +143,8 @@ static int knx_hostname_cmd(const struct shell *sh, size_t argc, char **argv)
 static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     /* Convert to upper case (12 x char + \0) */
-    char sn_upper[SERIAL_NUM_SIZE + 1];
-    memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE + 1);
+    char sn_upper[SN_STR_LEN_MAX + 1];
+    memcpy(sn_upper, sn_lower_case, SN_STR_LEN_MAX + 1);
     // TODO FIXME move utils to the stack repo?
     str_toupper_inplace(sn_upper);
 
@@ -441,8 +440,8 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
     shell_print(sh, "Hostname           : %s", oc_string(device->iot_hostname));
 
     /* QR code */
-    char sn_upper_buf[SERIAL_NUM_SIZE + 1];
-    memcpy(sn_upper_buf, sn_lower_case, SERIAL_NUM_SIZE + 1);
+    char sn_upper_buf[SN_STR_LEN_MAX + 1];
+    memcpy(sn_upper_buf, sn_lower_case, SN_STR_LEN_MAX + 1);
     // TODO FIXME move utils to the stack repo?
     str_toupper_inplace(sn_upper_buf);
     shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper_buf, app_get_password());
