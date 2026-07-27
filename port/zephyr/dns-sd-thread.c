@@ -159,13 +159,16 @@ static void knx_set_static_subtypes(void)
     srpSubtype[1] = serial_no_subtype;
 }
 
-static void knx_set_dynamic_subtypes(uint32_t iid, uint32_t ia, bool pm)
+static void knx_set_dynamic_subtypes(uint64_t iid, uint32_t ia, bool pm)
 {
     /* Set up the subtype for
        --subtype=_ia{installationid}-{ia}._sub._knx._udp */
-    char *installation_format_string = "_ia%x-%x";
-    snprintf(installation_subtype, sizeof(installation_subtype),
-             installation_format_string, iid, ia);
+    char *installation_format_string = "_ia%llx-%x";
+    snprintf(installation_subtype,
+            sizeof(installation_subtype),
+            installation_format_string,
+            (unsigned long long)iid,
+            ia);
 
     /* Set SRP subtype for installation */
     srpSubtype[0] = installation_subtype;
