@@ -30,20 +30,6 @@
 extern "C" {
 	#endif
 
-	// ... intel aim for compatibility with MSVC, but it does not work for pragmas 
-	#if defined _MSC_VER && !defined __INTEL_COMPILER
-
-	#define PRAGMA_IN _Pragma("warning(disable:4090)")
-	#define PRAGMA_OUT _Pragma("warning(default:4090)")
-
-	#else
-
-	#define PRAGMA_IN  _Pragma("GCC diagnostic push")  \
-                     _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"")
-	#define PRAGMA_OUT _Pragma("GCC diagnostic pop")
-
-	#endif
-
 	/**
 	 * @brief version information
 	 * e.g. [major, minor, patch]
