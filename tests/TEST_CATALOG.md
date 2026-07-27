@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1151 unit tests** (50 files) + **293 runtime tests** (17 files) = **1444 total**
+> **1283 unit tests** (53 files) + **293 runtime tests** (17 files) = **1576 total**
 >
-> Branch: `work_in_progress` | Unit: 1151 registered and passed; focused discovery run: 102 passed (windows-test-gcc, GCC/CTest).
+> Branch: `work_in_progress` | Unit: 1283 registered and passed (windows-test-gcc, GCC/CTest).
 > Runtime (Docker `linux-test-gcc`, full suite): 287 passed, 6 skipped, 0 failed, 0 errors (293 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -10,7 +10,7 @@
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -243,14 +243,13 @@ Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (23 tests)
+### test_oc_knx_sec.cpp — Security Credentials (17 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `AtProfileToString` | 5 | Profile enum → string (oscore, dtls, tls, pase, unknown) |
-| `ContainsInterface` | 6 | Interface bitmask matching (exact, subset, no overlap, empty, multi-bit) |
 | `OscoreConfig` | 2 | Replay-window size is RFC default; OSN delay round-trips |
 | `AuthAtEntry` | 3 | AT-table entry access (out-of-bounds NULL, in-bounds entry, positive table size) |
 | `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
@@ -278,19 +277,66 @@ Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_oscore_echo_tx.cpp — S-Mode Echo Replay Defence (7 tests)
+### test_oc_oscore_echo_tx.cpp — S-Mode Echo Replay Defence (24 tests)
 
-**Source:** `security/oc_oscore_engine.c` (echo TX ring, TODO 20)
+**Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring, `EchoTxRingTest`)
 
 | Test | What it verifies |
 |------|-----------------|
-| `StoredSSN_FirstEcho_Accepted` | Echo whose PIV/SSN matches a sent multicast is accepted |
-| `MultipleStored_EachConsumedOnce` | Several pending SSNs each consume independently |
-| `SameSSN_SecondEcho_IsReplay` | Replayed echo (same SSN) dropped after first consume |
+| `StoredSSN_FirstEcho_Accepted` | Echo whose PIV/SSN matches a sent multicast anchor is accepted |
+| `MultipleStored_EachResponderAccepted` | Several pending SSN anchors each consume independently |
+| `TwoResponders_DifferentKidCtx_BothAccepted` | Two responders with distinct `kid_context` for the same SSN both accepted |
+| `SameResponder_SecondEcho_IsReplay` | Exact (ssn, kid, kid_ctx) replay from the same responder dropped after first consume |
 | `UnknownSSN_NoStore_IsDropped` | Echo with no matching sent SSN dropped |
 | `UnknownSSN_AfterStore_IsDropped` | Mismatching SSN dropped while another is pending |
-| `OldestEntry_CleanedAfterOverflow` | Ring keeps only the most recent SIZE entries |
-| `Clear_DropsPendingEntries` | Clear wipes the white-list |
+| `WrongKid_SameSSN_IsDropped` | Matching SSN but wrong `kid` content dropped; genuine kid still accepted |
+| `SameKid_DifferentSSN_BothAccepted` | Same kid, different SSNs are independent anchors, both accepted |
+| `Attacker_ForgedKidCtxFlood_BeforeValidResponse_ValidStillAccepted` | Forged-`kid_ctx` flood before the genuine echo does not consume the anchor |
+| `Attacker_ExactReplay_AfterValidResponse_Rejected` | Exact replay of an already-accepted response rejected on every repeat |
+| `Attacker_FloodThenReplay_AllIllegalAttemptsRejected` | Combined flood-before + genuine + replay + flood-after all resolve correctly |
+| `Attacker_RingExhaustion_AnchorEvicted_ValidResponseRejected` | 2×RING_SIZE forged probes evict the anchor; documents the DoS cost and mitigation note |
+| `OldestEntry_CleanedAfterOverflow` | Ring keeps only the most recent RING_SIZE entries |
+| `Clear_DropsPendingEntries` | `oc_oscore_free_all_echo_records` wipes all pending entries |
+| `Retain_GetByToken_ReturnsSameMessage` | Retained plaintext s-mode message looked up by CoAP token after ring add-ref/unref |
+| `GetByToken_UnknownToken_ReturnsNull` | Lookup by an unrelated token returns null |
+| `Retain_FreeAll_ReleasesRetainedMessage` | `free_all` drops the ring's retained-message reference (no leak) |
+| `WithinCapacity_AllSendersAndResponsesAccepted` | 32 anchors (half capacity) all store and consume without collision |
+| `OverflowEviction_LateEchoRejected_NewAnchorAccepted` | Evicted anchor rejects a late echo; a fresh higher-SSN anchor still works |
+| `OverflowMixed_EvictedBlSlot_DoesNotFalseReplay` | An evicted seen-responder slot does not cause a false replay reject on reuse |
+| `MultiKid_IndependentSenders_AllAccepted` | Three senders with distinct kids and the same SSN value are fully independent |
+| `MultiKid_WrongKidForAnchor_Rejected_CorrectKidAccepted` | Echo with another sender's kid for a matching SSN rejected; correct kid accepted |
+| `MultiKid_Overflow_EvictedSenderDropped_OthersAccepted` | Ring overflow evicts one sender's anchor while surviving senders remain accepted |
+| `Retain_RingRollOverCleansOldestRetainedMessage` | Ring roll-over past capacity frees the oldest retained message, keeps the newest |
+
+---
+
+### test_smode_refcount.cpp — S-Mode Message Ref-Count Lifecycle (8 tests)
+
+**Source:** `security/oc_oscore_engine.c`, `messaging/coap/transactions.c` (manual replay of add_ref/unref primitives)
+
+| Test | What it verifies |
+|------|-----------------|
+| `M1_TransactionWithDataDoesNotTouchM1RefCount` | `coap_new_transaction_with_data` only memcpy's the caller's plaintext (M1); its ref_count stays 1 |
+| `M1_RefCountUnchangedEvenIfTransactionFails` | Caller's unconditional unref of M1 is the sole release regardless of transaction outcome |
+| `M2_MulticastNon_FullLifecycle` | mc-NON: birth → add_ref → clear_transaction → echo-ring retain → send-ref drop → ring release, ends at 0 |
+| `M2_MulticastNon_RingRolloverReleases` | Echo-ring roll-over past capacity releases an mc-NON M2 via slot eviction instead of `free_all` |
+| `M2_UnicastCon_FullLifecycle` | uc-CON: birth → add_ref → OSCORE send-fn unref → ACK clear, ends at 0 |
+| `M2_UnicastCon_RetransmitCycleStaysAtOne` | Each CON retransmit cycle (add_ref then send-fn unref) leaves M2 at 1 until final clear |
+| `M2_UnicastNon_FullLifecycle` | uc-NON: birth → add_ref → send-fn unref → ~5s echo window → timeout clear, ends at 0 |
+| `M1AndM2_IndependentLifetimes` | Releasing M1 early does not disturb M2's independent ref-count lifecycle |
+
+---
+
+### test_smode_send_refcount.cpp — S-Mode Ref-Count via Real `coap_send_transaction()` (4 tests)
+
+**Source:** `messaging/coap/transactions.c`, exercised through the production `coap_send_transaction()` path with linker `--wrap` stubs for `oc_main_initialized`, `coap_send_message`, and `oc_etimer_restart`
+
+| Test | What it verifies |
+|------|-----------------|
+| `Via_McNon_FullLifecycle` | mc-NON through the real send path: add_ref → wrapped send unref → immediate clear, M2 freed |
+| `Via_UcNon_FullLifecycle` | uc-NON through the real send path: send keeps M2 at 1, retransmit-counter bump then timeout clears it |
+| `Via_UcCon_FullLifecycle` | uc-CON through the real send path: send keeps M2 alive for ACK, clear on ACK frees it |
+| `Via_UcCon_RetransmitCycle` | `COAP_MAX_RETRANSMIT` real send cycles hold M2 at 1; final timeout clear frees it |
 
 ---
 
@@ -361,14 +407,14 @@ Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_core_res.cpp — Core Resources & Device Info (32 tests)
+### test_oc_core_res.cpp — Core Resources & Device Info (33 tests)
 
 **Source:** `api/oc_core_res.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `DeviceHostname` | 5 | Set/overwrite/empty hostname, default fallback, `HNAME_SIZE` fit |
-| `DeviceInfo` | 14 | Firmware/hardware/app version, manufacturer/model setters, ia/iid/fid set-and-store range validation |
+| `DeviceInfo` | 15 | Firmware/hardware/app version, manufacturer/model setters, ia/iid/fid set-and-store range validation |
 | `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
 | `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |
@@ -645,7 +691,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (102 tests)
+### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (234 tests)
 
 **Source:** `api/oc_discovery.c`
 
@@ -653,9 +699,11 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `DiscoveryBase` (add-payload) | 8 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) |
 | `DiscoveryBase` (check-request) | 7 | Discoverability + rt-query filtering, first-entry skipping, uninitialised core |
-| `WellKnownCoreHandler` | 37 | Accept handling; rt/if/ep/d/l/pn/ps queries; PM, IA, sector errors, next-page links, combined filters, multicast suppression |
+| `WellKnownCoreHandler` | 43 | Accept handling; rt/if/ep/d/l/pn/ps queries; PM, IA, sector errors (including no-matching-points and outside-runtime cases), next-page links, combined filters, multicast suppression |
 | `WellKnownCorePmEndpoint` | 32 | Synchronized unicast/multicast PM on/off cases with exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, empty, maximum-length, and overlong SN endpoints |
 | `WellKnownCoreSerialNumberEndpoint` | 18 | Synchronized unicast/multicast exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, empty, maximum-length, and overlong SN endpoints |
+| `WellKnownCoreIndividualAddressLength` (parameterized) | 110 | `ia=` query address matching across `iid` length 0-10 × `ia` length 0-4 × unicast/multicast (11×5×2) |
+| `WellKnownCoreInvalidSectorGa` (parameterized) | 16 | Invalid group-address sector queries (empty, overlong, above-maximum, wildcard depths 0-4) × unicast/multicast, all return 4.00 Bad Request |
 
 ---
 
