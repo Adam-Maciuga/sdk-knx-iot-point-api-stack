@@ -1,15 +1,11 @@
-/* 
+/*
  * Copyright (c) 2017, 2020 Intel Corporation
  * Copyright (c) 2023 Cascoda Ltd
- * Copyright (c) 2025 KNX Association
+ * Copyright (c) 2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-/**
-  @brief end point implementation, e.g. IP(v6) addressing for sending &
-  receiving data
-  @file
-*/
+
 #ifndef OC_ENDPOINT_H
 #define OC_ENDPOINT_H
 

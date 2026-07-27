@@ -1,17 +1,16 @@
 /*
  * Copyright (c) 2026 KNX Association
+ *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Unit tests for api/oc_uuid.c
- *
  * Covers:
- *   oc_str_to_uuid - string -> binary parsing
- *   oc_uuid_to_str - binary -> string formatting
- *   oc_gen_uuid    - random version-4 UUID generation + validation
- *
+ * oc_str_to_uuid - string -> binary parsing
+ * oc_uuid_to_str - binary -> string formatting
+ * oc_gen_uuid    - random version-4 UUID generation + validation
  * Requirements:
- *   oc_gen_uuid draws randomness from psa_generate_random(), so PSA crypto
- *   must be initialized once before any generation test runs.
+ * oc_gen_uuid draws randomness from psa_generate_random(), so PSA crypto
+ * must be initialized once before any generation test runs.
  */
 
 #include <gtest/gtest.h>

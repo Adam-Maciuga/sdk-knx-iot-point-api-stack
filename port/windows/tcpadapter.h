@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (c) 2019 Kistler Instrumente AG.
  * Copyright (c) 2024-2026 KNX Association
  *

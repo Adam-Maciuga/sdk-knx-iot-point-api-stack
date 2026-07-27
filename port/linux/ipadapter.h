@@ -1,7 +1,7 @@
-/* 
- * Copyright 2019 Jozef Kralik All Rights Reserved.
+/*
+ * Copyright (c) 2019 Jozef Kralik All Rights Reserved.
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 

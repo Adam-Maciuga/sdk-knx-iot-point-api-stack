@@ -1,9 +1,9 @@
 /*
-  Copyright (c) 2020 Intel Corporation
-  Copyright (c) 2026 KNX Association
-
-  SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "psa/crypto.h"
 

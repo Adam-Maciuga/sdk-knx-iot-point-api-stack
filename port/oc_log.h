@@ -1,35 +1,33 @@
-/* 
+/*
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2022 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
  *
- *  @brief platform abstraction of logging
- *  @file
- *
- *  Generic logging functions:
- *  - OC_INF
- *    prints information as Info level
- *  - OC_WRN
- *    prints information as Warning level
- *  - OC_ERR
- *    prints information as Error level
- *  - OC_DBG
- *    prints information as Debug level
- *  - OC_LOGipaddr
- *    prints the endpoint information to stdout
- *  - OC_LOGbytes
- *    prints the bytes to stdout
- *
- *  Compile flags:
- *  - OC_DEBUG
- *    enables output of logging functions
- *  - OC_NO_LOG_BYTES
- *    disables output of OC_LOGbytes logging function
- *    if OC_DEBUG is enabled.
- *  - KNX_LOG_TO_FILE
- *    logs the OC_INF, OC_WRN, OC_ERR, and OC_DBG statements to file
+ * @brief platform abstraction of logging
+ * @file
+ * Generic logging functions:
+ * - OC_INF
+ * prints information as Info level
+ * - OC_WRN
+ * prints information as Warning level
+ * - OC_ERR
+ * prints information as Error level
+ * - OC_DBG
+ * prints information as Debug level
+ * - OC_LOGipaddr
+ * prints the endpoint information to stdout
+ * - OC_LOGbytes
+ * prints the bytes to stdout
+ * Compile flags:
+ * - OC_DEBUG
+ * enables output of logging functions
+ * - OC_NO_LOG_BYTES
+ * disables output of OC_LOGbytes logging function
+ * if OC_DEBUG is enabled.
+ * - KNX_LOG_TO_FILE
+ * logs the OC_INF, OC_WRN, OC_ERR, and OC_DBG statements to file
  */
 #ifndef OC_LOG_H
 #define OC_LOG_H

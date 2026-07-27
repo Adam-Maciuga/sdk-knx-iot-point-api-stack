@@ -1,8 +1,8 @@
-/* 
+/*
  * Copyright (c) 2025 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
- */   
+ */
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

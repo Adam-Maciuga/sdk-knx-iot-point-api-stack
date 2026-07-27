@@ -1,5 +1,5 @@
-/* 
- * Copyright 2018 Samsung Electronics All Rights Reserved.
+/*
+ * Copyright (c) 2018 Samsung Electronics All Rights Reserved.
  * Copyright (c) 2025-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0

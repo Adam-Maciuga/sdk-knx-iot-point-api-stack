@@ -1,5 +1,6 @@
-/* 
+/*
  * Copyright (c) 2016-2019 Intel Corporation
+ * Copyright (c) 2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
  */

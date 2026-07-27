@@ -5,16 +5,14 @@
  *
  * KNX-IoT connectivity backend using Zephyr's POSIX/BSD socket API.
  * Used for both Wi-Fi and Ethernet L2 backends (see zephyr/CMakeLists.txt).
- *
  * Implements the oc_connectivity_*  and  oc_network_event_handler_mutex_*
  * interfaces declared in port/oc_connectivity.h.  The design mirrors
  * connectivity_thread.c but uses POSIX-compatible Zephyr sockets instead of
  * the OpenThread-specific otUdp API.
- *
  * Two sockets are used to distinguish unicast from multicast traffic, mirroring
  * the Linux ipadapter design:
- *   server_sock — unicast only; no multicast groups joined; used for all sends.
- *   mcast_sock  — multicast only; all group subscriptions are made here.
+ * server_sock — unicast only; no multicast groups joined; used for all sends.
+ * mcast_sock  — multicast only; all group subscriptions are made here.
  * A receive thread polls both sockets and sets the MULTICAST endpoint flag for
  * packets arriving on mcast_sock.  This flag is required for correct S-mode
  * (group communication) Echo handling in the KNX-IoT CoAP/OSCORE engine.

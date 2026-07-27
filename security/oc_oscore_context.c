@@ -1,10 +1,10 @@
 /*
-  Copyright (c) 2020 Intel Corporation
-  Copyright (c) 2022-2023 Cascoda Ltd.
-  Copyright (c) 2024-2026 KNX Association
-
-  SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2022-2023 Cascoda Ltd.
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include <inttypes.h>
 #include <stdlib.h>

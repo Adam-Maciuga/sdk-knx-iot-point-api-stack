@@ -1,5 +1,5 @@
-/* 
- * Copyright 2022 Cascoda All Rights Reserved.
+/*
+ * Copyright (c) 2022 Cascoda All Rights Reserved.
  * Copyright (c) 2025-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0

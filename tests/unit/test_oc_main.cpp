@@ -4,17 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Unit tests for api/oc_main.c
- *
  * Scope note
  * ----------
  * The MTU / block-size / max-app-data accessors of this file are already
  * covered by test_oc_buffer_settings.cpp. This file completes the coverage of
  * the remaining device-independent surface:
- *   - the seven application callback set/get pairs (swu, factory presets, reset,
- *     restart, hostname, programming mode, lsm change), and
- *   - oc_main_initialized before bootstrap, and
- *   - _oc_signal_event_loop with no app callbacks registered (NULL-guard path).
- *
+ * - the seven application callback set/get pairs (swu, factory presets, reset,
+ * restart, hostname, programming mode, lsm change), and
+ * - oc_main_initialized before bootstrap, and
+ * - _oc_signal_event_loop with no app callbacks registered (NULL-guard path).
  * oc_main_init / oc_main_poll / oc_main_shutdown / oc_shutdown_device (static)
  * bootstrap and tear down the whole stack (RI, SPAKE2+, connectivity, mDNS,
  * group multicasts) and are INTEGRATION-level. oc_set_drop_commands /

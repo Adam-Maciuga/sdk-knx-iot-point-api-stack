@@ -2,7 +2,7 @@
  * Copyright (c) 2017 Intel Corporation
  * Copyright (c) 2022 Cascoda Ltd.
  * Copyright (c) 2023-2026 KNX Association
- *  
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 

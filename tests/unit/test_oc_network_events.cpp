@@ -4,17 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Unit tests for api/oc_network_events.c
- *
  * Scope note
  * ----------
  * This module is the bridge between the platform receive path and the
  * oc_network_events process. Almost all of it requires the process to be
  * running and a live signal-event loop:
- *   - oc_process_network_event (static) drains the queue into
- *     oc_receive_message -> full CoAP/OSCORE receive path (INTEGRATION).
- *   - the OC_PROCESS_THREAD body needs the process scheduler (INTEGRATION).
- *   - oc_network_interface_event needs the running process (INTEGRATION).
- *
+ * - oc_process_network_event (static) drains the queue into
+ * oc_receive_message -> full CoAP/OSCORE receive path (INTEGRATION).
+ * - the OC_PROCESS_THREAD body needs the process scheduler (INTEGRATION).
+ * - oc_network_interface_event needs the running process (INTEGRATION).
  * The single branch with no scheduler dependency is the early-out in
  * oc_network_event: when the oc_network_events process is NOT running it simply
  * unrefs the message and returns. In a unit-test binary the process is never

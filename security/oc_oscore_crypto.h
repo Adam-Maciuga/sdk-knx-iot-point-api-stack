@@ -1,9 +1,9 @@
 /*
-  Copyright (c) 2020 Intel Corporation
-  Copyright (c) 2024-2026 KNX Association
-
-  SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef OC_OSCORE_CRYPTO_H
 #define OC_OSCORE_CRYPTO_H
