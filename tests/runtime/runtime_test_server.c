@@ -351,14 +351,16 @@ static int app_init(void)
   { oc_knx_version_info_t hwv = {0, 0, 1}; oc_core_set_device_hwv(&hwv); }
   { oc_knx_version_info_t fwv = {0, 0, 1}; oc_core_set_and_store_device_fwv(&fwv); }
   
+  /* Set manufacturing date (same as EITT template), used as initial /swu/lastupdate value.
+     Must be set before oc_core_set_device_res(), which creates the SWU resources. */
+  oc_core_set_device_mfd("2020-04-12T23:20:50.52Z");
+
   oc_core_set_device_res();
   oc_core_set_device_mid(667);
   oc_core_set_device_hwt("Linux");
   oc_core_set_device_model("KNX Certification");
-  
 
-  /* Set manufacturing date for /swu/lastupdate (same as EITT template) */
-  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
+
   /* Set hardware reference for /swu/hwref (same as EITT template) */
   oc_swu_set_hwref("0102030405ABCDEF");
   return 0;

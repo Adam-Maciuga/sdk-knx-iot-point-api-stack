@@ -36,28 +36,28 @@ extern const oc_resource_t core_resource_knx_swu;
 extern const oc_resource_t core_resource_sub;
 
 // only static since values are changed at runtime
-static oc_device_swu_t swu_device = {
-  0,     0,
-  PUSH, {NULL, 0, NULL},
-  {NULL, 0, NULL}, 0,
-  {0, 0, 0}, OC_SWU_STATE_IDLE,
-  {NULL, 0, NULL}, OC_SWU_RESULT_INIT,
-  false,
-  CoAP,
-  {NULL, 0, NULL}
-};
+static oc_device_swu_t swu_device = 
+{
+  .max_defer = 0,     
+  .current_defer = 0,
+  .update_method = PUSH,
+  .pkg_name = {NULL, 0, NULL},
+  .last_update = {.next = NULL, .size = 0, .ptr = NULL},
+  .pkg_bytes = 0,
+  .pkg_version = {.major = 0, .minor = 0, .patch = 0}, 
+  .state = OC_SWU_STATE_IDLE,
+  .query_url = {NULL, 0, NULL}, 
+  .result = OC_SWU_RESULT_INIT,
+  .protocol = CoAP,
+  .hwref = {.next = NULL, .size = 0, .ptr = NULL},
+};  
 
 // below data can be set (PUT) all other can only be read
-#define KNX_STORAGE_SWU_MAX_DEFER "swu_knx_max_defer"
-#define KNX_STORAGE_SWU_METHOD "swu_knx_method"
-#define KNX_STORAGE_SWU_PROTOCOL "swu_knx_protocol"
-#define KNX_STORAGE_QUERY_URL "swu_knx_query_url"
-#define KNX_STORAGE_SWU_DOWNLOADED_ONCE "swu_knx_downloaded_once"
+#define KNX_STORAGE_SWU_MAX_DEFER   "swu_knx_max_defer"
+#define KNX_STORAGE_SWU_METHOD      "swu_knx_method"
+#define KNX_STORAGE_SWU_PROTOCOL    "swu_knx_protocol"
+#define KNX_STORAGE_QUERY_URL       "swu_knx_query_url"
 #define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
-
-// Default manufacturing date fallback (application should set actual date)
-static const char* default_mfg_date = "0";
-
 /*
  * Software Update (SWU) Implementation
  * 
@@ -350,25 +350,20 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 
   oc_rep_begin_root_object();
 
-  // Per KNX spec:
-  // - Initial value: date of manufacturing
-  // - If device HAS RTC: Shows actual timestamp of last update (RFC 3339)
-  // - If device has NO RTC: Shows "osv:true" after a software update
-  // 
-  // Logic: If downloaded_once is true AND last_update is still the manufacturing date,
-  //        assume device has no RTC → return "osv:true"
-  //        Otherwise return the stored timestamp (either mfg date or actual update time)
-  if (swu_device.downloaded_once && 
-      strcmp(oc_string(swu_device.last_update), default_mfg_date) == 0)
-  {
-    // Device was updated but timestamp wasn't changed → no RTC available
-    oc_rep_i_set_text_string(root, 1, "osv:true");
-  }
-  else
-  {
-    // Either never updated (mfg date) or updated with actual timestamp (RTC available)
-    oc_rep_i_set_text_string(root, 1, oc_string(swu_device.last_update));
-  }
+  /* 
+    KNX Specification
+    - initial value -> date of manufacturing
+    - if device HAS RTC    : after a software update = shows actual timestamp of last software update (RFC 3339)
+    - if device has NO RTC : after a software update = shows "osv:true" 
+
+   Note, before a software update the date of manufacturing has to be returned, regardless of any clock availability. 
+
+   The KNX IoT stack needs an RTC such as to handle CoAP (CON) timeouts or brute force spake attempts, hence the logic 
+   here is to return always the stored timestamp (it is either date of manufacturing or the last software update time, 
+   set on application init).
+  */
+
+  oc_rep_i_set_text_string(root, 1, oc_string(swu_device.last_update));
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -816,10 +811,6 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   {
     // Mark download as complete
     swu_device.state = OC_SWU_STATE_DOWNLOADED;
-    swu_device.downloaded_once = true;  // Flag for /swu/lastupdate endpoint
-    
-    // Persist downloaded_once to storage so /swu/lastupdate remains "osv:true" after reset
-    oc_storage_write(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
     
     OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %d bytes)", swu_device.pkg_bytes);
     
@@ -837,15 +828,13 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     //   oc_swu_set_package_version(major, minor, patch);  // From package header or known version
     //   oc_swu_set_package_name("firmware.bin");          // Package filename
     // 
-    // Note: Version should ideally be extracted from package header
-    //       For testing, can use placeholder values
+    // Note: Version should ideally be extracted from package header, for testing, can use placeholder values
   }
 
   OC_DBG("oc_knx_swu_a_put_handler - end");
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgcmd_data;
 const oc_resource_t core_resource_knx_swu_pkgcmd = {&core_resource_knx_swu_pkgbytes,
                                                     {NULL, sizeof("/a/swu"), "/a/swu"},
@@ -1108,32 +1097,28 @@ void oc_create_knx_swu_resources(void)
 {
   OC_DBG("oc_create_knx_swu_resources");
 
-  // Set default values
+  // set default values
   oc_swu_set_package_name("");
   oc_swu_set_hwref("0102030405ABCDEF");
+
+  const oc_device_info_t* device = oc_core_get_device_info();
   
-  // Set default manufacturing date (used if not in storage)
-  oc_new_string(&swu_device.last_update, default_mfg_date, strlen(default_mfg_date));
+  // set device manufacturing date as default for last update (see Application Init/Startup)
+  oc_free_string(&swu_device.last_update);
+  oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
   
-  // Try to load last_update from storage (persists across reboots)
-  char last_update_buf[64];
-  long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
-  if (ret > 0) {
-    last_update_buf[ret] = '\0';
+  // try to load last_update from storage (persists across reboots)
+  char last_update_buf[64] = "";
+  
+  const long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
+  if (ret > 0) 
+  {
     oc_free_string(&swu_device.last_update);
     oc_new_string(&swu_device.last_update, last_update_buf, ret);
-    OC_DBG("Loaded last_update='%s' from storage", last_update_buf);
-  } else {
-    OC_DBG("Using default manufacturing date for last_update");
-  }
+    
+  } 
 
-  // Load downloaded_once flag from persistent storage
-  // This ensures /swu/lastupdate returns "osv:true" persistently after first update
-  ret = oc_storage_read(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
-  if (ret > 0) {
-    OC_DBG("Loaded downloaded_once=%d from storage", swu_device.downloaded_once);
-  }
-
+  OC_DBG("Using %s date for last_update : %s", ret > 0 ? "manufacturing" : "storage", oc_string(swu_device.last_update));
 }
 
 void oc_swu_set_package_name(const char* name)

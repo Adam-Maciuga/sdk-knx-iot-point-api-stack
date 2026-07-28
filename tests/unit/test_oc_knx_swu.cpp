@@ -179,6 +179,29 @@ static void invoke_put(const oc_resource_t &res, RespCtx &ctx,
   res.put_handler.cb(&ctx.request, OC_IF_SWU, nullptr);
 }
 
+/*
+  Raw scan of the encoded CBOR response for a literal byte sequence. CBOR text
+  strings are stored verbatim, so this is enough to assert on returned strings
+  without pulling in a full CBOR parser.
+*/
+static bool payload_contains(const RespCtx &ctx, const char *needle)
+{
+  const size_t needle_len = strlen(needle);
+  size_t len = static_cast<size_t>(ctx.response_buffer.response_length);
+  if (len == 0 || len > sizeof(ctx.buf)) {
+    len = sizeof(ctx.buf);
+  }
+  if (needle_len == 0 || needle_len > len) {
+    return false;
+  }
+  for (size_t i = 0; i + needle_len <= len; i++) {
+    if (memcmp(ctx.buf + i, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ===========================================================================
 // INT GET handlers: wrong-accept -> 4.00, happy -> 2.05
 // ===========================================================================
@@ -297,6 +320,9 @@ TEST_F(KnxSwuGetString, LastUpdateHappy)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  // the stored RFC3339 timestamp is always returned, there is no "osv" status variant
+  EXPECT_TRUE(payload_contains(ctx, "2025-01-01T00:00:00Z"));
+  EXPECT_FALSE(payload_contains(ctx, "osv"));
 }
 
 TEST_F(KnxSwuGetString, LastUpdateWrongAccept)
@@ -716,6 +742,7 @@ TEST_F(KnxSwuSetters, SetLastUpdateVisibleInLastUpdateGet)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "2030-12-31T23:59:59Z"));
 }
 
 TEST_F(KnxSwuSetters, SetQueryUrlVisibleInPkgQurlGet)

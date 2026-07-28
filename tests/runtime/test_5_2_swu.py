@@ -149,9 +149,14 @@ class TestSwuFirmwareUpdate:
         assert resp is not None and resp.is_successful
         assert val == 0, f"result should be 0 (INIT), got {val}"
 
-        # lastupdate → "osv:true" or manufacturing date
-        resp = coap.oscore_get(oscore_ctx, "/swu/lastupdate")
+        # lastupdate -> RFC3339 timestamp (manufacturing date, no "osv" variant)
+        resp, val = self._get_cbor_value(coap, oscore_ctx, "swu/lastupdate")
         assert resp is not None and resp.is_successful
+        assert isinstance(val, str) and val, (
+            f"lastupdate should be a non-empty RFC3339 string, got {val!r}")
+        assert "osv" not in cbor2.loads(resp.payload), (
+            "lastupdate must not contain an 'osv' key")
+        lastupdate_before = val
 
         # protocol → 0 (CoAP)
         resp, val = self._get_cbor_value(coap, oscore_ctx, "swu/protocol")
@@ -247,9 +252,16 @@ class TestSwuFirmwareUpdate:
         assert val == [0, 0, 2], (
             f"FWV after upgrade should be [0, 0, 2], got {val}")
 
-        # lastupdate → "osv:true" (device has been updated once)
-        resp = coap.oscore_get(oscore_ctx, "/swu/lastupdate")
+        # lastupdate -> still an RFC3339 timestamp after the update
+        resp, val = self._get_cbor_value(coap, oscore_ctx, "swu/lastupdate")
         assert resp is not None and resp.is_successful
+        assert isinstance(val, str) and val, (
+            f"lastupdate should be a non-empty RFC3339 string, got {val!r}")
+        assert "osv" not in cbor2.loads(resp.payload), (
+            "lastupdate must not contain an 'osv' key")
+        assert val == lastupdate_before, (
+            "lastupdate may only change when the application sets it "
+            f"explicitly, got {val!r} (was {lastupdate_before!r})")
 
 
 # ===========================================================================

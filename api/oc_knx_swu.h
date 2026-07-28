@@ -18,7 +18,6 @@
 #define KNX_STORAGE_SWU_METHOD "swu_knx_method"
 #define KNX_STORAGE_SWU_PROTOCOL "swu_knx_protocol"
 #define KNX_STORAGE_QUERY_URL "swu_knx_query_url"
-#define KNX_STORAGE_SWU_DOWNLOADED_ONCE "swu_knx_downloaded_once"
 #define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
 
 #ifdef __cplusplus
@@ -87,7 +86,6 @@ extern "C" {
     oc_swu_state_t state;
     oc_string_t query_url;
     oc_swu_result_t result;   // download result
-    bool downloaded_once;     // marker for a never updated device
     uint8_t protocol;         // only 0=unicast CoAP supported
     oc_string_t hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
   } oc_device_swu_t;

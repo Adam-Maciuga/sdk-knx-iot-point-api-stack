@@ -150,6 +150,25 @@ TEST_F(DeviceInfo, SetModel)
   EXPECT_STREQ(oc_core_get_device_info()->iot_model, "model-x");
 }
 
+TEST_F(DeviceInfo, ManufacturingDateDefaultsToUnixEpoch)
+{
+  // only valid as long as the application did not set a date yet
+  EXPECT_STREQ(oc_core_get_device_info()->mfg_date, "1970-01-01T00:00:00Z");
+}
+
+TEST_F(DeviceInfo, SetManufacturingDate)
+{
+  EXPECT_EQ(oc_core_set_device_mfd("2020-04-12T23:20:50.52Z"), 0);
+  EXPECT_STREQ(oc_core_get_device_info()->mfg_date, "2020-04-12T23:20:50.52Z");
+}
+
+TEST_F(DeviceInfo, SetManufacturingDateOverwritesPrevious)
+{
+  EXPECT_EQ(oc_core_set_device_mfd("2020-04-12T23:20:50.52Z"), 0);
+  EXPECT_EQ(oc_core_set_device_mfd("2024-01-31T10:00:00Z"), 0);
+  EXPECT_STREQ(oc_core_get_device_info()->mfg_date, "2024-01-31T10:00:00Z");
+}
+
 TEST_F(DeviceInfo, SetAndStoreIaInRange)
 {
   EXPECT_TRUE(oc_core_set_and_store_device_ia(0x1234));

@@ -414,7 +414,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `DeviceHostname` | 5 | Set/overwrite/empty hostname, default fallback, `HNAME_SIZE` fit |
-| `DeviceInfo` | 15 | Firmware/hardware/app version, manufacturer/model setters, ia/iid/fid set-and-store range validation |
+| `DeviceInfo` | 18 | Firmware/hardware/app version, manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
 | `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
 | `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |

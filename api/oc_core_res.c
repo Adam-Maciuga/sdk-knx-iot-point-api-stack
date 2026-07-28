@@ -24,7 +24,12 @@
 #include "port/oc_assert.h"
 #include "port/oc_storage.h"
 
-static oc_device_info_t oc_device_info = {0};	// common device 0 data pointer - cannot be NULL
+// common device 0 data pointer - cannot be NULL
+static oc_device_info_t oc_device_info = 
+{
+  // default manufacturing date fallback (application will set actual date on startup, see Application Init/Startup)
+  .mfg_date = "1970-01-01T00:00:00Z" 
+};	
 
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
@@ -44,6 +49,12 @@ int oc_core_set_device_mid(uint32_t mid)
 {
 	oc_device_info.mid = mid;
 	return 0;
+}
+
+int oc_core_set_device_mfd(const char* time)
+{
+  oc_device_info.mfg_date = time;
+  return 0;
 }
 
 bool oc_core_set_and_store_device_ia(int64_t ia)

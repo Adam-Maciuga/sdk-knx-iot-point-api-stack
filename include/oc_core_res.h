@@ -58,6 +58,7 @@ extern "C" {
 		uint64_t iid;                 // 40-bit knx installation id (mod)
 		bool pm;                      // knx programming mode (mod)
 		oc_lsm_state_t lsm_s;         // knx lsm states (mod)
+    const char* mfg_date;         // manufacturing date of device, default UNIX epoch start, set by application (fix) 
 	} oc_device_info_t;
 
 	/**
@@ -165,7 +166,7 @@ extern "C" {
 	 * @return false = error, iid out of 40-bit range
 	 * @return true = OK 
 	 */
-bool oc_core_set_and_store_device_iid(int64_t iid);
+  bool oc_core_set_and_store_device_iid(int64_t iid);
 
 	/**
 	 * @brief sets the fabric identifier (fid)
@@ -174,9 +175,17 @@ bool oc_core_set_and_store_device_iid(int64_t iid);
 	 * @return false = error, fid out of 40-bit range
 	 * @return true = OK 
 	 */
-bool oc_core_set_and_store_device_fid(int64_t fid);
+  bool oc_core_set_and_store_device_fid(int64_t fid);
 
-	/**
+  /**
+   * @brief sets the device manufacturing date
+   *
+   * @param time the device manufacturing date in IETF RFC 3339
+   * @return 0 = OK 
+  */
+  int oc_core_set_device_mfd(const char* time);	
+
+  /**
 	 * @brief gets the installation identifier (iid) (unsigned int)
 	 *
 	 * @return The KNX installation id
