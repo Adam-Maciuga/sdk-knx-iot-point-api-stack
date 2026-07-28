@@ -1101,22 +1101,20 @@ void oc_create_knx_swu_resources(void)
   oc_swu_set_package_name("");
   oc_swu_set_hwref("0102030405ABCDEF");
 
-  const oc_device_info_t* device = oc_core_get_device_info();
-  
-  // set device manufacturing date as default for last update (see Application Init/Startup)
+  // free by default before set storage or manufacturing data
   oc_free_string(&swu_device.last_update);
-  oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
-  
-  // try to load last_update from storage (persists across reboots)
+
   char last_update_buf[64] = "";
-  
   const long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
   if (ret > 0) 
-  {
-    oc_free_string(&swu_device.last_update);
+  { // try to load last_update from storage (persists across reboots)
     oc_new_string(&swu_device.last_update, last_update_buf, ret);
-    
-  } 
+  }
+  else
+  { // set device manufacturing date as default for last update (see Application Init/Startup)
+    const oc_device_info_t* device = oc_core_get_device_info();
+    oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
+  }
 
   OC_DBG("Using %s date for last_update : %s", ret > 0 ? "manufacturing" : "storage", oc_string(swu_device.last_update));
 }
