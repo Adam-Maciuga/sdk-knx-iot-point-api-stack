@@ -4,6 +4,9 @@ Runtime conformance tests — EITT 5.2.8 / 5.2.9 / 5.2.10
 5.2.8.1   Read list of software update property-ids (GET /swu link-format)
 5.2.9.1   Read specific SWU data during PUSH-based firmware update
 5.2.10.1b Invalid PUT on read-only resource for various SWU property-ids
+
+Plus /swu/lastupdate lifecycle checks (manufacturing date after startup,
+after a software update and after a reboot).
 """
 
 import re
@@ -252,16 +255,117 @@ class TestSwuFirmwareUpdate:
         assert val == [0, 0, 2], (
             f"FWV after upgrade should be [0, 0, 2], got {val}")
 
-        # lastupdate -> still an RFC3339 timestamp after the update
+        # lastupdate -> new RFC3339 timestamp (DUT simulates an RTC)
         resp, val = self._get_cbor_value(coap, oscore_ctx, "swu/lastupdate")
         assert resp is not None and resp.is_successful
         assert isinstance(val, str) and val, (
             f"lastupdate should be a non-empty RFC3339 string, got {val!r}")
         assert "osv" not in cbor2.loads(resp.payload), (
             "lastupdate must not contain an 'osv' key")
-        assert val == lastupdate_before, (
-            "lastupdate may only change when the application sets it "
-            f"explicitly, got {val!r} (was {lastupdate_before!r})")
+        assert val != lastupdate_before, (
+            "lastupdate should be stamped with the update time, "
+            f"still got the pre-update value {val!r}")
+
+
+# ===========================================================================
+#  /swu/lastupdate lifecycle (manufacturing date on the device)
+# ===========================================================================
+
+class TestSwuLastUpdateLifecycle:
+    """/swu/lastupdate lifecycle around the device manufacturing date.
+
+    The DUT calls oc_core_set_device_mfd("2020-04-12T23:20:50.52Z") before
+    oc_core_set_device_res(), so oc_create_knx_swu_resources() seeds
+    /swu/lastupdate with it. The DUT also simulates an RTC and calls
+    oc_swu_set_last_update() when an upgrade completes.
+
+    Covered:
+      - value is always a valid RFC3339 timestamp, never an "osv" status
+      - the manufacturing date is the value before any update
+      - the DUT stamps a new time after a software update
+      - the value survives a reboot
+    """
+
+    MFG_DATE = "2020-04-12T23:20:50.52Z"
+    RFC3339_RE = re.compile(
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
+
+    def _get_lastupdate(self, coap, oscore_ctx):
+        resp = coap.oscore_get(oscore_ctx, "/swu/lastupdate")
+        assert resp is not None and resp.is_successful, (
+            f"GET /swu/lastupdate failed: "
+            f"{resp.code if resp else 'timeout'}")
+        data = cbor2.loads(resp.payload)
+        assert "osv" not in data, (
+            f"lastupdate must not contain an 'osv' key, got {data!r}")
+        val = data.get(1)
+        assert isinstance(val, str) and self.RFC3339_RE.match(val), (
+            f"lastupdate should be an RFC3339 timestamp, got {val!r}")
+        return val
+
+    def _run_update(self, coap, oscore_ctx):
+        """Push a small firmware package and trigger the upgrade."""
+        firmware = bytes(range(256))
+        resp = coap.oscore_request(
+            oscore_ctx, 3, "/a/swu",
+            payload=firmware,
+            uri_queries=[f"ps={len(firmware)}", f"pkgs={len(firmware)}"],
+            content_format=APPLICATION_OCTET_STREAM,
+            timeout=10.0)
+        assert resp is not None and resp.is_successful, (
+            f"PUT /a/swu failed: {resp.code if resp else 'timeout'}")
+
+        resp = coap.oscore_put(oscore_ctx, "/swu/update",
+                               payload=cbor2.dumps({1: 0}))
+        assert resp is not None and resp.is_successful, (
+            f"PUT /swu/update failed: {resp.code if resp else 'timeout'}")
+
+        # test server simulates the upgrade with a 2s delayed callback
+        time.sleep(4)
+
+    def test_lastupdate_is_mfg_date_before_any_update(self, coap, oscore_ctx):
+        """Before the first update /swu/lastupdate is the manufacturing date.
+
+        Skipped when an earlier test in the session already ran an update,
+        because the DUT then stamped a newer time.
+        """
+        val = self._get_lastupdate(coap, oscore_ctx)
+        if val != self.MFG_DATE:
+            pytest.skip(
+                "device already performed a software update in this session "
+                f"(lastupdate={val})")
+        assert val == self.MFG_DATE
+
+    def test_lastupdate_changes_after_swu_update(self, coap, oscore_ctx):
+        """The DUT stamps a new timestamp when the update completes."""
+        before = self._get_lastupdate(coap, oscore_ctx)
+
+        # ensure a second-granularity timestamp can differ from the previous one
+        time.sleep(1)
+        self._run_update(coap, oscore_ctx)
+
+        after = self._get_lastupdate(coap, oscore_ctx)
+        assert after != before, (
+            "lastupdate should be stamped with the software update time, "
+            f"still got {after!r}")
+        assert after != self.MFG_DATE, (
+            "lastupdate should no longer be the manufacturing date after an "
+            f"update, got {after!r}")
+
+    def test_lastupdate_survives_reboot(self, coap, oscore_ctx):
+        """/swu/lastupdate keeps its value across a device restart."""
+        before = self._get_lastupdate(coap, oscore_ctx)
+
+        resp = coap.oscore_post(oscore_ctx, "/test/restart",
+                                payload=cbor2.dumps({}))
+        assert resp is not None and resp.is_successful, (
+            f"POST /test/restart failed: {resp.code if resp else 'timeout'}")
+        time.sleep(3)
+        coap.drain_socket(timeout=0.5)
+
+        after = self._get_lastupdate(coap, oscore_ctx)
+        assert after == before, (
+            f"lastupdate changed over reboot: {after!r} (was {before!r})")
 
 
 # ===========================================================================

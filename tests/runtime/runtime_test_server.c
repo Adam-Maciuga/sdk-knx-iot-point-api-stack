@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -320,6 +321,25 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
 
   /* Update firmware version to 0.0.2 */
   { oc_knx_version_info_t v = {0, 0, 2}; oc_core_set_and_store_device_fwv(&v); }
+
+  /*
+    Simulate an RTC-capable device: stamp the time of the software update.
+    Devices without a clock simply skip this and keep the manufacturing date.
+  */
+  {
+    static char last_update[32];
+    const time_t now = time(NULL);
+    struct tm utc;
+#ifdef _WIN32
+    gmtime_s(&utc, &now);
+#else
+    gmtime_r(&now, &utc);
+#endif
+    strftime(last_update, sizeof(last_update), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    oc_swu_set_last_update(last_update);
+    printf("[swu] Last update timestamp set to %s\n", last_update);
+    fflush(stdout);
+  }
 
   /* Cleanup */
   remove("downloaded_bin");

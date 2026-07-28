@@ -1133,12 +1133,15 @@ extra collected items come from parametrized cases in
 
 ---
 
-### test_5_2_swu.py — Software Update (3 tests, 7 collected)
+### test_5_2_swu.py — Software Update (6 tests, 10 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
 | **TestSwuResourceList** | `test_5_2_8_1_swu_link_format` | 5.2.8.1 |
 | **TestSwuFirmwareUpdate** | `test_5_2_9_1_swu_firmware_update` | 5.2.9.1 |
+| **TestSwuLastUpdateLifecycle** | `test_lastupdate_is_mfg_date_before_any_update` | - |
+| **TestSwuLastUpdateLifecycle** | `test_lastupdate_changes_after_swu_update` | - |
+| **TestSwuLastUpdateLifecycle** | `test_lastupdate_survives_reboot` | - |
 | **TestSwuReadOnlyPutRejected** | `test_5_2_10_1b_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
 
 ---
