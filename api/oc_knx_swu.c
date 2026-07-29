@@ -644,7 +644,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     if (strncmp(key, "po", key_len) == 0)
     {
       // validate: conversion error, invalid chars (only decimal digits allowed), out of range
-      if (!oc_parse_sint32_from_string(value, (int)value_len, &po_block_offset))
+      if (!oc_parse_sint32_from_base10_string(value, (int)value_len, &po_block_offset))
       {
         OC_ERR("invalid 'po' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -654,7 +654,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     else if (strncmp(key, "ps", key_len) == 0)
     {
       // validate: conversion error, invalid chars (only decimal digits allowed), out of range, a block size of 0 is not allowed
-      if (!oc_parse_sint32_from_string(value, (int)value_len, &ps_block_size) || ps_block_size == 0)
+      if (!oc_parse_sint32_from_base10_string(value, (int)value_len, &ps_block_size) || ps_block_size == 0)
       {
         OC_ERR("invalid 'ps' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -667,7 +667,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
         first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present),
         validate: conversion error, invalid chars (only decimal digits allowed), out of range, a package size of 0 is not allowed
       */
-      if (!oc_parse_sint32_from_string(value, (int)value_len, &pkgs_package_size) || pkgs_package_size == 0)
+      if (!oc_parse_sint32_from_base10_string(value, (int)value_len, &pkgs_package_size) || pkgs_package_size == 0)
       {
         OC_ERR("invalid 'pkgs' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);

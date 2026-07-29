@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1287 unit tests** (53 files) + **312 runtime tests** (17 files) = **1599 total**
+> **1309 unit tests** (53 files) + **352 runtime tests** (17 files) = **1661 total**
 >
-> Branch: `work_in_progress` | Unit: 1287 registered and passed (windows-test-gcc, GCC/CTest, 44.60s, 100% passed out of 1287).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 305 passed, 6 skipped, 0 failed, 0 errors (311 collected, 751.59s) - fully green. This run included the 3 new `TestSwuLastUpdateLifecycle` tests. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1309 registered and passed (windows-test-gcc, GCC/CTest, ~46s, 100% passed out of 1309).
+> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 813.68s) - fully green. This run included the 19 new `TestSwuBlockQueryValidation` tests. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -340,7 +340,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_helpers.cpp — KNX Helpers (24 tests)
+### test_oc_knx_helpers.cpp — KNX Helpers (33 tests)
 
 **Source:** `api/oc_knx_helpers.c`
 
@@ -351,6 +351,9 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `FrameBufferTest` | 6 | Frame integer (pos/zero/neg) and `l=` total/ps query fragments |
 | `EvaluateQueryPx` | 3 | `pn`/`ps` pagination query → page-index product |
 | `QueryLProcessed` | 6 | `l=` query processing (ps-only, total-only, missing, extra-query bad request) |
+| `ParseUint16` | 3 | `oc_parse_uint16_from_string`: valid/leading zeros, rejects NULL, empty, `abc`, `2abc`, `-1`, `+1`, 65536, over-length; no read past `value_len` |
+| `ParseSint32` | 2 | `oc_parse_sint32_from_string`: full `0..INT_MAX` range, rejects 2147483648, `-1`, trailing garbage, over-length |
+| `ParseUint64` | 3 | `oc_parse_uint64_from_base16_string`: hex incl. full 64-bit range and upper/lower case, rejects NULL value/result, empty, `1a2zz`, `-1`, `+1`, out-of-max, over-length, `g`; no read past `value_len` |
 
 ---
 
@@ -487,22 +490,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_fb.cpp — Functional Block Helpers (20 tests)
+### test_oc_knx_fb.cpp — Functional Block Helpers (12 tests)
 
 **Source:** `api/oc_knx_fb.c`
-
-**`oc_get_fb_number_from_dp` (8 tests)**
-
-| Test | What it verifies |
-|------|-----------------|
-| `SimpleDpa` | "dpa.417.61" → 417 |
-| `UrnPrefixed` | "urn:knx:dpa.421.62" → 421 |
-| `SingleDigitFb` | "dpa.1.1" → 1 |
-| `LargeFbNumber` | "dpa.99999.1" → 99999 |
-| `NoDotReturnsNegOne` | "dpa" → -1 |
-| `EmptyString` | "" → -1 |
-| `DotAtEnd` | "dpa." → 0 |
-| `MultipleDotsOnlyFirstMatters` | Correct parsing of first number |
 
 **Functional-block discovery (12 tests)**
 
@@ -777,7 +767,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (59 tests)
+### test_oc_knx_swu.cpp — Software Update (80 tests)
 
 **Source:** `api/oc_knx_swu.c`
 
@@ -787,7 +777,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxSwuGetString` | 6 | String-valued GETs (hwref, lastupdate, pkgqurl) + wrong-Accept |
 | `KnxSwuGetGated` | 9 | Download-gated GETs (pkgv, pkgname, update) returning not-found / OK |
 | `KnxSwuPut` | 17 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
-| `KnxSwuABlock` | 4 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) |
+| `KnxSwuABlock` | 7 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
+| `KnxSwuABlockInvalidQuery` | 18 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
 | `KnxSwuList` | 1 | List GET wrong-Accept |
 | `KnxSwuSetters` | 8 | Setter values become visible in matching GETs |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
@@ -1145,7 +1136,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
-### test_5_2_swu.py — Software Update (6 tests, 10 collected)
+### test_5_2_swu.py — Software Update (8 tests, 29 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1155,6 +1146,8 @@ and `test_5_2_swu.py` (6 -> 10).
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_changes_after_swu_update` | - |
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_survives_reboot` | - |
 | **TestSwuReadOnlyPutRejected** | `test_5_2_10_1b_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
+| **TestSwuBlockQueryValidation** | `test_invalid_block_query_returns_400` ×18 | - |
+| **TestSwuBlockQueryValidation** | `test_leading_zero_is_accepted` | - |
 
 ---
 
@@ -1416,7 +1409,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 including uncommitted changes via `-IncludeUncommitted`):
-**305 passed, 6 skipped, 0 failed, 0 errors** (311 collected, 751.59s) - fully green.
+**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 813.68s) - fully green.
 
 Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
 multicast-provisioning path), the full `test_5_4_observe.py` module, and
@@ -1448,11 +1441,26 @@ byte-for-byte identical before and after
 (`subtypes=['00fa10020800', 'ia1199887766-1101']`, same AAAA, same port), with
 `GET /a/lsm` still answering 4.03 on the advertised endpoint.
 
-The 6 skips recorded above are conditional `pytest.skip()` cases
+The 5 skips recorded above are conditional `pytest.skip()` cases
 (environment/timing dependent), not failures - see "Skipped tests" below.
 
-The unit suite is fully green (1287/1287, 44.60s). No stack C code was modified
-while refreshing this catalog.
+This run was also the first complete verification of the integer-parsing
+hardening campaign. Every site that converted a network-supplied string now
+routes through the bounded-copy parsers in `api/oc_knx_helpers.c`
+(`oc_parse_uint16_from_string`, `oc_parse_sint32_from_string`,
+`oc_parse_uint64_from_base16_string`), which reject NULL/empty values,
+over-length values, a leading sign, trailing garbage and out-of-range values,
+and never read past `value_len`. Converted: the 14 `pn`/`ps` pagination guards,
+the `?d=urn:knx:g.s.[ga]` group address in `oc_discovery.c`, the hexadecimal
+IID/IA of `ep=knx://ia.<iid>.<ia>` in `oc_discovery.c` and `oc_knx_client.c`,
+the `po`/`ps`/`pkgs` block parameters in `oc_knx_swu.c`, the observe `lt`
+lifetime in `messaging/coap/observe.c`, and both URI-wildcard helpers in
+`api/oc_helpers.c`. The run exercised all of them - the logs show live
+`knx://ia.1199887766.110f` discovery exchanges plus IID/IA re-resolution -
+with zero failures. `get_fb_number_from_dp()` was removed from
+`api/oc_knx_fb.c` in the same pass (no production callers).
+
+The unit suite is fully green (1309/1309, ~46s).
 
 ---
 

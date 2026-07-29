@@ -166,3 +166,42 @@ Bugs and issues discovered during unit test development.
   count: `const bool more_request_needed = (first_entry + query_ps) < total;`. The full `WellKnownCoreHandler`
   unit group (43 tests) still passes, and the new runtime test paginates through all matching resources
   with `ps=1` and terminates cleanly with no next-page link on the true last page.
+
+## F-011: ~~Unterminated CoAP query/URI values passed to `atoi()` / `strtol()` / `strtoull()` (out-of-bounds read)~~ - RESOLVED
+
+- **Status:** Resolved.
+- **Files:** `api/oc_knx_helpers.c` (`evaluate_query_px`), `api/oc_discovery.c` (group-address query),
+  `api/oc_knx_swu.c` (`po` / `ps` / `pkgs`), `messaging/coap/observe.c` (`lt`),
+  `api/oc_helpers.c` (both URI-wildcard helpers).
+- **Severity:** High - a remotely reachable out-of-bounds read on every affected handler, plus a family of
+  silent mis-parses that let malformed values through as valid numbers.
+- **Found by:** Code audit of `evaluate_query_px`, then a census of every `atoi`/`strtol`/`strtoull` call
+  site in the stack.
+- **Root cause:** Values obtained from `oc_iterate_query_get_values()` and `coap_get_query_variable()`
+  point **into the raw CoAP message buffer** and are returned with a separate length; they are **never**
+  NUL terminated. `atoi`/`strtol`/`strtoull` take no length parameter, so they scanned past the value into
+  adjacent message memory. Checking `endptr` afterwards does not help - the over-read has already happened.
+  Three further defects rode along:
+  1. `errno` alone only reports `ERANGE`; `"abc"`, `"2abc"` and `"-1"` all convert with `errno` untouched.
+  2. On a 64-bit host `long` is wider than `int`, so `"2147483648"` raised no `ERANGE` and silently
+     truncated on assignment.
+  3. `strtoull` accepts a leading `-` and negates modulo 2^64 without an error, so `"-1"` became
+     `0xFFFFFFFFFFFFFFFF`.
+  Several sites also passed `NULL` as `endptr`, silently accepting trailing garbage (`"lt=100abc"` -> 100,
+  `"1a2zz"` -> 0x1a2).
+- **Resolution:** A single file-static `parse_64bit_from_string()` in `api/oc_knx_helpers.c` now performs a
+  **bounded copy** of exactly `value_len` bytes into a local NUL-terminated buffer before converting, and
+  rejects a missing/empty/over-length value, a leading sign, `errno`, an `endptr` that does not land on
+  `value_len`, and any value above the caller's maximum. Three public wrappers expose it:
+  `oc_parse_uint16_from_string` (decimal, `0..USHRT_MAX`), `oc_parse_sint32_from_string`
+  (decimal, `0..INT_MAX`) and `oc_parse_uint64_from_base16_string` (hexadecimal, caller-supplied maximum).
+  Every affected site was converted, including the hexadecimal IID/IA parsing of
+  `ep=knx://ia.<iid>.<ia>` in `api/oc_discovery.c` and `api/oc_knx_client.c`, which additionally gained
+  trailing-garbage and negative-value rejection. `evaluate_query_px` signals a parse failure by setting
+  `pn`/`ps` to `-1`, which the 14 pagination guards already reject via
+  `first_entry >= total || query_ps < 1 || query_pn < 0`.
+- **Verification:** 1309/1309 unit tests pass, including the new `ParseUint16` / `ParseSint32` /
+  `ParseUint64` groups in `test_oc_knx_helpers.cpp` (each with a case that passes a length shorter than the
+  literal, pinning the bounded read) and the 18-case `KnxSwuABlockInvalidQuery` suite. The full runtime
+  suite is green at 347 passed / 5 skipped, exercising the pagination, discovery, observe, SWU-block and
+  wildcard paths against a live DUT over CoAP/OSCORE.

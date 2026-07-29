@@ -130,7 +130,7 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 Filled in as each `TODO`/`PARTIAL` file is worked. Only functions marked
 `UNTESTABLE` need a reason; everything else is driven to `DONE`.
 
-### api/oc_knx_helpers.c — DONE (paging + framing + query helpers)
+### api/oc_knx_helpers.c — DONE (paging + framing + query helpers + bounded integer parsers)
 
 Unit-tested in `test_oc_knx_helpers.cpp`. The paging helpers (`oc_knx_get_next_page`,
 etc.) are pure arithmetic on stack values. The CBOR/string framing helpers are
@@ -143,6 +143,16 @@ file-local (no public header declaration) so they are reached via test-local
 `query_l_was_processed` (no-query / no-l → false, l+ps → 2.05, l+total → 2.05,
 l-without-ps-or-total → 4.04, l+ps+extra → 4.00).
 
+The three public integer parsers are the single entry point for converting
+network-supplied strings. They share the file-static `parse_64bit_from_string`,
+which copies the (not NUL terminated) value into a bounded local buffer before
+calling `strtoull`, then rejects on `errno`, an `endptr` that does not land on
+`value_len`, and a value above the caller's maximum; a leading `-`/`+` is
+rejected before conversion because `strtoull` would otherwise negate modulo
+2^64 without an error. The static is covered behaviorally through all three
+wrappers, including a case per wrapper that passes a length shorter than the
+literal to prove nothing is read past `value_len`.
+
 | Function | Status |
 |----------|--------|
 | oc_knx_get_next_page family | DONE |
@@ -150,10 +160,14 @@ l-without-ps-or-total → 4.04, l+ps+extra → 4.00).
 | oc_frame_query_l | DONE (file-local; test-local forward decl + oc_rep buffer) |
 | evaluate_query_px | DONE |
 | query_l_was_processed | DONE |
+| oc_parse_uint16_from_string | DONE (valid/leading zeros; rejects NULL, empty, negative len, `abc`, `2abc`, `-1`, `+1`, 65536, >6 chars; bounded read) |
+| oc_parse_sint32_from_string | DONE (0..INT_MAX; rejects 2147483648, `-1`, trailing garbage, empty, >11 chars) |
+| oc_parse_uint64_from_base16_string | DONE (hex incl. full 64-bit range, upper/lower case, leading zeros; rejects NULL value, NULL result, empty, `1a2zz`, `-1`, `+1`, above max_value, >16 chars, `g`; bounded read) |
+| parse_64bit_from_string | DONE (file-static; covered through the three wrappers above) |
 
-### api/oc_knx_fb.c — DONE (dp parser + FB query/count drivers exercising the statics)
+### api/oc_knx_fb.c — DONE (FB query/count drivers exercising the statics)
 
-Unit-tested in `test_oc_knx_fb.cpp`. `get_fb_number_from_dp` is a pure parser.
+Unit-tested in `test_oc_knx_fb.cpp`.
 The two file-static helpers cannot be reached directly (no external linkage) and
 oc_knx_fb.c cannot be `#include`-compiled because it carries `const oc_resource_t`
 aggregate initializers that do not build under g++; both are therefore covered
@@ -169,7 +183,6 @@ behaviorally through their public callers:
 
 | Function | Status |
 |----------|--------|
-| get_fb_number_from_dp | DONE |
 | oc_check_if_functional_blocks_need_to_add | DONE (also covers static bounded_strstr) |
 | oc_count_functional_blocks_from_application | DONE (also covers static check_array_for_scanned_fbs_and_add_if_fresh) |
 
@@ -720,7 +733,7 @@ Static GET/PUT handlers are reached through their owning `const oc_resource_t co
 | oc_knx_swu_pkg_name_get_handler | DONE (4.04 / DOWNLOADED 2.05) |
 | oc_knx_swu_bytes_get_handler | DONE |
 | oc_knx_swu_pkg_query_url_get/put_handler | DONE |
-| oc_knx_swu_a_put_handler (/a/swu) | DONE wrong-accept / invalid-query / no-cb 5.01 / cb fast-path 2.04; separate-response slow-path + DOWNLOADING->DOWNLOADED completion = INTEGRATION (live CoAP transaction / event loop) |
+| oc_knx_swu_a_put_handler (/a/swu) | DONE wrong-accept / no-cb 5.01 / cb fast-path 2.04; full po/ps/pkgs query validation via the 18-case `KnxSwuABlockInvalidQuery` suite (non-numeric, trailing garbage, negative, zero, above INT_MAX, too many digits, empty) plus po=0 / leading-zero-is-decimal / no-read-past-length; separate-response slow-path + DOWNLOADING->DOWNLOADED completion = INTEGRATION (live CoAP transaction / event loop) |
 | oc_core_knx_swu_get_handler (/swu list) | DONE wrong-accept; link-format SUCCESS body = INTEGRATION (serializes RI resource table via oc_check_request_from_index over RI singleton) |
 | oc_set_swu_upgrade_cb / oc_get_swu_upgrade_cb | DONE (verified via update PUT) |
 | oc_set_swu_cb (oc_main.c) | DONE (verified via /a/swu cb path) |

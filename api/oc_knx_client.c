@@ -13,7 +13,7 @@
 #include "security/spake2plus.h"
 
 #include "oc_core_res.h"
-#include <errno.h>
+#include "oc_knx_helpers.h"
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -664,42 +664,31 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
       {
         // convert only when both the IID start ('i' of 'ia.') and the IA start (the IID/IA '.') were found
 
-        // empty max len IID + string termination '\0'
-        char iid_str[IID_STR_LEN_MAX + 1] = "";
-
         // IID can be of 1..10 chars (valid) or > 10 (attack/error)
         // Note: -1 for the '.' before the ia
         const size_t iid_len = ia_start_pos - 1 - iid_start_pos;
 
-        // copy IID size 0..10 , but don't copy > 10 chars
-        strncpy(iid_str, iid_start_pos, iid_len > IID_STR_LEN_MAX ? IID_STR_LEN_MAX : iid_len);
-
-        errno = 0;
-        // String is hex formatted, on conversion error = 0 device will not 
-        // have IID = 0 -> ignores request.
-        const uint64_t iid = strtoull(iid_str, NULL, 16);
+        // String is hex formatted, on conversion error the request is ignored,
+        // an oversized IID is rejected by the parser.
+        uint64_t iid = 0;
 
         // test device IID first since many devices (from same installation) will have the same IID
-        if (errno == 0 && iid == device->iid) 
+        if (iid_len <= IID_STR_LEN_MAX &&
+            oc_parse_uint64_from_base16_string(iid_start_pos, (int)iid_len, UINT64_MAX, &iid) && iid == device->iid)
         {
-          // empty max len IA + string termination '\0'
-          char ia_str[IA_STR_LEN_MAX + 1] = "";
-
           // IA can be of 0..4 chars (valid) or > 4 (attack/error)
           // Note: -1 for escaped " at the end '\"'
           const char* ia_end_pos = (const char*)data->_payload + data->_payload_len - 1;
           const size_t ia_len = ia_end_pos - ia_start_pos;
 
-          // copy IA size 0..4 , but don't copy > 4 chars
-          strncpy(ia_str, ia_start_pos, ia_len > IA_STR_LEN_MAX ? IA_STR_LEN_MAX : ia_len);
-
-          errno = 0;
-          // string is hex formatted
-          const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
+          // string is hex formatted, an oversized IA is rejected by the parser
+          uint64_t ia = 0;
 
           // Converted ia = 0 is accepted, but usually the recipient device will 
           // not have 0 assigned.
-          if (errno == 0 && ia == recipient->ia)
+          if (ia_len <= IA_STR_LEN_MAX &&
+              oc_parse_uint64_from_base16_string(ia_start_pos, (int)ia_len, UINT16_MAX, &ia) &&
+              ia == (uint64_t)recipient->ia)
           {
             ia_and_iid_valid_and_present = true;
           }

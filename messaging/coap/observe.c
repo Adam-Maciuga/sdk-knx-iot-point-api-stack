@@ -621,7 +621,7 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
               Note that 'lt_value' points into the request buffer and is NOT NUL terminated.
             */
             int lifetime = 0;
-            if (!oc_parse_sint32_from_string(lt_value, lt_len, &lifetime) || lifetime == 0 || lifetime > 86400)
+            if (!oc_parse_sint32_from_base10_string(lt_value, lt_len, &lifetime) || lifetime == 0 || lifetime > 86400)
             {
               OC_WRN("observe register rejected: unsupported 'lt' value");
               coap_remove_observer(obs);

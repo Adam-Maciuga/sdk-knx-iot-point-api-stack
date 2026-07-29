@@ -506,7 +506,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 		// GA must be decimal coded and within the 16-bit range, note that the value is not NUL terminated
 		int converted_ga = 0;
-		if (!oc_parse_uint16_from_string(&d_request[LEN_DOT_SECTOR], ga_len, &converted_ga) || !oc_is_device_in_runtime())
+		if (!oc_parse_uint16_from_base10_string(&d_request[LEN_DOT_SECTOR], ga_len, &converted_ga) || !oc_is_device_in_runtime())
 		{
 			/*
 				no GA value present, GA value too long, not a decimal coded GA value or the device is not at 'runtime',
@@ -637,39 +637,25 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				return;
 			}
 
-			// empty max len IA + string termination '\0'
-      char ia_str[IA_STR_LEN_MAX + 1] = "";
+			// string is hex formatted, the parser copies the (not NUL terminated) value itself
+			uint64_t ia = 0;
 
-			// copy valid IA size 1..4
-			strncpy(ia_str, ep_ia_start_pos, ep_ia_part_len);
-
-			errno = 0; 
-      // string is hex formatted
-      const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
-
-			// test IA first since many devices will have the same IID 
+			// test IA first since many devices will have the same IID
 			// converted ia = 0 is accepted, but usually the device will not have 0 assigned
-      if (errno == 0 && ia == device->ia)
-      {
-        // empty max len IID + string termination '\0'
-        char iid_str[IID_STR_LEN_MAX + 1] = "";
-
-				// copy valid IID size 1..10
-				strncpy(iid_str, ep_iid_start_pos, ep_iid_len);
-
-				errno = 0; 
-        // string is hex formatted, on conversion error = 0 device will not have IID = 0 -> ignores request
-        const uint64_t iid = strtoull(iid_str, NULL, 16);
+			if (oc_parse_uint64_from_base16_string(ep_ia_start_pos, (int)ep_ia_part_len, UINT16_MAX, &ia) && ia == (uint64_t)device->ia)
+			{
+				// string is hex formatted, on conversion error the request is ignored
+				uint64_t iid = 0;
 
 				// converted iid = 0 is accepted, but usually the device will not have 0 assigned
-        if (errno == 0 && iid == device->iid)
-        {
-          response_length = frame_sn(device->serialnumber, device->iid, device->ia);
-          oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
-          return;
-        }
-      }
-    }
+				if (oc_parse_uint64_from_base16_string(ep_iid_start_pos, (int)ep_iid_len, UINT64_MAX, &iid) && iid == device->iid)
+				{
+					response_length = frame_sn(device->serialnumber, device->iid, device->ia);
+					oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
+					return;
+				}
+			}
+		}
 
 		oc_discovery_prepare_no_match_response(request);
     return;

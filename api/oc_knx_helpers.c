@@ -123,7 +123,7 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
 }
 
 /**
- * @brief internal helper to parse a (not NUL terminated) string as a non-negative decimal integer
+ * @brief internal helper to parse a (not NUL terminated) string as a non-negative integer
  *
  * The value may point into the raw request buffer and is NOT NUL terminated, therefore
  * the value is first copied into a bounded local buffer before it is converted.
@@ -131,39 +131,49 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
  * @param value the (not NUL terminated) value
  * @param value_len the length of the value
  * @param max_len the maximum accepted length of the value, a longer value is rejected without conversion
+ * @param base the numerical base of the value, e.g. 10 (decimal) or 16 (hexadecimal)
  * @param max_value the maximum accepted value, a larger value is rejected
  * @param result the converted value, only valid when true is returned
- * @return true when the value is a valid non-negative decimal integer within 0...max_value
+ * @return true when the value is a valid non-negative integer within 0...max_value
  */
-static bool parse_uint_from_string(const char* value, int value_len, int max_len, long max_value, long* result)
+static bool parse_64bit_from_string(const char* value, int value_len, int max_len, int base, unsigned long long max_value, unsigned long long* result)
 {
-  
-  #define MAX_NUM_LEN (11)
+  // 16 hexadecimal digits of a '64-bit unsigned int', a decimal value is never longer than 'int'
+  #define MAX_NUM_LEN (16)
 
   // reject a missing, empty or oversized value, the range itself is checked after the conversion
   if (value == NULL || value_len <= 0 || value_len > max_len || max_len > MAX_NUM_LEN)
   {
     return false;
   }
-  
-  // 10 decimal digits of a '32-bit signed int', plus a possible sign or leading zero, + 1 for the string terminator
+
+  /*
+    strtoull() accepts a leading '-' and negates the result modulo 2^64 without setting errno,
+    so '-1' would silently convert to the maximum value. Reject any sign up front, the parsed
+    values are never negative and a leading '+' carries no information.
+  */
+  if (value[0] == '-' || value[0] == '+')
+  {
+    return false;
+  }
+
+  // the to be converted value, + 1 for the string terminator
   char buffer[MAX_NUM_LEN + 1] = "";
 
-  // copy to be converted value, string terminator for strtol() is on every place
+  // copy to be converted value, string terminator for strtoull() is on every place
   memcpy(buffer, value, (size_t)value_len);
 
   char* endptr = NULL;
   errno = 0;
-  const long temp = strtol(buffer, &endptr, 10);
+  const unsigned long long temp = strtoull(buffer, &endptr, base);
 
   /*
     reject on:
-    - conversion error, e.g. out of 'long' range (errno)
+    - conversion error, e.g. out of 'unsigned long long' range (errno)
     - no conversion at all or trailing garbage, e.g. 'abc' or '2abc' (endptr)
-    - a negative value, e.g. '-1', the parsed parameters are never negative
-    - out of the requested range, note that 'long' may be wider so errno alone is not enough
+    - out of the requested range, errno alone only covers the full 64 bit range
   */
-  if (errno || endptr != &buffer[value_len] || temp < 0 || temp > max_value)
+  if (errno || endptr != &buffer[value_len] || temp > max_value)
   {
     return false;
   }
@@ -180,18 +190,18 @@ static bool parse_uint_from_string(const char* value, int value_len, int max_len
  *
  * @note we do not accept values (parameters of page number / size) > 16 bit unsigned
  *
- * @param value the (not NUL terminated) query value
+ * @param value the (not NUL terminated) query value, base 10 coded
  * @param value_len the length of the query value
  * @param result the converted value, only valid when true is returned
  * @return true when the value is a valid non-negative decimal integer that fits in an 16-bit unsigned int
  */
-bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
+bool oc_parse_uint16_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 5 decimal digits of a '16-bit unsigned int', plus a possible sign or leading zero
+  // 5 decimal digits of a '16-bit unsigned int', plus a possible leading zero
   #define MAX_QUERY_NUM_LEN (6)
-  long temp = 0;
+  unsigned long long temp = 0;
 
-  if (!parse_uint_from_string(value, value_len, MAX_QUERY_NUM_LEN, USHRT_MAX, &temp))
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_QUERY_NUM_LEN, 10, USHRT_MAX, &temp))
   {
     return false;
   }
@@ -209,24 +219,51 @@ bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
  *
  * @note we do not accept values (parameters of page number / size) > 32-bit signed
  *
- * @param value the (not NUL terminated) query value
+ * @param value the (not NUL terminated) query value, base 10 coded
  * @param value_len the length of the query value
  * @param result the converted value, only valid when true is returned
  * @return true when the value is a valid non-negative decimal integer that fits in an 32-bit signed int
  */
-bool oc_parse_sint32_from_string(const char* value, int value_len, int* result)
+bool oc_parse_sint32_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 10 decimal digits of a '32-bit signed int', plus a possible sign or leading zero
+  // 10 decimal digits of a '32-bit signed int', plus a possible leading zero
   #define MAX_INT_NUM_LEN (11)
-  long temp = 0;
+  unsigned long long temp = 0;
 
-  if (!parse_uint_from_string(value, value_len, MAX_INT_NUM_LEN, INT_MAX, &temp))
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_INT_NUM_LEN, 10, INT_MAX, &temp))
   {
     return false;
   }
 
   // the value is validated to be within 0...INT_MAX, so it always fits in an 32-bit signed int
   *result = (int)temp;
+  return true;
+}
+
+/**
+ * @brief helper function to parse a value as a non-negative hexadecimal integer
+ *
+ * The value may point into the raw request buffer and is NOT NUL terminated, therefore
+ * the value is first copied into a bounded local buffer before it is converted.
+ *
+ * @param value the (not NUL terminated) value, base 16 coded
+ * @param value_len the length of the value
+ * @param max_value the maximum accepted value, a larger value is rejected
+ * @param result the converted value, only valid when true is returned
+ * @return true when the value is a valid non-negative hexadecimal integer within 0...max_value
+ */
+bool oc_parse_uint64_from_base16_string(const char* value, int value_len, uint64_t max_value, uint64_t* result)
+{
+  // 16 hexadecimal digits of a '64-bit unsigned int'
+  #define MAX_UINT64_HEX_LEN (16)
+  unsigned long long temp = 0;
+
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT64_HEX_LEN, 16, max_value, &temp))
+  {
+    return false;
+  }
+
+  *result = temp;
   return true;
 }
 
@@ -246,7 +283,7 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   {
     // fetch the first, ignore any possible (additional) next pn=xxx
     oc_iterate_query_get_values(request, "pn", &value, &value_len);
-    if (!oc_parse_uint16_from_string(value, value_len, pn_value))
+    if (!oc_parse_uint16_from_base10_string(value, value_len, pn_value))
     {
       // invalid page number, force an invalid page number so that the caller rejects the request
       *pn_value = -1;
@@ -259,7 +296,7 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   {
     // fetch the first, ignore any possible (additional) next ps=xxx
     oc_iterate_query_get_values(request, "ps", &value, &value_len);
-    if (!oc_parse_uint16_from_string(value, value_len, ps_value))
+    if (!oc_parse_uint16_from_base10_string(value, value_len, ps_value))
     {
       // invalid page size, force an invalid page size so that the caller rejects the request
       *ps_value = -1;
