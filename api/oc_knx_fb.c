@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "oc_api.h"
@@ -66,24 +65,6 @@ static struct functional_block_t
 
 // number of different application FBs 
 static int g_array_current_amount_of_scanned_fbs = 0; 
-
-int get_fb_number_from_dp(const char* dpt)
-{
-  // dpa.352.51 or urn:knx:dpa.352.51
-
-  // first '.'
-  const char* dot = strchr(dpt, '.');
-
-  // no dot in 'urn:knx:dpa.0.13'
-  if (!dot)
-    return -1;
-
-  // convert number after first '.' until next non-numerical char -> '.' is the valid next for a DPA scheme, no '-1' if it is not 
-  errno = 0;
-  const int fb_number = strtol(dot + 1, NULL, 10);
-
-  return errno ? -1 : fb_number;
-}
 
 // add an FB instance if it is fresh (NOT yet present)
 static void check_array_for_scanned_fbs_and_add_if_fresh(uint16_t number, uint8_t instance)

@@ -64,16 +64,6 @@ int oc_count_functional_blocks_from_application(void);
  */
 bool oc_check_if_functional_blocks_need_to_add(oc_request_t *request);
 
-/**
- * @brief get FB number from a datapoint (its dpt)
- *
- * @param dpt the dpt string
- *
- * @return on error -1, else functional block number 
-
- */
-int get_fb_number_from_dp(const char* dpt);
-
 #ifdef __cplusplus
 }
 #endif
