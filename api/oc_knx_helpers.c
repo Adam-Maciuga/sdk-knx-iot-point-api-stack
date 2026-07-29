@@ -5,28 +5,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "oc_api.h"
 #include "oc_knx_helpers.h"
-
-/**
- * @brief helper function to frame url part of query response:
- *  *
- * @param url the url to be framed
- * @param ps_exists frame ps
- * @param ps page size
- * @param total_exists frame total
- * @param total total items
- * @return total bytes framed
- */
-int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total);
 
 /**
  * @brief helper function to frame an integer in the response:
  * @param value the value to be framed, max 9 chars
  * @return total bytes framed
  */
-int oc_frame_integer(int value);
+int oc_frame_integer(const int value)
+{
+  // supports max 32bit decimal number
+  char string[10];
+  // conversion fails > empty string ...
+  return snprintf(string, 9, "%d", value) < 0 ? oc_rep_add_line_to_buffer("") : oc_rep_add_line_to_buffer(string);
+}
 
 bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
 {
@@ -124,6 +122,57 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
   return response_length;
 }
 
+/**
+ * @brief helper function to parse a query value as a non-negative decimal integer
+ *
+ * The query value points into the raw request buffer and is NOT NUL terminated, therefore
+ * the value is first copied into a bounded local buffer before it is converted.
+ *
+ * @note we do not accept values (parameters of page number / size) > 16 bit unsigned
+ *
+ * @param value the (not NUL terminated) query value
+ * @param value_len the length of the query value
+ * @param result the converted value, only valid when true is returned
+ * @return true when the value is a valid non-negative decimal integer that fits in an 16 bit unsigned int
+ */
+bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
+{
+
+  #define MAX_QUERY_NUM_LEN (6) 
+  // 5 decimal digits of a '16 bit unsigned int', plus a possible sign or leading zero, + 1 for the string terminator
+  char buffer[MAX_QUERY_NUM_LEN + 1];
+
+  // reject a missing, empty or oversized value, the range itself is checked after the conversion
+  if (value == NULL || value_len <= 0 || value_len > MAX_QUERY_NUM_LEN)
+  {
+    return false;
+  }
+
+  // copy to be converted value and add a string terminator for strtol()
+  memcpy(buffer, value, (size_t)value_len); 
+  buffer[value_len] = '\0';
+
+  char* endptr = NULL;
+  errno = 0;
+  const long temp = strtol(buffer, &endptr, 10);
+
+  /*
+    reject on:
+    - conversion error, e.g. out of 'long' range (errno)
+    - no conversion at all or trailing garbage, e.g. 'abc' or '2abc' (endptr)
+    - a negative value, e.g. '-1', a page number/size is never negative
+    - out of '16 bit unsigned int' range, note that 'long' may be wider than '16 bit unsigned int' so errno alone is not enough
+  */
+  if (errno || endptr != &buffer[value_len] || temp < 0 || temp > USHRT_MAX)
+  {
+    return false;
+  }
+
+  // the value is validated to be within 0...USHRT_MAX, so it always fits in a 16 bit unsigned int
+  *result = (uint16_t)temp;
+  return true;
+}
+
 int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
 {
   char* value = NULL;
@@ -140,21 +189,41 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   {
     // fetch the first, ignore any possible (additional) next pn=xxx
     oc_iterate_query_get_values(request, "pn", &value, &value_len);
-    // converts to '0' in case of error conversion 
-    *pn_value = atoi(value); 
+    if (!oc_parse_uint16_from_string(value, value_len, pn_value))
+    {
+      // invalid page number, force an invalid page number so that the caller rejects the request
+      *pn_value = -1;
+      return 0; // first entry is not relevant, the caller will reject the request anyway
+    }
   }
 
   oc_init_query_iterator();
   if (oc_query_value_exists(request, "ps") == 1) 
   {
-    // fetch the first, ignore any possible (additional) next pn=xxx
+    // fetch the first, ignore any possible (additional) next ps=xxx
     oc_iterate_query_get_values(request, "ps", &value, &value_len);
-    // converts to '0' in case of error conversion 
-    *ps_value = atoi(value);
+    if (!oc_parse_uint16_from_string(value, value_len, ps_value))
+    {
+      // invalid page size, force an invalid page size so that the caller rejects the request
+      *ps_value = -1;
+      return 0; // first entry is not relevant, the caller will reject the request anyway
+    }
   }
 
-  // first entry = pn * ps (optimization possible, but 32-bit platform usually uses hw multiplier)
-  return *pn_value * *ps_value;
+  /*
+    - first entry = pn * ps, both values are validated to be 0...USHRT_MAX so the product always
+      fits in a 32 bit unsigned int, but it may still exceed the 'int' range (65535 * 65535)
+    - typecasting to uint32_t to avoid a signed overflow, which is undefined behavior in C
+  */
+  const uint32_t first_entry = (uint32_t)*pn_value * (uint32_t)*ps_value;
+  if (first_entry > (uint32_t)INT_MAX)
+  {
+    // out of 'int' range, force an invalid page size so that the caller rejects the request
+    *ps_value = -1;
+    return 0; // first entry is not relevant, the caller will reject the request anyway
+  }
+
+  return (int)first_entry;
 }
 
 void collect_and_rank_status(int coap_status, oc_status_t* current_oc_status)
@@ -185,10 +254,4 @@ int add_next_page_indicator(char* url, int next_page_num)
   return response_length;
 }
 
-int oc_frame_integer(const int value)
-{
-  // supports max 32bit decimal number
-  char string[10];
-  // conversion fails > empty string ...
-  return snprintf(string, 9, "%d", value) < 0 ? oc_rep_add_line_to_buffer("") : oc_rep_add_line_to_buffer(string);
-}
+

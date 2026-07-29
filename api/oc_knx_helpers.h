@@ -55,6 +55,25 @@ void collect_and_rank_status(int coap_status, oc_status_t* current_oc_status);
 bool query_l_was_processed(oc_request_t* request, int ps, int total);
 
 /**
+ * @brief helper function to parse a (not NUL terminated) string as a non-negative decimal integer
+ *
+ * Values taken from a request point into the raw request buffer and are NOT NUL terminated,
+ * therefore the value is first copied into a bounded local buffer before it is converted.
+ * Leading zeros and a leading sign are accepted, trailing characters are not.
+ *
+ * @example "65535" -> 65535, "00001" -> 1, "-1", "abc" and "2abc" are rejected
+ *
+ * @param value the (not NUL terminated) value to be converted
+ * @param value_len the length of the value
+ * @param result the converted value, only valid when true is returned
+ *
+ * @note we do not accept values > 16 bit unsigned
+ *
+ * @return true when the value is a valid non-negative decimal integer that fits in a 16 bit unsigned int
+ */
+bool oc_parse_uint16_from_string(const char* value, int value_len, int* result);
+
+/**
  * @brief helper function to check if query parameter pn/ps exists
  *        and if so calculate the first item (index) that will be placed
  *        on the page
@@ -80,6 +99,25 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value);
  * @return total bytes framed
  */
 int add_next_page_indicator(char* url, int next_page_num);
+
+/**
+ * @brief helper function to frame url part of query response:
+ *  *
+ * @param url the url to be framed
+ * @param ps_exists frame ps
+ * @param ps page size
+ * @param total_exists frame total
+ * @param total total items
+ * @return total bytes framed
+ */
+int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total);
+
+/**
+ * @brief helper function to frame an integer in the response:
+ * @param value the value to be framed, max 9 chars
+ * @return total bytes framed
+ */
+int oc_frame_integer(const int value);
 
 #ifdef __cplusplus
 }

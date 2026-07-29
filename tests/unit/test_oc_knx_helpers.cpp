@@ -17,10 +17,6 @@ extern "C" {
 #include "messaging/coap/oc_coap.h"
 #include "messaging/coap/constants.h"
 
-/* file-local helpers in oc_knx_helpers.c (no public header declaration) */
-int oc_frame_query_l(char *url, bool ps_exists, int ps, bool total_exists,
-                     int total);
-int oc_frame_integer(int value);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

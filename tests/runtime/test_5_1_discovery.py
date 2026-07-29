@@ -381,3 +381,58 @@ class TestDiscoveryPaginationManyFunctionalBlocks:
         assert resp is not None, "No response for GET .well-known/core?rt=*&pn=-1&ps=-1"
         assert resp.code == "4.00", (
             f"Expected 4.00 for negative pn and ps, got {resp.code}")
+
+    def test_5_1_1_900_non_numeric_pn_returns_400(self, coap):
+        """5.1.1.900: GET /.well-known/core?rt=*&pn=abc -> 4.00 Bad Request.
+
+        evaluate_query_px() previously used atoi(), which converted any
+        non-numeric value to 0 and silently served page 0. The strtol()
+        endptr validation must reject it instead.
+        """
+        resp = coap.get(
+            ".well-known/core?rt=*&pn=abc", accept=LINK_FORMAT,
+            timeout=COAP_TIMEOUT)
+        assert resp is not None, "No response for GET .well-known/core?rt=*&pn=abc"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for non-numeric pn, got {resp.code}")
+
+    def test_5_1_1_900_trailing_garbage_ps_returns_400(self, coap):
+        """5.1.1.900: GET /.well-known/core?rt=*&pn=0&ps=2abc -> 4.00 Bad Request.
+
+        strtol() converts '2abc' to 2 without setting errno; only the
+        endptr comparison detects the trailing characters.
+        """
+        resp = coap.get(
+            ".well-known/core?rt=*&pn=0&ps=2abc", accept=LINK_FORMAT,
+            timeout=COAP_TIMEOUT)
+        assert resp is not None, "No response for GET .well-known/core?rt=*&pn=0&ps=2abc"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for trailing garbage in ps, got {resp.code}")
+
+    def test_5_1_1_900_out_of_int_range_pn_returns_400(self, coap):
+        """5.1.1.900: GET /.well-known/core?rt=*&pn=2147483648 -> 4.00 Bad Request.
+
+        INT_MAX + 1. On a 64-bit target `long` is wider than `int`, so
+        strtol() reports no ERANGE; only the explicit `temp > INT_MAX`
+        check prevents the truncation into an int.
+        """
+        resp = coap.get(
+            ".well-known/core?rt=*&pn=2147483648", accept=LINK_FORMAT,
+            timeout=COAP_TIMEOUT)
+        assert resp is not None, "No response for GET .well-known/core?rt=*&pn=2147483648"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for out-of-int-range pn, got {resp.code}")
+
+    def test_5_1_1_900_overflow_pn_ps_returns_400(self, coap):
+        """5.1.1.900: GET /.well-known/core?rt=*&pn=100000&ps=100000 -> 4.00.
+
+        Regression guard for the signed multiplication overflow in
+        `first_entry = pn * ps`: unguarded it wraps to a negative value
+        that passes the `first_entry >= total` range check.
+        """
+        resp = coap.get(
+            ".well-known/core?rt=*&pn=100000&ps=100000", accept=LINK_FORMAT,
+            timeout=COAP_TIMEOUT)
+        assert resp is not None, "No response for GET .well-known/core?rt=*&pn=100000&ps=100000"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for overflowing pn*ps, got {resp.code}")

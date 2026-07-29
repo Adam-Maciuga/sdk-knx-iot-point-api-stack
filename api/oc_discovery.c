@@ -498,43 +498,27 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	}
 
 	#define LEN_DOT_SECTOR (12) // urn:knx:g.s.
-  #define GA_LEN_MAX (5)     // max GA length in decimal coded digits (16 bit max, 65535 = 5 digits)
 
 	// handle sector, if device belongs to a GA ?d=urn:knx:g.s.[ga] list the data points to which the GA applies to
-  if (d_len >= LEN_DOT_SECTOR && strncmp(d_request, "urn:knx:g.s.", LEN_DOT_SECTOR) == 0)
+	if (d_len >= LEN_DOT_SECTOR && strncmp(d_request, "urn:knx:g.s.", LEN_DOT_SECTOR) == 0)
 	{
 		const int ga_len = d_len - LEN_DOT_SECTOR;
 
-		if (ga_len == 0 || ga_len > GA_LEN_MAX)
-    {
-      // no GA value present or GA value too long
-		  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
-
-		for (int i = 0; i < ga_len; i++)
+		// GA must be decimal coded and within the 16-bit range, note that the value is not NUL terminated
+		int converted_ga = 0;
+		if (!oc_parse_uint16_from_string(&d_request[LEN_DOT_SECTOR], ga_len, &converted_ga) || !oc_is_device_in_runtime())
 		{
-			if (d_request[LEN_DOT_SECTOR + i] < '0' || d_request[LEN_DOT_SECTOR + i] > '9')
-			{
-        // not a decimal coded GA value
-			  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-				return;
-			}
-		}
-
-		// GA must be decimal coded, 1..5 digits long, and within the 16-bit range
-	  errno = 0;
-    const uint32_t group_address = strtol(&d_request[LEN_DOT_SECTOR], NULL, 10);
-    OC_DBG("group address: %04x", group_address);
-
-		// if not in 'runtime' or a conversion error just return
-    if (!oc_is_device_in_runtime() || errno || group_address > 0xFFFF)
-		{
-			// handle bad request, note below layer ignores this message if it is a multicast request
+			/*
+				no GA value present, GA value too long, not a decimal coded GA value or the device is not at 'runtime',
+				note that the below layer ignores this response if it is a multicast request
+			*/
 			OC_ERR("device not at 'runtime' or ga conversion error");
 			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
+
+		const uint32_t group_address = (uint32_t)converted_ga;
+		OC_DBG("group address: %04x", group_address);
 
 		// create the response
 		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(request, group_address, &response_length);

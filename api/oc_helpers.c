@@ -379,8 +379,7 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
   return 0;
 }
 
-int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
-                                    oc_string_t* out)
+int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_string_t* out)
 {
   int return_value = -1;
   size_t size_bytes = (hex_str_len / 2);

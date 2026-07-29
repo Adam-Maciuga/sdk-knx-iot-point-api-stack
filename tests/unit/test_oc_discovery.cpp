@@ -822,8 +822,8 @@ INSTANTIATE_TEST_SUITE_P(
   ::testing::Values(
     SectorInvalidGaCase{ "UnicastEmpty", "d=urn:knx:g.s.", false },
     SectorInvalidGaCase{ "MulticastEmpty", "d=urn:knx:g.s.", true },
-    SectorInvalidGaCase{ "UnicastOverlong", "d=urn:knx:g.s.000001", false },
-    SectorInvalidGaCase{ "MulticastOverlong", "d=urn:knx:g.s.000001", true },
+    SectorInvalidGaCase{ "UnicastOverlong", "d=urn:knx:g.s.0000001", false },
+    SectorInvalidGaCase{ "MulticastOverlong", "d=urn:knx:g.s.0000001", true },
     SectorInvalidGaCase{ "UnicastAboveMaximum", "d=urn:knx:g.s.65536", false },
     SectorInvalidGaCase{ "MulticastAboveMaximum", "d=urn:knx:g.s.65536", true },
     SectorInvalidGaCase{ "UnicastWildcard0", "d=urn:knx:g.s.*2345", false },

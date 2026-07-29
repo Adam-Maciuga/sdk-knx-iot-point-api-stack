@@ -643,10 +643,14 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   // first entry number of a resource that will be placed on a page
   first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-  // check if requested page will carry at least one resource e.g
-  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
-  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0) 
+  /* check if requested page will carry at least one resource e.g
+     - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+     - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
+     - ps < 1 is invalid
+     - pn < 0 is invalid
+
+  */
+  if (first_entry >= last_entry || query_ps < 1 || query_pn < 0) 
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1049,7 +1053,9 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   // check if requested page will carry at least one resource e.g
   // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
   // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0) 
+  // - ps < 1 is invalid
+  // - pn < 0 is invalid
+  if (first_entry >= last_entry || query_ps < 1 || query_pn < 0) 
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;

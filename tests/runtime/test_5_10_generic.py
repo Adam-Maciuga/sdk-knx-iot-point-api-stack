@@ -155,9 +155,9 @@ class TestPaginationEdgeCases:
         _provision_go_table(coap, oscore_ctx, 4)
 
     def test_5_10_1_2_ps_zero_returns_400(self, coap, oscore_ctx):
-        """GET /fp/g?pn=0&ps=0 → 4.00 (explicit ps=0 is always invalid).
+        """GET /fp/g?pn=0&ps=0 -> 4.00 (explicit ps=0 is always invalid).
 
-        Exercises the `query_ps == 0` branch of the range check directly,
+        Exercises the `query_ps < 1` branch of the range check directly,
         independent of `first_entry >= total`.
         """
         resp = coap.oscore_get(
@@ -187,30 +187,124 @@ class TestPaginationEdgeCases:
         assert len(next_links) == 0, (
             "Did not expect a p.next link on the last page")
 
-    def test_5_10_1_2_negative_pn_does_not_return_500(self, coap, oscore_ctx):
-        """GET /fp/g?pn=-1&ps=2 must not crash the server / hang.
+    def test_5_10_1_2_negative_pn_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=-1&ps=2 -> 4.00 (a negative page number is invalid).
 
-        `evaluate_query_px()` uses atoi(), which accepts a leading '-', so
-        `first_entry = pn * ps` can go negative. The server must still
-        respond (either with an error or with a defined page), never
-        crash or time out.
+        `evaluate_query_px()` validates the query value with strtol() and
+        rejects any negative number, forcing an invalid page size so the
+        range check answers Bad Request. Without this the biased handlers
+        would index below their resource range.
         """
         resp = coap.oscore_get(
             oscore_ctx, "/fp/g?pn=-1&ps=2", accept=LINK_FORMAT)
         assert resp is not None, (
             "No response for GET /fp/g?pn=-1&ps=2 (server may have hung/crashed)")
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for negative pn, got {resp.code}")
 
-    def test_5_10_1_2_negative_ps_does_not_return_500(self, coap, oscore_ctx):
-        """GET /fp/g?pn=0&ps=-1 must not crash the server / hang.
+    def test_5_10_1_2_negative_ps_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=-1 -> 4.00 (a negative page size is invalid).
 
-        A negative ps means `first_entry = pn * ps` and the internal page
-        size compare use a negative value; the server must still respond
-        with a defined status, never crash or time out.
+        A negative ps must be rejected by the query parser, never used as
+        an internal page size.
         """
         resp = coap.oscore_get(
             oscore_ctx, "/fp/g?pn=0&ps=-1", accept=LINK_FORMAT)
         assert resp is not None, (
             "No response for GET /fp/g?pn=0&ps=-1 (server may have hung/crashed)")
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for negative ps, got {resp.code}")
+
+    def test_5_10_1_2_non_numeric_pn_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=abc&ps=2 -> 4.00 (a non-numeric page number is invalid).
+
+        atoi() silently converted garbage to 0 and served page 0; the
+        strtol()/endptr validation must reject it instead.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=abc&ps=2", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=abc&ps=2"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for non-numeric pn, got {resp.code}")
+
+    def test_5_10_1_2_trailing_garbage_ps_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=2abc -> 4.00 (trailing garbage is invalid).
+
+        strtol() alone would convert '2abc' to 2 and report no error; only
+        the endptr check catches the trailing characters.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=0&ps=2abc", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=0&ps=2abc"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for trailing garbage in ps, got {resp.code}")
+
+    def test_5_10_1_2_out_of_int_range_pn_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=2147483648&ps=2 -> 4.00 (INT_MAX + 1 is invalid).
+
+        On a 64-bit target `long` is wider than `int`, so strtol() reports
+        no ERANGE for this value; only the explicit `temp > INT_MAX` test
+        rejects it before it is truncated into an int.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=2147483648&ps=2", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=2147483648&ps=2"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for out-of-int-range pn, got {resp.code}")
+
+    def test_5_10_1_2_overflow_pn_ps_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=100000&ps=100000 -> 4.00 (pn * ps overflows int).
+
+        Regression guard for the signed multiplication in
+        `evaluate_query_px()`: unguarded, pn * ps wraps to a negative
+        first_entry that slips through the `first_entry >= total` check.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=100000&ps=100000", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=100000&ps=100000"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for overflowing pn*ps, got {resp.code}")
+
+    def test_5_10_1_2_leading_zero_ps_is_accepted(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=00001 -> 1 entry (a leading zero is still a valid number).
+
+        The query value length limit allows 5 digits plus one sign or
+        leading zero, so '00001' must parse as 1 rather than being
+        rejected as oversized.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=0&ps=00001", accept=LINK_FORMAT)
+        assert resp is not None and resp.is_successful, (
+            f"GET /fp/g?pn=0&ps=00001 failed: {resp.code if resp else 'timeout'}")
+        links = parse_link_format(resp.payload)
+        entries = [l for l in links if l.get("rt") != "p.next"]
+        assert len(entries) == 1, (
+            f"Expected exactly 1 entry for ps=00001, got {len(entries)}")
+
+    def test_5_10_1_2_negative_five_digit_pn_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=-12345&ps=2 -> 4.00 (a signed 6 char value is still negative).
+
+        '-12345' is exactly at the accepted length limit, so it is parsed
+        rather than rejected as oversized; the `temp < 0` check must then
+        reject it.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=-12345&ps=2", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=-12345&ps=2"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for negative 5 digit pn, got {resp.code}")
+
+    def test_5_10_1_2_above_uint16_ps_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=65536 -> 4.00 (one above the 16 bit unsigned range).
+
+        Boundary complement of the accepted maximum 65535: the explicit
+        `temp > USHRT_MAX` check must reject it, strtol() reports no error.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=0&ps=65536", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=0&ps=65536"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for ps above USHRT_MAX, got {resp.code}")
 
     def test_5_10_1_2_huge_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=999999&ps=2 → 4.00 (huge page number, still 4 entries).
