@@ -134,3 +134,35 @@ Bugs and issues discovered during unit test development.
 - **Original behavior:** `strstr()` accepted `fa` because it occurs inside the configured serial number.
 - **Expected behavior:** Characters before `*` must match the beginning of the device SN; unicast returns `4.04 Not Found` and multicast is suppressed when they do not.
 - **Resolution:** Both SN branches now use a bounded `strncmp()` from the beginning of the configured serial number. All synchronized transport cases pass.
+
+## F-010: ~~`/.well-known/core` pagination emits a `p.next` link on the true last page whenever that page is exactly full~~ - RESOLVED
+
+- **Status:** Resolved.
+- **File:** `api/oc_discovery.c`, `oc_well_known_core_discovery_handler()` (~line 754):
+  `const bool more_request_needed = query_parameter_key_value_pair_matches >= query_ps;`
+- **Severity:** Medium - breaks the pagination contract (EITT 5.10.1.6-style `p.next` following) whenever the number of matching resources is an exact multiple of the requested page size (`ps`); with `ps=1` this triggers on literally every page, so the client's final "follow the link" request always gets `4.00 Bad Request`.
+- **Found by:** New runtime test `test_5_1_1_900_pagination_follows_next_links_over_all_fbs` in
+  `tests/runtime/test_5_1_discovery.py` (`TestDiscoveryPaginationManyFunctionalBlocks`, test ID
+  5.1.1.900 -- local extra, not an official EITT clause), which paginates
+  `GET /.well-known/core?rt=*&ps=1` page by page, following each `p.next` link, over the real DUT's core
+  resources + application resources/functional blocks (`?rt=*` pulls the latter into scope, see the
+  `rt_len > 0 || if_len > 0` branch a few lines above).
+- **Input:** Sequential `GET /.well-known/core?rt=*&pn=N&ps=1` for `N = 0..12` against the DUT (13 total
+  matching resources with `rt=*`). Every response, including the response for `pn=12` (the last entry,
+  index 12 of 13), carries a `p.next` link to `pn=13`. `GET .../core?rt=*&pn=13&ps=1` then returns
+  `4.00 Bad Request` because `first_entry (13) >= total (13)`.
+- **Root cause:** `more_request_needed` is computed from how many matches were placed on the *current*
+  page (`query_parameter_key_value_pair_matches >= query_ps`), not from whether `first_entry + query_ps <
+  total`. Whenever the current page happens to be exactly filled - trivially true for `ps=1` on any page
+  with at least one entry, and true in general whenever `total` is a multiple of `ps` - the handler adds a
+  `p.next` link even though no further resources exist, sending a conforming client that follows the link
+  into a guaranteed `4.00`.
+- **Not caught by existing unit tests:** `WellKnownCoreHandler.MoreDataIncludesNextPageIndicator` and
+  `ExplicitPageNumberIncrementsNextPageIndicator` only check that *a* `p.next` link appears on early pages
+  (never that the mechanism terminates correctly); `FinalPageOmitsNextPageIndicator` uses `ps=20` against a
+  small mocked resource set, so the last page is a *partial* fill (`matches < ps`) and never exercises the
+  exact-fill boundary.
+- **Resolution:** `more_request_needed` now compares against the known `total` instead of the page's match
+  count: `const bool more_request_needed = (first_entry + query_ps) < total;`. The full `WellKnownCoreHandler`
+  unit group (43 tests) still passes, and the new runtime test paginates through all matching resources
+  with `ps=1` and terminates cleanly with no next-page link on the true last page.

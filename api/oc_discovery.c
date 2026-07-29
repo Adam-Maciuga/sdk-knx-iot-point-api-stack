@@ -477,10 +477,14 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// first entry number of a resource that will be placed on a page
 	const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-	// check if requested page will carry at least one resource e.g
-	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)no data on page 5 
-	if (first_entry >= total || query_ps == 0)
+	/* check if requested page will carry at least one resource e.g
+	   - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	   - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) 
+		 - ps < 1 is invalid 
+		 - pn < 0 is invalid
+
+  */
+	if (first_entry >= total || query_ps < 1 || query_pn < 0)
 	{
 		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
@@ -745,14 +749,17 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 	}
 
-	// decide the next-page hint from the entries actually added to this page, after
-	// all steps (core + application + functional blocks) have run. Each step stops
-	// once query_ps entries are placed (query_ps > 0 is guaranteed above), so a full
-	// page is the signal that matching resources may be left over. current_page_is_full
-	// cannot be used here: the functional-block step does not feed its result back into
-	// it, so an unfiltered request that overflows on FBs would drop the hint.
-	const bool more_request_needed = query_parameter_key_value_pair_matches >= query_ps;
+	/* 
+	   Decide the next-page hint from whether resources remain beyond this page.
 
+	   - query_parameter_key_value_pair_matches is capped at query_ps by the core/
+	     application/FB steps (each stops placing entries once query_ps is reached),
+	     so "page is full" alone cannot distinguish a full-but-last page from a full
+	     page with more data behind it 
+	   - compare against the known total instead
+	*/
+	const bool more_request_needed = total > first_entry + query_ps;
+	
 	if (query_parameter_key_value_pair_matches > 0 && response_length > 0)
 	{
 		// unicast or multicast request

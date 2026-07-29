@@ -129,13 +129,15 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   char* value = NULL;
   int value_len = -1;
 
-  if (!oc_query_values_available(request)) {
+  if (!oc_query_values_available(request)) 
+  {
     // no query parameter at all exits, first entry = 0 
     return 0;
   }
 
   oc_init_query_iterator();
-  if (oc_query_value_exists(request, "pn") == 1) {
+  if (oc_query_value_exists(request, "pn") == 1) 
+  {
     // fetch the first, ignore any possible (additional) next pn=xxx
     oc_iterate_query_get_values(request, "pn", &value, &value_len);
     // converts to '0' in case of error conversion 
@@ -143,7 +145,8 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   }
 
   oc_init_query_iterator();
-  if (oc_query_value_exists(request, "ps") == 1) {
+  if (oc_query_value_exists(request, "ps") == 1) 
+  {
     // fetch the first, ignore any possible (additional) next pn=xxx
     oc_iterate_query_get_values(request, "ps", &value, &value_len);
     // converts to '0' in case of error conversion 

@@ -446,18 +446,22 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   // first entry number of a resource that will be placed on a page
   const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-  // check if requested page will carry at least one resource e.g
-  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
-  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= total || query_ps == 0) 
+  /* check if requested page will carry at least one resource e.g
+     - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+     - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
+     - ps < 1 is invalid
+     - pn < 0 is invalid
+
+  */
+  if (first_entry >= total || query_ps < 1 || query_pn < 0) 
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
   // set to first property for the requested page
-  // example 1: IPv6 addresses #1..#4, (pn=1,ps=1) , set ptr to IPv6 address #2)
-  // example 2: IPv6 addresses #1..#4, (pn=0,ps=1) , set ptr to IPv6 address #1)
+  // example 1: IPv6 addresses #1...#4, (pn=1,ps=1) , set ptr to IPv6 address #2)
+  // example 2: IPv6 addresses #1...#4, (pn=0,ps=1) , set ptr to IPv6 address #1)
   my_ep = oc_connectivity_get_endpoints();
   for (int i = 0; i < first_entry; i++) 
   {

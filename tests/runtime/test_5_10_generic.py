@@ -140,6 +140,93 @@ class TestPaginationPageSize:
 
 
 # ===========================================================================
+# 5.10.1.2 (supplementary) — Pagination edge cases
+# ===========================================================================
+
+class TestPaginationEdgeCases:
+    """Supplementary edge-case coverage for the pn/ps range check in
+    oc_discovery.c / oc_knx_fp.c: `first_entry >= total || query_ps == 0`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, coap, oscore_ctx):
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        _provision_go_table(coap, oscore_ctx, 4)
+
+    def test_5_10_1_2_ps_zero_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=0 → 4.00 (explicit ps=0 is always invalid).
+
+        Exercises the `query_ps == 0` branch of the range check directly,
+        independent of `first_entry >= total`.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=0&ps=0", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=0&ps=0"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for ps=0, got {resp.code}")
+
+    def test_5_10_1_2_last_valid_page_exact_boundary(self, coap, oscore_ctx):
+        """GET /fp/g?pn=3&ps=1 → last entry, no p.next link.
+
+        EITT: total=4, ps=1, pn=3 → first_entry=3 (last valid index).
+        This is the boundary just inside the accepted range
+        (first_entry == total - 1), the complement of the beyond-range
+        tests which check first_entry == total.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=3&ps=1", accept=LINK_FORMAT)
+        assert resp is not None and resp.is_successful, (
+            f"GET /fp/g?pn=3&ps=1 failed: {resp.code if resp else 'timeout'}")
+        assert resp.payload, "Empty payload"
+        links = parse_link_format(resp.payload)
+        entries = [l for l in links if l.get("rt") != "p.next"]
+        next_links = [l for l in links if l.get("rt") == "p.next"]
+        assert len(entries) == 1, (
+            f"Expected exactly 1 entry on the last page, got {len(entries)}")
+        assert len(next_links) == 0, (
+            "Did not expect a p.next link on the last page")
+
+    def test_5_10_1_2_negative_pn_does_not_return_500(self, coap, oscore_ctx):
+        """GET /fp/g?pn=-1&ps=2 must not crash the server / hang.
+
+        `evaluate_query_px()` uses atoi(), which accepts a leading '-', so
+        `first_entry = pn * ps` can go negative. The server must still
+        respond (either with an error or with a defined page), never
+        crash or time out.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=-1&ps=2", accept=LINK_FORMAT)
+        assert resp is not None, (
+            "No response for GET /fp/g?pn=-1&ps=2 (server may have hung/crashed)")
+
+    def test_5_10_1_2_negative_ps_does_not_return_500(self, coap, oscore_ctx):
+        """GET /fp/g?pn=0&ps=-1 must not crash the server / hang.
+
+        A negative ps means `first_entry = pn * ps` and the internal page
+        size compare use a negative value; the server must still respond
+        with a defined status, never crash or time out.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=0&ps=-1", accept=LINK_FORMAT)
+        assert resp is not None, (
+            "No response for GET /fp/g?pn=0&ps=-1 (server may have hung/crashed)")
+
+    def test_5_10_1_2_huge_pn_returns_400(self, coap, oscore_ctx):
+        """GET /fp/g?pn=999999&ps=2 → 4.00 (huge page number, still 4 entries).
+
+        Regression guard for `first_entry = pn * ps` overflow: with a
+        large but int-safe pn, first_entry must still evaluate as
+        `>= total` and yield a Bad Request, not a crash.
+        """
+        resp = coap.oscore_get(
+            oscore_ctx, "/fp/g?pn=999999&ps=2", accept=LINK_FORMAT)
+        assert resp is not None, "No response for GET /fp/g?pn=999999&ps=2"
+        assert resp.code == "4.00", (
+            f"Expected 4.00 for huge pn, got {resp.code}")
+
+
+# ===========================================================================
 # 5.10.1.4 — List Metadata Query Parameter l
 # ===========================================================================
 

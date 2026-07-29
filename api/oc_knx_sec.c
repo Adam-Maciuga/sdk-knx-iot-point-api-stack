@@ -593,14 +593,14 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   // first entry number of a resource that will be placed on a page
   const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-  /*
-    check if requested page will carry at least one resource e.g
-    - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5
-      (all on page 0)
-    - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1
-      (all on page 0)
+  /* check if requested page will carry at least one resource e.g
+     - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+     - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
+     - ps < 1 is invalid
+     - pn < 0 is invalid
+
   */
-  if (first_entry >= total || query_ps == 0)
+  if (first_entry >= total || query_ps < 1 || query_pn < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -608,12 +608,10 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 
   /*
     entries don't fit in a single page -> more pages are needed to get the full list
-    - total=4, page number 1, page size 02, first entry = 002
-      -> no more data on next page
-    - total=4, page number 1, page size 01, first entry = 001
-      -> more data on next page
+    - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page
+    - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
   */
-  const bool more_request_needed = total > first_entry + query_ps ? true : false;
+  const bool more_request_needed = total > first_entry + query_ps;
 
   /*
     Example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly.

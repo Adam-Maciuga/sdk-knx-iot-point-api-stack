@@ -270,7 +270,7 @@ static int knx_pm_cmd(const struct shell *sh, size_t argc, char **argv)
         shell_error(sh, "Invalid argument. Use 0 or 1");
         return -EINVAL;
     }
-    const bool mode = (arg == 1) ? true : false;
+    const bool mode = (arg == 1);
     oc_knx_device_set_programming_mode(mode);
     return 0;
 }
