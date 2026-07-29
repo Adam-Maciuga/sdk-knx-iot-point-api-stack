@@ -38,9 +38,9 @@ extern const oc_resource_t core_resource_sub;
 // only static since values are changed at runtime
 static oc_device_swu_t swu_device = 
 {
-  .max_defer = 0,     
+  .max_defer = 0,                                             // fixed, stack does not support (auto) delayed update   
   .current_defer = 0,
-  .update_method = PUSH,
+  .update_method = PUSH,                                      // fixed, stack does not support PULL
   .pkg_name = {NULL, 0, NULL},
   .last_update = {.next = NULL, .size = 0, .ptr = NULL},
   .pkg_bytes = 0,
@@ -48,16 +48,10 @@ static oc_device_swu_t swu_device =
   .state = OC_SWU_STATE_IDLE,
   .query_url = {NULL, 0, NULL}, 
   .result = OC_SWU_RESULT_INIT,
-  .protocol = CoAP,
+  .protocol = CoAP,                                           // fixed, stack does not support PULL
   .hwref = {.next = NULL, .size = 0, .ptr = NULL},
 };  
 
-// below data can be set (PUT) all other can only be read
-#define KNX_STORAGE_SWU_MAX_DEFER   "swu_knx_max_defer"
-#define KNX_STORAGE_SWU_METHOD      "swu_knx_method"
-#define KNX_STORAGE_SWU_PROTOCOL    "swu_knx_protocol"
-#define KNX_STORAGE_QUERY_URL       "swu_knx_query_url"
-#define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
 /*
  * Software Update (SWU) Implementation
  * 
@@ -125,16 +119,9 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 
   if (rep && rep->type == OC_REP_INT)
   {
-    OC_DBG("oc_knx_swu_protocol_put_handler received : %d", (int)rep->value.integer);
-
     if (rep->value.integer == CoAP)
     {
-      // allow only CoAP to be written, otherwise bad request
-      // value is already set by init ... but store it again and save to storage
-
-      swu_device.protocol = CoAP;
-      oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, &swu_device.protocol, sizeof(swu_device.protocol));
-
+      // this stack supports only CoAP (note, value is set on startup, will never be changed, no overwrite here)
       OC_DBG("swu protocol received : %d", swu_device.protocol);
 
       oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -192,18 +179,18 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   if (rep && rep->type == OC_REP_INT)
   {
-    
-    swu_device.max_defer = (int)rep->value.integer;
-    oc_storage_write(KNX_STORAGE_SWU_MAX_DEFER, (uint8_t*)&swu_device.max_defer, sizeof(swu_device.max_defer));
+    if (rep->value.integer == 0)
+    {
+      // this stack supports only '0' = no delayed update (note, value is set on startup, will never be changed, no overwrite here)
+      OC_DBG("swu max defer received : %d", swu_device.max_defer);
 
-    OC_DBG("swu max defer received : %d", swu_device.max_defer);
-
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
-    return;
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+      return;
+    }
   }
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -295,23 +282,19 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   if (rep && rep->type == OC_REP_INT)
   {
-    OC_DBG("oc_knx_swu_method_put_handler received : %d", (int)rep->value.integer);
-
     if (rep->value.integer == PUSH)
     {
-      // allow only PUSH method for this stack
-      swu_device.update_method = PUSH;
-      oc_storage_write(KNX_STORAGE_SWU_METHOD, &swu_device.update_method, sizeof(swu_device.update_method));
-
+      // this stack supports only PUSH (note, value is set on startup, will never be changed, no overwrite here)
       OC_DBG("swu update method received : %d", swu_device.update_method);
 
-      oc_prepare_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
       return;
     }
+    
   }
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -595,7 +578,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 
   // Per KNX spec: "The version of the newly available software package
   // if the State resource is in state downloaded.
-  // Otherwise returns the response code '4.04 Not Found'."
+  // Otherwise, returns the response code '4.04 Not Found'."
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();

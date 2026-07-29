@@ -497,13 +497,23 @@ TEST_F(KnxSwuPut, MaxDeferMissingPayloadBadRequest)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
-TEST_F(KnxSwuPut, MaxDeferIntOk)
+TEST_F(KnxSwuPut, MaxDeferNonZeroBadRequest)
 {
+  // the stack does not support (auto) delayed update, only '0' is accepted
   RespCtx ctx;
   oc_rep_t rep;
   set_int_payload(ctx, rep, 120);
   invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(KnxSwuPut, MaxDeferZeroChangedAndReadable)
+{
+  RespCtx ctx;
+  oc_rep_t rep;
+  set_int_payload(ctx, rep, 0);
+  invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   RespCtx g;
   invoke_get(core_resource_knx_swu_maxdefer, g, APPLICATION_CBOR);
   EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
@@ -528,13 +538,16 @@ TEST_F(KnxSwuPut, MethodNonPushBadRequest)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
-TEST_F(KnxSwuPut, MethodPushOk)
+TEST_F(KnxSwuPut, MethodPushChangedAndReadable)
 {
   RespCtx ctx;
   oc_rep_t rep;
   set_int_payload(ctx, rep, PUSH);
   invoke_put(core_resource_knx_swu_method, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  RespCtx g;
+  invoke_get(core_resource_knx_swu_method, g, APPLICATION_CBOR);
+  EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
 }
 
 // --- pkgqurl PUT -----------------------------------------------------------
