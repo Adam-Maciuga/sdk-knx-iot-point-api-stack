@@ -89,7 +89,7 @@ bool oc_parse_uint16_from_string(const char* value, int value_len, int* result);
  *
  * @return true when the value is a valid non-negative decimal integer that fits in an int
  */
-bool oc_parse_s32int_from_string(const char* value, int value_len, int* result);
+bool oc_parse_sint32_from_string(const char* value, int value_len, int* result);
 
 /**
  * @brief helper function to check if query parameter pn/ps exists

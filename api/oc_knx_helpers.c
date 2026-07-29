@@ -137,19 +137,20 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
  */
 static bool parse_uint_from_string(const char* value, int value_len, int max_len, long max_value, long* result)
 {
+  
   #define MAX_NUM_LEN (11)
-  // 10 decimal digits of a '32 bit signed int', plus a possible sign or leading zero, + 1 for the string terminator
-  char buffer[MAX_NUM_LEN + 1];
 
   // reject a missing, empty or oversized value, the range itself is checked after the conversion
   if (value == NULL || value_len <= 0 || value_len > max_len || max_len > MAX_NUM_LEN)
   {
     return false;
   }
+  
+  // 10 decimal digits of a '32-bit signed int', plus a possible sign or leading zero, + 1 for the string terminator
+  char buffer[MAX_NUM_LEN + 1] = "";
 
-  // copy to be converted value and add a string terminator for strtol()
+  // copy to be converted value, string terminator for strtol() is on every place
   memcpy(buffer, value, (size_t)value_len);
-  buffer[value_len] = '\0';
 
   char* endptr = NULL;
   errno = 0;
@@ -213,7 +214,7 @@ bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
  * @param result the converted value, only valid when true is returned
  * @return true when the value is a valid non-negative decimal integer that fits in an 32-bit signed int
  */
-bool oc_parse_s32int_from_string(const char* value, int value_len, int* result)
+bool oc_parse_sint32_from_string(const char* value, int value_len, int* result)
 {
   // 10 decimal digits of a '32-bit signed int', plus a possible sign or leading zero
   #define MAX_INT_NUM_LEN (11)

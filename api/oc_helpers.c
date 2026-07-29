@@ -562,7 +562,7 @@ int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_le
 
       // accept only entire numbers, no trailing characters and no conversion errors
       int converted_value = -1;
-      if (!oc_parse_s32int_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
+      if (!oc_parse_sint32_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
       {
         return -1;
       }
@@ -631,7 +631,7 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_
 
       // accept only entire numbers (up to the '_' string position or the end) with no conversion errors
       int converted_value = -1;
-      if (!oc_parse_s32int_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
+      if (!oc_parse_sint32_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
       {
         return -1;
       }
