@@ -1383,7 +1383,7 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     return -1;
   }
   
-  // goodbye for current_advertisement advertisement (if any, 'goodbye' may be already send out on stop listener)
+  // goodbye for current advertisement (if any, 'goodbye' may be already send out on a previous 'dns stop' call)
   if (current_advertisement.valid) 
   {
     (void)send_announcement(&current_advertisement, true);

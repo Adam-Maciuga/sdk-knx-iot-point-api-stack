@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1287 unit tests** (53 files) + **311 runtime tests** (17 files) = **1598 total**
+> **1287 unit tests** (53 files) + **312 runtime tests** (17 files) = **1599 total**
 >
 > Branch: `work_in_progress` | Unit: 1287 registered and passed (windows-test-gcc, GCC/CTest, 44.60s, 100% passed out of 1287).
 > Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 305 passed, 6 skipped, 0 failed, 0 errors (311 collected, 751.59s) - fully green. This run included the 3 new `TestSwuLastUpdateLifecycle` tests. See "Last runtime run status" at the end of Part 2.
@@ -981,7 +981,7 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess - no mocks.
-17 `.py` files in `tests/runtime/`. 311 tests collected (with parametrize).
+17 `.py` files in `tests/runtime/`. 312 tests collected (with parametrize).
 The per-section headers below count unique test functions; the extra collected
 items come from parametrized cases in `test_5_2_device_resources.py` (16 -> 24)
 and `test_5_2_swu.py` (6 -> 10).
@@ -1054,7 +1054,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
-### test_5_1_discovery_mdns.py — mDNS Discovery (16 tests)
+### test_5_1_discovery_mdns.py — mDNS Discovery (16 EITT tests, 32 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1074,6 +1074,18 @@ and `test_5_2_swu.py` (6 -> 10).
 | | `test_5_1_2_4_pm_subtype_disabled` | 5.1.2.4 |
 | **TestMdnsUnsolicitedPM** | `test_5_1_2_5a_pm_toggle_announcements` | 5.1.2.5a |
 | **TestMdnsUnsolicitedIA** | `test_5_1_2_5b_ia_change_announcement` | 5.1.2.5b |
+| **TestMdnsStateSync** | `test_5_1_902_7_state_sync_mdns_alive_in_unloaded` | - (non-EITT) |
+
+> The table above lists the EITT-numbered tests. The module collects 32 tests in
+> total; the remainder are the non-EITT `5_1_901_x` (transition audit) and
+> `5_1_902_x` (state sync) additions.
+>
+> `test_5_1_902_7_state_sync_mdns_alive_in_unloaded` guards the deliberate
+> absence of a `knx_dns_sd_stop()` call when the LSM enters UNLOADED
+> (`api/oc_knx.c`): the unload clears the group tables but leaves sn/ia/iid
+> intact, so the device must remain discoverable. The test asserts that no mDNS
+> goodbye is emitted, that the advertised subtypes/address/port are unchanged,
+> and that the advertised endpoint still answers CoAP.
 
 ---
 
@@ -1426,6 +1438,15 @@ run so conftest's numeric sort places it immediately before
 instead of skipping. Verified in an isolated Docker run
 (`-IncludeUncommitted -k lastupdate`): **3 passed, 0 skipped**, meaning the
 full-suite skip count drops from 6 to 5 on the next complete run.
+
+Also added after that run: `test_5_1_902_7_state_sync_mdns_alive_in_unloaded`
+in `test_5_1_discovery_mdns.py`, covering the removal of the `knx_dns_sd_stop()`
+call on the LSM UNLOADED transition. Verified in an isolated Docker run
+(`-IncludeUncommitted -k 902_7`): **1 passed**, 37.50s. Measured evidence:
+the unload transition captured `goodbyes=0 announces=0`, and the snapshot was
+byte-for-byte identical before and after
+(`subtypes=['00fa10020800', 'ia1199887766-1101']`, same AAAA, same port), with
+`GET /a/lsm` still answering 4.03 on the advertised endpoint.
 
 The 6 skips recorded above are conditional `pytest.skip()` cases
 (environment/timing dependent), not failures - see "Skipped tests" below.

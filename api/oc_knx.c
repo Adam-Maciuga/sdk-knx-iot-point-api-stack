@@ -564,7 +564,8 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
       if (new_lsm_state == LSM_S_UNLOADED && old_lsm_state != LSM_S_UNLOADED)
       { // extra task on entering UNLOADED
 
-        knx_dns_sd_stop();
+        // don't stop mdns advertisement on unloaded -> ia/iid/... are valid and NOT changed 
+        
         // drop multicast memberships before clearing the tables
         oc_unregister_group_multicasts();
 

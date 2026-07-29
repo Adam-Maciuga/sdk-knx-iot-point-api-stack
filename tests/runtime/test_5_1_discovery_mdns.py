@@ -11,6 +11,10 @@ Covers:
   5.1.2.5a: Unsolicited mDNS responses on Programming mode change
   5.1.2.5b: Unsolicited mDNS responses on Individual Address change
 
+Non-EITT state-sync additions (5.1.901.x / 5.1.902.x) verify that what the
+DUT advertises stays consistent with its internal state across PM, SP,
+restart, factory reset and LSM unload.
+
 Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
 
 Requires: zeroconf (pip install zeroconf)
@@ -25,7 +29,7 @@ import cbor2
 import pytest
 
 from coap_client import APPLICATION_CBOR, LINK_FORMAT, CoapClient
-from conftest import DEVICE_PASSWORD, ALL_SCOPES, DUT_IA, DUT_IID, auth_prepare, ia_prepare
+from conftest import DEVICE_PASSWORD, ALL_SCOPES, DUT_IA, DUT_IID, auth_prepare, ia_prepare, set_lsm
 from knx_oscore import OscoreContext
 from knx_spake2plus import Spake2PlusClient
 
@@ -2691,4 +2695,105 @@ class TestMdnsStateSync:
 
         print(f"[addr_stab_freset] post-reset GET /a/lsm -> {resp_after.code_class}.{resp_after.code_detail:02d}"
               f" (liveness OK) -- mDNS endpoint is reachable across factory reset")
+
+    # ------------------------------------------------------------------
+    # LSM unload: mDNS advertisement MUST survive
+    # ------------------------------------------------------------------
+
+    def test_5_1_902_7_state_sync_mdns_alive_in_unloaded(self, coap, oscore_ctx):
+        """mDNS keeps advertising when the LSM enters UNLOADED.
+
+        Entering UNLOADED drops the group multicast memberships and deletes
+        the group object / group address tables, but it does NOT invalidate
+        the device identity: serial number, IA and IID are all unchanged.
+        The device must therefore stay discoverable so an ETS-like client can
+        re-commission it. Accordingly oc_knx.c does not call knx_dns_sd_stop()
+        on this transition.
+
+        Sequence:
+          1. Action -> LSM to loaded             (baseline: known-good state)
+          2. Query  -> serial and IA subtypes present, AAAA + SRV port present
+          3. Action -> LSM unload (POST /a/lsm cmd=4)
+          4. Query  -> the very same advertisement is still there
+          5. Probe  -> CoAP GET /a/lsm on the advertised endpoint answers
+          6. Cleanup -> restore loaded state
+        """
+        ia_short = f"ia{format(DUT_IID, 'x')}-{format(DUT_IA, 'x')}"
+
+        # --- Step 1: baseline, make sure we start from loaded ---
+        # event_to_state[] rejects LOAD_COMPLETE straight from UNLOADED, so the
+        # transition to LOADED always needs START_LOADING (1) first.
+        set_lsm(coap, oscore_ctx, 1)
+        set_lsm(coap, oscore_ctx, 2)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        snap_before = self._snap("unloaded/before")
+        self._print_client_view("BEFORE unload", snap_before)
+        assert DUT_SERIAL in snap_before.subtypes, (
+            f"[unloaded] Expected serial subtype '{DUT_SERIAL}' while loaded, "
+            f"got subtypes={snap_before.subtypes}")
+        assert ia_short in snap_before.subtypes, (
+            f"[unloaded] Expected IA subtype '{ia_short}' while loaded, "
+            f"got subtypes={snap_before.subtypes}")
+        assert snap_before.aaaa, (
+            "[unloaded] DUT not advertising any AAAA record while loaded")
+        assert snap_before.port > 0, (
+            "[unloaded] DUT not advertising any SRV port while loaded")
+
+        # --- Step 3: unload ---
+        # want_goodbye=False: no goodbye is expected here. The advertisement is
+        # meant to stay untouched, so the capture must not fail if nothing at
+        # all is sent on the wire.
+        tr = self._transition(
+            "unloaded/unload",
+            lambda: set_lsm(coap, oscore_ctx, 4),
+            timeout=20.0, want_goodbye=False)
+        assert not tr.goodbyes, (
+            "[unloaded] DUT sent an mDNS goodbye when entering UNLOADED -- the "
+            "device identity (sn/ia/iid) is unchanged, so the service must stay "
+            f"advertised. Captured {len(tr.goodbyes)} goodbye packet(s).")
+
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+        coap.drain_socket(timeout=0.5)
+
+        # --- Step 4: the advertisement must be unchanged ---
+        snap_after = self._snap("unloaded/after")
+        self._print_client_view("AFTER unload", snap_after)
+        assert DUT_SERIAL in snap_after.subtypes, (
+            f"[unloaded] Serial subtype '{DUT_SERIAL}' disappeared after "
+            f"unload, got subtypes={snap_after.subtypes}")
+        assert ia_short in snap_after.subtypes, (
+            f"[unloaded] IA subtype '{ia_short}' disappeared after unload -- "
+            f"IA/IID are not cleared by an unload, got "
+            f"subtypes={snap_after.subtypes}")
+        assert snap_after.aaaa, (
+            "[unloaded] DUT stopped advertising AAAA records in UNLOADED -- "
+            "mDNS must keep running")
+        assert snap_after.port == snap_before.port, (
+            f"[unloaded] Advertised SRV port changed across unload: "
+            f"{snap_before.port} -> {snap_after.port}")
+        assert snap_after.aaaa[0] == snap_before.aaaa[0], (
+            f"[unloaded] Advertised address changed across unload: "
+            f"{snap_before.aaaa[0]} -> {snap_after.aaaa[0]}")
+
+        # --- Step 5: the advertised endpoint must actually answer ---
+        client = CoapClient(snap_after.aaaa[0], snap_after.port,
+                            timeout=COAP_TIMEOUT)
+        try:
+            resp = client.get("/a/lsm", timeout=COAP_TIMEOUT)
+            assert resp is not None, (
+                f"[unloaded] GET /a/lsm timed out at the advertised endpoint "
+                f"[{snap_after.aaaa[0]}]:{snap_after.port} -- the mDNS record "
+                f"is stale while UNLOADED")
+        finally:
+            client.close()
+
+        print(f"[unloaded] post-unload GET /a/lsm -> "
+              f"{resp.code_class}.{resp.code_detail:02d} (liveness OK) -- "
+              f"mDNS endpoint is reachable in UNLOADED")
+
+        # --- Step 6: cleanup, back to loaded for the following tests ---
+        set_lsm(coap, oscore_ctx, 1)
+        set_lsm(coap, oscore_ctx, 2)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
 
