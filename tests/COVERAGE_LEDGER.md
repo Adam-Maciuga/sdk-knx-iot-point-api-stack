@@ -43,7 +43,7 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | oc_client_api.c | test_oc_client_api.cpp | DONE |
 | oc_discovery.c | test_oc_discovery.cpp | DONE |
 | oc_clock.c | test_oc_clock.cpp | DONE |
-| oc_core_res.c | test_oc_core_res.cpp | DONE |
+| oc_core_res.c | test_oc_core_res.cpp | DONE (incl. oc_core_set_device_mfd and oc_core_set_device_hwv by-reference semantics) |
 | oc_endpoint.c | test_oc_endpoint.cpp | DONE |
 | oc_helpers.c | test_oc_helpers.cpp | DONE |
 | oc_knx.c | test_oc_knx.cpp | DONE |
@@ -725,7 +725,7 @@ Static GET/PUT handlers are reached through their owning `const oc_resource_t co
 | oc_set_swu_upgrade_cb / oc_get_swu_upgrade_cb | DONE (verified via update PUT) |
 | oc_set_swu_cb (oc_main.c) | DONE (verified via /a/swu cb path) |
 | oc_swu_set_package_name/last_update/hwref/package_bytes/package_version/state/query_url/result | DONE (verified via GET handlers) |
-| oc_create_knx_swu_resources | INTEGRATION — calls oc_storage_read during init and is meaningful only against the RI resource table |
+| oc_create_knx_swu_resources | INTEGRATION - calls oc_storage_read during init and is meaningful only against the RI resource table; the device mfg_date seeding of /swu/lastupdate is covered at runtime by `TestSwuLastUpdateLifecycle` in test_5_2_swu.py |
 
 ### api/oc_server_api.c — DONE (pure helpers + resource mutators); network/RI paths integration-level
 

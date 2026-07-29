@@ -168,6 +168,11 @@ protected:
     dev->iot_model = "mymodel";
     init_string(&dev->iot_hostname, "knxhost");
 
+    /* hwv is stored by reference (application-owned), so it needs static
+     * lifetime as well; it is NULL until the application sets it. */
+    static const oc_knx_version_info_t hwv = {1, 2, 3};
+    dev->hwv = &hwv;
+
     memset(&request, 0, sizeof(request));
     memset(&response, 0, sizeof(response));
     memset(&response_buffer, 0, sizeof(response_buffer));

@@ -323,11 +323,15 @@ class TestSwuLastUpdateLifecycle:
         # test server simulates the upgrade with a 2s delayed callback
         time.sleep(4)
 
-    def test_lastupdate_is_mfg_date_before_any_update(self, coap, oscore_ctx):
+    def test_5_2_9_0_lastupdate_is_mfg_date_before_any_update(self, coap,
+                                                              oscore_ctx):
         """Before the first update /swu/lastupdate is the manufacturing date.
 
-        Skipped when an earlier test in the session already ran an update,
-        because the DUT then stamped a newer time.
+        Named with the EITT-style prefix 5.2.9.0 so conftest's numeric sort
+        places it immediately before test_5_2_9_1_swu_firmware_update, the
+        earliest test that performs a software update. The skip below is only
+        a safety net for partial runs (e.g. -k selections) where an update may
+        still have happened first.
         """
         val = self._get_lastupdate(coap, oscore_ctx)
         if val != self.MFG_DATE:

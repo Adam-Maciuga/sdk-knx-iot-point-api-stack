@@ -39,26 +39,26 @@ extern "C" {
 	 * @note
 	 * - some properties maybe changed at runtime via a PUT/POST service, or as a consequence of a reset (code 2/7)
 	 *   or restart, marked with (mod)
-	 * - some properties are set to a fixed value at device startup and cannot be changed at all, marked with (fix)
+	 * - some properties are set to a fixed value at device startup and cannot be changed at all, marked with (fix),
 	 *   here only a pointer is stored, handed over from application on start
 	 
 	 */
 	typedef struct oc_device_info_t
 	{
-		const char *serialnumber;     // knx serial number, binary 6 bytes, in hex 12 bytes (fix)
-		oc_knx_version_info_t hwv;    // hardware ver, :dpt.version -> U5U5U6 (fix)
-		oc_knx_version_info_t fwv;    // firmware ver, :dpt.version -> U5U5U6 (fix)
-		oc_knx_version_info_t apv;    // application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) (mod)
-		const char *hwt;              // knx hardware type, should not be larger than 6 chars (fix)
-		const char *iot_model;        // knx model, former mask version (fix), name is specific due to vast amount of "hostname" in other code
-    oc_string_t iot_hostname;			// knx host name (mod), see above
-		uint32_t mid;                 // knx manufacturer id (fix)
-		uint64_t fid;                 // knx fabric id (mod)(mod)
-		uint16_t ia;                  // 16-bit knx individual address (mod)
-		uint64_t iid;                 // 40-bit knx installation id (mod)
-		bool pm;                      // knx programming mode (mod)
-		oc_lsm_state_t lsm_s;         // knx lsm states (mod)
-    const char* mfg_date;         // manufacturing date of device, default UNIX epoch start, set by application (fix) 
+		const char *serialnumber;					// fix: knx serial number, binary 6 bytes, in hex 12 bytes
+		const oc_knx_version_info_t* hwv;	// fix: hardware ver, :dpt.version -> U5U5U6 
+		oc_knx_version_info_t fwv;	      // mod: firmware ver, :dpt.version -> U5U5U6 
+		oc_knx_version_info_t apv;				// mod: application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) 
+		const char *hwt;									// fix: knx hardware type, should not be larger than 6 chars
+		const char *iot_model;						// fix: knx model, former mask version, name is specific due to vast amount of "hostname" in other code
+    oc_string_t iot_hostname;					// mod: knx host name
+		uint32_t mid;											// fix: knx manufacturer id
+		uint64_t fid;											// mod: fabric id
+		uint16_t ia;											// mod: 16-bit knx individual address
+		uint64_t iid;											// mod: 40-bit knx installation id
+		bool pm;													// mod: knx programming mode
+		oc_lsm_state_t lsm_s;							// mod: knx lsm states
+    const char* mfg_date;							// fix: manufacturing date of device, default UNIX epoch start, set by application
 	} oc_device_info_t;
 
 	/**

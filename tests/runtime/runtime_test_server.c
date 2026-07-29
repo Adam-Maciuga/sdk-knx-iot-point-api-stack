@@ -368,7 +368,8 @@ static int app_init(void)
 {
   /* Same values as EITT test template */
   oc_core_set_device_sn("00fa10020800");
-  { oc_knx_version_info_t hwv = {0, 0, 1}; oc_core_set_device_hwv(&hwv); }
+  /* hwv is stored by reference, so it must outlive app_init() */
+  { static const oc_knx_version_info_t hwv = {0, 0, 1}; oc_core_set_device_hwv(&hwv); }
   { oc_knx_version_info_t fwv = {0, 0, 1}; oc_core_set_and_store_device_fwv(&fwv); }
   
   /* Set manufacturing date (same as EITT template), used as initial /swu/lastupdate value.

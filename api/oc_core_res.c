@@ -41,7 +41,7 @@ int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 
 int oc_core_set_device_hwv(const oc_knx_version_info_t* version)
 {
-	oc_device_info.hwv = *version;
+	oc_device_info.hwv = version;
 	return 0;
 }
 

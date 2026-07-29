@@ -108,12 +108,30 @@ TEST_F(DeviceInfo, SetFirmwareVersion)
 
 TEST_F(DeviceInfo, SetHardwareVersion)
 {
-  oc_knx_version_info_t version = {4, 5, 6};
+  // hwv is stored by reference, the application owns the version struct
+  static const oc_knx_version_info_t version = {4, 5, 6};
   EXPECT_EQ(oc_core_set_device_hwv(&version), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
-  EXPECT_EQ(d->hwv.major, 4);
-  EXPECT_EQ(d->hwv.minor, 5);
-  EXPECT_EQ(d->hwv.patch, 6);
+  ASSERT_EQ(d->hwv, &version);
+  EXPECT_EQ(d->hwv->major, 4);
+  EXPECT_EQ(d->hwv->minor, 5);
+  EXPECT_EQ(d->hwv->patch, 6);
+}
+
+TEST_F(DeviceInfo, SetHardwareVersionKeepsReferenceToCallerData)
+{
+  static oc_knx_version_info_t version = {1, 1, 1};
+  EXPECT_EQ(oc_core_set_device_hwv(&version), 0);
+
+  // changing the caller-owned struct is visible through the device info
+  version.major = 7;
+  version.minor = 8;
+  version.patch = 9;
+
+  const oc_device_info_t *d = oc_core_get_device_info();
+  EXPECT_EQ(d->hwv->major, 7);
+  EXPECT_EQ(d->hwv->minor, 8);
+  EXPECT_EQ(d->hwv->patch, 9);
 }
 
 TEST_F(DeviceInfo, SetApplicationVersion)

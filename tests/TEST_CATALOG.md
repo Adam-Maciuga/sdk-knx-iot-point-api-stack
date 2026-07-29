@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1283 unit tests** (53 files) + **293 runtime tests** (17 files) = **1576 total**
+> **1287 unit tests** (53 files) + **311 runtime tests** (17 files) = **1598 total**
 >
-> Branch: `work_in_progress` | Unit: 1283 registered and passed (windows-test-gcc, GCC/CTest).
-> Runtime (Docker `linux-test-gcc`, full suite): 287 passed, 6 skipped, 0 failed, 0 errors (293 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1287 registered and passed (windows-test-gcc, GCC/CTest, 44.60s, 100% passed out of 1287).
+> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 305 passed, 6 skipped, 0 failed, 0 errors (311 collected, 751.59s) - fully green. This run included the 3 new `TestSwuLastUpdateLifecycle` tests. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -407,14 +407,14 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_core_res.cpp — Core Resources & Device Info (33 tests)
+### test_oc_core_res.cpp — Core Resources & Device Info (37 tests)
 
 **Source:** `api/oc_core_res.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `DeviceHostname` | 5 | Set/overwrite/empty hostname, default fallback, `HNAME_SIZE` fit |
-| `DeviceInfo` | 18 | Firmware/hardware/app version, manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
+| `DeviceInfo` | 19 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
 | `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
 | `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |
@@ -981,10 +981,10 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess - no mocks.
-17 `.py` files in `tests/runtime/`. 289 tests collected (with parametrize).
-The per-section headers below count unique test functions (277 total); the 12
-extra collected items come from parametrized cases in
-`test_5_2_device_resources.py` (16 -> 24) and `test_5_2_swu.py` (3 -> 7).
+17 `.py` files in `tests/runtime/`. 311 tests collected (with parametrize).
+The per-section headers below count unique test functions; the extra collected
+items come from parametrized cases in `test_5_2_device_resources.py` (16 -> 24)
+and `test_5_2_swu.py` (6 -> 10).
 
 **DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
 
@@ -1139,7 +1139,7 @@ extra collected items come from parametrized cases in
 |-------|------|----------|
 | **TestSwuResourceList** | `test_5_2_8_1_swu_link_format` | 5.2.8.1 |
 | **TestSwuFirmwareUpdate** | `test_5_2_9_1_swu_firmware_update` | 5.2.9.1 |
-| **TestSwuLastUpdateLifecycle** | `test_lastupdate_is_mfg_date_before_any_update` | - |
+| **TestSwuLastUpdateLifecycle** | `test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` | - |
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_changes_after_swu_update` | - |
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_survives_reboot` | - |
 | **TestSwuReadOnlyPutRejected** | `test_5_2_10_1b_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
@@ -1402,8 +1402,9 @@ extra collected items come from parametrized cases in
 
 ## Last runtime run status
 
-Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`):
-**287 passed, 6 skipped, 0 failed, 0 errors** (293 collected, 592.66s) - fully green.
+Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
+including uncommitted changes via `-IncludeUncommitted`):
+**305 passed, 6 skipped, 0 failed, 0 errors** (311 collected, 751.59s) - fully green.
 
 Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
 multicast-provisioning path), the full `test_5_4_observe.py` module, and
@@ -1413,11 +1414,24 @@ setup fixture that cascaded into the rest of `5_4` and `5_5`) did **not**
 reproduce on this run, confirming it was DUT instability under cumulative load
 rather than a code regression.
 
-The 6 skips are conditional `pytest.skip()` cases (environment/timing
-dependent), not failures - see "Skipped tests" below.
+This run was the first to exercise the `/swu/lastupdate` lifecycle work: the
+DUT-side RTC simulation in `swu_upgrade_complete_cb()`, the flipped
+`test_5_2_9_1_swu_firmware_update` step-4 assertion (timestamp must CHANGE after
+an update), and the new `TestSwuLastUpdateLifecycle` class. Result:
+`test_lastupdate_changes_after_swu_update` PASSED,
+`test_lastupdate_survives_reboot` PASSED, and
+`test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` was renamed after that
+run so conftest's numeric sort places it immediately before
+`test_5_2_9_1_swu_firmware_update`; it now asserts the manufacturing date
+instead of skipping. Verified in an isolated Docker run
+(`-IncludeUncommitted -k lastupdate`): **3 passed, 0 skipped**, meaning the
+full-suite skip count drops from 6 to 5 on the next complete run.
 
-The unit suite is fully green (1033/1033). No stack C code was modified while
-refreshing this catalog.
+The 6 skips recorded above are conditional `pytest.skip()` cases
+(environment/timing dependent), not failures - see "Skipped tests" below.
+
+The unit suite is fully green (1287/1287, 44.60s). No stack C code was modified
+while refreshing this catalog.
 
 ---
 
@@ -1425,7 +1439,7 @@ refreshing this catalog.
 
 | Test | Reason |
 |------|--------|
-| `test_5_1_2_3b_ia_unconfigured_subtype` | Requires fully unconfigured DUT (no IA at all); cannot be achieved mid-suite |
+| `test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` | No longer skipped in a full run (renamed to sort before `test_5_2_9_1`). The `pytest.skip()` guard remains only for partial `-k` runs where an update may still precede it |
 | `test_5_4_1_9_init_flag_sends_read_on_restart` | Init-flag read-on-startup gate is environment-dependent; skipped when veth/network conditions not met |
 | `test_5_3_1_6d_unblocks_after_timeout` | Brute-force lockout auto-unblock is time-dependent; skipped to keep the suite fast/deterministic |
 | `test_5_4_1_15_bonus_iid_too_short` | Malformed-length discovery edge case skipped on this DUT/transport configuration |

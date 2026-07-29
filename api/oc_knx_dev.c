@@ -21,8 +21,8 @@
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 
-static void oc_core_dev_sn_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
@@ -34,7 +34,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request,
 
   // cbor with payload: serial number
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, device->serialnumber);
+  oc_rep_i_set_text_string(root, 1, device->serialnumber);  // note, stack init must be done, otherwise sn is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -80,12 +80,13 @@ const oc_resource_t core_resource_dev_sn = {
         true,
         &core_resource_dev_sn_data};
 
-static void oc_core_dev_hwv_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -94,9 +95,9 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request,
   const oc_device_info_t* const  device = oc_core_get_device_info();
  
   // cbor with payload: [ major, minor, patch ]
-  const uint64_t array[3] = {device->hwv.major, device->hwv.minor, device->hwv.patch};
+  const uint64_t array[3] = {device->hwv->major, device->hwv->minor, device->hwv->patch};
   oc_rep_begin_root_object();
-  oc_rep_i_set_int_array(root, 1, array, 3);
+  oc_rep_i_set_int_array(root, 1, array, 3); // note, stack init must be done, otherwise hwv is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -137,7 +138,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request,
   // cbor with payload: [ major, minor, patch ]
   const uint64_t array[3] = {device->fwv.major, device->fwv.minor, device->fwv.patch};
   oc_rep_begin_root_object();
-  oc_rep_i_set_int_array(root, 1, array, 3);
+  oc_rep_i_set_int_array(root, 1, array, 3); // note, stack init must be done, otherwise fwv is 0,0,0
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -163,19 +164,20 @@ const oc_resource_t core_resource_dev_fwv = {
         true,
         &core_resource_dev_fwv_data};
 
-static void oc_core_dev_hwt_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_device_info_t* const device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, device->hwt);
+  oc_rep_i_set_text_string(root, 1, device->hwt); // note, stack init must be done, otherwise hwt is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -201,19 +203,20 @@ const oc_resource_t core_resource_dev_hwt = {
         true,
         &core_resource_dev_hwt_data};
 
-static void oc_core_dev_model_get_handler(oc_request_t* request, 
-       oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, device->iot_model);
+  oc_rep_i_set_text_string(root, 1, device->iot_model); // note, stack init must be done, otherwise model is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -300,7 +303,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->iot_hostname));
+  oc_rep_i_set_text_string(root, 1, oc_string(device->iot_hostname)); // note, stack init must be done, otherwise hostname is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -370,19 +373,20 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void oc_core_dev_iid_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 1, device->iid);
+  oc_rep_i_set_int(root, 1, device->iid); // note, stack init must be done, otherwise iid is 0
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -408,8 +412,8 @@ const oc_resource_t core_resource_dev_iid = {
         true,
         &core_resource_dev_iid_data};
 
-static void oc_core_dev_ipv6_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
@@ -420,19 +424,22 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
 
   OC_INF("oc_core_dev_ipv6_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   // calculate total properties
   const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints();
-  while (my_ep != NULL) {
+  while (my_ep != NULL) 
+  {
     my_ep = my_ep->next;
     total++;
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, BATCH_SIZE, total)) {
+  if (query_l_was_processed(request, BATCH_SIZE, total)) 
+  {
     return;
   }
 
@@ -442,7 +449,8 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   // check if requested page will carry at least one resource e.g
   // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
   // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= total || query_ps == 0) {
+  if (first_entry >= total || query_ps == 0) 
+  {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -451,18 +459,21 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   // example 1: IPv6 addresses #1..#4, (pn=1,ps=1) , set ptr to IPv6 address #2)
   // example 2: IPv6 addresses #1..#4, (pn=0,ps=1) , set ptr to IPv6 address #1)
   my_ep = oc_connectivity_get_endpoints();
-  for (int i = 0; i < first_entry; i++) {
+  for (int i = 0; i < first_entry; i++) 
+  {
     my_ep = my_ep->next;
   }
 
-  if (query_ps > 1) {
+  if (query_ps > 1) 
+  {
     // try to return > 1 entries {1: "200..."} within array = [ {1: h'200...'}, {1: h'300...'}],
     // also on one available IPv6 address but ps > 1 an array will be filled (with one element)
 
     // [ (open) => see https://intel.github.io/tinycbor/current/a00046.html
     cbor_encoder_create_array(&g_encoder, &root_map, CborIndefiniteLength);
 
-    for (int i = 0; i < query_ps && i < total; i++) {
+    for (int i = 0; i < query_ps && i < total; i++) 
+    {
       // new map per IPv6 entry
       CborEncoder ipv6_map;
       cbor_encoder_create_map(&root_map, &ipv6_map, CborIndefiniteLength);
@@ -475,12 +486,13 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
 
     // ] (close)
     cbor_encoder_close_container(&g_encoder, &root_map);
-  } else {
+  } 
+  else 
+  {
     // return 1 entry {1: h'200...'} without array
     // set by request ps=1 or when missing in request
     oc_rep_begin_root_object();
-    oc_rep_i_set_byte_string(root, 1, my_ep->addr.ipv6.address, 
-            sizeof(my_ep->addr.ipv6.address));
+    oc_rep_i_set_byte_string(root, 1, my_ep->addr.ipv6.address, sizeof(my_ep->addr.ipv6.address));
     oc_rep_end_root_object();
   }
 
@@ -596,8 +608,8 @@ const oc_resource_t core_resource_dev_pm = {
         true,
         &core_resource_dev_pm_data};
 
-static void oc_core_dev_dev_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+{
   (void)data;
   (void)iface_mask;
 
@@ -613,12 +625,14 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
 
   OC_INF("oc_core_dev_dev_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) 
+  {
     return;
   }
   
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total)) {
+  if (query_l_was_processed(request, PAGE_SIZE, total)) 
+  {
     return;
   }
 
@@ -628,7 +642,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
   // check if requested page will carry at least one resource e.g
   // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
   // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0) {
+  if (first_entry >= last_entry || query_ps == 0) 
+  {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -636,25 +651,32 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
   // entries don't fit in a single page -> more pages are needed to get the full list
   // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page
   // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
-  if (last_entry > first_entry + query_ps) {
+  if (last_entry > first_entry + query_ps) 
+  {
     last_entry = first_entry + query_ps;
     more_request_needed = true;
   }
 
-  for (int i = first_entry; i < last_entry; i++) {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true)) {
+  for (int i = first_entry; i < last_entry; i++) 
+  {
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    {
       query_parameter_kvpair_matches++;
     }
   }
 
-  if (query_parameter_kvpair_matches > 0) {
-    if (more_request_needed) {
+  if (query_parameter_kvpair_matches > 0) 
+  {
+    if (more_request_needed) 
+    {
       // no page # was in the request (query_p =0) = next page 1 else #+1
       response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
 
     oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
-  } else {
+  } 
+  else 
+  {
     // resources are mandatory, hence this can't be correct here
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
@@ -683,12 +705,13 @@ const oc_resource_t core_resource_dev = {
         &core_resource_dev_data};
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
-static void oc_core_dev_sa_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
     return;
   }
 
@@ -723,12 +746,13 @@ const oc_resource_t core_resource_dev_sna = {
         &core_resource_dev_sna_data};
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
-static void oc_core_dev_da_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
     return;
   }
 
@@ -762,12 +786,13 @@ const oc_resource_t core_resource_dev_da = {
         true,
         &core_resource_dev_da_data};
 
-static void oc_core_dev_fid_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -780,23 +805,27 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request,
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_dev_fid_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_rep_t* rep = request->request_payload;
   
-  while (rep) {
-    if (rep->type == OC_REP_INT) {
+  while (rep) 
+  {
+    if (rep->type == OC_REP_INT) 
+    {
       if (rep->iname == 1) {
         OC_INF("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
 
-        if (oc_core_set_and_store_device_fid(rep->value.integer)) {
+        if (oc_core_set_and_store_device_fid(rep->value.integer)) 
+        {
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
           return;
         }
@@ -829,17 +858,18 @@ const oc_resource_t core_resource_dev_fid = {
         true,
         &core_resource_dev_fid_data};
 
-static void oc_core_dev_port_get_handler(oc_request_t* request, 
-       oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
     return;
   }
   
-  oc_rep_begin_root_object();
   // use actual used port from ip adapter
+  oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 1, knx_dns_sd_get_used_port());
   oc_rep_end_root_object();
 
@@ -866,12 +896,13 @@ const oc_resource_t core_resource_dev_port = {
         1,
         &core_resource_dev_port_data};
 
-static void oc_core_dev_mport_get_handler(oc_request_t* request, 
-oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
     return;
   }
   
@@ -902,12 +933,13 @@ const oc_resource_t core_resource_dev_mport = {
         1,
         &core_resource_dev_mport_data};
 
-static void oc_core_ap_x_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -916,14 +948,14 @@ static void oc_core_ap_x_get_handler(oc_request_t* request,
   // cbor with payload: [ major, minor, patch ]
   const uint64_t array[3] = {device->apv.major, device->apv.minor, device->apv.patch};
   oc_rep_begin_root_object();
-  oc_rep_i_set_int_array(root, 1, array, 3);
+  oc_rep_i_set_int_array(root, 1, array, 3); // note, stack init must be done, otherwise apv is 0,0,0
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_ap_x_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
@@ -938,8 +970,8 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
 
   if (rep && rep->type == OC_REP_INT_ARRAY) 
   {
-    int64_t* array = oc_int_array(rep->value.array);
-    size_t array_size = oc_int_array_size(rep->value.array);
+    const int64_t* array = oc_int_array(rep->value.array);
+    const size_t array_size = oc_int_array_size(rep->value.array);
 
     if (array_size != 3) 
     {
@@ -948,7 +980,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
     }
 
     // prepare version info, major, minor, patch, see xxx.ap definition how it is interpreted
-    oc_knx_version_info_t app_version = {(uint16_t)array[0], (uint16_t)array[1], (uint16_t)array[2]};
+    oc_knx_version_info_t app_version = {.major = (uint16_t)array[0], .minor = (uint16_t)array[1], .patch = (uint16_t)array[2]};
 
     oc_core_set_and_store_device_application_version(&app_version);
 
@@ -979,29 +1011,31 @@ const oc_resource_t core_resource_app_pv = {
         1,
         &core_resource_app_x_data};
 
-static void oc_core_ap_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+{
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0;       // how many query parameter key/value pair matches where found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  int first_entry = OC_APP_X; // first entry number of a resource that will be placed on a page
-  int last_entry = OC_KNX_SPAKE; // last entry number of a resource that will be placed on a page
-  int total = last_entry - first_entry; // total entries of this resource
+  int first_entry = OC_APP_X;                   // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_SPAKE;                // last entry number of a resource that will be placed on a page
+  const int total = last_entry - first_entry;   // total entries of this resource
   bool more_request_needed = false;
 
   OC_INF("oc_core_ap_get_handler");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) 
+  {
     return;
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total)) {
+  if (query_l_was_processed(request, PAGE_SIZE, total)) 
+  {
     return;
   }
 
@@ -1011,7 +1045,8 @@ static void oc_core_ap_get_handler(oc_request_t* request,
   // check if requested page will carry at least one resource e.g
   // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
   // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0) {
+  if (first_entry >= last_entry || query_ps == 0) 
+  {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -1019,25 +1054,32 @@ static void oc_core_ap_get_handler(oc_request_t* request,
   // entries don't fit in a single page -> more pages are needed to get the full list
   // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page
   // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
-  if (last_entry > first_entry + query_ps) {
+  if (last_entry > first_entry + query_ps)
+  {
     last_entry = first_entry + query_ps;
     more_request_needed = true;
   }
 
-  for (int i = first_entry; i < last_entry; i++) {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true)) {
+  for (int i = first_entry; i < last_entry; i++) 
+  {
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true)) 
+    {
       query_parameter_kvpair_matches++;
     }
   }
 
-  if (query_parameter_kvpair_matches > 0) {
-    if (more_request_needed) {
+  if (query_parameter_kvpair_matches > 0) 
+  {
+    if (more_request_needed) 
+    {
       // no page # was in the request (query_p =0) = next page 1 else #+1
       response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
 
     oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
-  } else {
+  } 
+  else 
+  {
     // resources are mandatory, hence this can't be correct here
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
@@ -1065,19 +1107,20 @@ const oc_resource_t core_resource_app = {
        1,
        &core_resource_app_data};
 
-static void oc_core_dev_mid_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 1, device->mid);
+  oc_rep_i_set_int(root, 1, device->mid); // note, stack init must be done, otherwise mid is 0
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
