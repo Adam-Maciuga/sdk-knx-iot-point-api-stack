@@ -12,6 +12,9 @@
 #ifndef OC_KNX_HELPERS_H
 #define OC_KNX_HELPERS_H
 
+#include "oc_ri.h"
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -72,6 +75,21 @@ bool query_l_was_processed(oc_request_t* request, int ps, int total);
  * @return true when the value is a valid non-negative decimal integer that fits in a 16 bit unsigned int
  */
 bool oc_parse_uint16_from_string(const char* value, int value_len, int* result);
+
+/**
+ * @brief helper function to parse a (not NUL terminated) string as a non-negative decimal integer
+ *
+ * Behaves like oc_parse_uint16_from_string(), but accepts the full non-negative 'int' range.
+ *
+ * @example "2147483647" -> 2147483647, "0" -> 0, "-1", "2147483648" and "abc" are rejected
+ *
+ * @param value the (not NUL terminated) value to be converted
+ * @param value_len the length of the value
+ * @param result the converted value, only valid when true is returned
+ *
+ * @return true when the value is a valid non-negative decimal integer that fits in an int
+ */
+bool oc_parse_s32int_from_string(const char* value, int value_len, int* result);
 
 /**
  * @brief helper function to check if query parameter pn/ps exists

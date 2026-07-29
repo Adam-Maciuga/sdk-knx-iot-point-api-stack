@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <inttypes.h>
-#include <errno.h>
+#include "oc_knx_helpers.h"
 
 static bool mmem_initialized = false;
 
@@ -557,15 +557,12 @@ int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_le
         - fp/g/004_abc, f/4abc, f/abc results in string errors '-1'
       */
 
-      char* ptr_last_converted_digit = NULL;
       const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
+      const int to_be_converted_len = (int)invoked_len - (int)(uri_len - 2);
 
-      errno = 0;
-      const int converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_converted_digit, 10);
-
-      // accept only entire numbers (ptr_last_converted_digit = last string position)
-      // with no conversion errors (see 'strtol' details)
-      if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len])
+      // accept only entire numbers, no trailing characters and no conversion errors
+      int converted_value = -1;
+      if (!oc_parse_s32int_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
       {
         return -1;
       }
@@ -593,7 +590,6 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_
       const char* ptr_last_to_be_converted_digit = &invoked_uri[invoked_len];
       const char* underscore = strchr(ptr_first_to_be_converted_digit, '_');
 
-      errno = 0;
       if (underscore)
       {
         // an FB with instance is asked (x_y)
@@ -631,12 +627,11 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_
         }
       }
 
-      char* ptr_last_is_converted_digit;
-      const int converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_is_converted_digit, 10);
+      const int to_be_converted_len = (int)(ptr_last_to_be_converted_digit - ptr_first_to_be_converted_digit);
 
-      // accept only entire numbers (ptr_last_converted_digit = '_' string position)
-      // with no conversion errors (see 'strtol' details)
-      if (errno || ptr_last_is_converted_digit != ptr_last_to_be_converted_digit)
+      // accept only entire numbers (up to the '_' string position or the end) with no conversion errors
+      int converted_value = -1;
+      if (!oc_parse_s32int_from_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
       {
         return -1;
       }

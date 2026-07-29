@@ -5,9 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <errno.h>
-#include <limits.h>
-#include <stdlib.h>
 #include <string.h>
 #include "oc_knx_swu.h"
 #include "oc_helpers.h"
@@ -646,49 +643,36 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (strncmp(key, "po", key_len) == 0)
     {
-      char* endptr;
-      errno = 0;
-      const long int temp = strtol(value, &endptr, 10);
-      
       // validate: conversion error, invalid chars (only decimal digits allowed), out of range
-      if (errno || endptr != value + value_len || temp < 0 || temp > INT_MAX)
+      if (!oc_parse_s32int_from_string(value, (int)value_len, &po_block_offset))
       {
-        OC_ERR("invalid 'po' parameter: %s", value);
+        OC_ERR("invalid 'po' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
-      po_block_offset = (int)temp;
     }
     else if (strncmp(key, "ps", key_len) == 0)
     {
-      char* endptr;
-      errno = 0;
-      const long int temp = strtol(value, &endptr, 10);
-      
-      // validate: conversion error, invalid chars (only decimal digits allowed), out of range
-      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
+      // validate: conversion error, invalid chars (only decimal digits allowed), out of range, a block size of 0 is not allowed
+      if (!oc_parse_s32int_from_string(value, (int)value_len, &ps_block_size) || ps_block_size == 0)
       {
-        OC_ERR("invalid 'ps' parameter: %s", value);
+        OC_ERR("invalid 'ps' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
-      ps_block_size = (int)temp;
     }
     else if (strncmp(key, "pkgs", key_len) == 0)
     {
-      // first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present)
-      char* endptr;
-      errno = 0;
-      const long int temp = strtol(value, &endptr, 10);
-      
-      // validate: conversion error, invalid chars (only decimal digits allowed), out of range
-      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
+      /*
+        first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present),
+        validate: conversion error, invalid chars (only decimal digits allowed), out of range, a package size of 0 is not allowed
+      */
+      if (!oc_parse_s32int_from_string(value, (int)value_len, &pkgs_package_size) || pkgs_package_size == 0)
       {
-        OC_ERR("invalid 'pkgs' parameter: %s", value);
+        OC_ERR("invalid 'pkgs' parameter");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
-      pkgs_package_size = (int)temp;
     }
   }
 

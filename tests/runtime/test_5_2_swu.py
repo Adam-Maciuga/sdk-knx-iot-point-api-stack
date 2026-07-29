@@ -424,3 +424,76 @@ class TestSwuReadOnlyPutRejected:
             assert resp_check is not None
             assert resp_check.code == "4.04", (
                 f"/{path} should still be 4.04 after rejected PUT")
+
+
+# ===========================================================================
+#  PUT /a/swu — 'po' / 'ps' / 'pkgs' query parameter validation
+# ===========================================================================
+
+class TestSwuBlockQueryValidation:
+    """Invalid 'po', 'ps' and 'pkgs' query parameters must be rejected with 4.00.
+
+    The query values point into the raw CoAP buffer and are not NUL terminated,
+    so the stack must bound-copy them before conversion. Anything that is not a
+    plain non-negative decimal number within the 'int' range is invalid.
+    """
+
+    BLOCK = bytes(range(8))
+
+    INVALID_QUERIES = [
+        # non numeric
+        ["po=abc", "ps=8"],
+        ["po=0", "ps=abc"],
+        ["po=0", "ps=8", "pkgs=abc"],
+        # trailing garbage
+        ["po=2abc", "ps=8"],
+        ["po=0", "ps=8abc"],
+        ["po=0", "ps=8", "pkgs=64k"],
+        # negative
+        ["po=-1", "ps=8"],
+        ["po=0", "ps=-1"],
+        ["po=0", "ps=8", "pkgs=-1"],
+        # zero page/package size ('po=0' is the valid default and is not listed)
+        ["po=0", "ps=0"],
+        ["po=0", "ps=8", "pkgs=0"],
+        # above INT_MAX
+        ["po=2147483648", "ps=8"],
+        ["po=0", "ps=2147483648"],
+        ["po=0", "ps=8", "pkgs=2147483648"],
+        # more digits than the parser accepts at all
+        ["po=99999999999999", "ps=8"],
+        # empty value
+        ["po=", "ps=8"],
+        ["po=0", "ps="],
+        ["po=0", "ps=8", "pkgs="],
+    ]
+
+    @pytest.mark.parametrize("queries", INVALID_QUERIES,
+                             ids=["&".join(q) for q in INVALID_QUERIES])
+    def test_invalid_block_query_returns_400(self, coap, oscore_ctx, queries):
+        """PUT /a/swu with an invalid po/ps/pkgs → 4.00."""
+        resp = coap.oscore_request(
+            oscore_ctx, 3, "/a/swu",
+            payload=self.BLOCK,
+            uri_queries=queries,
+            content_format=APPLICATION_OCTET_STREAM,
+            timeout=10.0)
+        if resp is None:
+            pytest.skip(f"PUT /a/swu?{'&'.join(queries)} timed out")
+        assert resp.code == "4.00", (
+            f"PUT /a/swu?{'&'.join(queries)} should be rejected with 4.00, "
+            f"got {resp.code}")
+
+    def test_leading_zero_is_accepted(self, coap, oscore_ctx):
+        """PUT /a/swu?po=00&ps=008 → the values are decimal coded, not octal."""
+        resp = coap.oscore_request(
+            oscore_ctx, 3, "/a/swu",
+            payload=self.BLOCK,
+            uri_queries=["po=00", "ps=008", f"pkgs={len(self.BLOCK)}"],
+            content_format=APPLICATION_OCTET_STREAM,
+            timeout=10.0)
+        if resp is None:
+            pytest.skip("PUT /a/swu with leading zeros timed out")
+        assert resp.code != "4.00", (
+            f"PUT /a/swu with leading zeros should not be rejected, got {resp.code}")
+

@@ -123,33 +123,32 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
 }
 
 /**
- * @brief helper function to parse a query value as a non-negative decimal integer
+ * @brief internal helper to parse a (not NUL terminated) string as a non-negative decimal integer
  *
- * The query value points into the raw request buffer and is NOT NUL terminated, therefore
+ * The value may point into the raw request buffer and is NOT NUL terminated, therefore
  * the value is first copied into a bounded local buffer before it is converted.
  *
- * @note we do not accept values (parameters of page number / size) > 16 bit unsigned
- *
- * @param value the (not NUL terminated) query value
- * @param value_len the length of the query value
+ * @param value the (not NUL terminated) value
+ * @param value_len the length of the value
+ * @param max_len the maximum accepted length of the value, a longer value is rejected without conversion
+ * @param max_value the maximum accepted value, a larger value is rejected
  * @param result the converted value, only valid when true is returned
- * @return true when the value is a valid non-negative decimal integer that fits in an 16 bit unsigned int
+ * @return true when the value is a valid non-negative decimal integer within 0...max_value
  */
-bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
+static bool parse_uint_from_string(const char* value, int value_len, int max_len, long max_value, long* result)
 {
-
-  #define MAX_QUERY_NUM_LEN (6) 
-  // 5 decimal digits of a '16 bit unsigned int', plus a possible sign or leading zero, + 1 for the string terminator
-  char buffer[MAX_QUERY_NUM_LEN + 1];
+  #define MAX_NUM_LEN (11)
+  // 10 decimal digits of a '32 bit signed int', plus a possible sign or leading zero, + 1 for the string terminator
+  char buffer[MAX_NUM_LEN + 1];
 
   // reject a missing, empty or oversized value, the range itself is checked after the conversion
-  if (value == NULL || value_len <= 0 || value_len > MAX_QUERY_NUM_LEN)
+  if (value == NULL || value_len <= 0 || value_len > max_len || max_len > MAX_NUM_LEN)
   {
     return false;
   }
 
   // copy to be converted value and add a string terminator for strtol()
-  memcpy(buffer, value, (size_t)value_len); 
+  memcpy(buffer, value, (size_t)value_len);
   buffer[value_len] = '\0';
 
   char* endptr = NULL;
@@ -160,16 +159,73 @@ bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
     reject on:
     - conversion error, e.g. out of 'long' range (errno)
     - no conversion at all or trailing garbage, e.g. 'abc' or '2abc' (endptr)
-    - a negative value, e.g. '-1', a page number/size is never negative
-    - out of '16 bit unsigned int' range, note that 'long' may be wider than '16 bit unsigned int' so errno alone is not enough
+    - a negative value, e.g. '-1', the parsed parameters are never negative
+    - out of the requested range, note that 'long' may be wider so errno alone is not enough
   */
-  if (errno || endptr != &buffer[value_len] || temp < 0 || temp > USHRT_MAX)
+  if (errno || endptr != &buffer[value_len] || temp < 0 || temp > max_value)
   {
     return false;
   }
 
-  // the value is validated to be within 0...USHRT_MAX, so it always fits in a 16 bit unsigned int
+  *result = temp;
+  return true;
+}
+
+/**
+ * @brief helper function to parse a query value as a non-negative decimal integer
+ *
+ * The query value points into the raw request buffer and is NOT NUL terminated, therefore
+ * the value is first copied into a bounded local buffer before it is converted.
+ *
+ * @note we do not accept values (parameters of page number / size) > 16 bit unsigned
+ *
+ * @param value the (not NUL terminated) query value
+ * @param value_len the length of the query value
+ * @param result the converted value, only valid when true is returned
+ * @return true when the value is a valid non-negative decimal integer that fits in an 16-bit unsigned int
+ */
+bool oc_parse_uint16_from_string(const char* value, int value_len, int* result)
+{
+  // 5 decimal digits of a '16-bit unsigned int', plus a possible sign or leading zero
+  #define MAX_QUERY_NUM_LEN (6)
+  long temp = 0;
+
+  if (!parse_uint_from_string(value, value_len, MAX_QUERY_NUM_LEN, USHRT_MAX, &temp))
+  {
+    return false;
+  }
+
+  // the value is validated to be within 0...USHRT_MAX, so it always fits in a 16-bit unsigned int
   *result = (uint16_t)temp;
+  return true;
+}
+
+/**
+ * @brief helper function to parse a query value as a non-negative decimal integer
+ *
+ * The query value points into the raw request buffer and is NOT NUL terminated, therefore
+ * the value is first copied into a bounded local buffer before it is converted.
+ *
+ * @note we do not accept values (parameters of page number / size) > 32-bit signed
+ *
+ * @param value the (not NUL terminated) query value
+ * @param value_len the length of the query value
+ * @param result the converted value, only valid when true is returned
+ * @return true when the value is a valid non-negative decimal integer that fits in an 32-bit signed int
+ */
+bool oc_parse_s32int_from_string(const char* value, int value_len, int* result)
+{
+  // 10 decimal digits of a '32-bit signed int', plus a possible sign or leading zero
+  #define MAX_INT_NUM_LEN (11)
+  long temp = 0;
+
+  if (!parse_uint_from_string(value, value_len, MAX_INT_NUM_LEN, INT_MAX, &temp))
+  {
+    return false;
+  }
+
+  // the value is validated to be within 0...INT_MAX, so it always fits in an 32-bit signed int
+  *result = (int)temp;
   return true;
 }
 

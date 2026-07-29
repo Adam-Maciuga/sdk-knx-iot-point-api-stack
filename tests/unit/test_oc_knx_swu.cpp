@@ -44,6 +44,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <string>
 
 extern "C" {
 #include "oc_api.h"
@@ -666,10 +667,128 @@ TEST_F(KnxSwuABlock, InvalidPsParamBadRequest)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
+// query parameter edge cases for 'po', 'ps' and 'pkgs' -------------------------
+struct SwuQueryCase {
+  const char *name;
+  const char *query;
+};
+
+class KnxSwuABlockInvalidQuery : public KnxSwuBase,
+                                 public ::testing::WithParamInterface<SwuQueryCase> {
+};
+
+TEST_P(KnxSwuABlockInvalidQuery, ReturnsBadRequest)
+{
+  // an invalid 'po', 'ps' or 'pkgs' must be rejected before the payload is looked at
+  const SwuQueryCase &test_case = GetParam();
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+
+  RespCtx ctx;
+  std::string q(test_case.query);
+  ctx.request.query = const_cast<char *>(q.c_str());
+  ctx.request.query_len = q.size();
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  PoPsPkgs, KnxSwuABlockInvalidQuery,
+  ::testing::Values(
+    // non numeric
+    SwuQueryCase{ "PoNonNumeric", "po=abc&ps=10" },
+    SwuQueryCase{ "PsNonNumeric", "po=0&ps=abc" },
+    SwuQueryCase{ "PkgsNonNumeric", "po=0&ps=10&pkgs=abc" },
+    // trailing garbage
+    SwuQueryCase{ "PoTrailingGarbage", "po=2abc&ps=10" },
+    SwuQueryCase{ "PsTrailingGarbage", "po=0&ps=10abc" },
+    SwuQueryCase{ "PkgsTrailingGarbage", "po=0&ps=10&pkgs=64k" },
+    // negative
+    SwuQueryCase{ "PoNegative", "po=-1&ps=10" },
+    SwuQueryCase{ "PsNegative", "po=0&ps=-1" },
+    SwuQueryCase{ "PkgsNegative", "po=0&ps=10&pkgs=-1" },
+    // zero, note that 'po=0' is valid (it is the default) and therefore not listed here
+    SwuQueryCase{ "PsZero", "po=0&ps=0" },
+    SwuQueryCase{ "PkgsZero", "po=0&ps=10&pkgs=0" },
+    // above INT_MAX
+    SwuQueryCase{ "PoAboveIntMax", "po=2147483648&ps=10" },
+    SwuQueryCase{ "PsAboveIntMax", "po=0&ps=2147483648" },
+    SwuQueryCase{ "PkgsAboveIntMax", "po=0&ps=10&pkgs=2147483648" },
+    // far above INT_MAX, more digits than the parser accepts at all
+    SwuQueryCase{ "PoTooManyDigits", "po=99999999999999&ps=10" },
+    // empty value
+    SwuQueryCase{ "PoEmpty", "po=&ps=10" },
+    SwuQueryCase{ "PsEmpty", "po=0&ps=" },
+    SwuQueryCase{ "PkgsEmpty", "po=0&ps=10&pkgs=" }),
+  [](const ::testing::TestParamInfo<SwuQueryCase> &info) { return info.param.name; });
+
+// 'po=0' is the documented default and must be accepted, unlike 'ps=0' and 'pkgs=0'
+TEST_F(KnxSwuABlock, PoZeroIsAccepted)
+{
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  RespCtx ctx;
+  char q[] = "po=0&ps=10&pkgs=8";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 0u);
+}
+
+// a leading zero is accepted, the value is decimal coded and not octal
+TEST_F(KnxSwuABlock, LeadingZeroIsAccepted)
+{
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  RespCtx ctx;
+  char q[] = "po=010&ps=10&pkgs=64";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 10u);
+}
+
+// the query value is not NUL terminated, the parser must not read beyond value_len
+TEST_F(KnxSwuABlock, ValueIsNotReadBeyondItsLength)
+{
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  RespCtx ctx;
+  // truncate the query so that 'ps' ends at '1', the trailing '23' must be ignored
+  char q[] = "po=0&ps=123";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q) - 2;
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+}
+
 TEST_F(KnxSwuABlock, NoCallbackReturnsNotImplemented)
 {
-  oc_set_swu_cb(nullptr, nullptr);
-  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  oc_set_swu_cb(nullptr, nullptr);  oc_swu_set_state(OC_SWU_STATE_IDLE);
   RespCtx ctx;
   char q[] = "po=1&ps=10";
   ctx.request.query = q;

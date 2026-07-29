@@ -44,10 +44,10 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#include <errno.h>
 #endif
 #include "oc_coap.h"
 #include "oc_endpoint.h"
+#include "oc_knx_helpers.h"
 #include "oc_rep.h"
 #include "oc_ri.h"
 
@@ -615,20 +615,20 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
               return -2;
             }
 
-            errno = 0;
-            const uint32_t lifetime = (uint32_t)strtoul(lt_value, NULL, 10);
             /*
               KNX spec 2.5.11.6: device SHALL support a minimum lifetime of 86400s (24h).
               This means any value up to 86400 is valid; reject values above the supported maximum.
+              Note that 'lt_value' points into the request buffer and is NOT NUL terminated.
             */
-            if (errno || lifetime == 0 || lifetime > 86400)
+            int lifetime = 0;
+            if (!oc_parse_s32int_from_string(lt_value, lt_len, &lifetime) || lifetime == 0 || lifetime > 86400)
             {
-              OC_WRN("observe register rejected: unsupported 'lt' value %u", (unsigned)lifetime);
+              OC_WRN("observe register rejected: unsupported 'lt' value");
               coap_remove_observer(obs);
               return -2;
             }
 
-            obs->lifetime = lifetime;
+            obs->lifetime = (uint32_t)lifetime;
 
             // parse "non" (non-confirmable) -- KNX spec 2.5.11.6
             const char* non_value = NULL;
