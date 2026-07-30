@@ -30,20 +30,13 @@ extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu;
 extern const oc_resource_t core_resource_sub;
 
-// only static since values are changed at runtime
-static oc_device_swu_t swu_device = 
-{
-  .current_defer = 0,
-  .update_method = PUSH,                                      // fixed, stack does not support PULL
-  .pkg_name = {NULL, 0, NULL},
-  .last_update = {.next = NULL, .size = 0, .ptr = NULL},
-  .pkg_bytes = 0,
-  .pkg_version = {.major = 0, .minor = 0, .patch = 0}, 
-  .state = OC_SWU_STATE_IDLE,
-  .result = OC_SWU_RESULT_INIT,
-  .protocol = CoAP,                                           // fixed, stack does not support PULL
-  .hwref = {.next = NULL, .size = 0, .ptr = NULL},
-};  
+/*
+  - static, but not const, since values are changed at runtime 
+  - all members not listed here are zero initialized (static storage duration),
+    e.g.; state = OC_SWU_STATE_IDLE, result = OC_SWU_RESULT_INIT, protocol = CoAP,
+    pkg_bytes/current_defer = 0, pkg_version = 0.0.0 and all strings are empty
+*/
+static oc_device_swu_t swu_device = {.update_method = PUSH}; // fixed, stack does not support PULL
 
 /*
  * Software Update (SWU) Implementation
