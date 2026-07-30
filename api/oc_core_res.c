@@ -157,13 +157,12 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-	// fails if NULL, not 12 bytes or not a valid hexadecimal value, see below
-	oc_assert(serialnumber != NULL);
-	oc_assert(strlen(serialnumber) == SN_STR_LEN_MAX);
-	oc_assert(oc_charstream_validate_is_lower(serialnumber));
+	// fails if NULL, not 12 bytes or not a valid hexadecimal value
+  const bool all_ok = serialnumber && strlen(serialnumber) == SN_STR_LEN_MAX && oc_charstream_validate_is_lower(serialnumber);
+	oc_assert(all_ok == true);
 
-	// caller MUST ensure above conditions
-  oc_device_info.serialnumber = serialnumber;
+	// caller MUST ensure above conditions and keep the string valid for the device lifetime
+	oc_device_info.serialnumber = serialnumber;
 }
 
 void oc_core_set_device_res(void)

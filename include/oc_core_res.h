@@ -69,8 +69,8 @@ extern "C" {
            and may cause errors when accessed 
            (such as to build a device host name on a 'reset').
 	 * 
-	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\0').
-   *                     The pointed-to string must remain valid for the device lifetime.
+	 * @param serialnumber the serial number of the device, MUST be exactly 12 ASCII lower case hexadecimal chars ('0'...'9', 'a'...'f') (+ '\0').
+	 *                     The pointed-to string must remain valid for the device lifetime.
 	 */
   void oc_core_set_device_sn(const char* serialnumber);
 
