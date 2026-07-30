@@ -24,7 +24,7 @@
  *   other resources may be added in real products, certification tests demands only the mandatory
  * - use int type to satisfy directly function call by using the array
  */
-const int core_resources_for_well_known[] = 
+static const int core_resources_for_well_known[] = 
 {
   OC_DEV,					// mandatory
   OC_KNX_K,				// mandatory
@@ -36,7 +36,7 @@ const int core_resources_for_well_known[] =
 // number of core resources to be considered for well-known requests  
 #define RESOURCES_FOR_WELL_KNOWN (5)
 
-#define EP_STR_LEN_DOT_SN (9)
+#define EP_STR_LEN_DOT_SN (9) // knx://sn.
 
 static bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber)
 {
@@ -372,16 +372,14 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	char* d_request = NULL;		// 'd'
 	int d_len = 0;
 
-	#define EP_STR_LEN_DOT_SN (9) // knx://sn.
-  
   int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
 	size_t response_length = 0;
-  int skipped = 0;	// ignore resources that do not fit to the requested page
+  int skipped = 0;																// ignore resources that do not fit to the requested page
 	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
-	bool current_page_is_full = false;      // true if response page is full, no more resources can be added
-	bool query_parameter_key_match = false; // true if at least one query parameter KEY was found
+	bool current_page_is_full = false;							// true if response page is full, no more resources can be added
+	bool query_parameter_key_match = false;					// true if at least one query parameter KEY was found
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
