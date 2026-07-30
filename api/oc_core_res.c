@@ -17,6 +17,7 @@
 #include "oc_knx_dev.h"
 #include "oc_knx_fb.h"
 #include "oc_knx_fp.h"
+#include "oc_knx_helpers.h"
 #include "oc_knx_p.h"
 #include "oc_knx_swu.h"
 #include "oc_knx_sec.h"
@@ -156,15 +157,10 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-	// fails if NULL, not 12 bytes, not all lower case, see below
-  oc_assert(serialnumber != NULL);
-  oc_assert(strlen(serialnumber) == SN_STR_LEN_MAX);
-
-	for (int i = 0; i < SN_STR_LEN_MAX; i++)
-  {
-    const unsigned char c = (unsigned char)serialnumber[i];
-	  oc_assert((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
-  }
+	// fails if NULL, not 12 bytes or not a valid hexadecimal value, see below
+	oc_assert(serialnumber != NULL);
+	oc_assert(strlen(serialnumber) == SN_STR_LEN_MAX);
+	oc_assert(oc_charstream_validate_is_lower(serialnumber));
 
 	// caller MUST ensure above conditions
   oc_device_info.serialnumber = serialnumber;

@@ -469,6 +469,14 @@ char* oc_strnchr(char* string, char p, int size);
 int oc_charstream_convert_to_lower(char* stream);
 
 /**
+ * @brief validates that the input string contains only lowercase hexadecimal characters ('0'...'9', 'a'...'f')
+ *
+ * @param[in] stream the input string that gets validated
+ * @return bool true if the string is a valid lowercase hexadecimal string, false otherwise
+ */
+bool oc_charstream_validate_is_lower(const char* stream);
+
+/**
  * @brief helper function to check if a byte string contains only of zero values (0)
  * @param stream_ptr the byte stream pointer
  * @param stream_len the length of the byte stream

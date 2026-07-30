@@ -690,10 +690,28 @@ int oc_charstream_convert_to_lower(char* stream)
   return 0;
 }
 
+bool oc_charstream_validate_is_lower(const char* stream)
+{
+  for (; *stream; stream++)
+  {
+    // loops until *str is 0, e.g.; stream ends with \0
+    if ((*stream < '0' || *stream > '9') && (*stream < 'a' || *stream > 'f'))
+    {
+      /*
+        must be a lowercase hexadecimal char, e.g.; '0'...'9' or 'a'...'f',
+        not any other char, e.g.; no space, no special char, no upper case
+      */
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool oc_check_string_on_zero_content(const char* stream_ptr, uint8_t stream_len)
 {
   for (const char* ptr = stream_ptr; ptr < stream_ptr + stream_len; ptr++)
-  { // loops until byte stream end defined by '\0' 
+  { // loops until byte stream end, excluding the null terminator, e.g.; stream ends with \0
     
     if (*ptr)
     {
