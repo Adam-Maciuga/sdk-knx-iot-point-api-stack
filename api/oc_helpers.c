@@ -690,6 +690,17 @@ int oc_charstream_convert_to_lower(char* stream)
   return 0;
 }
 
+int oc_charstream_convert_to_upper(char* stream)
+{
+  for (; *stream; stream++)
+  {
+    // loops until *str is 0, e.g.; stream ends with \0
+    *stream = (char)toupper(*stream);
+  }
+
+  return 0;
+}
+
 bool oc_charstream_validate_is_lower(const char* stream)
 {
   for (; *stream; stream++)

@@ -26,9 +26,8 @@
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
 
-// TODO FIXME #include "knx_iot_virtual.h"
+extern const char* knx_iot_get_application_name(void);
 
-extern const struct knx_iot_permanent_device_data_t knx_iot_permanent_device_data;
 
 /* Application-provided password callback (declared here to avoid pulling in the
  * full application header; the app must define this function).
@@ -117,7 +116,7 @@ static int knx_app_version_cmd(const struct shell *sh, size_t argc, char **argv)
 /* KNX Application Name command */
 static int knx_app_name_cmd(const struct shell *sh, size_t argc, char **argv)
 {
-  shell_print(sh, "%s", knx_iot_permanent_device_data.application_name);
+    shell_print(sh, "%s", knx_iot_get_application_name());
     return 0;
 }
 
@@ -140,11 +139,12 @@ static int knx_hostname_cmd(const struct shell *sh, size_t argc, char **argv)
 /* KNX QR Code command */
 static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
 {
-    /* Convert to upper case (12 x char + \0) */
-    char sn_upper[SN_STR_LEN_MAX + 1];
-    memcpy(sn_upper, knx_iot_permanent_device_data.serial_number, SN_STR_LEN_MAX + 1);
-    // TODO FIXME move utils to the stack repo?
-    str_toupper_inplace(sn_upper);
+    char sn_upper[SN_STR_LEN_MAX + 1];  
+  
+    oc_device_info_t* device = oc_core_get_device_info();  
+    
+    memcpy(sn_upper, device->serialnumber, SN_STR_LEN_MAX + 1);
+    oc_charstream_convert_to_upper(sn_upper);
 
     shell_print(sh, "KNX:S:%s;P:%s", sn_upper, app_get_password());
     return 0;
@@ -154,17 +154,20 @@ static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
 static int knx_mid_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     oc_device_info_t *device = oc_core_get_device_info();
-    if (argc == 1) {
+    if (argc == 1) 
+    {
         shell_print(sh, "%" PRIu32, device->mid);
         return 0;
     }
-    if (argc != 2) {
+    if (argc != 2) 
+    {
         shell_error(sh, "Usage: knx_iot mid [<mid>]");
         return -EINVAL;
     }
     int err = 0;
     uint32_t mid = (uint32_t)shell_strtoul(argv[1], 10, &err);
-    if (err) {
+    if (err) 
+    {
         shell_error(sh, "Invalid manufacturer ID: %s", argv[1]);
         return err;
     }
@@ -433,15 +436,15 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
     shell_print(sh, "Hardware type      : %s", device->hwt);
     shell_print(sh, "Firmware version   : %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
     shell_print(sh, "Application version: %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
-    shell_print(sh, "Application name   : %s", knx_iot_permanent_device_data.application_name);
+    shell_print(sh, "Application name   : %s", knx_iot_get_application_name());
     shell_print(sh, "Model              : %s", device->iot_model);
     shell_print(sh, "Hostname           : %s", oc_string(device->iot_hostname));
 
     /* QR code */
     char sn_upper_buf[SN_STR_LEN_MAX + 1];
-    memcpy(sn_upper_buf, knx_iot_permanent_device_data.serial_number, SN_STR_LEN_MAX + 1);
-    // TODO FIXME move utils to the stack repo?
-    str_toupper_inplace(sn_upper_buf);
+    memcpy(sn_upper_buf, device->serialnumber, SN_STR_LEN_MAX + 1);
+    
+    oc_charstream_convert_to_upper(sn_upper_buf);
     shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper_buf, app_get_password());
 
     shell_print(sh, "Manufacturer ID    : %" PRIu32, device->mid);

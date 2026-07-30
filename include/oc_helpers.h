@@ -461,12 +461,20 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource,
 char* oc_strnchr(char* string, char p, int size);
 
 /**
- * @brief converts the input string to lower case
+ * @brief converts the NUL terminated input string to lower case
  *
  * @param[in] stream the input string that gets converted
  * @return int 0 success
  */
 int oc_charstream_convert_to_lower(char* stream);
+
+/**
+ * @brief converts the NUL terminated input string to upper case
+ *
+ * @param[in] stream the input string that gets converted
+ * @return int 0 success
+ */
+int oc_charstream_convert_to_upper(char* stream);
 
 /**
  * @brief validates that the input string contains only lowercase hexadecimal characters ('0'...'9', 'a'...'f')
