@@ -193,20 +193,47 @@ static bool parse_64bit_from_string(const char* value, int value_len, int max_le
  * @param value the (not NUL terminated) query value, base 10 coded
  * @param value_len the length of the query value
  * @param result the converted value, only valid when true is returned
- * @return true when the value is a valid non-negative decimal integer that fits in an 16-bit unsigned int
+ * @return true when the value is a valid non-negative decimal integer within 0...UINT16_MAX
  */
 bool oc_parse_uint16_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 5 decimal digits of a '16-bit unsigned int', plus a possible leading zero
-  #define MAX_QUERY_NUM_LEN (6)
+  // 5 decimal digits, the widest value of a '16-bit unsigned int' (65535)
+  #define MAX_UINT16_DEC_LEN (5)
   unsigned long long temp = 0;
 
-  if (!result || !parse_64bit_from_string(value, value_len, MAX_QUERY_NUM_LEN, 10, USHRT_MAX, &temp))
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT16_DEC_LEN, 10, UINT16_MAX, &temp))
   {
     return false;
   }
 
-  // the value is validated to be within 0...USHRT_MAX, so it always fits in a 16-bit unsigned int
+  // the value is validated to be within 0...UINT16_MAX, so it always fits in a 16-bit unsigned int
+  *result = (uint16_t)temp;
+  return true;
+}
+
+/**
+ * @brief helper function to parse a value as a non-negative hexadecimal integer
+ *
+ * The value may point into the raw request buffer and is NOT NUL terminated, therefore
+ * the value is first copied into a bounded local buffer before it is converted.
+ *
+ * @param value the (not NUL terminated) value, base 16 coded
+ * @param value_len the length of the value
+ * @param result the converted value, only valid when true is returned
+ * @return true when the value is a valid non-negative hexadecimal integer within 0...UINT16_MAX
+ */
+bool oc_parse_uint16_from_base16_string(const char* value, int value_len, uint16_t* result)
+{
+  // 4 hexadecimal digits, the widest value of a '16-bit unsigned int' (0xFFFF)
+  #define MAX_UINT16_HEX_LEN (4)
+  unsigned long long temp = 0;
+
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT16_HEX_LEN, 16, UINT16_MAX, &temp))
+  {
+    return false;
+  }
+
+  // the value is validated to be within 0...UINT16_MAX, so it always fits in a 16-bit unsigned int
   *result = (uint16_t)temp;
   return true;
 }
@@ -222,15 +249,15 @@ bool oc_parse_uint16_from_base10_string(const char* value, int value_len, int* r
  * @param value the (not NUL terminated) query value, base 10 coded
  * @param value_len the length of the query value
  * @param result the converted value, only valid when true is returned
- * @return true when the value is a valid non-negative decimal integer that fits in an 32-bit signed int
+ * @return true when the value is a valid non-negative decimal integer within 0...INT32_MAX
  */
 bool oc_parse_sint32_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 10 decimal digits of a '32-bit signed int', plus a possible leading zero
-  #define MAX_INT_NUM_LEN (11)
+  // 10 decimal digits, the widest value of a '32-bit signed int' (2147483647)
+  #define MAX_INT_NUM_LEN (10)
   unsigned long long temp = 0;
 
-  if (!result || !parse_64bit_from_string(value, value_len, MAX_INT_NUM_LEN, 10, INT_MAX, &temp))
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_INT_NUM_LEN, 10, INT32_MAX, &temp))
   {
     return false;
   }
@@ -248,17 +275,16 @@ bool oc_parse_sint32_from_base10_string(const char* value, int value_len, int* r
  *
  * @param value the (not NUL terminated) value, base 16 coded
  * @param value_len the length of the value
- * @param max_value the maximum accepted value, a larger value is rejected
  * @param result the converted value, only valid when true is returned
- * @return true when the value is a valid non-negative hexadecimal integer within 0...max_value
+ * @return true when the value is a valid non-negative hexadecimal integer within 0...UINT64_MAX
  */
-bool oc_parse_uint64_from_base16_string(const char* value, int value_len, uint64_t max_value, uint64_t* result)
+bool oc_parse_uint64_from_base16_string(const char* value, int value_len, uint64_t* result)
 {
-  // 16 hexadecimal digits of a '64-bit unsigned int'
+  // 16 hexadecimal digits, the widest value of a '64-bit unsigned int' (0xFFFFFFFFFFFFFFFF)
   #define MAX_UINT64_HEX_LEN (16)
   unsigned long long temp = 0;
 
-  if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT64_HEX_LEN, 16, max_value, &temp))
+  if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT64_HEX_LEN, 16, UINT64_MAX, &temp))
   {
     return false;
   }

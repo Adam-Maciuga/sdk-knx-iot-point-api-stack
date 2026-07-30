@@ -668,27 +668,20 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
         // Note: -1 for the '.' before the ia
         const size_t iid_len = ia_start_pos - 1 - iid_start_pos;
 
-        // String is hex formatted, on conversion error the request is ignored,
-        // an oversized IID is rejected by the parser.
         uint64_t iid = 0;
 
         // test device IID first since many devices (from same installation) will have the same IID
-        if (iid_len <= IID_STR_LEN_MAX &&
-            oc_parse_uint64_from_base16_string(iid_start_pos, (int)iid_len, UINT64_MAX, &iid) && iid == device->iid)
+        if (oc_parse_uint64_from_base16_string(iid_start_pos, (int)iid_len, &iid) && iid == device->iid)
         {
           // IA can be of 0..4 chars (valid) or > 4 (attack/error)
           // Note: -1 for escaped " at the end '\"'
           const char* ia_end_pos = (const char*)data->_payload + data->_payload_len - 1;
           const size_t ia_len = ia_end_pos - ia_start_pos;
 
-          // string is hex formatted, an oversized IA is rejected by the parser
-          uint64_t ia = 0;
+          uint16_t ia = 0;
 
-          // Converted ia = 0 is accepted, but usually the recipient device will 
-          // not have 0 assigned.
-          if (ia_len <= IA_STR_LEN_MAX &&
-              oc_parse_uint64_from_base16_string(ia_start_pos, (int)ia_len, UINT16_MAX, &ia) &&
-              ia == (uint64_t)recipient->ia)
+          // Converted ia = 0 is accepted, but usually the recipient device will not have 0 assigned.
+          if (oc_parse_uint16_from_base16_string(ia_start_pos, (int)ia_len, &ia) && ia == recipient->ia)
           {
             ia_and_iid_valid_and_present = true;
           }

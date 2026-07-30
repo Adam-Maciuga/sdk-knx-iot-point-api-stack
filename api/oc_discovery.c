@@ -637,18 +637,19 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				return;
 			}
 
-			// string is hex formatted, the parser copies the (not NUL terminated) value itself
-			uint64_t ia = 0;
+			uint16_t ia = 0;
 
-			// test IA first since many devices will have the same IID
-			// converted ia = 0 is accepted, but usually the device will not have 0 assigned
-			if (oc_parse_uint64_from_base16_string(ep_ia_start_pos, (int)ep_ia_part_len, UINT16_MAX, &ia) && ia == (uint64_t)device->ia)
+			/* 
+			   IA first - many devices will have the same IID
+			   - converted ia = 0 is accepted, but usually the device will not have 0 assigned
+				 - len 0, > 4 or not a hex coded number will be filtered by call below
+			*/
+			if (oc_parse_uint16_from_base16_string(ep_ia_start_pos, (int)ep_ia_part_len, &ia) && ia == device->ia)
 			{
-				// string is hex formatted, on conversion error the request is ignored
 				uint64_t iid = 0;
 
 				// converted iid = 0 is accepted, but usually the device will not have 0 assigned
-				if (oc_parse_uint64_from_base16_string(ep_iid_start_pos, (int)ep_iid_len, UINT64_MAX, &iid) && iid == device->iid)
+				if (oc_parse_uint64_from_base16_string(ep_iid_start_pos, (int)ep_iid_len, &iid) && iid == device->iid)
 				{
 					response_length = frame_sn(device->serialnumber, device->iid, device->ia);
 					oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);

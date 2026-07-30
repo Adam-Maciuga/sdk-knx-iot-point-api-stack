@@ -192,16 +192,19 @@ Bugs and issues discovered during unit test development.
 - **Resolution:** A single file-static `parse_64bit_from_string()` in `api/oc_knx_helpers.c` now performs a
   **bounded copy** of exactly `value_len` bytes into a local NUL-terminated buffer before converting, and
   rejects a missing/empty/over-length value, a leading sign, `errno`, an `endptr` that does not land on
-  `value_len`, and any value above the caller's maximum. Three public wrappers expose it:
-  `oc_parse_uint16_from_string` (decimal, `0..USHRT_MAX`), `oc_parse_sint32_from_string`
-  (decimal, `0..INT_MAX`) and `oc_parse_uint64_from_base16_string` (hexadecimal, caller-supplied maximum).
+  `value_len`, and any value above the wrapper's maximum. Four public wrappers expose it, each encoding
+  its base and range in its own name and result type: `oc_parse_uint16_from_base10_string`
+  (decimal, `0..USHRT_MAX`), `oc_parse_uint16_from_base16_string` (hexadecimal, `0..USHRT_MAX`),
+  `oc_parse_sint32_from_base10_string` (decimal, `0..INT_MAX`) and `oc_parse_uint64_from_base16_string`
+  (hexadecimal, full 64-bit range).
   Every affected site was converted, including the hexadecimal IID/IA parsing of
   `ep=knx://ia.<iid>.<ia>` in `api/oc_discovery.c` and `api/oc_knx_client.c`, which additionally gained
   trailing-garbage and negative-value rejection. `evaluate_query_px` signals a parse failure by setting
   `pn`/`ps` to `-1`, which the 14 pagination guards already reject via
   `first_entry >= total || query_ps < 1 || query_pn < 0`.
-- **Verification:** 1309/1309 unit tests pass, including the new `ParseUint16` / `ParseSint32` /
-  `ParseUint64` groups in `test_oc_knx_helpers.cpp` (each with a case that passes a length shorter than the
+- **Verification:** 1312/1312 unit tests pass, including the new `ParseUint16` / `ParseSint32` /
+  `ParseUint16Base16` / `ParseUint64` groups in `test_oc_knx_helpers.cpp` (each with a case that passes a
+  length shorter than the
   literal, pinning the bounded read) and the 18-case `KnxSwuABlockInvalidQuery` suite. The full runtime
   suite is green at 347 passed / 5 skipped, exercising the pagination, discovery, observe, SWU-block and
   wildcard paths against a live DUT over CoAP/OSCORE.

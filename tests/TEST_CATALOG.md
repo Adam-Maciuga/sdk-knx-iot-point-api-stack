@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1309 unit tests** (53 files) + **352 runtime tests** (17 files) = **1661 total**
+> **1312 unit tests** (53 files) + **352 runtime tests** (17 files) = **1664 total**
 >
-> Branch: `work_in_progress` | Unit: 1309 registered and passed (windows-test-gcc, GCC/CTest, ~46s, 100% passed out of 1309).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 813.68s) - fully green. This run included the 19 new `TestSwuBlockQueryValidation` tests. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1312 registered and passed (windows-test-gcc, GCC/CTest, ~44s, 100% passed out of 1312).
+> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 813.84s) - fully green. This run verified the base-16 parser split and the tightened base-10 length bounds. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -340,7 +340,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_helpers.cpp — KNX Helpers (33 tests)
+### test_oc_knx_helpers.cpp - KNX Helpers (35 tests)
 
 **Source:** `api/oc_knx_helpers.c`
 
@@ -351,9 +351,10 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `FrameBufferTest` | 6 | Frame integer (pos/zero/neg) and `l=` total/ps query fragments |
 | `EvaluateQueryPx` | 3 | `pn`/`ps` pagination query → page-index product |
 | `QueryLProcessed` | 6 | `l=` query processing (ps-only, total-only, missing, extra-query bad request) |
-| `ParseUint16` | 3 | `oc_parse_uint16_from_string`: valid/leading zeros, rejects NULL, empty, `abc`, `2abc`, `-1`, `+1`, 65536, over-length; no read past `value_len` |
-| `ParseSint32` | 2 | `oc_parse_sint32_from_string`: full `0..INT_MAX` range, rejects 2147483648, `-1`, trailing garbage, over-length |
-| `ParseUint64` | 3 | `oc_parse_uint64_from_base16_string`: hex incl. full 64-bit range and upper/lower case, rejects NULL value/result, empty, `1a2zz`, `-1`, `+1`, out-of-max, over-length, `g`; no read past `value_len` |
+| `ParseUint16` | 3 | `oc_parse_uint16_from_base10_string`: valid/leading zeros, rejects NULL, empty, `abc`, `2abc`, `-1`, `+1`, 65536, >5 chars (incl. zero-padded `065535`); no read past `value_len` |
+| `ParseSint32` | 2 | `oc_parse_sint32_from_base10_string`: full `0..INT_MAX` range and leading zeros, rejects 2147483648, `-1`, trailing garbage, >10 chars (incl. zero-padded `02147483647`) |
+| `ParseUint16Base16` | 3 | `oc_parse_uint16_from_base16_string`: hex incl. upper/lower case and leading zeros, rejects NULL value/result, empty, negative len, `1a2z`, `-1`, `+1`, >4 chars, `g`; no read past `value_len` |
+| `ParseUint64` | 3 | `oc_parse_uint64_from_base16_string`: hex incl. full 64-bit range and upper/lower case, rejects NULL value/result, empty, `1a2zz`, `-1`, `+1`, >16 chars, `g`; no read past `value_len` |
 
 ---
 
@@ -1409,7 +1410,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 including uncommitted changes via `-IncludeUncommitted`):
-**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 813.68s) - fully green.
+**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 813.84s) - fully green.
 
 Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
 multicast-provisioning path), the full `test_5_4_observe.py` module, and
@@ -1447,7 +1448,8 @@ The 5 skips recorded above are conditional `pytest.skip()` cases
 This run was also the first complete verification of the integer-parsing
 hardening campaign. Every site that converted a network-supplied string now
 routes through the bounded-copy parsers in `api/oc_knx_helpers.c`
-(`oc_parse_uint16_from_string`, `oc_parse_sint32_from_string`,
+(`oc_parse_uint16_from_base10_string`, `oc_parse_uint16_from_base16_string`,
+`oc_parse_sint32_from_base10_string`,
 `oc_parse_uint64_from_base16_string`), which reject NULL/empty values,
 over-length values, a leading sign, trailing garbage and out-of-range values,
 and never read past `value_len`. Converted: the 14 `pn`/`ps` pagination guards,
@@ -1460,7 +1462,7 @@ lifetime in `messaging/coap/observe.c`, and both URI-wildcard helpers in
 with zero failures. `get_fb_number_from_dp()` was removed from
 `api/oc_knx_fb.c` in the same pass (no production callers).
 
-The unit suite is fully green (1309/1309, ~46s).
+The unit suite is fully green (1312/1312, ~44s).
 
 ---
 

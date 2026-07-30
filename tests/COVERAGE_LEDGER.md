@@ -143,15 +143,20 @@ file-local (no public header declaration) so they are reached via test-local
 `query_l_was_processed` (no-query / no-l → false, l+ps → 2.05, l+total → 2.05,
 l-without-ps-or-total → 4.04, l+ps+extra → 4.00).
 
-The three public integer parsers are the single entry point for converting
+The four public integer parsers are the single entry point for converting
 network-supplied strings. They share the file-static `parse_64bit_from_string`,
 which copies the (not NUL terminated) value into a bounded local buffer before
 calling `strtoull`, then rejects on `errno`, an `endptr` that does not land on
-`value_len`, and a value above the caller's maximum; a leading `-`/`+` is
+`value_len`, and a value above the wrapper's maximum; a leading `-`/`+` is
 rejected before conversion because `strtoull` would otherwise negate modulo
-2^64 without an error. The static is covered behaviorally through all three
-wrappers, including a case per wrapper that passes a length shorter than the
-literal to prove nothing is read past `value_len`.
+2^64 without an error. Each wrapper encodes its base and its range in its own
+name and result type rather than taking them as arguments, so a caller cannot
+pass a mismatched bound. The length bound of each wrapper is the widest valid
+value of its target type (5 and 10 decimal digits, 4 and 16 hex digits), which
+accepts leading zeros up to that width but rejects a zero-padded max-width
+value. The static is covered behaviorally through all four wrappers, including
+a case per wrapper that passes a length shorter than the literal to prove
+nothing is read past `value_len`.
 
 | Function | Status |
 |----------|--------|
@@ -160,10 +165,11 @@ literal to prove nothing is read past `value_len`.
 | oc_frame_query_l | DONE (file-local; test-local forward decl + oc_rep buffer) |
 | evaluate_query_px | DONE |
 | query_l_was_processed | DONE |
-| oc_parse_uint16_from_string | DONE (valid/leading zeros; rejects NULL, empty, negative len, `abc`, `2abc`, `-1`, `+1`, 65536, >6 chars; bounded read) |
-| oc_parse_sint32_from_string | DONE (0..INT_MAX; rejects 2147483648, `-1`, trailing garbage, empty, >11 chars) |
-| oc_parse_uint64_from_base16_string | DONE (hex incl. full 64-bit range, upper/lower case, leading zeros; rejects NULL value, NULL result, empty, `1a2zz`, `-1`, `+1`, above max_value, >16 chars, `g`; bounded read) |
-| parse_64bit_from_string | DONE (file-static; covered through the three wrappers above) |
+| oc_parse_uint16_from_base10_string | DONE (valid/leading zeros; rejects NULL, empty, negative len, `abc`, `2abc`, `-1`, `+1`, 65536, >5 chars incl. zero-padded `065535`; bounded read) |
+| oc_parse_uint16_from_base16_string | DONE (hex incl. upper/lower case and leading zeros; rejects NULL value, NULL result, empty, negative len, `1a2z`, `-1`, `+1`, >4 chars, `g`; bounded read) |
+| oc_parse_sint32_from_base10_string | DONE (0..INT_MAX and leading zeros; rejects 2147483648, `-1`, trailing garbage, empty, >10 chars incl. zero-padded `02147483647`) |
+| oc_parse_uint64_from_base16_string | DONE (hex incl. full 64-bit range, upper/lower case, leading zeros; rejects NULL value, NULL result, empty, `1a2zz`, `-1`, `+1`, >16 chars, `g`; bounded read) |
+| parse_64bit_from_string | DONE (file-static; covered through the four wrappers above) |
 
 ### api/oc_knx_fb.c — DONE (FB query/count drivers exercising the statics)
 
