@@ -27,7 +27,6 @@ extern const oc_resource_t core_resource_knx_swu_update;
 extern const oc_resource_t core_resource_knx_swu_pkgv;
 extern const oc_resource_t core_resource_knx_swu_pkgcmd;
 extern const oc_resource_t core_resource_knx_swu_pkgbytes;
-extern const oc_resource_t core_resource_knx_swu_pkgqurl;
 extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu;
 extern const oc_resource_t core_resource_sub;
@@ -43,7 +42,6 @@ static oc_device_swu_t swu_device =
   .pkg_bytes = 0,
   .pkg_version = {.major = 0, .minor = 0, .patch = 0}, 
   .state = OC_SWU_STATE_IDLE,
-  .query_url = {NULL, 0, NULL}, 
   .result = OC_SWU_RESULT_INIT,
   .protocol = CoAP,                                           // fixed, stack does not support PULL
   .hwref = {.next = NULL, .size = 0, .ptr = NULL},
@@ -840,7 +838,7 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgbytes_data;
-const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkgqurl,
+const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkgnames,
                                                       {NULL, sizeof("/swu/pkgbytes"), "/swu/pkgbytes"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.value4UCount"), "urn:knx:dpt.value4UCount"},
@@ -856,68 +854,6 @@ const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkg
                                                       0,
                                                       true,
                                                       &core_resource_knx_swu_pkgbytes_data};
-
-static void oc_knx_swu_pkg_query_url_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-  oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(swu_device.query_url));
-  oc_rep_end_root_object();
-
-  oc_prepare_cbor_response(request, OC_STATUS_OK);
-}
-
-static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  oc_rep_t* rep = request->request_payload;
-
-  if (rep && rep->type == OC_REP_STRING)
-  {
-    oc_swu_set_query_url(oc_string_checked(rep->value.string));
-    oc_storage_write(KNX_STORAGE_QUERY_URL, (uint8_t*)&swu_device.query_url, oc_string_len(swu_device.query_url));
-
-    OC_DBG("swu pkg query url received : %s", oc_string_checked(rep->value.string));
-
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
-    return;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_knx_swu_pkgqurl_data;
-const oc_resource_t core_resource_knx_swu_pkgqurl = {&core_resource_knx_swu_pkgnames,
-                                                     {NULL, sizeof("/swu/pkgqurl"), "/swu/pkgqurl"},
-                                                     {NULL, 0, NULL},
-                                                     {NULL, sizeof("urn:knx:dpt.url"), "urn:knx:dpt.url"},
-                                                     {APPLICATION_CBOR, CONTENT_NONE},
-                                                     OC_DISCOVERABLE,
-                                                     {oc_knx_swu_pkg_query_url_get_handler, NULL, OC_ACL_D, OC_IF_D},
-                                                     {oc_knx_swu_pkg_query_url_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
-                                                     {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                     {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                     {{NULL}, NULL},
-                                                     {{NULL}, NULL},
-                                                     0,
-                                                     0,
-                                                     true,
-                                                     &core_resource_knx_swu_pkgqurl_data};
 
 static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1121,11 +1057,5 @@ void oc_swu_set_package_version(const int major, const int minor, const int patc
 }
 
 void oc_swu_set_state(const oc_swu_state_t state) { swu_device.state = state; }
-
-void oc_swu_set_query_url(const char* url)
-{
-  oc_free_string(&swu_device.query_url);
-  oc_new_string(&swu_device.query_url, url, strlen(url));
-}
 
 void oc_swu_set_result(const oc_swu_result_t result) { swu_device.result = result; }

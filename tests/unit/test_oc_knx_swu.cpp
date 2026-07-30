@@ -68,7 +68,6 @@ extern const oc_resource_t core_resource_knx_swu_update;
 extern const oc_resource_t core_resource_knx_swu_pkgv;
 extern const oc_resource_t core_resource_knx_swu_pkgcmd; // /a/swu
 extern const oc_resource_t core_resource_knx_swu_pkgbytes;
-extern const oc_resource_t core_resource_knx_swu_pkgqurl;
 extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu; // /swu list
 }
@@ -152,7 +151,6 @@ protected:
     oc_swu_set_package_version(0, 0, 0);
     oc_swu_set_hwref("HWREF0001");
     oc_swu_set_last_update("0");
-    oc_swu_set_query_url("");
     oc_swu_set_package_name("");
   }
   void TearDown() override
@@ -330,21 +328,6 @@ TEST_F(KnxSwuGetString, LastUpdateWrongAccept)
 {
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_JSON);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(KnxSwuGetString, PkgQueryUrlHappy)
-{
-  oc_swu_set_query_url("coap://[fe80::1]/fw");
-  RespCtx ctx;
-  invoke_get(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
-}
-
-TEST_F(KnxSwuGetString, PkgQueryUrlWrongAccept)
-{
-  RespCtx ctx;
-  invoke_get(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_JSON);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
@@ -548,46 +531,6 @@ TEST_F(KnxSwuPut, MethodPushChangedAndReadable)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   RespCtx g;
   invoke_get(core_resource_knx_swu_method, g, APPLICATION_CBOR);
-  EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
-}
-
-// --- pkgqurl PUT -----------------------------------------------------------
-TEST_F(KnxSwuPut, PkgQueryUrlWrongAccept)
-{
-  RespCtx ctx;
-  oc_rep_t rep;
-  memset(&rep, 0, sizeof(rep));
-  rep.type = OC_REP_STRING;
-  oc_new_string(&rep.value.string, "coap://host/fw", strlen("coap://host/fw"));
-  ctx.request.request_payload = &rep;
-  invoke_put(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_JSON);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-  oc_free_string(&rep.value.string);
-}
-
-TEST_F(KnxSwuPut, PkgQueryUrlNonStringBadRequest)
-{
-  RespCtx ctx;
-  oc_rep_t rep;
-  set_int_payload(ctx, rep, 5);
-  invoke_put(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(KnxSwuPut, PkgQueryUrlStringOkAndReadable)
-{
-  RespCtx ctx;
-  oc_rep_t rep;
-  memset(&rep, 0, sizeof(rep));
-  rep.type = OC_REP_STRING;
-  oc_new_string(&rep.value.string, "coap://host/fw", strlen("coap://host/fw"));
-  ctx.request.request_payload = &rep;
-  invoke_put(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
-  oc_free_string(&rep.value.string);
-  // verify via GET
-  RespCtx g;
-  invoke_get(core_resource_knx_swu_pkgqurl, g, APPLICATION_CBOR);
   EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
 }
 
@@ -920,14 +863,6 @@ TEST_F(KnxSwuSetters, SetLastUpdateVisibleInLastUpdateGet)
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
   EXPECT_TRUE(payload_contains(ctx, "2030-12-31T23:59:59Z"));
-}
-
-TEST_F(KnxSwuSetters, SetQueryUrlVisibleInPkgQurlGet)
-{
-  oc_swu_set_query_url("coap://[fe80::2]/img");
-  RespCtx ctx;
-  invoke_get(core_resource_knx_swu_pkgqurl, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
 }
 
 TEST_F(KnxSwuSetters, SetPackageVersionVisibleInPkgvGet)

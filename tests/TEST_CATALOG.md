@@ -775,13 +775,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `KnxSwuGetInt` | 12 | Integer-valued `/swu` resource GETs (protocol, maxdefer, method, result, state, bytes) + wrong-Accept |
-| `KnxSwuGetString` | 6 | String-valued GETs (hwref, lastupdate, pkgqurl) + wrong-Accept |
+| `KnxSwuGetString` | 4 | String-valued GETs (hwref, lastupdate) + wrong-Accept |
 | `KnxSwuGetGated` | 9 | Download-gated GETs (pkgv, pkgname, update) returning not-found / OK |
-| `KnxSwuPut` | 17 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
-| `KnxSwuABlock` | 7 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
-| `KnxSwuABlockInvalidQuery` | 18 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
+| `KnxSwuPut` | 15 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
+| `KnxSwuABlock` | 9 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
+| `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
 | `KnxSwuList` | 1 | List GET wrong-Accept |
-| `KnxSwuSetters` | 8 | Setter values become visible in matching GETs |
+| `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
 
 ---

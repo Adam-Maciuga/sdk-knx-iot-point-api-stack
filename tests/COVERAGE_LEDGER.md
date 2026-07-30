@@ -738,12 +738,13 @@ Static GET/PUT handlers are reached through their owning `const oc_resource_t co
 | oc_knx_swu_pkg_version_get_handler | DONE (4.04 / DOWNLOADED 2.05) |
 | oc_knx_swu_pkg_name_get_handler | DONE (4.04 / DOWNLOADED 2.05) |
 | oc_knx_swu_bytes_get_handler | DONE |
-| oc_knx_swu_pkg_query_url_get/put_handler | DONE |
+| oc_knx_swu_pkg_query_url_get/put_handler | REMOVED (resource /swu/pkgqurl no longer exists) |
 | oc_knx_swu_a_put_handler (/a/swu) | DONE wrong-accept / no-cb 5.01 / cb fast-path 2.04; full po/ps/pkgs query validation via the 18-case `KnxSwuABlockInvalidQuery` suite (non-numeric, trailing garbage, negative, zero, above INT_MAX, too many digits, empty) plus po=0 / leading-zero-is-decimal / no-read-past-length; separate-response slow-path + DOWNLOADING->DOWNLOADED completion = INTEGRATION (live CoAP transaction / event loop) |
 | oc_core_knx_swu_get_handler (/swu list) | DONE wrong-accept; link-format SUCCESS body = INTEGRATION (serializes RI resource table via oc_check_request_from_index over RI singleton) |
 | oc_set_swu_upgrade_cb / oc_get_swu_upgrade_cb | DONE (verified via update PUT) |
 | oc_set_swu_cb (oc_main.c) | DONE (verified via /a/swu cb path) |
-| oc_swu_set_package_name/last_update/hwref/package_bytes/package_version/state/query_url/result | DONE (verified via GET handlers) |
+| oc_swu_set_package_name/last_update/hwref/package_bytes/package_version/state/result | DONE (verified via GET handlers) |
+| oc_swu_set_query_url | REMOVED (function no longer exists) |
 | oc_create_knx_swu_resources | INTEGRATION - calls oc_storage_read during init and is meaningful only against the RI resource table; the device mfg_date seeding of /swu/lastupdate is covered at runtime by `TestSwuLastUpdateLifecycle` in test_5_2_swu.py |
 
 ### api/oc_server_api.c — DONE (pure helpers + resource mutators); network/RI paths integration-level

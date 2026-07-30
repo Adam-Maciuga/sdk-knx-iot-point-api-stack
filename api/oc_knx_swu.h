@@ -82,7 +82,6 @@ extern "C" {
     int pkg_bytes;
     oc_knx_version_info_t pkg_version;
     oc_swu_state_t state;
-    oc_string_t query_url;
     oc_swu_result_t result;   // download result
     uint8_t protocol;         // only 0=unicast CoAP supported
     oc_string_t hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
@@ -137,13 +136,6 @@ extern "C" {
    * @param state the download state
    */
   void oc_swu_set_state(oc_swu_state_t state);
-
-  /**
-   * @brief sets the url to be queried for downloading
-   *
-   * @param url the url
-   */
-  void oc_swu_set_query_url(const char* url);
 
   /**
    * @brief sets the result of the download procedure
