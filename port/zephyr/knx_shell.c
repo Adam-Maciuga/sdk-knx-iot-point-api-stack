@@ -28,9 +28,7 @@
 
 // TODO FIXME #include "knx_iot_virtual.h"
 
-extern char sn_upper[];
-extern const char sn_lower_case[];
-extern const char application_name[];
+extern const struct knx_iot_permanent_device_data_t knx_iot_permanent_device_data;
 
 /* Application-provided password callback (declared here to avoid pulling in the
  * full application header; the app must define this function).
@@ -119,7 +117,7 @@ static int knx_app_version_cmd(const struct shell *sh, size_t argc, char **argv)
 /* KNX Application Name command */
 static int knx_app_name_cmd(const struct shell *sh, size_t argc, char **argv)
 {
-    shell_print(sh, "%s", application_name);
+  shell_print(sh, "%s", knx_iot_permanent_device_data.application_name);
     return 0;
 }
 
@@ -144,7 +142,7 @@ static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     /* Convert to upper case (12 x char + \0) */
     char sn_upper[SN_STR_LEN_MAX + 1];
-    memcpy(sn_upper, sn_lower_case, SN_STR_LEN_MAX + 1);
+    memcpy(sn_upper, knx_iot_permanent_device_data.serial_number, SN_STR_LEN_MAX + 1);
     // TODO FIXME move utils to the stack repo?
     str_toupper_inplace(sn_upper);
 
@@ -435,13 +433,13 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
     shell_print(sh, "Hardware type      : %s", device->hwt);
     shell_print(sh, "Firmware version   : %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
     shell_print(sh, "Application version: %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
-    shell_print(sh, "Application name   : %s", application_name);
+    shell_print(sh, "Application name   : %s", knx_iot_permanent_device_data.application_name);
     shell_print(sh, "Model              : %s", device->iot_model);
     shell_print(sh, "Hostname           : %s", oc_string(device->iot_hostname));
 
     /* QR code */
     char sn_upper_buf[SN_STR_LEN_MAX + 1];
-    memcpy(sn_upper_buf, sn_lower_case, SN_STR_LEN_MAX + 1);
+    memcpy(sn_upper_buf, knx_iot_permanent_device_data.serial_number, SN_STR_LEN_MAX + 1);
     // TODO FIXME move utils to the stack repo?
     str_toupper_inplace(sn_upper_buf);
     shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper_buf, app_get_password());
