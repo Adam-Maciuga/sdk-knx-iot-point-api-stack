@@ -148,7 +148,7 @@ protected:
     oc_swu_set_package_bytes(0);
     oc_swu_set_result(OC_SWU_RESULT_INIT);
     oc_swu_set_package_version(0, 0, 0);
-    oc_swu_set_hwref("HWREF0001");
+    oc_swu_set_hwref("0102030405ABCDEF");
     oc_swu_set_last_update("0");
     oc_swu_set_package_name("");
   }
@@ -285,10 +285,12 @@ class KnxSwuGetString : public KnxSwuBase {};
 
 TEST_F(KnxSwuGetString, HwrefHappy)
 {
+  // the hardware reference is kept as plain 'const char*', the GET returns exactly that string
   oc_swu_set_hwref("0102030405ABCDEF");
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_hwref, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "0102030405ABCDEF"));
 }
 
 TEST_F(KnxSwuGetString, HwrefWrongAccept)
@@ -808,6 +810,13 @@ TEST_F(KnxSwuSetters, SetHwrefVisibleInHwrefGet)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_hwref, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "DEADBEEFCAFEBABE"));
+  // the setter only stores the pointer, a second call must be visible immediately
+  oc_swu_set_hwref("0102030405ABCDEF");
+  RespCtx g;
+  invoke_get(core_resource_knx_swu_hwref, g, APPLICATION_CBOR);
+  EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(g, "0102030405ABCDEF"));
 }
 
 TEST_F(KnxSwuSetters, SetLastUpdateVisibleInLastUpdateGet)

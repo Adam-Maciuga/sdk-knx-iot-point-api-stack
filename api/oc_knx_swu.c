@@ -14,6 +14,7 @@
 #include "oc_discovery.h"
 #include "oc_knx_helpers.h"
 #include "oc_main.h"
+#include "port/oc_assert.h"
 #include "port/oc_storage.h"
 
 // forward declarations for the resource chain
@@ -148,7 +149,7 @@ static void oc_knx_swu_hwref_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(swu_device.hwref));
+  oc_rep_i_set_text_string(root, 1, swu_device.hwref);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -941,9 +942,8 @@ void oc_create_knx_swu_resources(void)
 {
   OC_DBG("oc_create_knx_swu_resources");
 
-  // set default values
+  // set default values fro string (RAM) variables
   oc_swu_set_package_name("");
-  oc_swu_set_hwref("0102030405ABCDEF");
 
   // free by default before set storage or manufacturing data
   oc_free_string(&swu_device.last_update);
@@ -980,17 +980,20 @@ void oc_swu_set_last_update(const char* time)
 
 void oc_swu_set_hwref(const char* hwref)
 {
-  oc_free_string(&swu_device.hwref);
-  oc_new_string(&swu_device.hwref, hwref, strlen(hwref));
+  // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value
+  const bool all_ok = hwref && strlen(hwref) == HWREF_STR_LEN_MAX && oc_charstream_validate_is_upper(hwref);
+  oc_assert(all_ok == true);
+
+  swu_device.hwref = hwref;
 }
 
 void oc_swu_set_package_bytes(const int package_bytes) { swu_device.pkg_bytes = package_bytes; }
 
 void oc_swu_set_package_version(const int major, const int minor, const int patch)
 {
-  swu_device.pkg_version.major = major;
-  swu_device.pkg_version.minor = minor;
-  swu_device.pkg_version.patch = patch;
+  swu_device.pkg_version.major = (uint16_t)major;
+  swu_device.pkg_version.minor = (uint16_t)minor;
+  swu_device.pkg_version.patch = (uint16_t)patch;
 }
 
 void oc_swu_set_state(const oc_swu_state_t state) { swu_device.state = state; }

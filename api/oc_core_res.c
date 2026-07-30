@@ -157,7 +157,7 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-	// fails if NULL, not 12 bytes or not a valid hexadecimal value
+	// fails if NULL, not exactly the len or not a valid lowercase hexadecimal value
   const bool all_ok = serialnumber && strlen(serialnumber) == SN_STR_LEN_MAX && oc_charstream_validate_is_lower(serialnumber);
 	oc_assert(all_ok == true);
 

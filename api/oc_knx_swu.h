@@ -83,7 +83,7 @@ extern "C" {
     oc_swu_state_t state;
     oc_swu_result_t result;   // download result
     uint8_t protocol;         // only 0=unicast CoAP supported
-    oc_string_t hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
+    const char* hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
   } oc_device_swu_t;
 
   /**

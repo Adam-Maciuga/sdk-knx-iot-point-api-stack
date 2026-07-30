@@ -477,6 +477,14 @@ int oc_charstream_convert_to_lower(char* stream);
 bool oc_charstream_validate_is_lower(const char* stream);
 
 /**
+ * @brief validates that the input string contains only uppercase hexadecimal characters ('0'...'9', 'A'...'F')
+ *
+ * @param[in] stream the input string that gets validated
+ * @return bool true if the string is a valid uppercase hexadecimal string, false otherwise
+ */
+bool oc_charstream_validate_is_upper(const char* stream);
+
+/**
  * @brief helper function to check if a byte string contains only of zero values (0)
  * @param stream_ptr the byte stream pointer
  * @param stream_len the length of the byte stream

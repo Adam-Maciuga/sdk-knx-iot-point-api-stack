@@ -45,12 +45,12 @@ extern "C" {
 	 */
 	typedef struct oc_device_info_t
 	{
-		const char *serialnumber;					// fix: knx serial number, binary 6 bytes, in hex 12 bytes
+		const char* serialnumber;					// fix: knx serial number, binary 6 bytes, in hex 12 bytes
 		const oc_knx_version_info_t* hwv;	// fix: hardware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t fwv;	      // mod: firmware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t apv;				// mod: application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) 
-		const char *hwt;									// fix: knx hardware type, should not be larger than 6 chars
-		const char *iot_model;						// fix: knx model, former mask version, name is specific due to vast amount of "hostname" in other code
+		const char* hwt;									// fix: knx hardware type, should not be larger than 6 chars
+		const char* iot_model;						// fix: knx model, former mask version, name is specific due to vast amount of "hostname" in other code
     oc_string_t iot_hostname;					// mod: knx host name
 		uint32_t mid;											// fix: knx manufacturer id
 		uint64_t fid;											// mod: fabric id

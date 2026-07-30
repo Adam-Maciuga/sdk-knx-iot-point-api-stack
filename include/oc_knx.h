@@ -22,6 +22,9 @@ extern "C"
 
   // KNX raw serial number (string) length (12 lower-case hex chars, excluding the string null terminator)
   #define SN_STR_LEN_MAX (12)  
+
+  // KNX raw hardware reference number (string) length (16 upper-case hex chars, excluding the string null terminator)
+  #define HWREF_STR_LEN_MAX (16)  
  
   // reset status
   #define RESET_NO_ERROR (0)
