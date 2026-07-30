@@ -58,7 +58,6 @@ extern "C" {
 
 // static handlers are reached through their owning resource structs
 extern const oc_resource_t core_resource_knx_swu_protocol;
-extern const oc_resource_t core_resource_knx_swu_maxdefer;
 extern const oc_resource_t core_resource_knx_swu_hwref;
 extern const oc_resource_t core_resource_knx_swu_method;
 extern const oc_resource_t core_resource_knx_swu_lastupdate;
@@ -220,20 +219,6 @@ TEST_F(KnxSwuGetInt, ProtocolHappy)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
 }
 
-TEST_F(KnxSwuGetInt, MaxDeferHappy)
-{
-  RespCtx ctx;
-  invoke_get(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
-}
-
-TEST_F(KnxSwuGetInt, MaxDeferWrongAccept)
-{
-  RespCtx ctx;
-  invoke_get(core_resource_knx_swu_maxdefer, ctx, APPLICATION_JSON);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
 TEST_F(KnxSwuGetInt, MethodHappy)
 {
   RespCtx ctx;
@@ -386,13 +371,22 @@ TEST_F(KnxSwuGetGated, PkgNameWrongAccept)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
-TEST_F(KnxSwuGetGated, UpdateGetIdleStillOk)
+TEST_F(KnxSwuGetGated, UpdateGetIdleBadRequest)
 {
-  // update GET always returns 2.05; only includes the defer value in DOWNLOADED
+  // the remaining time is only relevant in DOWNLOADED, every other state is answered with '4.00 Bad Request'
   oc_swu_set_state(OC_SWU_STATE_IDLE);
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_update, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(KnxSwuGetGated, UpdateGetDownloadingBadRequest)
+{
+  // an ongoing download SHALL be answered with '4.00 Bad Request'
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_update, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
 TEST_F(KnxSwuGetGated, UpdateGetDownloadedOk)
@@ -460,46 +454,6 @@ TEST_F(KnxSwuPut, ProtocolCoapChangedAndReadable)
   // verify via GET
   RespCtx g;
   invoke_get(core_resource_knx_swu_protocol, g, APPLICATION_CBOR);
-  EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
-}
-
-// --- max_defer PUT ---------------------------------------------------------
-TEST_F(KnxSwuPut, MaxDeferWrongAccept)
-{
-  RespCtx ctx;
-  oc_rep_t rep;
-  set_int_payload(ctx, rep, 42);
-  invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_JSON);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(KnxSwuPut, MaxDeferMissingPayloadBadRequest)
-{
-  RespCtx ctx;
-  ctx.request.request_payload = nullptr;
-  invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(KnxSwuPut, MaxDeferNonZeroBadRequest)
-{
-  // the stack does not support (auto) delayed update, only '0' is accepted
-  RespCtx ctx;
-  oc_rep_t rep;
-  set_int_payload(ctx, rep, 120);
-  invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(KnxSwuPut, MaxDeferZeroChangedAndReadable)
-{
-  RespCtx ctx;
-  oc_rep_t rep;
-  set_int_payload(ctx, rep, 0);
-  invoke_put(core_resource_knx_swu_maxdefer, ctx, APPLICATION_CBOR);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
-  RespCtx g;
-  invoke_get(core_resource_knx_swu_maxdefer, g, APPLICATION_CBOR);
   EXPECT_EQ(g.code(), oc_status_code(OC_STATUS_OK));
 }
 

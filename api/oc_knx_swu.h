@@ -74,8 +74,7 @@ extern "C" {
   */
   typedef struct oc_device_swu
   {
-    int max_defer;            // maximum number of seconds an AUTOMATIC software update can be deferred, 0 = NO AUTOMATIC update possible
-    int current_defer;        // current number of seconds a software update will be deferred (0...max defer)
+    uint16_t current_defer;   // timePeriodSec seconds, a software update will be deferred by MaC after package was download (seconds)
     uint8_t update_method;    // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
     oc_string_t last_update;

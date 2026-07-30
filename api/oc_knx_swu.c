@@ -17,7 +17,6 @@
 #include "port/oc_storage.h"
 
 // forward declarations for the resource chain
-extern const oc_resource_t core_resource_knx_swu_maxdefer;
 extern const oc_resource_t core_resource_knx_swu_hwref;
 extern const oc_resource_t core_resource_knx_swu_method;
 extern const oc_resource_t core_resource_knx_swu_lastupdate;
@@ -34,7 +33,6 @@ extern const oc_resource_t core_resource_sub;
 // only static since values are changed at runtime
 static oc_device_swu_t swu_device = 
 {
-  .max_defer = 0,                                             // fixed, stack does not support (auto) delayed update   
   .current_defer = 0,
   .update_method = PUSH,                                      // fixed, stack does not support PULL
   .pkg_name = {NULL, 0, NULL},
@@ -127,10 +125,9 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_protocol_data;
-const oc_resource_t core_resource_knx_swu_protocol = {&core_resource_knx_swu_maxdefer,
+const oc_resource_t core_resource_knx_swu_protocol = {&core_resource_knx_swu_hwref,
                                                       {NULL, sizeof("/swu/protocol"), "/swu/protocol"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.protocols"), "urn:knx:dpt.protocols"},
@@ -146,71 +143,6 @@ const oc_resource_t core_resource_knx_swu_protocol = {&core_resource_knx_swu_max
                                                       0,
                                                       true,
                                                       &core_resource_knx_swu_protocol_data};
-
-static void oc_knx_swu_max_defer_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 1, swu_device.max_defer);
-  oc_rep_end_root_object();
-
-  oc_prepare_cbor_response(request, OC_STATUS_OK);
-}
-
-static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  const oc_rep_t* rep = request->request_payload;
-
-  if (rep && rep->type == OC_REP_INT)
-  {
-    if (rep->value.integer == 0)
-    {
-      // this stack supports only '0' = no delayed update (note, value is set on startup, will never be changed, no overwrite here)
-      OC_DBG("swu max defer received : %d", swu_device.max_defer);
-
-      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-      return;
-    }
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_knx_swu_maxdefer_data;
-const oc_resource_t core_resource_knx_swu_maxdefer = {
-  &core_resource_knx_swu_hwref,
-  {NULL, sizeof("/swu/maxdefer"), "/swu/maxdefer"},
-  {NULL, 0, NULL},
-  {NULL, sizeof("urn:knx:dpt.timePeriodSec"), "urn:knx:dpt.timePeriodSec"},
-  {APPLICATION_CBOR, CONTENT_NONE},
-  OC_DISCOVERABLE,
-  {oc_knx_swu_max_defer_get_handler, NULL, OC_ACL_D, OC_IF_D},
-  {oc_knx_swu_max_defer_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {{NULL}, NULL},
-  {{NULL}, NULL},
-  0,
-  0,
-  true,
-  &core_resource_knx_swu_maxdefer_data};
 
 static void oc_knx_swu_hwref_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -229,8 +161,7 @@ static void oc_knx_swu_hwref_get_handler(oc_request_t* request, oc_interface_mas
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_hwref_data;
 const oc_resource_t core_resource_knx_swu_hwref = {
   &core_resource_knx_swu_method,
@@ -442,14 +373,14 @@ const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update
                                                    true,
                                                    &core_resource_knx_swu_state_data};
 
-// Callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
+// callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
 typedef struct oc_swu_upgrade_t 
 {
-  oc_swu_upgrade_cb_t cb;   // Application callback for upgrade trigger
-  void* data;               // User context passed to callback
+  oc_swu_upgrade_cb_t cb;   // application callback for upgrade trigger
+  void* data;               // user context passed to callback
 } oc_swu_upgrade_t;
 
-static oc_swu_upgrade_t g_swu_upgrade_handler = {NULL, NULL};
+static oc_swu_upgrade_t g_swu_upgrade_handler = {.cb = NULL, .data = NULL};
 
 // Application registers upgrade callback before oc_main_init()
 void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data)
@@ -484,12 +415,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
 
     if (rep && rep->type == OC_REP_INT)
     {
-      // Payload contains defer time in seconds
-      // Device can delay upgrade to finish current operations
-      swu_device.current_defer = (int)rep->value.integer;
+      // payload contains defer time in seconds from MaC, device can delay upgrade to finish current operations
+      swu_device.current_defer = rep->value.integer >= 0 ? (uint16_t)rep->value.integer : 0;
       
-      // State transition: DOWNLOADED → UPDATING
-      // Stack manages this transition, application manages UPDATING → IDLE
+      // state transition: DOWNLOADED → UPDATING, stack manages this transition, application manages UPDATING → IDLE
       swu_device.state = OC_SWU_STATE_UPDATING;
       OC_DBG("SWU state: DOWNLOADED -> UPDATING");
       
@@ -501,8 +430,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       // 4. Update device firmware version: oc_core_set_and_store_device_fwv()
       // 5. Set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
       // 6. Complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
+      
       const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();
-      if (swu_upgrade_cb && swu_upgrade_cb->cb) {
+      if (swu_upgrade_cb && swu_upgrade_cb->cb) 
+      {
         swu_upgrade_cb->cb(swu_device.current_defer, swu_upgrade_cb->data);
       }
       
@@ -529,15 +460,28 @@ static void oc_knx_swu_update_get_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  // only accessible in this state (see specification)
+  /*
+    KNX IOT Specification
+
+    - in DOWNLOADED state the remaining time until the new firmware package
+      will be applied is returned, while an ongoing download is answered with '4.00 Bad Request'
+      
+    - we assume here also in idle/updating state the remaining time is not relevant, 
+      hence also '4.00 Bad Request' is returned
+
+  */
+
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 1, swu_device.current_defer);
+    oc_rep_i_set_uint(root, 1, swu_device.current_defer);
     oc_rep_end_root_object();
+    oc_prepare_cbor_response(request, OC_STATUS_OK);
   }
-
-  oc_prepare_cbor_response(request, OC_STATUS_OK);
+  else
+  {
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+  }
 }
 
 // resource definition, details/comments see on

@@ -728,7 +728,7 @@ Static GET/PUT handlers are reached through their owning `const oc_resource_t co
 | Function | Status |
 |----------|--------|
 | oc_knx_swu_protocol_get/put_handler | DONE |
-| oc_knx_swu_max_defer_get/put_handler | DONE |
+| oc_knx_swu_max_defer_get/put_handler | REMOVED (resource /swu/maxdefer no longer exists) |
 | oc_knx_swu_hwref_get_handler | DONE |
 | oc_knx_swu_method_get/put_handler | DONE |
 | oc_knx_swu_last_update_get_handler | DONE |

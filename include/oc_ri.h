@@ -344,7 +344,6 @@ typedef enum {
   OC_KNX_F,                            /**< f */
   OC_KNX_F_X,                          /**< f/X */
   OC_KNX_SWU_PROTOCOL,                 /**< software update protocol */
-  OC_KNX_SWU_MAXDEFER,                 /**< swu max defer */
   OC_KNX_SWU_HWREF,                    /**< swu hwref */
   OC_KNX_SWU_METHOD,                   /**< swu method */
   OC_KNX_SWU_LASTUPDATE,               /**< swu last update */
