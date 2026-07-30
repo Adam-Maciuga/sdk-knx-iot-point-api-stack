@@ -122,6 +122,16 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
   return response_length;
 }
 
+
+#define MAX_UINT64_HEX_LEN (16) // 16 hexadecimal digits, the widest value of a '64-bit unsigned int' (0xFFFFFFFFFFFFFFFF)
+#define MAX_UINT16_DEC_LEN (5)  // 5 decimal digits, the widest value of a '16-bit unsigned int' (65535)
+#define MAX_UINT16_HEX_LEN (4)  // 4 hexadecimal digits, the widest value of a '16-bit unsigned int' (0xFFFF)
+#define MAX_INT_NUM_LEN    (10) // 10 decimal digits, the widest value of a '32-bit signed int' (2147483647)
+
+static_assert(MAX_INT_NUM_LEN    <= MAX_UINT64_HEX_LEN, "MAX_INT_NUM_LEN must not exceed MAX_UINT64_HEX_LEN");
+static_assert(MAX_UINT16_DEC_LEN <= MAX_UINT64_HEX_LEN, "MAX_UINT16_DEC_LEN must not exceed MAX_UINT64_HEX_LEN");
+static_assert(MAX_UINT16_HEX_LEN <= MAX_UINT64_HEX_LEN, "MAX_UINT16_HEX_LEN must not exceed MAX_UINT64_HEX_LEN");
+
 /**
  * @brief internal helper to parse a (not NUL terminated) string as a non-negative integer
  *
@@ -130,7 +140,8 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
  *
  * @param value the (not NUL terminated) value
  * @param value_len the length of the value
- * @param max_len the maximum accepted length of the value, a longer value is rejected without conversion
+ * @param max_len the maximum accepted length of the value, a longer value is rejected without conversion,
+ *                must not exceed MAX_NUM_LEN, all callers pass a compile time constant that satisfies this
  * @param base the numerical base of the value, e.g. 10 (decimal) or 16 (hexadecimal)
  * @param max_value the maximum accepted value, a larger value is rejected
  * @param result the converted value, only valid when true is returned
@@ -138,11 +149,8 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
  */
 static bool parse_64bit_from_string(const char* value, int value_len, int max_len, int base, unsigned long long max_value, unsigned long long* result)
 {
-  // 16 hexadecimal digits of a '64-bit unsigned int', a decimal value is never longer than 'int'
-  #define MAX_NUM_LEN (16)
-
   // reject a missing, empty or oversized value, the range itself is checked after the conversion
-  if (value == NULL || value_len <= 0 || value_len > max_len || max_len > MAX_NUM_LEN)
+  if (value == NULL || value_len <= 0 || value_len > max_len)
   {
     return false;
   }
@@ -158,7 +166,7 @@ static bool parse_64bit_from_string(const char* value, int value_len, int max_le
   }
 
   // the to be converted value, + 1 for the string terminator
-  char buffer[MAX_NUM_LEN + 1] = "";
+  char buffer[MAX_UINT64_HEX_LEN + 1] = "";
 
   // copy to be converted value, string terminator for strtoull() is on every place
   memcpy(buffer, value, (size_t)value_len);
@@ -197,8 +205,6 @@ static bool parse_64bit_from_string(const char* value, int value_len, int max_le
  */
 bool oc_parse_uint16_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 5 decimal digits, the widest value of a '16-bit unsigned int' (65535)
-  #define MAX_UINT16_DEC_LEN (5)
   unsigned long long temp = 0;
 
   if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT16_DEC_LEN, 10, UINT16_MAX, &temp))
@@ -224,8 +230,6 @@ bool oc_parse_uint16_from_base10_string(const char* value, int value_len, int* r
  */
 bool oc_parse_uint16_from_base16_string(const char* value, int value_len, uint16_t* result)
 {
-  // 4 hexadecimal digits, the widest value of a '16-bit unsigned int' (0xFFFF)
-  #define MAX_UINT16_HEX_LEN (4)
   unsigned long long temp = 0;
 
   if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT16_HEX_LEN, 16, UINT16_MAX, &temp))
@@ -253,8 +257,6 @@ bool oc_parse_uint16_from_base16_string(const char* value, int value_len, uint16
  */
 bool oc_parse_sint32_from_base10_string(const char* value, int value_len, int* result)
 {
-  // 10 decimal digits, the widest value of a '32-bit signed int' (2147483647)
-  #define MAX_INT_NUM_LEN (10)
   unsigned long long temp = 0;
 
   if (!result || !parse_64bit_from_string(value, value_len, MAX_INT_NUM_LEN, 10, INT32_MAX, &temp))
@@ -280,8 +282,6 @@ bool oc_parse_sint32_from_base10_string(const char* value, int value_len, int* r
  */
 bool oc_parse_uint64_from_base16_string(const char* value, int value_len, uint64_t* result)
 {
-  // 16 hexadecimal digits, the widest value of a '64-bit unsigned int' (0xFFFFFFFFFFFFFFFF)
-  #define MAX_UINT64_HEX_LEN (16)
   unsigned long long temp = 0;
 
   if (!result || !parse_64bit_from_string(value, value_len, MAX_UINT64_HEX_LEN, 16, UINT64_MAX, &temp))
