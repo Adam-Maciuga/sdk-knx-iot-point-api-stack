@@ -755,7 +755,11 @@ TEST_F(WellKnownCoreHandler, IndividualAddressEmptyIidReturnsNotFound)
 
 TEST_F(WellKnownCoreHandler, IndividualAddressOverlongIidReturnsNotFound)
 {
-  // Verify that an installation identifier longer than ten characters is rejected instead of truncated.
+  /*
+    Verify that an installation identifier longer than ten characters is rejected instead of truncated.
+    The value is the device IID with one extra leading zero, so it is numerically equal and well within
+    40 bit; the rejection can therefore only come from the length limit, not from a value mismatch.
+  */
   set_handler_query("ep=knx://ia.0d773e094b6.1101");
   invoke();
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_NOT_FOUND));

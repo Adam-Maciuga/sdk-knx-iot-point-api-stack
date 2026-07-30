@@ -634,6 +634,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
       */
 
+      #define EP_LEN_DOT_IA (12)   // ep=knx://ia. 
       #define LEN_DOT_SN (16)      // <>;ep="knx://sn.
       #define LEN_SN (12)          // 00fa12345678, leading zeros NOT omitted, clause 2.6.1.4
       #define LEN_DOT_IA (9)       // knx://ia.
@@ -778,16 +779,9 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
   const uint64_t iid = oc_core_get_device_info()->iid;
   const uint16_t ia = (uint16_t)recipient->ia;
 
-  // ep=knx://ia.
-  #define EP_STR_LEN_DOT_IA (12)
-  // max IID length in hex coded ASCII if no leading zeros are omitted, note: 5 octets = 40 bit
-  #define IID_STR_LEN_MAX (10)
-  // max IA length in hex coded ASCII, note: 2 octets = 16 bit
-  #define IA_STR_LEN_MAX (4)
-
   // build URI and query: /.well-known/core?ep=knx://ia.<iid>.<ia>
   const char uri[] = "/.well-known/core";
-  char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
+  char query[EP_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
 
   (void)snprintf(query, sizeof(query), "ep=knx://ia.%" PRIx64 ".%x", iid, ia);
 

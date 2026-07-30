@@ -723,6 +723,13 @@ INSTANTIATE_TEST_SUITE_P(
     SwuQueryCase{ "PkgsAboveIntMax", "po=0&ps=10&pkgs=2147483648" },
     // far above INT_MAX, more digits than the parser accepts at all
     SwuQueryCase{ "PoTooManyDigits", "po=99999999999999&ps=10" },
+    /*
+      11 digits, one more than the parser accepts, although the value is a valid INT_MAX resp. small number.
+      The rejection therefore comes from the length limit alone and not from the value being out of range.
+    */
+    SwuQueryCase{ "PoLeadingZeroIntMax", "po=02147483647&ps=10" },
+    SwuQueryCase{ "PsLeadingZeroSmall", "po=0&ps=00000000010" },
+    SwuQueryCase{ "PkgsLeadingZeroSmall", "po=0&ps=10&pkgs=00000000064" },
     // empty value
     SwuQueryCase{ "PoEmpty", "po=&ps=10" },
     SwuQueryCase{ "PsEmpty", "po=0&ps=" },
@@ -746,6 +753,44 @@ TEST_F(KnxSwuABlock, PoZeroIsAccepted)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.block_offset, 0u);
+}
+
+// the widest accepted value, 10 digits, must still be parsed
+TEST_F(KnxSwuABlock, IntMaxOffsetIsAccepted)
+{
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  RespCtx ctx;
+  char q[] = "po=2147483647&ps=10&pkgs=64";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 2147483647u);
+}
+
+// leading zeros are accepted as long as the total length stays within the 10 digits the parser allows
+TEST_F(KnxSwuABlock, LeadingZerosUpToMaxLenAreAccepted)
+{
+  SwuBlockRec rec;
+  oc_set_swu_cb(recording_swu_cb, &rec);
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  RespCtx ctx;
+  char q[] = "po=0000000010&ps=0000000010&pkgs=0000000064";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  ctx.request._payload = data;
+  ctx.request._payload_len = sizeof(data);
+  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 10u);
 }
 
 // a leading zero is accepted, the value is decimal coded and not octal

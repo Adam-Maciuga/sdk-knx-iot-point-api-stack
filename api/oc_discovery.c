@@ -595,7 +595,6 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 	#define LEN_DOT_IA (9)       // knx://ia.
   #define IID_STR_LEN_MAX (10) // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
-  #define IA_STR_LEN_MAX (4)   // max IA length in hex coded ASCII (2 octets = 16 bit)
 	
   // handle individual address 
 	if (ep_request && ep_len >= LEN_DOT_IA && strncmp(ep_request, "knx://ia.", LEN_DOT_IA) == 0)
@@ -616,32 +615,22 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		if (ep_ia_dot_pos)
     { // convert only if a '.' was found 
 
-			// 1..10 
-		  const size_t ep_iid_len = ep_ia_dot_pos - ep_iid_start_pos;
+			/*
+				IID is 1..10 chars, both bounds are already guaranteed:
+				- the '.' scan above is limited to IID_STR_LEN_MAX + 1 chars, so the '.' can never sit beyond char 10
+				- a len of 0 (an empty IID, e.g. 'knx://ia..1101') is rejected by the parser below
+			*/
+			const size_t ep_iid_len = ep_ia_dot_pos - ep_iid_start_pos;
 
-			if (ep_iid_len == 0 || ep_iid_len > IID_STR_LEN_MAX)
-			{
-				oc_discovery_prepare_no_match_response(request);
-				return;
-			}
-
-			// IA can be of 1..4 chars; 0 or > 4 is invalid
+			// IA can be of 1..4 chars; 0 or > 4 is invalid, both are filtered by the parser below
 			const char* ep_ia_start_pos = ep_ia_dot_pos + 1;
-
-			// 1..4
 			const size_t ep_ia_part_len = ep_request + ep_len - ep_ia_start_pos;
-
-			if (ep_ia_part_len == 0 || ep_ia_part_len > IA_STR_LEN_MAX)
-			{
-				oc_discovery_prepare_no_match_response(request);
-				return;
-			}
 
 			uint16_t ia = 0;
 
 			/* 
-			   IA first - many devices will have the same IID
-			   - converted ia = 0 is accepted, but usually the device will not have 0 assigned
+				 IA first - many devices will have the same IID
+				 - converted ia = 0 is accepted, but usually the device will not have 0 assigned
 				 - len 0, > 4 or not a hex coded number will be filtered by call below
 			*/
 			if (oc_parse_uint16_from_base16_string(ep_ia_start_pos, (int)ep_ia_part_len, &ia) && ia == device->ia)
