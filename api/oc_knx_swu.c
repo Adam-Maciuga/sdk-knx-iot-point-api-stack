@@ -31,13 +31,25 @@ extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu;
 extern const oc_resource_t core_resource_sub;
 
+// callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
+typedef struct oc_swu_upgrade_t
+{
+  oc_swu_upgrade_cb_t cb; // application callback for upgrade trigger
+  void* data;             // user context passed to callback
+} oc_swu_upgrade_t;
+
+// forward declarations
+static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
+
 /*
   - static, but not const, since values are changed at runtime 
   - all members not listed here are zero initialized (static storage duration),
     e.g.; state = OC_SWU_STATE_IDLE, result = OC_SWU_RESULT_INIT, protocol = CoAP,
     pkg_bytes/current_defer = 0, pkg_version = 0.0.0 and all strings are empty
 */
-static oc_device_swu_t swu_device = {.update_method = PUSH}; // fixed, stack does not support PULL
+static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack does not support PULL
+static oc_swu_upgrade_t g_swu_upgrade_handler = {.cb = NULL, .data = NULL};
+static uint32_t expected_package_size = 0;                    // track expected total package size (set from first block's pkgs parameter)
 
 /*
  * Software Update (SWU) Implementation
@@ -67,13 +79,6 @@ static oc_device_swu_t swu_device = {.update_method = PUSH}; // fixed, stack doe
  * - Application performs upgrade, updates firmware version, sets result
  * - Application transitions back to IDLE when complete
  */
-
-// Track expected total package size (set from first block's pkgs parameter)
-static int expected_package_size = 0;
-
-// Forward declarations
-typedef struct oc_swu_upgrade_t oc_swu_upgrade_t;
-static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
 
 static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -220,8 +225,7 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_method_data;
 const oc_resource_t core_resource_knx_swu_method = {
   &core_resource_knx_swu_lastupdate,
@@ -272,8 +276,7 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_lastupdate_data;
 const oc_resource_t core_resource_knx_swu_lastupdate = {
   &core_resource_knx_swu_result,
@@ -310,8 +313,7 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_result_data;
 const oc_resource_t core_resource_knx_swu_result = {&core_resource_knx_swu_state,
                                                     {NULL, sizeof("/swu/result"), "/swu/result"},
@@ -347,8 +349,7 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_state_data;
 const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update,
                                                    {NULL, sizeof("/swu/state"), "/swu/state"},
@@ -367,23 +368,15 @@ const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update
                                                    true,
                                                    &core_resource_knx_swu_state_data};
 
-// callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
-typedef struct oc_swu_upgrade_t 
-{
-  oc_swu_upgrade_cb_t cb;   // application callback for upgrade trigger
-  void* data;               // user context passed to callback
-} oc_swu_upgrade_t;
 
-static oc_swu_upgrade_t g_swu_upgrade_handler = {.cb = NULL, .data = NULL};
-
-// Application registers upgrade callback before oc_main_init()
+// application registers upgrade callback before oc_main_init()
 void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data)
 {
   g_swu_upgrade_handler.cb = cb;
   g_swu_upgrade_handler.data = data;
 }
 
-// Internal getter for callback (used by PUT /swu/update handler)
+// internal getter for callback (used by PUT /swu/update handler)
 static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void)
 {
   return &g_swu_upgrade_handler;
@@ -478,8 +471,7 @@ static void oc_knx_swu_update_get_handler(oc_request_t* request, oc_interface_ma
   }
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_update_data;
 const oc_resource_t core_resource_knx_swu_update = {
   &core_resource_knx_swu_pkgv,
@@ -526,8 +518,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgv_data;
 const oc_resource_t core_resource_knx_swu_pkgv = {&core_resource_knx_swu_pkgcmd,
                                                   {NULL, sizeof("/swu/pkgv"), "/swu/pkgv"},
@@ -559,11 +550,10 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   size_t key_len = 0;
   size_t value_len = 0;
 
+  // must be int, since query parameter may also carry a '-1'
   int pkgs_package_size = 0;  // in bytes 
   int ps_block_size = 0;      // page size 
   int po_block_offset = 0;    // page offset, bytes to skip, default =0 if query parameter 'po' is missing
-
-  
 
   OC_DBG("oc_knx_swu_a_put_handler - start");
 
@@ -574,7 +564,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 
   oc_init_query_iterator();
 
-  // scan all query parameter, object by object (note po/ps/pkgs may appear at the same time)
+  // scan all query parameter, note po/ps/pkgs may appear at the same time, size_t value_len cant be < 0, accceptable for parser below
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
   {
     if (strncmp(key, "po", key_len) == 0)
@@ -624,12 +614,13 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   // - Clears package metadata (name, version) from previous download
   if (swu_device.state == OC_SWU_STATE_IDLE && request->_payload_len > 0)
   {
+    // reset for new download (cleanup stale state)
     swu_device.state = OC_SWU_STATE_DOWNLOADING;
     swu_device.pkg_bytes = 0;
     swu_device.result = OC_SWU_RESULT_INIT;
-    expected_package_size = 0;  // Reset for new download (cleanup stale state)
+    expected_package_size = 0;  
     
-    // Clear package metadata from previous download
+    // clear package metadata from previous download
     oc_swu_set_package_name("");
     oc_swu_set_package_version(0, 0, 0);
     
@@ -642,13 +633,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   if (pkgs_package_size > 0 && expected_package_size == 0)
   {
     expected_package_size = pkgs_package_size;
-    OC_DBG("Expected package size set to: %d", expected_package_size);
+    OC_DBG("Expected package size set to: %u", expected_package_size);
   }
 
-  // Update download progress counter
-  // Stack tracks total bytes received across all blocks
+  // update download progress counter, stack tracks total bytes received across all blocks
   swu_device.pkg_bytes += request->_payload_len;
-  OC_DBG("Received bytes: %d / %d", swu_device.pkg_bytes, expected_package_size);
+  OC_DBG("Received bytes: %u / %u", swu_device.pkg_bytes, expected_package_size);
 
   // ===== Application Callback for Block Processing =====
   // Each block is forwarded to application for device-specific handling
@@ -709,13 +699,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   // ===== State Machine: DOWNLOADING → DOWNLOADED =====
   // Transition occurs when all bytes have been received
   // Stack detects completion by comparing pkg_bytes with expected_package_size
-  if (expected_package_size > 0 && swu_device.pkg_bytes >= expected_package_size && 
-      swu_device.state == OC_SWU_STATE_DOWNLOADING)
+  if (expected_package_size > 0 && swu_device.pkg_bytes >= expected_package_size && swu_device.state == OC_SWU_STATE_DOWNLOADING)
   {
     // Mark download as complete
     swu_device.state = OC_SWU_STATE_DOWNLOADED;
     
-    OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %d bytes)", swu_device.pkg_bytes);
+    OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %u bytes)", swu_device.pkg_bytes);
     
     // ===== Application Responsibility: Package Metadata =====
     // Application should detect completion in parallel and set package metadata:
@@ -767,14 +756,13 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 1, swu_device.pkg_bytes);
+  oc_rep_i_set_uint(root, 1, swu_device.pkg_bytes);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgbytes_data;
 const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkgnames,
                                                       {NULL, sizeof("/swu/pkgbytes"), "/swu/pkgbytes"},
@@ -819,8 +807,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_pkgnames_data;
 const oc_resource_t core_resource_knx_swu_pkgnames = {
   &core_resource_knx_swu,
@@ -918,8 +905,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   OC_DBG("oc_core_swu_get_handler - end");
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_swu_data;
 const oc_resource_t core_resource_knx_swu = {&core_resource_sub,
                                              {NULL, sizeof("/swu"), "/swu"},
@@ -974,7 +960,7 @@ void oc_swu_set_last_update(const char* time)
   oc_free_string(&swu_device.last_update);
   oc_new_string(&swu_device.last_update, time, strlen(time));
   
-  // Persist to storage so timestamp survives reboot
+  // persist to storage so timestamp survives reboot
   oc_storage_write(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update), oc_string_len(swu_device.last_update));
 }
 
@@ -987,7 +973,7 @@ void oc_swu_set_hwref(const char* hwref)
   swu_device.hwref = hwref;
 }
 
-void oc_swu_set_package_bytes(const int package_bytes) { swu_device.pkg_bytes = package_bytes; }
+void oc_swu_set_package_bytes(const uint32_t package_bytes) { swu_device.pkg_bytes = package_bytes; }
 
 void oc_swu_set_package_version(const int major, const int minor, const int patch)
 {

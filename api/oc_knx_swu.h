@@ -78,7 +78,7 @@ extern "C" {
     uint8_t update_method;    // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
     oc_string_t last_update;
-    int pkg_bytes;
+    uint32_t pkg_bytes;       // non-negative, :dpt.value4uCount
     oc_knx_version_info_t pkg_version;
     oc_swu_state_t state;
     oc_swu_result_t result;   // download result
@@ -118,7 +118,7 @@ extern "C" {
    *
    * @param package_bytes the amount of bytes written
    */
-  void oc_swu_set_package_bytes(int package_bytes);
+  void oc_swu_set_package_bytes(uint32_t package_bytes);
 
   /**
    * @brief Sets the current package version
