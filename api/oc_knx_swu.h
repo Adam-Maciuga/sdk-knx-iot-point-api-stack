@@ -44,10 +44,10 @@ extern "C" {
   */
   typedef enum
   {
-    OC_SWU_STATE_IDLE = 0,    // idle (no FWU package is on the way)
-    OC_SWU_STATE_DOWNLOADING, // downloading (a FWU package is currently on the way)
-    OC_SWU_STATE_DOWNLOADED,  // downloaded (the FWU package is fully available at server)
-    OC_SWU_STATE_UPDATING    // UPDATING (the FWU package is currently applied to the server)
+    OC_SWU_STATE_IDLE = 0,    // (handler 1) idle (no FWU package is on the way)
+    OC_SWU_STATE_DOWNLOADING, // (handler 1) downloading (a FWU package is currently on the way)
+    OC_SWU_STATE_DOWNLOADED,  // (handler 1) downloaded (the FWU package is fully available at server)
+    OC_SWU_STATE_UPDATING     // (handler 2) updating (the FWU package is currently applied to the server)
   } oc_swu_state_t;
 
   /**
@@ -74,16 +74,17 @@ extern "C" {
   */
   typedef struct oc_device_swu
   {
-    uint16_t current_defer;   // timePeriodSec seconds, a software update will be deferred by MaC after package was download (seconds)
-    uint8_t update_method;    // swu update method (0=pull, 1=push=default or 2=both)
+    uint16_t current_defer;       // timePeriodSec seconds, a software update will be deferred by MaC after package was download (seconds)
+    uint8_t update_method;        // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
     oc_string_t last_update;
-    uint32_t pkg_bytes;       // non-negative, :dpt.value4uCount
+    uint32_t received_pkg_bytes;  // non-negative, :dpt.value4uCount
+    uint32_t expected_pkg_size;   // expected total package size (set from first block's pkgs parameter)
     oc_knx_version_info_t pkg_version;
     oc_swu_state_t state;
-    oc_swu_result_t result;   // download result
-    uint8_t protocol;         // only 0=unicast CoAP supported
-    const char* hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
+    oc_swu_result_t result;       // download result
+    uint8_t protocol;             // only 0=unicast CoAP supported
+    const char* hwref;            // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
   } oc_device_swu_t;
 
   /**
