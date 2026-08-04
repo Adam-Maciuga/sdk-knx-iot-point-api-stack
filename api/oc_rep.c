@@ -86,22 +86,21 @@ oc_rep_get_encoded_payload_size(void)
   return (int)size;
 }
 
-static oc_rep_t *
-_alloc_rep(void)
+static oc_rep_t* _alloc_rep(void)
 {
   oc_rep_t *rep = calloc(1, sizeof(oc_rep_t));
-  if (rep != NULL) {
+  if (rep != NULL) 
+  {
     rep->name.size = 0;
     rep->iname = -1;
   }
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
   oc_assert(rep != NULL);
-#endif
+  #endif
   return rep;
 }
 
-static void
-_free_rep(oc_rep_t *rep_value)
+static void _free_rep(oc_rep_t *rep_value)
 {
   free(rep_value);
 }
