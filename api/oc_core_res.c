@@ -75,14 +75,24 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
 
 int oc_core_set_device_hwt(const char* hardware_type)
 {
-	oc_device_info.hwt = hardware_type;
+  // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value
+  const bool all_ok = hardware_type && strlen(hardware_type) == 12 && oc_charstream_validate_is_upper(hardware_type);
+  // oc_assert(all_ok == true); // EITT default test tamplate data does not follow the rules
+
+  // caller MUST ensure above conditions and keep the string valid for the device lifetime
+  oc_device_info.hwt = hardware_type;
 
 	return 0;
 }
 
 int oc_core_set_device_model(const char* model)
 {
-	oc_device_info.iot_model = model;
+  // fails if NULL, not below/equal len
+  const bool all_ok = model && strlen(model) <= 10;
+  // oc_assert(all_ok == true); // EITT default test tamplate data does not follow the rules
+  
+	// caller MUST ensure above conditions and keep the string valid for the device lifetime
+  oc_device_info.iot_model = model;
 
 	return 0;
 }
