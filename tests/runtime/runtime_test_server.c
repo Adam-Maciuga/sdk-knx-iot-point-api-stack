@@ -292,12 +292,14 @@ static void swu_cb(oc_separate_response_t* response, size_t binary_size,
   printf("[swu] Received %zu / %zu bytes\n", swu_received, swu_total_size);
   fflush(stdout);
 
-  /* Detect download completion -> set package metadata */
+  /* Detect download completion -> set package metadata and complete the state machine */
   if (swu_total_size > 0 && swu_received >= swu_total_size) {
     printf("[swu] Download complete, setting package version 0.0.2\n");
     fflush(stdout);
     oc_swu_set_package_version(0, 0, 2);
     oc_swu_set_package_name("firmware.bin");
+    /* the stack does not transition DOWNLOADING -> DOWNLOADED, that is the application's job */
+    oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
     swu_total_size = 0;
     swu_received = 0;
   }

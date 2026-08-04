@@ -32,10 +32,11 @@
  *    singleton; producing a real link-format page requires a populated RI
  *    resource table (integration). The wrong-accept and paging-rejection
  *    (BAD_REQUEST) branches ARE unit-tested below.
- *  - The /a/swu separate/delayed response slow-path and the
- *    DOWNLOADING -> DOWNLOADED completion + storage_write path depend on a
- *    live CoAP transaction / event loop; the fast-path, no-callback and
- *    query-validation branches ARE unit-tested below.
+ *  - The /a/swu separate/delayed response slow-path depends on a live CoAP
+ *    transaction / event loop; the fast-path and the query-validation
+ *    branches ARE unit-tested below. The application callback is no longer
+ *    guarded by the handler (it is guaranteed by oc_main_init) and the
+ *    DOWNLOADING -> DOWNLOADED transition is the application's job.
  *
  * Note: oc_storage_read/write return -ENOENT (no crash) when storage is not
  * configured, so handler success branches that call oc_storage_write remain
@@ -129,6 +130,41 @@ void recording_swu_cb(oc_separate_response_t *response, size_t binary_size,
   r->block_len = block_len;
 }
 
+/*
+  Stand-in for a real application: it keeps its OWN byte counter and decides on
+  its own when the package is complete. The stack only counts bytes for
+  GET /swu/pkgbytes, it never completes the download itself.
+*/
+struct SwuAppRec {
+  size_t announced_size = 0;
+  size_t own_received = 0;
+  int completions = 0;
+};
+void completing_swu_cb(oc_separate_response_t *response, size_t binary_size,
+                       size_t block_offset, const uint8_t *block_data,
+                       size_t block_len, void *data)
+{
+  (void)response;
+  (void)block_offset;
+  (void)block_data;
+  auto *r = static_cast<SwuAppRec *>(data);
+  // the total size is only carried by the first block of a download
+  if (binary_size > 0 && r->announced_size == 0) {
+    r->announced_size = binary_size;
+    r->own_received = 0;
+  }
+  r->own_received += block_len;
+  if (r->announced_size > 0 && r->own_received >= r->announced_size) {
+    // application detected completion by its own counting, it owns the transition
+    oc_swu_set_package_name("firmware.bin");
+    oc_swu_set_package_version(0, 0, 2);
+    oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+    r->completions++;
+    r->announced_size = 0;
+    r->own_received = 0;
+  }
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -196,6 +232,45 @@ static bool payload_contains(const RespCtx &ctx, const char *needle)
     if (memcmp(ctx.buf + i, needle, needle_len) == 0) {
       return true;
     }
+  }
+  return false;
+}
+
+/*
+  Minimal decoder for the '{1: <unsigned>}' CBOR map that the integer GET
+  handlers of oc_knx_swu.c produce. Only the fixed layout 0xA1 0x01 <uint> is
+  supported, which is enough to assert on the returned numbers without pulling
+  in a full CBOR parser.
+*/
+static bool cbor_get_i_uint(const RespCtx &ctx, uint32_t *out)
+{
+  // as in payload_contains(): response_length is not always filled in by the handlers
+  size_t len = static_cast<size_t>(ctx.response_buffer.response_length);
+  if (len == 0 || len > sizeof(ctx.buf)) {
+    len = sizeof(ctx.buf);
+  }
+  // the root object is encoded either as a definite (0xA1) or indefinite (0xBF) length map
+  if (len < 3 || (ctx.buf[0] != 0xA1 && ctx.buf[0] != 0xBF) || ctx.buf[1] != 0x01) {
+    return false;
+  }
+  const uint8_t head = ctx.buf[2];
+  if (head <= 0x17) {
+    *out = head;
+    return true;
+  }
+  if (head == 0x18 && len >= 4) {
+    *out = ctx.buf[3];
+    return true;
+  }
+  if (head == 0x19 && len >= 5) {
+    *out = static_cast<uint32_t>(ctx.buf[3]) << 8 | ctx.buf[4];
+    return true;
+  }
+  if (head == 0x1A && len >= 7) {
+    *out = static_cast<uint32_t>(ctx.buf[3]) << 24 |
+           static_cast<uint32_t>(ctx.buf[4]) << 16 |
+           static_cast<uint32_t>(ctx.buf[5]) << 8 | ctx.buf[6];
+    return true;
   }
   return false;
 }
@@ -746,6 +821,242 @@ TEST_F(KnxSwuABlock, CallbackFastPathReturnsChanged)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.block_len, sizeof(data));
+}
+
+// ===========================================================================
+// /a/swu PUT handler: download state machine, see the (A)/(B) blocks in the
+// header of api/oc_knx_swu.c
+// ===========================================================================
+class KnxSwuABlockStateMachine : public KnxSwuBase {
+protected:
+  SwuBlockRec rec;
+
+  void SetUp() override
+  {
+    KnxSwuBase::SetUp();
+    oc_set_swu_cb(recording_swu_cb, &rec);
+  }
+
+  // one /a/swu PUT carrying 'len' payload bytes, returns the response code
+  int put_block(const char *query, size_t len)
+  {
+    RespCtx ctx;
+    std::string q(query);
+    uint8_t data[32] = { 0 };
+    ctx.request.query = const_cast<char *>(q.c_str());
+    ctx.request.query_len = q.size();
+    ctx.request._payload = len > 0 ? data : nullptr;
+    ctx.request._payload_len = static_cast<int>(len);
+    invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+    return ctx.code();
+  }
+
+  uint32_t read_state()
+  {
+    RespCtx ctx;
+    invoke_get(core_resource_knx_swu_state, ctx, APPLICATION_CBOR);
+    uint32_t value = 0xFFFFFFFF;
+    EXPECT_TRUE(cbor_get_i_uint(ctx, &value));
+    return value;
+  }
+
+  uint32_t read_pkgbytes()
+  {
+    RespCtx ctx;
+    invoke_get(core_resource_knx_swu_pkgbytes, ctx, APPLICATION_CBOR);
+    uint32_t value = 0xFFFFFFFF;
+    EXPECT_TRUE(cbor_get_i_uint(ctx, &value));
+    return value;
+  }
+};
+
+// (A) the first block with payload moves IDLE -> DOWNLOADING
+TEST_F(KnxSwuABlockStateMachine, FirstBlockStartsDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=64", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+}
+
+// (A-1) stale metadata of an interrupted download is cleared on the first block
+TEST_F(KnxSwuABlockStateMachine, FirstBlockClearsStaleMetadata)
+{
+  oc_swu_set_package_name("stale-firmware.bin");
+  oc_swu_set_package_version(9, 9, 9);
+
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=64", 8), oc_status_code(OC_STATUS_CHANGED));
+
+  // the package name is only exposed in DOWNLOADED state, so let the application complete
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+  RespCtx name;
+  invoke_get(core_resource_knx_swu_pkgnames, name, APPLICATION_CBOR);
+  EXPECT_EQ(name.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_FALSE(payload_contains(name, "stale-firmware.bin"));
+}
+
+// (A) an empty first PUT does not start a download, the state stays IDLE
+TEST_F(KnxSwuABlockStateMachine, EmptyPayloadDoesNotStartDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=64", 0), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_IDLE));
+}
+
+// (B-0) the stack counts the received bytes over all blocks of a download
+TEST_F(KnxSwuABlockStateMachine, ReceivedBytesAccumulateOverBlocks)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 16u);
+  EXPECT_EQ(put_block("po=16&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 24u);
+}
+
+// (B-0) GET /swu/pkgbytes only reports a value while DOWNLOADING
+TEST_F(KnxSwuABlockStateMachine, ReceivedBytesOnlyReportedWhileDownloading)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+  // the application signals completion, afterwards the counter is not exposed
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+  EXPECT_EQ(read_pkgbytes(), 0u);
+}
+
+// (B-0) a restart of the download resets the byte counter
+TEST_F(KnxSwuABlockStateMachine, NewDownloadResetsReceivedBytes)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+  // application aborted the previous attempt
+  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+}
+
+// (B-3) the block is forwarded with the query values of its own request
+TEST_F(KnxSwuABlockStateMachine, BlockIsForwardedWithQueryValues)
+{
+  EXPECT_EQ(put_block("po=32&ps=8&pkgs=64", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.binary_size, 64u);
+  EXPECT_EQ(rec.block_offset, 32u);
+  EXPECT_EQ(rec.block_len, 8u);
+}
+
+// (C) the stack does NOT complete the download, that is up to the application
+TEST_F(KnxSwuABlockStateMachine, StackDoesNotTransitionToDownloaded)
+{
+  // a single block already carries the full package
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  // even when more bytes than announced arrive
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+}
+
+/*
+  (B-0)/(C) division of labour on completion detection: the stack counts the
+  received bytes (exposed via GET /swu/pkgbytes) but draws no conclusion from
+  the counter. The application counts in parallel inside its own callback and
+  is the only one that declares the download finished.
+*/
+class KnxSwuABlockAppCompletion : public KnxSwuBase {
+protected:
+  SwuAppRec app;
+
+  void SetUp() override
+  {
+    KnxSwuBase::SetUp();
+    oc_set_swu_cb(completing_swu_cb, &app);
+  }
+
+  int put_block(const char *query, size_t len)
+  {
+    RespCtx ctx;
+    std::string q(query);
+    uint8_t data[32] = { 0 };
+    ctx.request.query = const_cast<char *>(q.c_str());
+    ctx.request.query_len = q.size();
+    ctx.request._payload = len > 0 ? data : nullptr;
+    ctx.request._payload_len = static_cast<int>(len);
+    invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
+    return ctx.code();
+  }
+
+  uint32_t read_state()
+  {
+    RespCtx ctx;
+    invoke_get(core_resource_knx_swu_state, ctx, APPLICATION_CBOR);
+    uint32_t value = 0xFFFFFFFF;
+    EXPECT_TRUE(cbor_get_i_uint(ctx, &value));
+    return value;
+  }
+};
+
+// the download stays open until the application itself declares it complete
+TEST_F(KnxSwuABlockAppCompletion, ApplicationCompletesTheDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(app.completions, 0);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(app.completions, 0);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+
+  // last block: the application counted 24 of 24 bytes and completes the download
+  EXPECT_EQ(put_block("po=16&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(app.completions, 1);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADED));
+}
+
+/*
+  The stack counter and the application counter agree, but only the application
+  acts on it: after completion the package metadata it set is readable, which
+  the stack never writes on its own.
+*/
+TEST_F(KnxSwuABlockAppCompletion, StackCounterMatchesApplicationCounter)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=16", 8), oc_status_code(OC_STATUS_CHANGED));
+  RespCtx bytes;
+  invoke_get(core_resource_knx_swu_pkgbytes, bytes, APPLICATION_CBOR);
+  uint32_t stack_count = 0;
+  ASSERT_TRUE(cbor_get_i_uint(bytes, &stack_count));
+  EXPECT_EQ(stack_count, 8u);
+  EXPECT_EQ(app.own_received, 8u);
+
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(app.completions, 1);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADED));
+
+  RespCtx name;
+  invoke_get(core_resource_knx_swu_pkgnames, name, APPLICATION_CBOR);
+  EXPECT_EQ(name.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(name, "firmware.bin"));
+}
+
+// only the application-owned transition unlocks PUT /swu/update
+TEST_F(KnxSwuABlockAppCompletion, UpdateIsRejectedUntilApplicationCompletes)
+{
+  UpgradeRec rec;
+  oc_set_swu_upgrade_cb(recording_upgrade_cb, &rec);
+  // a partial download leaves the device in DOWNLOADING, /swu/update must be refused
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=16", 8), oc_status_code(OC_STATUS_CHANGED));
+  RespCtx early;
+  oc_rep_t early_rep;
+  set_int_payload(early, early_rep, 0);
+  invoke_put(core_resource_knx_swu_update, early, APPLICATION_CBOR);
+  EXPECT_EQ(early.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
+
+  // the application detects completion and only then the upgrade can be triggered
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(app.completions, 1);
+  RespCtx late;
+  oc_rep_t late_rep;
+  set_int_payload(late, late_rep, 0);
+  invoke_put(core_resource_knx_swu_update, late, APPLICATION_CBOR);
+  EXPECT_EQ(late.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
 }
 
 // ===========================================================================

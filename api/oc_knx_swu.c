@@ -33,9 +33,7 @@ extern const oc_resource_t core_resource_sub;
 
 /*
   - static, but not const, since values are changed at runtime 
-  - all members not listed here are zero initialized (static storage duration),
-    e.g.; state = OC_SWU_STATE_IDLE, result = OC_SWU_RESULT_INIT, protocol = CoAP,
-    received_pkg_bytes/current_defer = 0, pkg_version = 0.0.0 and all strings are empty
+  - not listed members are zero initialized (static storage duration), e.g.; state = OC_SWU_STATE_IDLE, ...
 */
 static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack does not support PULL
 
@@ -45,28 +43,54 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
  * 
  * This file implements the KNX IoT Point API software update protocol (Section 4.2).
  * 
- * Architecture:
- * - Stack Layer (this file): Protocol state machine, download tracking, callback notification
- * - Application Layer: Device-specific upgrade logic, package metadata, version management
+ * ARCHITECTURE
+ * -------------
+ * Stack Layer (this file): Protocol state machine, download tracking, callback notification
+ * Application Layer (demos): Device-specific upgrade logic, package metadata, version management
+ *
+ * STATE MACHINE FLOW
+ * ------------------
+ * (A) IDLE         → DOWNLOADING
+ * (B) DOWNLOADING
+ * (C) DOWNLOADING  → DOWNLOADED
+ * (D) DOWNLOADED   → UPDATING
+ * (E) UPDATING     → IDLE
+ *
  * 
- * State Machine Flow:
- * 1. IDLE → DOWNLOADING: On first block received at /a/swu
- * 2. DOWNLOADING → DOWNLOADED: When all bytes received (received_pkg_bytes >= expected_pkg_size)
- * 3. DOWNLOADED → UPDATING: On PUT to /swu/update
- * 4. UPDATING → IDLE: After application completes upgrade (via callback)
- * 
- * Download Process:
- * - Blocks arrive at /a/swu with query parameters: pkgs (total size), po (offset), ps (size)
- * - Stack tracks progress via expected_pkg_size and received_pkg_bytes counter
- * - Application receives each block via swu_cb() callback
- * - Application detects completion and sets package metadata
- * 
- * Upgrade Process:
- * - PUT to /swu/update triggers upgrade
- * - Stack transitions to UPDATING state
- * - Stack notifies application via swu_upgrade_cb() callback
- * - Application performs upgrade, updates firmware version, sets result
- * - Application transitions back to IDLE when complete
+    (A) State Machine: IDLE -> DOWNLOADING
+        -   transition occurs when first block with data arrives
+        -   stack sets DOWNLOADING
+        -   resets byte counter, result, package size
+        -   stores the total package size from the 'pkgs' query parameter of this first PUT (KNX spec 4.3.3 = SHALL),
+            in subsequent requests 'pkgs' is ignored (SHALL)
+        (1) clears package metadata (name, version) from a possible interrupted download 
+            (application was not reset it since 'upgrade call' was failing)
+
+    (B) State Machine: DOWNLOADING
+        (0) counts received bytes for a GET /swu/pkgbytes
+        (1) prepare separate response as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path)
+        (3) forwards arrived block at /a/swu with query parameters: pkgs (total size), po (offset), ps (size),
+            via swu_cb() callbackforward block for application specific handling (e.g., write to flash, file system, or buffer) with,
+            - total package size
+            - block offset
+            - block data
+            - block length
+
+        Application is responsible to detect completion, set state to DOWNLOADED and sets package metadata etc.
+
+     (D) State Machine: DOWNLOADED -> UPDATING
+        - transition occurs when MaC calls PUT on /swu/update (MaC must wait to complete before triggering upgrade)
+        - stack sets UPDATING from DOWNLOADED
+        - stack notifies application via swu_upgrade_cb() callback
+        
+        Application is responsible to:
+        - respect defer_time (delay before starting upgrade)
+        - apply firmware from downloaded package
+        - verify firmware integrity
+        - update device firmware version: oc_core_set_and_store_device_fwv()
+        - set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
+        - complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
+
  */
 
 static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -371,7 +395,7 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  // only accessible in DOWNLOADED state (KNX IoT spec), MAC must wait to complete before triggering upgrade
+  // (D) only accessible in DOWNLOADED state, MaC must wait to complete before triggering upgrade
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     const oc_rep_t* rep = request->request_payload;
@@ -385,20 +409,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       swu_device.state = OC_SWU_STATE_UPDATING;
       OC_DBG("SWU state: DOWNLOADED -> UPDATING");
       
-      /* 
-        Notify application to perform device-specific upgrade
-        - Application responsibilities:
-        - 1. Respect defer_time (delay before starting upgrade)
-        - 2. Apply firmware from downloaded package
-        - 3. Verify firmware integrity
-        - 4. Update device firmware version: oc_core_set_and_store_device_fwv()
-        - 5. Set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
-        - 6. Complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
-      */
-      
       // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
       const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();
 
+      // call
       swu_upgrade_cb->cb(swu_device.current_defer, swu_upgrade_cb->data);
       
       // send immediate response (upgrade happens asynchronously in application)
@@ -579,53 +593,33 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block byte size   : %d", ps_block_size);
   OC_DBG("block byte offset : %d", po_block_offset);
 
-  /*
-    State Machine: IDLE -> DOWNLOADING
-    - transition occurs when first block with data arrives
-    - resets byte counter to 0
-    - resets result to INIT (clear any previous download status)
-    - stores the total package size from the 'pkgs' query parameter of this first PUT (KNX spec 4.3.3 = SHALL),
-      in subsequent requests 'pkgs' is ignored (SHALL)
-    - clears package metadata (name, version) from previous download
-  */
+  // (A)
   if (swu_device.state == OC_SWU_STATE_IDLE && request->_payload_len > 0)
   {
-    // reset for new download (cleanup stale state)
+    // (A-1)
     swu_device.state = OC_SWU_STATE_DOWNLOADING;
     swu_device.received_pkg_bytes = 0;
     swu_device.result = OC_SWU_RESULT_INIT;
     swu_device.expected_pkg_size = pkgs_package_size;
-
-    // clear package metadata from previous download
     oc_swu_set_package_name("");
     oc_swu_set_package_version(0, 0, 0);
 
     OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %u", swu_device.expected_pkg_size);
   }
 
-  /*
-    State Machine: DOWNLOADING
-    - update download progress counter, stack tracks total bytes received across all blocks
-    
-    - prepare separate response, see below
-      as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path)
-    
-    - forward block for application specific handling (e.g., write to flash, file system, or buffer) with,
-      - total package size 
-      - block offset
-      - block data
-      - block length
   
-  */
+  // (B-0) 
   swu_device.received_pkg_bytes += request->_payload_len;
   OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
 
   // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
+  // (B-1)
   oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
   memset(sep_response, 0, sizeof(oc_separate_response_t));
 
+  // (B-3)
   application_swu_cb->cb(sep_response, 
                          pkgs_package_size, 
                          po_block_offset, 
@@ -645,34 +639,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
   }
 
-  OC_DBG("oc_knx_swu_a_put_handler: callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
-
-  /*
-    State Machine: DOWNLOADING → DOWNLOADED
-    - transition is set by stack when all bytes have been received
-
-    Application Responsibility
-    - set package metadata 
-      - oc_swu_set_package_version - from package header or known version (for testing)
-      - oc_swu_set_package_name
-    - detect completion in parallel to stack
-      - from application_swu_cb->cb above when total_received += block_len > package size;
-
-    Stack Responsibility 
-    - from variables above when total_received += block_len > package size,
-      set state accordingly
-    - 
-
-  */
-  if (swu_device.expected_pkg_size > 0 && swu_device.received_pkg_bytes >= swu_device.expected_pkg_size && swu_device.state == OC_SWU_STATE_DOWNLOADING)
-  {
-    // mark download as complete
-    swu_device.state = OC_SWU_STATE_DOWNLOADED;
-    
-    OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %u bytes)", swu_device.received_pkg_bytes);
-
-  }
-
+  OC_DBG("callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
   OC_DBG("oc_knx_swu_a_put_handler - end");
 }
 
