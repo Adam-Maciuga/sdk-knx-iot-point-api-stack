@@ -381,8 +381,7 @@ static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void)
   return &g_swu_upgrade_handler;
 }
 
-// PUT handler for /swu/update - triggers the upgrade process
-// Called after package is fully downloaded (state == DOWNLOADED)
+// PUT handler for /swu/update - MaC triggers the upgrade process if package is fully downloaded
 static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -393,7 +392,7 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  // only accessible in DOWNLOADED state (per KNX IoT specification), client must wait for download to complete before triggering upgrade
+  // only accessible in DOWNLOADED state (KNX IoT spec), MAC must wait to complete before triggering upgrade
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     const oc_rep_t* rep = request->request_payload;
@@ -499,9 +498,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
     return;
   }
 
-  // Per KNX spec: "The version of the newly available software package
-  // if the State resource is in state downloaded.
-  // Otherwise, returns the response code '4.04 Not Found'."
+  // only accessible in DOWNLOADED state (KNX IoT spec)
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
@@ -600,9 +597,9 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     }
   }
 
-  OC_DBG("binary package byte size: %d", pkgs_package_size);
-  OC_DBG("block size: %d", ps_block_size);
-  OC_DBG("block offset: %d", po_block_offset);
+  OC_DBG("package byte size : %d", pkgs_package_size);
+  OC_DBG("block byte size   : %d", ps_block_size);
+  OC_DBG("block byte offset : %d", po_block_offset);
 
   /*
     State Machine: IDLE -> DOWNLOADING
@@ -689,8 +686,13 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     - set package metadata 
       - oc_swu_set_package_version - from package header or known version (for testing)
       - oc_swu_set_package_name
-    - detect completion in parallel
+    - detect completion in parallel to stack
       - from application_swu_cb->cb above when total_received += block_len > package size;
+
+    Stack Responsibility 
+    - from variables above when total_received += block_len > package size,
+      set state accordingly
+    - 
 
   */
   if (swu_device.expected_pkg_size > 0 && swu_device.received_pkg_bytes >= swu_device.expected_pkg_size && swu_device.state == OC_SWU_STATE_DOWNLOADING)
@@ -913,27 +915,22 @@ const oc_resource_t core_resource_knx_swu = {&core_resource_sub,
 
 void oc_create_knx_swu_resources(void)
 {
-  OC_DBG("oc_create_knx_swu_resources");
-
-  // set default values fro string (RAM) variables
+  // set default variables for other SWU resources 
+  swu_device.current_defer = 0;
+  swu_device.update_method = PUSH; 
+  
+  // exclude package name / last update (see below) 
+  
+  swu_device.received_pkg_bytes = 0;
+  swu_device.expected_pkg_size = 0;
+  swu_device.state = OC_SWU_STATE_IDLE;
+  swu_device.result = OC_SWU_RESULT_INIT;
+  swu_device.protocol = 0;
+  // exclude hwref, was already init by 'init stack' 
+  
+  // set default values for string (RAM) variables
   oc_swu_set_package_name("");
-
-  // free by default before set storage or manufacturing data
-  oc_free_string(&swu_device.last_update);
-
-  char last_update_buf[64] = "";
-  const long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
-  if (ret > 0) 
-  { // try to load last_update from storage (persists across reboots)
-    oc_new_string(&swu_device.last_update, last_update_buf, ret);
-  }
-  else
-  { // set device manufacturing date as default for last update (see Application Init/Startup)
-    const oc_device_info_t* device = oc_core_get_device_info();
-    oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
-  }
-
-  OC_DBG("Using %s date for last_update : %s", ret > 0 ? "manufacturing" : "storage", oc_string(swu_device.last_update));
+  oc_swu_read_last_update();
 }
 
 void oc_swu_set_package_name(const char* name)
@@ -949,6 +946,26 @@ void oc_swu_set_last_update(const char* time)
   
   // persist to storage so timestamp survives reboot
   oc_storage_write(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update), oc_string_len(swu_device.last_update));
+}
+
+void oc_swu_read_last_update(void)
+{
+  // free by default
+  oc_free_string(&swu_device.last_update);
+  
+  char last_update_buf[64] = "";
+  const long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
+  if (ret > 0)
+  { // try to load last_update from storage (persists across reboots)
+    oc_new_string(&swu_device.last_update, last_update_buf, ret);
+  }
+  else
+  { // set device manufacturing date as default for last update (see Application Init/Startup)
+    const oc_device_info_t* device = oc_core_get_device_info();
+    oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
+  }
+
+  OC_DBG("Using %s date for last_update : %s", ret > 0 ? "manufacturing" : "storage", oc_string(swu_device.last_update));
 }
 
 void oc_swu_set_hwref(const char* hwref)

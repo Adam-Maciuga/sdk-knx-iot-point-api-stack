@@ -108,6 +108,12 @@ extern "C" {
   void oc_swu_set_last_update(const char* time);
 
   /**
+   * @brief get the current last update time from storage and set it in the swu_device struct
+   *
+   */
+  void oc_swu_read_last_update(void);
+
+  /**
    * @brief set the current hw reference 
    *
    * @param hwref the hw reference 

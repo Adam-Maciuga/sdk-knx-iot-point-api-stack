@@ -282,6 +282,8 @@ int oc_main_init(const oc_handler_t* handler)
   OC_DBG("Stack initialized ...");
   initialized = true;
 
+  // TODO check in M callback by applicatiuon are NOT NULL
+
   return 0;
 }
 
