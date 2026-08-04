@@ -84,7 +84,7 @@ void oc_set_restart_cb(oc_restart_cb_t cb, void* data)
   app_restart.data = data;
 }
 
-oc_restart_t* oc_get_restart_cb(void)
+const oc_restart_t* oc_get_restart_cb(void)
 {
   return &app_restart;
 }
@@ -181,6 +181,11 @@ int oc_main_init(const oc_handler_t* handler)
     return 0;
   }
 
+  // assert mandatory application data (callbacks, ...), all was set by 'initialize stack' 
+  oc_assert(oc_get_swu_cb() && oc_get_swu_cb()->cb);                 // put a/swu callback
+  oc_assert(oc_get_swu_upgrade_cb() && oc_get_swu_upgrade_cb()->cb); // put swu/update callback
+  oc_assert(oc_get_restart_cb() && oc_get_restart_cb()->cb);         // post /.well-known/knx callback
+  
   // set application handlers
   app_callbacks = handler;
 
@@ -286,11 +291,6 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
   #endif
 
-  // assert mandatory application data (callbacks, ...) 
-  oc_assert(oc_get_swu_cb()->cb != NULL);         // put a/swu callback 
-  oc_assert(oc_get_swu_upgrade_cb()->cb != NULL); // put swu/update callback
-  oc_assert(oc_get_restart_cb()->cb != NULL);     // post /.well-known/knx callback
- 
   // add as last step to avoid half init's 
   OC_DBG("Stack initialized ...");
   initialized = true;

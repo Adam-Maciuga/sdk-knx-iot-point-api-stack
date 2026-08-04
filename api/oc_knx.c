@@ -255,12 +255,10 @@ static oc_event_callback_retval_t restart(void* context)
 
   oc_knx_device_restart();
 
-  // application restart callback handler
+  // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
   const oc_restart_t* my_restart = oc_get_restart_cb();
-  if (my_restart && my_restart->cb)
-  {
-    my_restart->cb(my_restart->data);
-  }
+  
+  my_restart->cb(my_restart->data);
 
   return OC_EVENT_DONE;
 }

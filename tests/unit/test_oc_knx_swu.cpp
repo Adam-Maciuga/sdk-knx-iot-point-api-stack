@@ -730,20 +730,6 @@ TEST_F(KnxSwuABlock, ValueIsNotReadBeyondItsLength)
   EXPECT_TRUE(rec.called);
 }
 
-TEST_F(KnxSwuABlock, NoCallbackReturnsNotImplemented)
-{
-  oc_set_swu_cb(nullptr, nullptr);  oc_swu_set_state(OC_SWU_STATE_IDLE);
-  RespCtx ctx;
-  char q[] = "po=1&ps=10";
-  ctx.request.query = q;
-  ctx.request.query_len = strlen(q);
-  uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-  ctx.request._payload = data;
-  ctx.request._payload_len = sizeof(data);
-  invoke_put(core_resource_knx_swu_pkgcmd, ctx, APPLICATION_OCTET_STREAM);
-  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_NOT_IMPLEMENTED));
-}
-
 TEST_F(KnxSwuABlock, CallbackFastPathReturnsChanged)
 {
   SwuBlockRec rec;

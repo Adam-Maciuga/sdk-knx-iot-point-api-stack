@@ -47,7 +47,7 @@ TEST(MainCallbacks, SwuSetThenGet)
   int sentinel = 0;
   auto cb = as_cb<oc_swu_cb_t>();
   oc_set_swu_cb(cb, &sentinel);
-  oc_swu_t *got = oc_get_swu_cb();
+  const oc_swu_t* got = oc_get_swu_cb();
   ASSERT_NE(nullptr, got);
   EXPECT_EQ(cb, got->cb);
   EXPECT_EQ(&sentinel, got->data);
@@ -80,7 +80,7 @@ TEST(MainCallbacks, RestartSetThenGet)
   int sentinel = 0;
   auto cb = as_cb<oc_restart_cb_t>();
   oc_set_restart_cb(cb, &sentinel);
-  oc_restart_t *got = oc_get_restart_cb();
+  const oc_restart_t* got = oc_get_restart_cb();
   ASSERT_NE(nullptr, got);
   EXPECT_EQ(cb, got->cb);
   EXPECT_EQ(&sentinel, got->data);

@@ -67,8 +67,10 @@ extern "C" {
    * @brief retrieve the restart info, e.g. the callback and callback data
    *
    * @return oc_restart_t* the restart data
+   *
+   * @note cannot be NULL, guaranteed by oc_main_init()
    */
-  oc_restart_t* oc_get_restart_cb(void);
+  const oc_restart_t* oc_get_restart_cb(void);
 
   /**
    * @brief The hostname info
@@ -153,6 +155,8 @@ extern "C" {
   * @brief retrieve the swu upgrade trigger info, e.g. the callback and callback data
   *
   * @return oc_swu_upgrade_t* the swu upgrade trigger info
+  *
+  * @note cannot be NULL, guaranteed by oc_main_init()
   */
   const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
 

@@ -396,11 +396,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
         - 6. Complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
       */
       
+      // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
       const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();
-      if (swu_upgrade_cb && swu_upgrade_cb->cb) 
-      {
-        swu_upgrade_cb->cb(swu_device.current_defer, swu_upgrade_cb->data);
-      }
+
+      swu_upgrade_cb->cb(swu_device.current_defer, swu_upgrade_cb->data);
       
       // send immediate response (upgrade happens asynchronously in application)
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
@@ -621,42 +620,33 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   swu_device.received_pkg_bytes += request->_payload_len;
   OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
 
+  // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
-  if (application_swu_cb && application_swu_cb->cb)
-  {
-    oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
-    memset(sep_response, 0, sizeof(oc_separate_response_t));
+  oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
+  memset(sep_response, 0, sizeof(oc_separate_response_t));
 
-    application_swu_cb->cb(sep_response, 
-                           pkgs_package_size, 
-                           po_block_offset, 
-                           request->_payload,
-                           request->_payload_len,
-                           application_swu_cb->data);
-    
-    /* 
-       Response Handling
+  application_swu_cb->cb(sep_response, 
+                         pkgs_package_size, 
+                         po_block_offset, 
+                         request->_payload,
+                         request->_payload_len,
+                         application_swu_cb->data);
 
-       check if swu application initiated delayed/separate response
-       - no : send piggybacked ACK 2.04 Changed (CoAP spec compliant for fast operations)
-       - yes: application is responsible for sending separate CON response later
-    
-    */
-    if (!sep_response->active)
-    { // no
-      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-    }
-    
-    OC_DBG("oc_knx_swu_a_put_handler: callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
+  /* 
+     Response Handling
 
+     check if swu application initiated delayed/separate response
+     - no : send piggybacked ACK 2.04 Changed (CoAP spec compliant for fast operations)
+     - yes: application is responsible for sending separate CON response later
+  */
+  if (!sep_response->active)
+  { // no
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
   }
-  else
-  { // no application callback registered
-    OC_ERR("SWU callback not registered - cannot process firmware blocks");
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_IMPLEMENTED);
-  }
-  
+
+  OC_DBG("oc_knx_swu_a_put_handler: callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
+
   /*
     State Machine: DOWNLOADING → DOWNLOADED
     - transition is set by stack when all bytes have been received
