@@ -2995,7 +2995,7 @@ enum scope
   SCOPE_SITE_LOCAL = 5,
 };
 
-static g_roi_t g_roi = {0, 0, false};
+static g_roi_t g_roi = {.got_idx = 0, .counter = 0, .net_up = false};
 
 static oc_event_callback_retval_t oc_init_read_next(void* data)
 {
@@ -3104,6 +3104,6 @@ void oc_init_datapoints_at_initialization(void)
   oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);
 
   // start staggered processing from the first GO table entry
-  g_roi = (g_roi_t){0, 0, false};
+  g_roi = (g_roi_t){.got_idx = 0, .counter = 0, .net_up = false};
   oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
 }

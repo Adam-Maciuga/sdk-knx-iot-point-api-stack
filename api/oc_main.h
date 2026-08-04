@@ -133,11 +133,28 @@ extern "C" {
   } oc_swu_t;
 
   /**
+   * @brief device swu 'update' trigger callback
+   */
+  typedef struct oc_swu_upgrade_t
+  {
+    oc_swu_upgrade_cb_t cb; // application callback for upgrade trigger
+    void* data;             // user context passed to callback
+  } oc_swu_upgrade_t;
+
+  /**
   * @brief retrieve the swu change info, e.g. the callback and callback data
   *
   * @return oc_swu_t* the swu info
   */
-  oc_swu_t* oc_get_swu_cb(void);
+  const oc_swu_t* oc_get_swu_cb(void);
+
+
+  /**
+  * @brief retrieve the swu upgrade trigger info, e.g. the callback and callback data
+  *
+  * @return oc_swu_upgrade_t* the swu upgrade trigger info
+  */
+  const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
 
   /**
    * @brief is main initialized

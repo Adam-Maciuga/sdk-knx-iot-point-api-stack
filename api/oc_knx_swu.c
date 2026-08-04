@@ -31,16 +31,6 @@ extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu;
 extern const oc_resource_t core_resource_sub;
 
-// callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
-typedef struct oc_swu_upgrade_t
-{
-  oc_swu_upgrade_cb_t cb; // application callback for upgrade trigger
-  void* data;             // user context passed to callback
-} oc_swu_upgrade_t;
-
-// forward declarations
-static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
-
 /*
   - static, but not const, since values are changed at runtime 
   - all members not listed here are zero initialized (static storage duration),
@@ -48,7 +38,7 @@ static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
     received_pkg_bytes/current_defer = 0, pkg_version = 0.0.0 and all strings are empty
 */
 static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack does not support PULL
-static oc_swu_upgrade_t g_swu_upgrade_handler = {.cb = NULL, .data = NULL};
+
 
 /*
  * Software Update (SWU) Implementation
@@ -368,18 +358,7 @@ const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update
                                                    &core_resource_knx_swu_state_data};
 
 
-// application registers upgrade callback before oc_main_init()
-void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data)
-{
-  g_swu_upgrade_handler.cb = cb;
-  g_swu_upgrade_handler.data = data;
-}
 
-// internal getter for callback (used by PUT /swu/update handler)
-static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void)
-{
-  return &g_swu_upgrade_handler;
-}
 
 // PUT handler for /swu/update - MaC triggers the upgrade process if package is fully downloaded
 static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)

@@ -30,13 +30,15 @@ static bool* drop_commands;
 static bool initialized = false;  
 
 static const oc_handler_t* app_callbacks;
-static oc_factory_presets_t app_factory_presets = { NULL, NULL };       
-static oc_reset_t app_reset = { NULL, NULL };                       
-static oc_restart_t app_restart = { NULL, NULL };
-static oc_hostname_t app_hostname = { NULL, NULL };
-static oc_programming_mode_t app_programming_mode = { NULL, NULL };
-static oc_loadstate_t app_loadstate = { NULL, NULL };
-static oc_swu_t app_swu = { NULL, NULL };
+static oc_factory_presets_t app_factory_presets = {.cb = NULL, .data = NULL};       
+static oc_reset_t app_reset = {.cb = NULL, .data = NULL};                       
+static oc_restart_t app_restart = {.cb = NULL, .data = NULL};
+static oc_hostname_t app_hostname = {.cb = NULL, .data = NULL};
+static oc_programming_mode_t app_programming_mode = {.cb = NULL, .data = NULL};
+static oc_loadstate_t app_loadstate = {.cb = NULL, .data = NULL};
+static oc_swu_t app_swu = {.cb = NULL, .data = NULL};
+static oc_swu_upgrade_t g_swu_upgrade_handler = {.cb = NULL, .data = NULL};
+
 
 void oc_set_swu_cb(const oc_swu_cb_t cb, void* data)
 {
@@ -44,10 +46,15 @@ void oc_set_swu_cb(const oc_swu_cb_t cb, void* data)
   app_swu.data = data;
 }
 
-oc_swu_t* oc_get_swu_cb(void)
+const oc_swu_t* oc_get_swu_cb(void) { return &app_swu; }
+
+void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data)
 {
-  return &app_swu;
+  g_swu_upgrade_handler.cb = cb;
+  g_swu_upgrade_handler.data = data;
 }
+
+const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void) { return &g_swu_upgrade_handler; }
 
 void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void* data)
 {
@@ -236,13 +243,15 @@ int oc_main_init(const oc_handler_t* handler)
   }
   #endif 
 
-  /* NOTE: The post-init steps below (group-multicast registration, the
-   * read-on-init datapoint reads and the DNS-SD registration) assume the
-   * network is already up. On the Zephyr Wi-Fi reorder the stack initializes
-   * before Wi-Fi is associated, so they run with no link and are (re)done by
-   * the NETWORK_INTERFACE_UP handler instead. Whether to gate or skip these
-   * here when not connected is still open.
-   * TODO: Discuss gating these on a connected check. */
+  /* 
+    NOTE: The post-init steps below (group-multicast registration, the
+    read-on-init datapoint reads and the DNS-SD registration) assume the
+    network is already up. On the Zephyr Wi-Fi reorder the stack initializes
+    before Wi-Fi is associated, so they run with no link.
+    - some may be (re)done by the NETWORK_INTERFACE_UP handler instead
+    - read-on-init datapoint checks NETWORK_INTERFACE_UP for a decent period of time 
+     
+   */
 
   #ifdef OC_SERVER
   // listen to the group addresses multicasts that are registered in the PUB table
@@ -253,7 +262,7 @@ int oc_main_init(const oc_handler_t* handler)
      Synchronously populate the endpoint list so the mDNS announcement
      can include AAAA records.  
      
-     - oc_connectivity_init() only starts the  network thread; the endpoints are 
+     - oc_connectivity_init() only starts the network thread; the endpoints are 
        not yet enumerated at this point
 
      - dns-sd updates are scheduled here (stack init) but also on interface up events (oc_network_interface_up) 
@@ -277,12 +286,14 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
   #endif
 
+  // assert mandatory application data (callbacks, ...) 
+  oc_assert(oc_get_swu_cb()->cb != NULL);         // put a/swu callback 
+  oc_assert(oc_get_swu_upgrade_cb()->cb != NULL); // put swu/update callback
+  oc_assert(oc_get_restart_cb()->cb != NULL);     // post /.well-known/knx callback
  
   // add as last step to avoid half init's 
   OC_DBG("Stack initialized ...");
   initialized = true;
-
-  // TODO check in M callback by applicatiuon are NOT NULL
 
   return 0;
 }
@@ -305,13 +316,15 @@ void oc_main_shutdown(void)
 
   initialized = false;
 
-  /* Stop the DNS-SD service advertisement before tearing down networking.
-   * On the mDNS transports (Wi-Fi, Linux, Windows) this sends the goodbye, stops
-   * the listener thread, and closes the socket. On Zephyr Thread the SRP teardown
-   * is done instead (currently a stub). */
+  /*
+     Stop the DNS-SD service advertisement before tearing down networking.
+     On the mDNS transports (Wi-Fi, Linux, Windows) this sends the goodbye, stops
+     the listener thread, and closes the socket. On Zephyr Thread the SRP teardown
+     is done instead (currently a stub). 
+   */
   knx_dns_sd_stop();
 
-  /* Send MLD leave messages for all registered multicast groups */
+  // drop registered multicast groups 
   oc_unregister_group_multicasts();
 
   oc_ri_shutdown();
