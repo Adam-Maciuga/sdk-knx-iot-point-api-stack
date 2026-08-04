@@ -181,11 +181,17 @@ int oc_main_init(const oc_handler_t* handler)
     return 0;
   }
 
-  // assert mandatory application data (callbacks, ...), all was set by 'initialize stack' 
-  oc_assert(oc_get_swu_cb() && oc_get_swu_cb()->cb);                 // put a/swu callback
-  oc_assert(oc_get_swu_upgrade_cb() && oc_get_swu_upgrade_cb()->cb); // put swu/update callback
-  oc_assert(oc_get_restart_cb() && oc_get_restart_cb()->cb);         // post /.well-known/knx callback
-  
+  /* 
+     assert mandatory application data (callbacks, ...), all was set by 'initialize stack' 
+     note: the getters return the address of a file-static struct and can therefore never be NULL
+  */
+  const bool mandatory_callbacks_defined = 
+    oc_get_swu_cb()->cb &&          // put a/swu callback
+    oc_get_swu_upgrade_cb()->cb &&  // put swu/update callback
+    oc_get_restart_cb()->cb;        // post /.well-known/knx callback
+
+  oc_assert(mandatory_callbacks_defined);                 
+
   // set application handlers
   app_callbacks = handler;
 
