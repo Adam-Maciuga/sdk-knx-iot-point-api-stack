@@ -108,4 +108,4 @@ void oc_clock_wait(oc_clock_time_t t);
 }
 #endif
 
-#endif /* OC_CLOCK_H */
+#endif 
