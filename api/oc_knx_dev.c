@@ -829,7 +829,8 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
   {
     if (rep->type == OC_REP_INT) 
     {
-      if (rep->iname == 1) {
+      if (rep->iname == 1) 
+      {
         OC_INF("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_fid(rep->value.integer)) 

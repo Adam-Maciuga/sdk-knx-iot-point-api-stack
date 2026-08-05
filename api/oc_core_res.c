@@ -75,8 +75,8 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
 
 int oc_core_set_device_hwt(const char* hardware_type)
 {
-  // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value
-  const bool all_ok = hardware_type && strlen(hardware_type) == 12 && oc_charstream_validate_is_upper(hardware_type);
+  // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value with MSB = '0' (see KNX specification)
+  const bool all_ok = hardware_type && strlen(hardware_type) == 12 && oc_charstream_validate_is_upper(hardware_type) && hardware_type[0] == '0';
   // oc_assert(all_ok == true); // EITT default test tamplate data does not follow the rules
 
   // caller MUST ensure above conditions and keep the string valid for the device lifetime
@@ -87,7 +87,7 @@ int oc_core_set_device_hwt(const char* hardware_type)
 
 int oc_core_set_device_model(const char* model)
 {
-  // fails if NULL, not below/equal len
+  // fails if NULL, not below/equal len (see KNX specification)
   const bool all_ok = model && strlen(model) <= 10;
   // oc_assert(all_ok == true); // EITT default test tamplate data does not follow the rules
   
@@ -159,7 +159,6 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
   {
     oc_device_info.fid = fid;
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
-
     return true;
   }
   return false;
