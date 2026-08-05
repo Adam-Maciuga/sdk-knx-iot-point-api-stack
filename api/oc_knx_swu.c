@@ -42,31 +42,31 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
  * Software Update (SWU) Implementation
  * 
  * This file implements the KNX IoT Point API software update protocol (Section 4.2).
+ * Works in conjunction with the application layer, notes for the application see in stack.
  * 
  * ARCHITECTURE
  * -------------
- * Stack Layer (this file): Protocol state machine, download tracking, callback notification
- * Application Layer (demos): Device-specific upgrade logic, package metadata, version management
+ * Stack Layer (this file): protocol state machine, download tracking, callback notification
+ * Application Layer (demos): device-specific upgrade logic, package metadata, version management
  *
  * STATE MACHINE FLOW
  * ------------------
  * (A) IDLE         → DOWNLOADING
- * (B) DOWNLOADING
+ * (B) DOWNLOADING  → DOWNLOADING
  * (C) DOWNLOADING  → DOWNLOADED
  * (D) DOWNLOADED   → UPDATING
  * (E) UPDATING     → IDLE
  *
  * 
     (A) State Machine: IDLE -> DOWNLOADING
-        -   transition occurs when first block with data arrives
-        -   stack sets DOWNLOADING
+        -   triggered on first block with data arrives, stack sets DOWNLOADING
         -   resets byte counter, result, package size
         -   stores the total package size from the 'pkgs' query parameter of this first PUT (KNX spec 4.3.3 = SHALL),
             in subsequent requests 'pkgs' is ignored (SHALL)
         (1) clears package metadata (name, version) from a possible interrupted download 
-            (application was not reset it since 'upgrade call' was failing)
+            (application may not reset it, since the 'upgrade call' was failing)
 
-    (B) State Machine: DOWNLOADING
+    (B) State Machine: DOWNLOADING -> DOWNLOADING
         (0) counts received bytes for a GET /swu/pkgbytes
         (1) prepare separate response as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path)
         (3) forwards arrived block at /a/swu with query parameters: pkgs (total size), po (offset), ps (size),
@@ -76,20 +76,16 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
             - block data
             - block length
 
-        Application is responsible to detect completion, set state to DOWNLOADED and sets package metadata etc.
+        Application is responsible to detect completion and set state to DOWNLOADED (C) and
+        more, see Application Layer (demos).
 
      (D) State Machine: DOWNLOADED -> UPDATING
-        - transition occurs when MaC calls PUT on /swu/update (MaC must wait to complete before triggering upgrade)
-        - stack sets UPDATING from DOWNLOADED
+        - triggered when MaC calls PUT on /swu/update, stack sets UPDATING 
+          (MaC must wait to complete before triggering upgrade)
         - stack notifies application via swu_upgrade_cb() callback
         
-        Application is responsible to:
-        - respect defer_time (delay before starting upgrade)
-        - apply firmware from downloaded package
-        - verify firmware integrity
-        - update device firmware version: oc_core_set_and_store_device_fwv()
-        - set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
-        - complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
+        Application is responsible to apply firmware and set state to OC_SWU_STATE_IDLE (E) and more,
+        more, see Application Layer (demos).
 
  */
 
@@ -607,15 +603,14 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %u", swu_device.expected_pkg_size);
   }
 
-  
-  // (B-0) 
+  // (B-0), counts also in case the payload len is zero (misbehaving MaC)
   swu_device.received_pkg_bytes += request->_payload_len;
   OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
 
   // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
-  // (B-1)
+  // (B-1), calls also in case the payload len is zero (misbehaving MaC)
   oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
   memset(sep_response, 0, sizeof(oc_separate_response_t));
 
