@@ -1001,6 +1001,72 @@ TEST_F(KnxSwuABlockStateMachine, StackDoesNotTransitionToDownloaded)
 }
 
 /*
+  (A) the MaC never follows up with PUT /swu/update after the application declared
+  the package DOWNLOADED, the device must not be stuck: a fresh download starts
+*/
+TEST_F(KnxSwuABlockStateMachine, MissingUpdateCallDoesNotBlockNextDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+  oc_swu_set_package_name("stale-firmware.bin");
+
+  // /swu/update is never issued, the MaC simply restarts the transfer
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=16", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+
+  // the stale metadata of the abandoned package is gone
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+  RespCtx name;
+  invoke_get(core_resource_knx_swu_pkgnames, name, APPLICATION_CBOR);
+  EXPECT_EQ(name.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_FALSE(payload_contains(name, "stale-firmware.bin"));
+}
+
+/*
+  (A)/(E) the upgrade was triggered but the application never returned to IDLE
+  (failed or aborted upgrade), a new download must still be possible
+*/
+TEST_F(KnxSwuABlockStateMachine, RestartAfterFailedUpdateFromUpdatingState)
+{
+  UpgradeRec upgrade;
+  oc_set_swu_upgrade_cb(recording_upgrade_cb, &upgrade);
+
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+
+  RespCtx update;
+  oc_rep_t update_rep;
+  set_int_payload(update, update_rep, 0);
+  invoke_put(core_resource_knx_swu_update, update, APPLICATION_CBOR);
+  EXPECT_EQ(update.code(), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(upgrade.called);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_UPDATING));
+
+  // the upgrade failed and the device stays in UPDATING, the MaC retries with a new download
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+}
+
+// (D) a repeated PUT /swu/update after the upgrade already started is refused
+TEST_F(KnxSwuABlockStateMachine, UpdateIsRefusedWhileUpdating)
+{
+  UpgradeRec upgrade;
+  oc_set_swu_upgrade_cb(recording_upgrade_cb, &upgrade);
+
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  oc_swu_set_state(OC_SWU_STATE_UPDATING);
+
+  RespCtx again;
+  oc_rep_t again_rep;
+  set_int_payload(again, again_rep, 0);
+  invoke_put(core_resource_knx_swu_update, again, APPLICATION_CBOR);
+  EXPECT_EQ(again.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(upgrade.called);
+}
+
+/*
   (B-0)/(C) division of labour on completion detection: the stack counts the
   received bytes (exposed via GET /swu/pkgbytes) but draws no conclusion from
   the counter. The application counts in parallel inside its own callback and
