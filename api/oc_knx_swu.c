@@ -37,9 +37,8 @@ extern const oc_resource_t core_resource_sub;
 */
 static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack does not support PULL
 
-
 /*
- * Software Update (SWU) Implementation
+ * Software Update (SWU) Implementation (KNX IoT Specification, Clause 4.3.5  Figure 33)
  * 
  * This file implements the KNX IoT Point API software update protocol (Section 4.2).
  * Works in conjunction with the application layer, notes for the application see in stack.
@@ -49,7 +48,7 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
  * Stack Layer (this file): protocol state machine, download tracking, callback notification
  * Application Layer (demos): device-specific upgrade logic, package metadata, version management
  *
- * STATE MACHINE FLOW
+ * STATE MACHINE FLOW (Happy Path)
  * ------------------
  * (A) IDLE         → DOWNLOADING
  * (B) DOWNLOADING  → DOWNLOADING
@@ -63,14 +62,16 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
         -   resets byte counter, result, package size
         -   stores the total package size from the 'pkgs' query parameter of this first PUT (KNX spec 4.3.3 = SHALL),
             in subsequent requests 'pkgs' is ignored (SHALL)
-        (1) clears package metadata (name, version) from a possible interrupted download 
-            (application may not reset it, since the 'upgrade call' was failing)
+        (1) preparation
+            - clears package metadata (name, version) from a possible interrupted download 
+              (application may not reset it, since the 'upgrade call' was failing)
+            - resets the result to INIT (0), see KNX IoT specification 4.2, Table 56
 
     (B) State Machine: DOWNLOADING -> DOWNLOADING
         (0) counts received bytes for a GET /swu/pkgbytes
         (1) prepare separate response as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path)
         (3) forwards arrived block at /a/swu with query parameters: pkgs (total size), po (offset), ps (size),
-            via swu_cb() callbackforward block for application specific handling (e.g., write to flash, file system, or buffer) with,
+            via swu_cb() callback forward block for application specific handling (e.g., write to flash, file system, or buffer) with,
             - total package size
             - block offset
             - block data
@@ -82,6 +83,7 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
      (D) State Machine: DOWNLOADED -> UPDATING
         - triggered when MaC calls PUT on /swu/update, stack sets UPDATING 
           (MaC must wait to complete before triggering upgrade)
+        - resets the result to INIT (0), see KNX IoT specification 4.2, Table 56
         - stack notifies application via swu_upgrade_cb() callback
         
         Application is responsible to apply firmware and set state to OC_SWU_STATE_IDLE (E) and more,
@@ -401,10 +403,12 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       // payload contains defer time in seconds from MaC, device can delay upgrade to finish current operations
       swu_device.current_defer = rep->value.integer >= 0 ? (uint16_t)rep->value.integer : 0;
       
-      // state transition: DOWNLOADED → UPDATING, stack manages this transition, application manages UPDATING → IDLE
+      // state transition
       swu_device.state = OC_SWU_STATE_UPDATING;
-      OC_DBG("SWU state: DOWNLOADED -> UPDATING");
-      
+
+      // (D) reset result to INIT
+      swu_device.result = OC_SWU_RESULT_INIT;
+
       // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
       const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();
 
@@ -413,6 +417,8 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       
       // send immediate response (upgrade happens asynchronously in application)
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+
+      OC_DBG("SWU state: DOWNLOADED -> UPDATING");
       return;
     }
   }
@@ -442,7 +448,6 @@ static void oc_knx_swu_update_get_handler(oc_request_t* request, oc_interface_ma
       hence also '4.00 Bad Request' is returned
 
   */
-
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
@@ -589,52 +594,80 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block byte size   : %d", ps_block_size);
   OC_DBG("block byte offset : %d", po_block_offset);
 
-  // (A)
-  if (swu_device.state == OC_SWU_STATE_IDLE && request->_payload_len > 0)
-  {
-    // (A-1)
-    swu_device.state = OC_SWU_STATE_DOWNLOADING;
-    swu_device.received_pkg_bytes = 0;
-    swu_device.result = OC_SWU_RESULT_INIT;
-    swu_device.expected_pkg_size = pkgs_package_size;
-    oc_swu_set_package_name("");
-    oc_swu_set_package_version(0, 0, 0);
-
-    OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %u", swu_device.expected_pkg_size);
-  }
-
-  // (B-0), counts also in case the payload len is zero (misbehaving MaC)
-  swu_device.received_pkg_bytes += request->_payload_len;
-  OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
-
-  // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
-  const oc_swu_t* application_swu_cb = oc_get_swu_cb();
-
-  // (B-1), calls also in case the payload len is zero (misbehaving MaC)
-  oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
-  memset(sep_response, 0, sizeof(oc_separate_response_t));
-
-  // (B-3)
-  application_swu_cb->cb(sep_response, 
-                         pkgs_package_size, 
-                         po_block_offset, 
-                         request->_payload,
-                         request->_payload_len,
-                         application_swu_cb->data);
-
   /* 
-     Response Handling
-
-     check if swu application initiated delayed/separate response
-     - no : send piggybacked ACK 2.04 Changed (CoAP spec compliant for fast operations)
-     - yes: application is responsible for sending separate CON response later
+     prevent calls with no payload:
+     - it would not add any new info for the application callback
+     - any previous call with a non-zero payload would have turned the state to DOWNLOADED 
+       if the entire blob was transferred (so a zero payload would be a no-op, but still trigger the callback)
   */
-  if (!sep_response->active)
-  { // no
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+  if (request->_payload_len > 0)
+  {
+    /*
+      correct an interrupted download before starting a new one
+      - if a MaC user cancels a download and (re)starts it, the state machine is still somewhere (usually DOWNLOADING)
+      - identify it by po_block_offset=0 (really 0 or 'po=' is absent)
+    */
+    if (po_block_offset == 0 && swu_device.state != OC_SWU_STATE_IDLE)
+    {
+      OC_WRN("SWU state: %d -> IDLE (interrupted download, starting fresh download)", swu_device.state);
+      swu_device.state = OC_SWU_STATE_IDLE;
+    }
+    
+    // (A) - process only IDLE state (falls also through from above if it was reset to IDLE)
+    if (swu_device.state == OC_SWU_STATE_IDLE)
+    {
+      // (A-1)
+      swu_device.state = OC_SWU_STATE_DOWNLOADING;
+      swu_device.received_pkg_bytes = 0;
+      swu_device.result = OC_SWU_RESULT_INIT;
+      swu_device.expected_pkg_size = pkgs_package_size;
+      oc_swu_set_package_name("");
+      oc_swu_set_package_version(0, 0, 0);
+
+      OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %u", swu_device.expected_pkg_size);
+    }
+    
+    // (B) - process only DOWNLOADING state (incl. coming directly from IDLE), prevent misbehaving application that sets wrong states
+    if (swu_device.state == OC_SWU_STATE_DOWNLOADING)
+    {
+      oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
+      memset(sep_response, 0, sizeof(oc_separate_response_t));
+      
+      // (B-0), counts only payload len > 0 (ignore misbehaving MaC)
+      swu_device.received_pkg_bytes += request->_payload_len;
+      OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
+
+      // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
+      const oc_swu_t* application_swu_cb = oc_get_swu_cb();
+
+      // (B-3)
+      application_swu_cb->cb(sep_response, pkgs_package_size, po_block_offset, request->_payload, request->_payload_len, application_swu_cb->data);
+
+      /*
+         Response Handling
+
+         check if swu application initiated delayed/separate response
+         - no : send piggybacked ACK 2.04 Changed (CoAP spec compliant for fast operations)
+         - yes: application is responsible for sending separate CON response later
+      */
+      if (!sep_response->active)
+      { // no
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+      }
+
+      OC_DBG("callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
+      OC_DBG("oc_knx_swu_a_put_handler - end");
+      return;
+    }
   }
 
-  OC_DBG("callback initiated delayed %s response", sep_response->active ? "delayed separate" : "immediate piggybacked");
+  /*
+    the block could not be processed, either because it carries no payload or because the state machine
+    is not in IDLE/DOWNLOADING, so the MaC sent a block that cannot be accepted at this point in time
+  */
+  OC_ERR("block not processed (payload length %u, state %d)", (uint32_t)request->_payload_len, swu_device.state);
+  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+
   OC_DBG("oc_knx_swu_a_put_handler - end");
 }
 

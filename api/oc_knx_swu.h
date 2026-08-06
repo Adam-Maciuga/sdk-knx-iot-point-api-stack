@@ -56,7 +56,7 @@ extern "C" {
   */
   typedef enum
   {
-    OC_SWU_RESULT_INIT = 0,  /**< 0 Initial value. Once the updating process is initiated (Download/Update), this Resource MUST be reset to Initial value. */
+    OC_SWU_RESULT_INIT = 0,  /**< 0 Initial value. Once the updating process is initiated (Downloading/Updating), this Resource MUST be reset to Initial value. */
     OC_SWU_RESULT_SUCCESS,   /**< 1 Software updated successfully.*/
     OC_SWU_RESULT_ERR_FLASH, /**< 2 Not enough flash memory for the new software package.*/
     OC_SWU_RESULT_ERR_RAM,   /**< 3 Out of RAM during downloading process*/

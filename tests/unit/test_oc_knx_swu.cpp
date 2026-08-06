@@ -893,10 +893,10 @@ TEST_F(KnxSwuABlockStateMachine, FirstBlockClearsStaleMetadata)
   EXPECT_FALSE(payload_contains(name, "stale-firmware.bin"));
 }
 
-// (A) an empty first PUT does not start a download, the state stays IDLE
+// (A) an empty first PUT does not start a download, the state stays IDLE and the block is rejected
 TEST_F(KnxSwuABlockStateMachine, EmptyPayloadDoesNotStartDownload)
 {
-  EXPECT_EQ(put_block("po=0&ps=8&pkgs=64", 0), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=64", 0), oc_status_code(OC_STATUS_BAD_REQUEST));
   EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_IDLE));
 }
 
@@ -940,6 +940,53 @@ TEST_F(KnxSwuABlockStateMachine, BlockIsForwardedWithQueryValues)
   EXPECT_EQ(rec.binary_size, 64u);
   EXPECT_EQ(rec.block_offset, 32u);
   EXPECT_EQ(rec.block_len, 8u);
+}
+
+// (A) a block with offset 0 while a download is still running restarts that download
+TEST_F(KnxSwuABlockStateMachine, OffsetZeroRestartsInterruptedDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 16u);
+
+  // the MaC user cancelled and restarts, without the application returning to IDLE
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+}
+
+// (A) a missing 'po' query parameter defaults to offset 0 and therefore also restarts the download
+TEST_F(KnxSwuABlockStateMachine, MissingOffsetRestartsInterruptedDownload)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 16u);
+
+  EXPECT_EQ(put_block("ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+}
+
+// (A) a block with offset 0 after the application completed the download starts a new one
+TEST_F(KnxSwuABlockStateMachine, OffsetZeroRestartsAfterDownloaded)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+}
+
+// (A) a continuation block (offset != 0) arriving outside DOWNLOADING is rejected, it cannot be placed
+TEST_F(KnxSwuABlockStateMachine, ContinuationBlockOutsideDownloadingIsRejected)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+
+  rec.called = false;
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADED));
 }
 
 // (C) the stack does NOT complete the download, that is up to the application
