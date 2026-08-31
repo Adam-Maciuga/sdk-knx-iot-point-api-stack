@@ -208,3 +208,56 @@ Bugs and issues discovered during unit test development.
   literal, pinning the bounded read) and the 18-case `KnxSwuABlockInvalidQuery` suite. The full runtime
   suite is green at 347 passed / 5 skipped, exercising the pagination, discovery, observe, SWU-block and
   wildcard paths against a live DUT over CoAP/OSCORE.
+
+## F-012: ~~DNS-SD service instance advertised without a TXT record (RFC 6763 clause 6 violation)~~ - RESOLVED
+
+- **File:** `port/dns-sd_mdns.c` (`send_announcement`, `send_query_response`, `send_srv_response`,
+  `mdns_query_callback`) and the vendored mDNS library patched by `port/mdns.patch`.
+- **Severity:** High - the device was undiscoverable by any RFC 6763 conformant client, including
+  the standard `zeroconf` Python library and, by extension, the EITT-style discovery tests.
+- **Found by:** `test_5_1_discovery_mdns.py` - five deterministic failures
+  (`test_5_1_2_1_srv_resolution`, `test_5_1_2_1_aaaa_resolution`, `test_5_1_2_2_full_chain_configured`,
+  `test_5_1_2_3_ia_full_chain`, `test_5_1_2_4_pm_full_chain`), all failing at
+  `_verify_discovery_chain` with `Could not resolve service info for <sn>._knx._udp.local.`
+- **Description:** The responder emitted a TXT record **only** when a non-zero sleep period was
+  configured (`knx.sp != 0`). A normal, non-sleepy device therefore advertised PTR, SRV and AAAA
+  records but no TXT record at all, and answered no TXT queries. RFC 6763 clause 6 states that
+  *every* DNS-SD service instance must have a TXT record, using a single zero-length string when
+  there is no key/value data to convey.
+- **Why it surfaced only now:** `tests/runtime/requirements.txt` pinned `zeroconf>=0.100.0` with no
+  upper bound, so every CI and Docker run installed the newest release from PyPI. Version 0.151.3
+  tightened `ServiceInfo._is_complete` to `bool(self._txt_seen and (ipv4 or ipv6))`, enforcing the
+  RFC 6763 clause 6 requirement. Older versions considered an instance complete without a TXT
+  record, which masked the defect. The stack behaviour did not change - the library stopped
+  tolerating it. Three plausible but wrong hypotheses were eliminated by controlled re-runs first
+  (a recent 5000ms to 3000ms discovery timeout reduction, and the CI-only
+  `OC_DEBUG_ENABLED`/`OC_PRINT_ENABLED` build flags); both reproduced the failure identically,
+  which is the signature of a missing record rather than a slow or build-dependent one.
+- **Spec tension:** KNX IoT clause 2.6.1.2.4 describes the TXT record content as optional and
+  clause 2.6.1.2.4.1 reserves the `SP` key exclusively for sleepy devices, while clause 2.6.1.2.1
+  incorporates RFC 6763 by reference, which mandates the record itself. Synthesising an `SP` value
+  for a non-sleepy device would violate 2.6.1.2.4.1, so the only spec-legal resolution is to emit
+  the RFC 6763 clause 6.1 *empty* TXT record: one 0x00 byte, no `=` separator.
+- **Resolution:** A TXT record for the service instance is now emitted unconditionally - carrying
+  `SP=<seconds>` when `knx.sp != 0` and the empty TXT record otherwise. It is included in
+  announcements, in solicited PTR query responses and as an additional record on SRV responses so a
+  client can complete the SRV -> AAAA -> TXT chain from a single packet. `MDNS_RECORDTYPE_TXT` was
+  added to the accepted query-type filter and a new `send_txt_response()` answers direct TXT and ANY
+  queries for the instance name. A third hunk in `port/mdns.patch` teaches
+  `mdns_answer_add_txt_record()` to encode a zero-length string when both key and value are empty,
+  instead of unconditionally writing `key` `=` `value`.
+- **Latent defect fixed along the way:** `sp_str` was declared *inside* the `if (knx.sp != 0)`
+  block while `mdns_record_t` stores only a pointer to it, so the record referenced a buffer whose
+  scope had already ended by the time the packet was serialised. The buffer is now declared at
+  function scope.
+- **Masked by CI:** both runtime jobs in `.gitlab-ci.yml` (`linux-runtime-test` and
+  `linux-runtime-test-asan`) carry `allow_failure: true`, so these five failures still produced a
+  green pipeline badge. The badge is not evidence that the runtime suite passed.
+- **Verification:** the mDNS discovery file went from 5 failed / 27 passed to **32 passed, 0
+  failed**, and the wider `5_1` slice from 5 failed / 125 passed to **130 passed, 0 failed**. No
+  test expectations were modified. The `state_sync` snapshot tests, which assert exact TXT/SP
+  content, still report `sp=None` for a non-sleepy device, confirming the empty TXT record is parsed
+  as *absence of an SP key* rather than as a spurious value, while `sp='300'` is still observed
+  after setting a sleep period. `tests/runtime/requirements.txt` now pins
+  `zeroconf>=0.151.3,<1.0` so the conformance level being tested against is explicit and the same
+  silent drift cannot recur.

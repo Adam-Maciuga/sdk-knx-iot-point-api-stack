@@ -3,7 +3,7 @@
 > **1312 unit tests** (53 files) + **352 runtime tests** (17 files) = **1664 total**
 >
 > Branch: `work_in_progress` | Unit: 1312 registered and passed (windows-test-gcc, GCC/CTest, ~44s, 100% passed out of 1312).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 813.84s) - fully green. This run verified the base-16 parser split and the tightened base-10 length bounds. See "Last runtime run status" at the end of Part 2.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 814.53s) - fully green. This run verified the DNS-SD TXT record conformance fix (RFC 6763 clause 6) together with the `zeroconf>=0.151.3` pin. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -1410,7 +1410,29 @@ and `test_5_2_swu.py` (6 -> 10).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 including uncommitted changes via `-IncludeUncommitted`):
-**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 813.84s) - fully green.
+**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 814.53s) - fully green.
+
+This run was the first complete verification of the DNS-SD TXT record conformance
+fix. Before the fix, five tests in `test_5_1_discovery_mdns.py` failed
+deterministically (`test_5_1_2_1_srv_resolution`, `test_5_1_2_1_aaaa_resolution`,
+`test_5_1_2_2_full_chain_configured`, `test_5_1_2_3_ia_full_chain`,
+`test_5_1_2_4_pm_full_chain`), all with
+`Could not resolve service info for <sn>._knx._udp.local.`. The cause was not a
+code regression: `tests/runtime/requirements.txt` pinned `zeroconf>=0.100.0` with
+no upper bound, so runs silently picked up 0.151.3, which enforces RFC 6763
+clause 6 by requiring a TXT record before a service is considered resolvable. The
+DUT only emitted a TXT record when a sleep period was configured. The responder
+now always emits one - `SP=<seconds>` when sleepy, otherwise the RFC 6763
+clause 6.1 empty TXT record - and `requirements.txt` pins
+`zeroconf>=0.151.3,<1.0`. See F-012 in `tests/FINDINGS.md`.
+
+Measured progression: the mDNS discovery file went from 5 failed / 27 passed to
+**32 passed, 0 failed** (391.06s), and the wider `5_1` slice from 5 failed / 125
+passed to **130 passed, 0 failed** (459.31s), before this full-suite run. No test
+expectations were changed. The `state_sync` snapshot tests still report
+`sp=None` for a non-sleepy device and `sp='300'` after a sleep period is set,
+confirming the empty TXT record is read as absence of an `SP` key rather than as
+a spurious value.
 
 Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
 multicast-provisioning path), the full `test_5_4_observe.py` module, and

@@ -110,9 +110,10 @@ static ip_context_t *get_ip_context_for_device(void)
 
   // Advertise the real bound CoAP port from the unicast IPv6 endpoint. CONFIG_KNX_UNICAST_PORT is deliberately not used as it may be 0/ephemeral. The first match is sufficient.
   ctx.port = 0;
-  for (oc_endpoint_t *ep = knx_eps_head; ep; ep = ep->next)
+  for (const oc_endpoint_t *ep = knx_eps_head; ep; ep = ep->next)
   {
-    if ((ep->flags & IPV6) && !(ep->flags & (MULTICAST | SECURED | TCP)))
+    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
     {
       ctx.port = ep->addr.ipv6.port;
       break;
@@ -311,9 +312,8 @@ static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
   const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
   while (ep && count < MAX_IF_INDICES)
   {
-    if (ep->flags & IPV6
-        && !(ep->flags & (MULTICAST | SECURED | TCP))
-        && ep->interface_index > 0)
+    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6 && ep->interface_index > 0)
     {
       const unsigned int idx = (unsigned int)ep->interface_index;
       bool already = false;
@@ -338,36 +338,37 @@ static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
 }
 
 /*
- * Populate out[] with AAAA records for every unicast IPv6 endpoint, binding
- * each record's name to hostname/hostname_len.
- * Returns the number of records written into out[] (0..MAX_AAAA_RECORDS).
+  Populate out[] with AAAA records for every unicast IPv6 endpoint, binding
+  each record's name to hostname/hostname_len.
+ 
+  - returns the number of records written into out[] (0...MAX_AAAA_RECORDS)
+  - parameter 'out' must be preallocated AND wiped with zero with at least MAX_AAAA_RECORDS elements
  */
-static int collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS],
-                                const char *hostname, size_t hostname_len)
+static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const char *hostname, size_t hostname_len)
 {
-  int count = 0;
   const ip_context_t *ctx = get_ip_context_for_device();
+
   if (!ctx)
   {
     return 0;
   }
+
+  uint16_t count = 0;
+
   const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
   while (ep && count < MAX_AAAA_RECORDS)
   {
-    // pick non-multicast, non-secure, non-TCP IPv6 endpoints (unicast server)
-    if (ep->flags & IPV6 && !(ep->flags & (MULTICAST | SECURED | TCP)))
+    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
     {
+      // note that 'out' is wiped with zero before calling this function, so we can safely set the fields we need and leave the rest zeroed
+
       out[count].name.str    = hostname;
       out[count].name.length = hostname_len;
       out[count].type        = MDNS_RECORDTYPE_AAAA;
-
-      // wipe socket
-      memset(&out[count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
-
-      // set socket properties family, ipv6, port
       out[count].data.aaaa.addr.sin6_family = AF_INET6;
+      out[count].data.aaaa.addr.sin6_port   = htons(ep->addr.ipv6.port);
       memcpy(&out[count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
-      out[count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
 
       count++;
     }
@@ -416,8 +417,8 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     .data.ptr.name.length = instance_len
   };
 
-  // Additional records (max 10: SRV + up to 4 AAAA + 3 subtype PTRs + TXT) 
-  mdns_record_t additional[6 + MAX_AAAA_RECORDS] = {0};
+  // Additional records (max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT) 
+  mdns_record_t additional[5 + MAX_AAAA_RECORDS] = {0};
 
   // SRV 
   additional[0].name.str = instance_name;
@@ -428,42 +429,9 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   additional[0].data.srv.port = port;
   additional[0].data.srv.name.str = hostname;
   additional[0].data.srv.name.length = hostname_len;
-  
-  size_t add_count = 1;
 
-  // AAAA records
-  const ip_context_t *ctx = get_ip_context_for_device();
-  if (ctx) 
-  {
-    const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
-    int aaaa_count = 0;
-    
-    while (ep && aaaa_count < MAX_AAAA_RECORDS) 
-    {
-      // pick non-multicast, non-secure, non-TCP IPv6 endpoints (unicast server) 
-      if (ep->flags & IPV6 && !(ep->flags & (MULTICAST | SECURED | TCP))) 
-      {
-        additional[add_count].name.str = hostname;
-        additional[add_count].name.length = hostname_len;
-        additional[add_count].type = MDNS_RECORDTYPE_AAAA;
-        
-        // wipe socket
-        memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
-
-        // set socket properties family, ipv6, port
-        additional[add_count].data.aaaa.addr.sin6_family = AF_INET6;
-        memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
-        additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
-        
-        add_count++;  // next additional record 1..5
-        aaaa_count++; // max AAAA records
-      }
-
-      ep = ep->next;
-    }
-
-    OC_DBG("DNS-SD: %d IPv6 endpoints found for AAAA records", aaaa_count);
-  }
+  // AAAA records: fills at most MAX_AAAA_RECORDS entries from SRV ( = 1 ) onwards
+  uint16_t add_count = 1 + collect_aaaa_records(&additional[1], hostname, hostname_len);
 
   // subtype PTR: serial number 
   additional[add_count].name.str = sub_sn;
@@ -481,7 +449,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
-  // Subtype PTR: programming mode (conditional) 
+  // subtype PTR: programming mode (conditional) 
   if (record->knx.pm) 
   {
     additional[add_count].name.str = sub_pm;
@@ -492,30 +460,46 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     add_count++;
   }
 
-  // TXT: optional SP=<seconds> (conditional) 
-  if (record->knx.sp != 0) 
+  /*
+    TXT: always advertise a TXT record for the service instance.
+    RFC 6763 clause 6.1 requires every DNS-SD service instance to have a TXT record; strict clients
+    treat an instance without one as unresolvable. KNX IoT clause 2.6.1.2.4 makes TXT content
+    optional, and clause 2.6.1.2.4.1 reserves 'SP' for sleepy devices, so a non-sleepy device
+    advertises an empty TXT record (encoded as a single zero-length string) instead.
+    The buffer must live until the record is serialised below, so it is declared in this scope.
+  */
+  
+  // uint16_t max = 65535 (5 digits) + NUL terminator
+  char sp_str[5 + 1] = { 0 };
+
+  additional[add_count].name.str = instance_name;
+  additional[add_count].name.length = instance_len;
+  additional[add_count].type = MDNS_RECORDTYPE_TXT;
+
+  if (record->knx.sp != 0)
   {
-    // uint16_t max = 65535 (5 digits) + NUL terminator
-    char sp_str[5 + 1];
+    // we have a non-empty string
     (void)snprintf(sp_str, sizeof(sp_str), "%d", record->knx.sp);
-    
-    // we have a non-empty string 
-    additional[add_count].name.str = instance_name;
-    additional[add_count].name.length = instance_len;
-    additional[add_count].type = MDNS_RECORDTYPE_TXT;
+
     additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
     additional[add_count].data.txt.value.str = sp_str;
     additional[add_count].data.txt.value.length = strlen(sp_str);
-    add_count++;
+  }
+  else
+  {
+    // empty key and value -> RFC 6763 clause 6.1 empty TXT record
+    additional[add_count].data.txt.key.str = additional[add_count].data.txt.value.str = "";
+    additional[add_count].data.txt.key.length = additional[add_count].data.txt.value.length = 0;
   }
 
+  add_count++;
+
   /*
-   * Send multicast on every IPv6 interface.
-   * Collect unique interface indices from the endpoint list,
-   * then send the announcement once per interface via IPV6_MULTICAST_IF.
-   * This ensures the packet reaches all local network segments.
-   */
+    Send multicast on every IPv6 interface. Collect unique interface indices from the endpoint list,
+    then send the announcement once per interface via IPV6_MULTICAST_IF. This ensures the packet 
+    reaches all local network segments.
+  */
   
   // collect unique unicast IPv6 interface indices
   unsigned int if_indices[MAX_IF_INDICES];
@@ -550,7 +534,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
 
     OC_DBG("DNS-SD: mDNS %s %s on interface %u (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)", 
            goodbye ? "goodbye" : "announce",
-           ret < 0 ? "failed" : "succeeded",
+           ret < 0 ? "failed"  : "succeeded",
            if_indices[iface_idx], port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
 
     // latch failure, once an interface fails, summary stays -1
@@ -608,13 +592,19 @@ static int open_mdns_listen_socket_ipv6(void)
   ip_context_t *ctx = get_ip_context_for_device();
   if (ctx) 
   {
-    oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
-    // Collect unique interface indices
+    const oc_endpoint_t *ep = (const oc_endpoint_t *)oc_list_head(ctx->eps);
+    
+    // collect unique interface indices
     unsigned int tried[MAX_IF_INDICES];
     int tried_count = 0;
     while (ep && tried_count < MAX_IF_INDICES) 
     {
-      if (ep->flags & IPV6 && !(ep->flags & MULTICAST) && ep->interface_index > 0) 
+      /*
+        Pick ipv6, non-multicast endpoints -> collect their interface index.
+        SECURED and TCP are deliberately not filtered here: only the interface index is used, and that is a property of the NIC,
+        not of the transport. Excluding them could drop an interface that carries no plaintext UDP endpoint.
+      */
+      if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && ep->interface_index > 0) 
       {
         const unsigned int idx = (unsigned int)ep->interface_index;
         bool dup = false;
@@ -848,14 +838,14 @@ static int send_query_response(int sock, const char *ptr_name)
 
     while (ep && aaaa_count < MAX_AAAA_RECORDS)
     {
-      // pick non-multicast, non-secure, non-TCP IPv6 endpoints (unicast server)
-      if (ep->flags & IPV6 && !(ep->flags & (MULTICAST | SECURED | TCP)))
+      // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
+      if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
       {
         additional[add_count].name.str = hostname;
         additional[add_count].name.length = hostname_len;
         additional[add_count].type = MDNS_RECORDTYPE_AAAA;
 
-        // wipe socket
+        // wipe entire socket (flow info, scope id, etc.)
         memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
 
         // set socket properties family, ipv6, port
@@ -863,8 +853,8 @@ static int send_query_response(int sock, const char *ptr_name)
         memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
         additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
 
-        add_count++;  // next additional record 1..5
-        aaaa_count++; // max AAAA records
+        add_count++;   // next additional record 1..5
+        aaaa_count++;  // max AAAA records
       }
 
       ep = ep->next;
@@ -901,24 +891,42 @@ static int send_query_response(int sock, const char *ptr_name)
     add_count++;
   }
 
-  // TXT: optional SP=<seconds> (conditional) 
-  if (current_advertisement.knx.sp != 0) 
+  /*
+    TXT: always advertise a TXT record for the service instance.
+    RFC 6763 clause 6.1 requires every DNS-SD service instance to have a TXT record; strict clients
+    treat an instance without one as unresolvable. KNX IoT clause 2.6.1.2.4 makes TXT content
+    optional, and clause 2.6.1.2.4.1 reserves 'SP' for sleepy devices, so a non-sleepy device
+    advertises an empty TXT record (encoded as a single zero-length string) instead.
+    The buffer must live until the record is serialised below, so it is declared in this scope.
+  */
+  
+  // uint16_t max = 65535 (5 digits) + NUL terminator
+  char sp_str[5 + 1] = { 0 };
+
+  additional[add_count].name.str = instance_name;
+  additional[add_count].name.length = instance_len;
+  additional[add_count].type = MDNS_RECORDTYPE_TXT;
+
+  if (current_advertisement.knx.sp != 0)
   {
     // we have a non-zero sleep period
-
-    // uint16_t max = 65535 (5 digits) + NUL terminator
-    char sp_str[5 + 1];
     (void) snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
 
-    additional[add_count].name.str = instance_name;
-    additional[add_count].name.length = instance_len;
-    additional[add_count].type = MDNS_RECORDTYPE_TXT;
     additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
     additional[add_count].data.txt.value.str = sp_str;
     additional[add_count].data.txt.value.length = strlen(sp_str);
-    add_count++;
   }
+  else
+  {
+    // empty key and value -> RFC 6763 clause 6.1 empty TXT record
+    additional[add_count].data.txt.key.str = "";
+    additional[add_count].data.txt.key.length = 0;
+    additional[add_count].data.txt.value.str = "";
+    additional[add_count].data.txt.value.length = 0;
+  }
+
+  add_count++;
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
@@ -950,7 +958,7 @@ static int send_srv_response(int sock)
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
   const size_t hostname_len = strlen(hostname);
 
-  // port
+  // Port
   const uint16_t port = knx_dns_sd_get_used_port();
 
   // SRV {instance}._knx._udp.local. -> knx-{sn}.local. : port
@@ -966,9 +974,14 @@ static int send_srv_response(int sock)
     .data.srv.name.length = hostname_len
   };
 
-  // collect all AAAA records
-  mdns_record_t aaaa_records[MAX_AAAA_RECORDS] = {0};
-  const int aaaa_count = collect_aaaa_records(aaaa_records, hostname, hostname_len);
+  /*
+    Additional records: the AAAA addresses followed by ONE (= + 1) TXT record for the instance.
+    Including TXT here lets a client complete SRV -> AAAA -> TXT resolution from a single
+    response, as RFC 6763 clause 6.1 requires a TXT record for every service instance.
+    The trailing slot after the AAAA records is reserved for the TXT record.
+  */
+  mdns_record_t additional[MAX_AAAA_RECORDS + 1] = {0};
+  uint16_t add_count = collect_aaaa_records(additional, hostname, hostname_len);
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
@@ -977,13 +990,34 @@ static int send_srv_response(int sock)
   char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
   #endif
 
-  // first the answer; then remaining AAAA records (if any)
-  const mdns_record_t* add_ptr = aaaa_count > 0 ? aaaa_records : NULL;
-  const size_t add_count       = aaaa_count;
-  
+  // uint16_t max = 65535 (5 digits) + NUL terminator
+  char sp_str[5 + 1] = { 0 };
+
+  additional[add_count].name.str = instance_name;
+  additional[add_count].name.length = instance_len;
+  additional[add_count].type = MDNS_RECORDTYPE_TXT;
+
+  if (current_advertisement.knx.sp != 0)
+  {
+    (void)snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
+
+    additional[add_count].data.txt.key.str = "SP";
+    additional[add_count].data.txt.key.length = 2;
+    additional[add_count].data.txt.value.str = sp_str;
+    additional[add_count].data.txt.value.length = strlen(sp_str);
+  }
+  else
+  {
+    // empty key and value -> RFC 6763 clause 6.1 empty TXT record
+    additional[add_count].data.txt.key.str = additional[add_count].data.txt.value.str = "";
+    additional[add_count].data.txt.key.length = additional[add_count].data.txt.value.length = 0;
+  }
+
+  add_count++;
+
   return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
                                      answer, NULL, 0,
-                                     add_ptr, add_count);
+                                     additional, add_count);
 }
 
 /**
@@ -1001,7 +1035,7 @@ static int send_aaaa_response(int sock)
 
   // collect all AAAA records
   mdns_record_t aaaa_records[MAX_AAAA_RECORDS] = {0};
-  const int aaaa_count = collect_aaaa_records(aaaa_records, hostname, hostname_len);
+  const uint16_t aaaa_count = collect_aaaa_records(aaaa_records, hostname, hostname_len);
 
   if (aaaa_count == 0)
   {
@@ -1021,11 +1055,59 @@ static int send_aaaa_response(int sock)
 
   // first AAAA is the answer; remaining ones (if any) go in additional
   const mdns_record_t *add_ptr = aaaa_count > 1 ? &aaaa_records[1] : NULL;
-  const size_t add_count       = aaaa_count - 1; // 1 -> 0, 2 -> 1, ...
+  const size_t add_count       = aaaa_count - 1; // 1 -> 0, 2 -> 1, ... (cant be zero, see above)
 
   return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
                                         answer, NULL, 0,
                                         add_ptr, add_count);
+}
+
+/**
+ * @brief Send a TXT answer for our service instance.
+ *
+ * Answer: TXT {instance}._knx._udp.local. -> "SP=<value>" for a sleepy device, otherwise the
+ *         RFC 6763 clause 6.1 empty TXT record.
+ */
+static int send_txt_response(int sock)
+{
+  // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
+  char instance_name[MAX_MDNS_RECORD_SIZE];
+  (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
+
+  // uint16_t max = 65535 (5 digits) + NUL terminator
+  char sp_str[5 + 1] = { 0 };
+
+  mdns_record_t answer = {0};
+  answer.name.str = instance_name;
+  answer.name.length = strlen(instance_name);
+  answer.type = MDNS_RECORDTYPE_TXT;
+
+  if (current_advertisement.knx.sp != 0)
+  {
+    (void)snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
+
+    answer.data.txt.key.str = "SP";
+    answer.data.txt.key.length = 2;
+    answer.data.txt.value.str = sp_str;
+    answer.data.txt.value.length = strlen(sp_str);
+  }
+  else
+  {
+    // empty key and value -> RFC 6763 clause 6.1 empty TXT record
+    answer.data.txt.key.str = answer.data.txt.value.str = "";
+    answer.data.txt.key.length = answer.data.txt.value.length = 0;
+  }
+
+  // use a stack buffer for the response
+  #ifdef _MSC_VER
+  __declspec(align(4)) char resp_buf[MDNS_BUF_SIZE];
+  #else
+  char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  #endif
+
+  return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
+                                     answer, NULL, 0,
+                                     NULL, 0);
 }
 
 /**
@@ -1039,6 +1121,7 @@ static int send_aaaa_response(int sock)
  *   - PTR/ANY queries for _ia<iid>-<ia>._sub._knx._udp.local. (IA browse)
  *   - SRV/ANY queries for <sn>._knx._udp.local. (instance → hostname+port)
  *   - AAAA/ANY queries for knx-<sn>.local. (hostname → IPv6 address)
+ *   - TXT/ANY queries for <sn>._knx._udp.local. (instance → TXT record)
  */
 static int mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
                                mdns_entry_type_t entry, uint16_t query_id,
@@ -1080,6 +1163,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   if (rtype != MDNS_RECORDTYPE_PTR 
       && rtype != MDNS_RECORDTYPE_SRV
       && rtype != MDNS_RECORDTYPE_AAAA 
+      && rtype != MDNS_RECORDTYPE_TXT
       && rtype != MDNS_RECORDTYPE_ANY)
   {
     return 0;
@@ -1223,6 +1307,25 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       else
       {
         OC_INF("DNS-SD: AAAA answer sent for %s.", hostname);
+      }
+      return 0;
+    }
+  }
+
+  // ---- 4. TXT / ANY: instance name -> TXT record ----
+  if (rtype == MDNS_RECORDTYPE_TXT || rtype == MDNS_RECORDTYPE_ANY)
+  {
+    if (dns_name_equal(qname, qstr.length, instance_name, strlen(instance_name)))
+    {
+      OC_INF("DNS-SD: Received TXT query for %s.", instance_name);
+      ret = send_txt_response(sock);
+      if (ret < 0)
+      {
+        OC_ERR("DNS-SD: Failed to send TXT answer (ret=%d)!", ret);
+      }
+      else
+      {
+        OC_INF("DNS-SD: TXT answer sent for %s.", instance_name);
       }
       return 0;
     }
