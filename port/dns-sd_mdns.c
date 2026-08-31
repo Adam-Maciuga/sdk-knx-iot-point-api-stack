@@ -814,8 +814,8 @@ static int send_query_response(int sock, const char *ptr_name)
     .data.ptr.name.length = instance_len
   };
 
-  // Additional records (max 10: SRV + up to 4 AAAA + 3 subtype PTRs + TXT) 
-  mdns_record_t additional[6 + MAX_AAAA_RECORDS] = {0};
+  // Additional records (max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT) 
+  mdns_record_t additional[5 + MAX_AAAA_RECORDS] = {0};
 
   // SRV
   additional[0].name.str = instance_name;
@@ -827,42 +827,8 @@ static int send_query_response(int sock, const char *ptr_name)
   additional[0].data.srv.name.str = hostname;
   additional[0].data.srv.name.length = hostname_len;
  
-  size_t add_count = 1;
-
-  // AAAA records
-  const ip_context_t *ctx = get_ip_context_for_device();
-  if (ctx)
-  {
-    const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
-    int aaaa_count = 0;
-
-    while (ep && aaaa_count < MAX_AAAA_RECORDS)
-    {
-      // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
-      if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
-      {
-        additional[add_count].name.str = hostname;
-        additional[add_count].name.length = hostname_len;
-        additional[add_count].type = MDNS_RECORDTYPE_AAAA;
-
-        // wipe entire socket (flow info, scope id, etc.)
-        memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
-
-        // set socket properties family, ipv6, port
-        additional[add_count].data.aaaa.addr.sin6_family = AF_INET6;
-        memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
-        additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
-
-        add_count++;   // next additional record 1..5
-        aaaa_count++;  // max AAAA records
-      }
-
-      ep = ep->next;
-    }
-
-    OC_DBG("DNS-SD: %d IPv6 endpoints found for AAAA records", aaaa_count);
-  }
-  
+  // AAAA records: fills at most MAX_AAAA_RECORDS entries from SRV ( = 1 ) onwards
+  uint16_t add_count = 1 + collect_aaaa_records(&additional[1], hostname, hostname_len);
 
   // subtype PTR: serial number 
   additional[add_count].name.str = sub_sn;
@@ -920,10 +886,8 @@ static int send_query_response(int sock, const char *ptr_name)
   else
   {
     // empty key and value -> RFC 6763 clause 6.1 empty TXT record
-    additional[add_count].data.txt.key.str = "";
-    additional[add_count].data.txt.key.length = 0;
-    additional[add_count].data.txt.value.str = "";
-    additional[add_count].data.txt.value.length = 0;
+    additional[add_count].data.txt.key.str = additional[add_count].data.txt.value.str = "";
+    additional[add_count].data.txt.key.length = additional[add_count].data.txt.value.length = 0;
   }
 
   add_count++;
