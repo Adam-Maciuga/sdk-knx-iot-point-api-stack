@@ -182,6 +182,7 @@ static HANDLE listener_thread_handle = NULL;
 
 // constants for building mDNS records
 #define KNX_SERVICE_TYPE "_knx._udp.local."
+#define KNX_SUBTYPE_PM "_pm._sub._knx._udp.local."
 #define MDNS_BUF_SIZE 2048
 
 // Scratch buffer for building mDNS packets (no heap allocation). Must be 32-bit aligned as required by mdns.h.
@@ -378,85 +379,83 @@ static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const 
   return count;
 }
 
-static int send_announcement(mdns_knx_record_t* record, bool goodbye)
+/*
+  Owns every buffer referenced by the built records. mdns_record_t only stores pointers to the name
+  strings, so this context must stay in scope until the records have been serialised and sent.
+*/
+typedef struct
 {
-  if (ensure_socket() != 0) 
-  {
-    return -1;
-  }
+  char instance_name[MAX_MDNS_RECORD_SIZE];
+  char hostname[MAX_MDNS_RECORD_SIZE];
+  char sub_sn[MAX_MDNS_RECORD_SIZE];
+  char sub_ia[MAX_MDNS_RECORD_SIZE];
+  char sp_str[5 + 1];                             // uint16_t max = 65535 (5 digits) + NUL terminator
+  uint16_t add_count;
+  mdns_record_t additional[5 + MAX_AAAA_RECORDS]; // max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT
+} knx_service_records_t;
+
+/**
+ * @brief Build the additional-record set that describes our service instance.
+ *
+ * Produces SRV + AAAA + subtype PTRs + TXT, which is identical for announcements, goodbyes and
+ * solicited query responses. Only the answer record differs between those, so it is left to the caller.
+ *
+ * @param out  receives the record array and all buffers it points into; must outlive the send call
+ * @param record the advertisement data to describe
+ */
+static void build_service_records(knx_service_records_t *out, const mdns_knx_record_t *record)
+{
+  memset(out, 0, sizeof(*out));
 
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
-  char instance_name[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, record->knx.sn);
-  const size_t instance_len = strlen(instance_name);
+  (void)snprintf(out->instance_name, sizeof(out->instance_name), "%s." KNX_SERVICE_TYPE, record->knx.sn);
+  const size_t instance_len = strlen(out->instance_name);
 
   // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
-  char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", record->knx.sn);
-  const size_t hostname_len = strlen(hostname);
+  (void)snprintf(out->hostname, sizeof(out->hostname), "knx-%s.local.", record->knx.sn);
+  const size_t hostname_len = strlen(out->hostname);
 
   // Subtype strings 
-  char sub_sn[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", record->knx.sn);
-
-  char sub_ia[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(sub_ia, sizeof(sub_ia), "_ia%" PRIx64 "-%x._sub._knx._udp.local.", record->knx.iid, (unsigned)record->knx.ia);
-
-  #define sub_pm "_pm._sub._knx._udp.local."
-
-  // port
-  const uint16_t port = knx_dns_sd_get_used_port();
-
-  // Answer: PTR _knx._udp.local. -> instance
-  const mdns_record_t answer =
-  {
-    .name.str = KNX_SERVICE_TYPE,
-    .name.length = strlen(KNX_SERVICE_TYPE),
-    .type = MDNS_RECORDTYPE_PTR,
-    .data.ptr.name.str = instance_name,
-    .data.ptr.name.length = instance_len
-  };
-
-  // Additional records (max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT) 
-  mdns_record_t additional[5 + MAX_AAAA_RECORDS] = {0};
+  (void)snprintf(out->sub_sn, sizeof(out->sub_sn), "_%s._sub._knx._udp.local.", record->knx.sn);
+  (void)snprintf(out->sub_ia, sizeof(out->sub_ia), "_ia%" PRIx64 "-%x._sub._knx._udp.local.", record->knx.iid, (unsigned)record->knx.ia);
 
   // SRV 
-  additional[0].name.str = instance_name;
-  additional[0].name.length = instance_len;
-  additional[0].type = MDNS_RECORDTYPE_SRV;
-  additional[0].data.srv.priority = 0;
-  additional[0].data.srv.weight = 0;
-  additional[0].data.srv.port = port;
-  additional[0].data.srv.name.str = hostname;
-  additional[0].data.srv.name.length = hostname_len;
+  out->additional[0].name.str = out->instance_name;
+  out->additional[0].name.length = instance_len;
+  out->additional[0].type = MDNS_RECORDTYPE_SRV;
+  out->additional[0].data.srv.priority = 0;
+  out->additional[0].data.srv.weight = 0;
+  out->additional[0].data.srv.port = knx_dns_sd_get_used_port();
+  out->additional[0].data.srv.name.str = out->hostname;
+  out->additional[0].data.srv.name.length = hostname_len;
 
   // AAAA records: fills at most MAX_AAAA_RECORDS entries from SRV ( = 1 ) onwards
-  uint16_t add_count = 1 + collect_aaaa_records(&additional[1], hostname, hostname_len);
+  uint16_t add_count = 1 + collect_aaaa_records(&out->additional[1], out->hostname, hostname_len);
 
   // subtype PTR: serial number 
-  additional[add_count].name.str = sub_sn;
-  additional[add_count].name.length = strlen(sub_sn);
-  additional[add_count].type = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str = instance_name;
-  additional[add_count].data.ptr.name.length = instance_len;
+  out->additional[add_count].name.str = out->sub_sn;
+  out->additional[add_count].name.length = strlen(out->sub_sn);
+  out->additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  out->additional[add_count].data.ptr.name.str = out->instance_name;
+  out->additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   // subtype PTR: installation-id + individual-address 
-  additional[add_count].name.str = sub_ia;
-  additional[add_count].name.length = strlen(sub_ia);
-  additional[add_count].type = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str = instance_name;
-  additional[add_count].data.ptr.name.length = instance_len;
+  out->additional[add_count].name.str = out->sub_ia;
+  out->additional[add_count].name.length = strlen(out->sub_ia);
+  out->additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  out->additional[add_count].data.ptr.name.str = out->instance_name;
+  out->additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   // subtype PTR: programming mode (conditional) 
-  if (record->knx.pm) 
+  if (record->knx.pm)
   {
-    additional[add_count].name.str = sub_pm;
-    additional[add_count].name.length = strlen(sub_pm);
-    additional[add_count].type = MDNS_RECORDTYPE_PTR;
-    additional[add_count].data.ptr.name.str = instance_name;
-    additional[add_count].data.ptr.name.length = instance_len;
+    out->additional[add_count].name.str = KNX_SUBTYPE_PM;
+    out->additional[add_count].name.length = strlen(KNX_SUBTYPE_PM);
+    out->additional[add_count].type = MDNS_RECORDTYPE_PTR;
+    out->additional[add_count].data.ptr.name.str = out->instance_name;
+    out->additional[add_count].data.ptr.name.length = instance_len;
     add_count++;
   }
 
@@ -466,41 +465,58 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     treat an instance without one as unresolvable. KNX IoT clause 2.6.1.2.4 makes TXT content
     optional, and clause 2.6.1.2.4.1 reserves 'SP' for sleepy devices, so a non-sleepy device
     advertises an empty TXT record (encoded as a single zero-length string) instead.
-    The buffer must live until the record is serialised below, so it is declared in this scope.
   */
-  
-  // uint16_t max = 65535 (5 digits) + NUL terminator
-  char sp_str[5 + 1] = { 0 };
-
-  additional[add_count].name.str = instance_name;
-  additional[add_count].name.length = instance_len;
-  additional[add_count].type = MDNS_RECORDTYPE_TXT;
+  out->additional[add_count].name.str = out->instance_name;
+  out->additional[add_count].name.length = instance_len;
+  out->additional[add_count].type = MDNS_RECORDTYPE_TXT;
 
   if (record->knx.sp != 0)
   {
-    // we have a non-empty string
-    (void)snprintf(sp_str, sizeof(sp_str), "%d", record->knx.sp);
+    // we have a non-zero sleep period
+    (void)snprintf(out->sp_str, sizeof(out->sp_str), "%d", record->knx.sp);
 
-    additional[add_count].data.txt.key.str = "SP";
-    additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str = sp_str;
-    additional[add_count].data.txt.value.length = strlen(sp_str);
+    out->additional[add_count].data.txt.key.str = "SP";
+    out->additional[add_count].data.txt.key.length = 2;
+    out->additional[add_count].data.txt.value.str = out->sp_str;
+    out->additional[add_count].data.txt.value.length = strlen(out->sp_str);
   }
   else
   {
     // empty key and value -> RFC 6763 clause 6.1 empty TXT record
-    additional[add_count].data.txt.key.str = additional[add_count].data.txt.value.str = "";
-    additional[add_count].data.txt.key.length = additional[add_count].data.txt.value.length = 0;
+    out->additional[add_count].data.txt.key.str = out->additional[add_count].data.txt.value.str = "";
+    out->additional[add_count].data.txt.key.length = out->additional[add_count].data.txt.value.length = 0;
   }
 
   add_count++;
+  out->add_count = add_count;
+}
+
+static int send_announcement(mdns_knx_record_t* record, bool goodbye)
+{
+  if (ensure_socket() != 0) 
+  {
+    return -1;
+  }
+
+  knx_service_records_t svc;
+  build_service_records(&svc, record);
+
+  // Answer: PTR _knx._udp.local. -> instance
+  const mdns_record_t answer =
+  {
+    .name.str = KNX_SERVICE_TYPE,
+    .name.length = strlen(KNX_SERVICE_TYPE),
+    .type = MDNS_RECORDTYPE_PTR,
+    .data.ptr.name.str = svc.instance_name,
+    .data.ptr.name.length = strlen(svc.instance_name)
+  };
 
   /*
     Send multicast on every IPv6 interface. Collect unique interface indices from the endpoint list,
     then send the announcement once per interface via IPV6_MULTICAST_IF. This ensures the packet 
     reaches all local network segments.
   */
-  
+
   // collect unique unicast IPv6 interface indices
   unsigned int if_indices[MAX_IF_INDICES];
   const int if_count = collect_if_indices(if_indices);
@@ -523,19 +539,19 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     {
       ret = mdns_goodbye_multicast(mdns_sock6, mdns_buf, sizeof(mdns_buf),
                                    answer, NULL, 0,
-                                   additional, add_count);
+                                   svc.additional, svc.add_count);
     } 
     else 
     {
       ret = mdns_announce_multicast(mdns_sock6, mdns_buf, sizeof(mdns_buf),
                                     answer, NULL, 0,
-                                    additional, add_count);
+                                    svc.additional, svc.add_count);
     }
 
     OC_DBG("DNS-SD: mDNS %s %s on interface %u (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)", 
            goodbye ? "goodbye" : "announce",
            ret < 0 ? "failed"  : "succeeded",
-           if_indices[iface_idx], port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
+           if_indices[iface_idx], svc.additional[0].data.srv.port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
 
     // latch failure, once an interface fails, summary stays -1
     if (ret < 0) { summary = -1; }
@@ -774,35 +790,17 @@ static bool is_knx_subtype_query(const char *qname, size_t q_len)
  * @brief Build and send the current service records on `sock`.
  *
  * @param sock       The mDNS socket to send on.
- * @param ptr_name   The name for the PTR answer record.  For a general
+ * @param ptr_name   The name for the PTR answer record. For a general
  *                   browse this is "_knx._udp.local.", for a subtype
- *                   browse this is e.g. "_pm._sub._knx._udp.local.".
+ *                   browse this is e.g. "_pm._sub._knx._udp.local." etc.
  *
  * Used both by the proactive announcement and the query callback.
  * Returns 0 on success, <0 on error.
  */
 static int send_query_response(int sock, const char *ptr_name)
 {
-  
-  // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
-  char instance_name[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
-  const size_t instance_len = strlen(instance_name);
-
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
-  char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
-  const size_t hostname_len = strlen(hostname);
-
-  // Subtype strings 
-  char sub_sn[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", current_advertisement.knx.sn);
-  
-  char sub_ia[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(sub_ia, sizeof(sub_ia), "_ia%" PRIx64 "-%x._sub._knx._udp.local.", current_advertisement.knx.iid, (unsigned)current_advertisement.knx.ia);
-  
-  // port
-  const uint16_t port = knx_dns_sd_get_used_port();
+  knx_service_records_t svc;
+  build_service_records(&svc, &current_advertisement);
 
   // Answer: PTR -- the name must match the query the client sent
   const mdns_record_t answer =
@@ -810,87 +808,9 @@ static int send_query_response(int sock, const char *ptr_name)
     .name.str = ptr_name,
     .name.length = strlen(ptr_name),
     .type = MDNS_RECORDTYPE_PTR,
-    .data.ptr.name.str = instance_name,
-    .data.ptr.name.length = instance_len
+    .data.ptr.name.str = svc.instance_name,
+    .data.ptr.name.length = strlen(svc.instance_name)
   };
-
-  // Additional records (max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT) 
-  mdns_record_t additional[5 + MAX_AAAA_RECORDS] = {0};
-
-  // SRV
-  additional[0].name.str = instance_name;
-  additional[0].name.length = instance_len;
-  additional[0].type = MDNS_RECORDTYPE_SRV;
-  additional[0].data.srv.priority = 0;
-  additional[0].data.srv.weight = 0;
-  additional[0].data.srv.port = port;
-  additional[0].data.srv.name.str = hostname;
-  additional[0].data.srv.name.length = hostname_len;
- 
-  // AAAA records: fills at most MAX_AAAA_RECORDS entries from SRV ( = 1 ) onwards
-  uint16_t add_count = 1 + collect_aaaa_records(&additional[1], hostname, hostname_len);
-
-  // subtype PTR: serial number 
-  additional[add_count].name.str = sub_sn;
-  additional[add_count].name.length = strlen(sub_sn);
-  additional[add_count].type = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str = instance_name;
-  additional[add_count].data.ptr.name.length = instance_len;
-  add_count++;
-
-  // subtype PTR: installation-id + individual-address 
-  additional[add_count].name.str = sub_ia;
-  additional[add_count].name.length = strlen(sub_ia);
-  additional[add_count].type = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str = instance_name;
-  additional[add_count].data.ptr.name.length = instance_len;
-  add_count++;
-
-  // subtype PTR: programming mode (conditional) 
-  if (current_advertisement.knx.pm) 
-  {
-    additional[add_count].name.str = sub_pm;
-    additional[add_count].name.length = strlen(sub_pm);
-    additional[add_count].type = MDNS_RECORDTYPE_PTR;
-    additional[add_count].data.ptr.name.str = instance_name;
-    additional[add_count].data.ptr.name.length = instance_len;
-    add_count++;
-  }
-
-  /*
-    TXT: always advertise a TXT record for the service instance.
-    RFC 6763 clause 6.1 requires every DNS-SD service instance to have a TXT record; strict clients
-    treat an instance without one as unresolvable. KNX IoT clause 2.6.1.2.4 makes TXT content
-    optional, and clause 2.6.1.2.4.1 reserves 'SP' for sleepy devices, so a non-sleepy device
-    advertises an empty TXT record (encoded as a single zero-length string) instead.
-    The buffer must live until the record is serialised below, so it is declared in this scope.
-  */
-  
-  // uint16_t max = 65535 (5 digits) + NUL terminator
-  char sp_str[5 + 1] = { 0 };
-
-  additional[add_count].name.str = instance_name;
-  additional[add_count].name.length = instance_len;
-  additional[add_count].type = MDNS_RECORDTYPE_TXT;
-
-  if (current_advertisement.knx.sp != 0)
-  {
-    // we have a non-zero sleep period
-    (void) snprintf(sp_str, sizeof(sp_str), "%d", current_advertisement.knx.sp);
-
-    additional[add_count].data.txt.key.str = "SP";
-    additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str = sp_str;
-    additional[add_count].data.txt.value.length = strlen(sp_str);
-  }
-  else
-  {
-    // empty key and value -> RFC 6763 clause 6.1 empty TXT record
-    additional[add_count].data.txt.key.str = additional[add_count].data.txt.value.str = "";
-    additional[add_count].data.txt.key.length = additional[add_count].data.txt.value.length = 0;
-  }
-
-  add_count++;
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
@@ -901,7 +821,7 @@ static int send_query_response(int sock, const char *ptr_name)
 
   return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
                                         answer, NULL, 0,
-                                        additional, add_count);
+                                        svc.additional, svc.add_count);
 }
 
 /**
