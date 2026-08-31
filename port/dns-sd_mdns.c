@@ -799,6 +799,8 @@ static bool is_knx_subtype_query(const char *qname, size_t q_len)
  */
 static int send_query_response(int sock, const char *ptr_name)
 {
+  // socket is already open from inbound query listener, so we can just build the records and send them
+  
   knx_service_records_t svc;
   build_service_records(&svc, &current_advertisement);
 
