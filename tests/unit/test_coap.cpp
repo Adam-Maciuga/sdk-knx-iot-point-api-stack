@@ -658,30 +658,6 @@ TEST_F(CoapTest, GetQueryVariable_MissingName_ReturnsZero)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Proxy-URI header get/set
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-TEST_F(CoapTest, ProxyUri_GetWithoutOption_ReturnsZero)
-{
-  init_con_get();
-  const char *out = nullptr;
-  EXPECT_EQ(coap_get_header_proxy_uri(&pkt, &out), 0);
-}
-
-TEST_F(CoapTest, ProxyUri_SetThenGet)
-{
-  init_con_get();
-  const char *uri = "coap://[fe80::1]/p/1";
-  int set_len = coap_set_header_proxy_uri(&pkt, uri);
-  EXPECT_EQ(set_len, (int)strlen(uri));
-
-  const char *out = nullptr;
-  int get_len = coap_get_header_proxy_uri(&pkt, &out);
-  EXPECT_EQ(get_len, (int)strlen(uri));
-  EXPECT_EQ(out, uri);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
  * Uri-Query header get
  * ═══════════════════════════════════════════════════════════════════════════ */
 

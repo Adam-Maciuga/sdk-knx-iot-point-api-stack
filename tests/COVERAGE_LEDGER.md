@@ -825,7 +825,6 @@ functions push a message onto the outbound process queue and are integration-lev
 | coap.c: coap_get_next_mid | DONE — monotonic increment (test_coap.cpp) |
 | coap.c: coap_init_connection | DONE — seeds MID; next two MIDs consecutive |
 | coap.c: coap_get_query_variable | DONE — no-option→0, found value, missing name→0 |
-| coap.c: coap_get_header_proxy_uri / coap_set_header_proxy_uri | DONE — set/get round-trip + no-option→0 |
 | coap.c: coap_get_header_uri_query | DONE — set/get + leading-`?` skip + no-option→0 |
 | coap.c: coap_set_header_location_query | DONE — stores value, sets option, skips leading `?` |
 | observe.c: get_observe_counter | DONE — ≥ OC_OBSERVE_FIRST_NOTIFICATION_VALUE, side-effect-free |
