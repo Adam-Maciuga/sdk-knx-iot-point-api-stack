@@ -45,7 +45,7 @@ extern "C" {
 	 */
 	typedef struct oc_device_info_t
 	{
-    const char* serialnumber;         // fix: knx serial number, binary 6 bytes, in hex 12 bytes (MUST point to lower case sn string incl. '\0')
+    const char* serialnumber;         // fix: knx serial number, string with 12 lower case hex chars incl. '\0' (lower case = ensured by assert on int)
 		const oc_knx_version_info_t* hwv;	// fix: hardware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t fwv;	      // mod: firmware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t apv;				// mod: application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) 
