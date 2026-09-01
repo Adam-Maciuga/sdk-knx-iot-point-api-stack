@@ -22,9 +22,7 @@
 #include <openthread/srp_client_buffers.h>
 #include <openthread.h>
 
-#define HOSTNAME_SIZE 64
 #define SERIAL_NO_SUBTYPE_SIZE 64
-#define SERIAL_NO_LOWERCASE_SIZE 20
 #define INSTALLATION_SUBTYPE_SIZE 64
 #define SLEEP_PERIOD_RECORD_SIZE 64
 #define NUMBER_OF_SUBTYPES 4
@@ -32,10 +30,9 @@
 #define KNX_SRP_SERVICE_NAME  "_knx._udp"
 #define KNX_SRP_PORT          5683  // CoAP KNX IoT
 
-static char sp_text_record[SLEEP_PERIOD_RECORD_SIZE] = "";
-static char serial_no_hostname[HOSTNAME_SIZE];
+static char sp_text_record[SLEEP_PERIOD_RECORD_SIZE];
+static char serial_no_hostname[HNAME_MAX_SIZE +1];
 static char serial_no_subtype[SERIAL_NO_SUBTYPE_SIZE];
-static char serial_no_lowercase[SERIAL_NO_LOWERCASE_SIZE];
 static char installation_subtype[INSTALLATION_SUBTYPE_SIZE];
 static otSrpClientBuffersServiceEntry *entry = NULL;
 const char *srpSubtype[NUMBER_OF_SUBTYPES] = {NULL};
@@ -82,21 +79,11 @@ static void srp_client_cb(const otSockAddr *aServerSockAddr, void *aContext)
     OC_INF("KNX IoT SRP client cb\n");
 }
 
-static void knx_set_srp_host(otInstance *thrInstancePtr, char *serial_no)
+static void knx_set_srp_host(otInstance *thrInstancePtr, const char* serial_no)
 {
-  uint16_t size;
+    uint16_t size;
 
-    strncpy(serial_no_lowercase, serial_no, 19);
-    for (int i = 0; i < strlen(serial_no_lowercase); ++i) {
-        /* make sure that the serial number is used in upper case */
-        serial_no_lowercase[i] = toupper(serial_no_lowercase[i]);
-    }
-
-    /* Set up the hostname as <serial_number>.knx.local */
-    char *hostname_format_string = "%s.knx";
-
-    snprintf(serial_no_hostname, sizeof(serial_no_hostname), hostname_format_string,
-             serial_no_lowercase);
+    (void)snprintf(serial_no_hostname, sizeof(serial_no_hostname), HNAME_TYPE, serial_no ? serial_no : "NULL");
 
     /* Enable SRP client auto start */
     otSrpClientEnableAutoStartMode(thrInstancePtr, srp_client_cb, NULL);
@@ -147,13 +134,12 @@ static void knx_set_srp_host(otInstance *thrInstancePtr, char *serial_no)
     otSrpClientEnableAutoHostAddress(thrInstancePtr);
 }
 
-static void knx_set_static_subtypes(void)
+static void knx_set_static_subtypes(const char* serial_no)
 {
     /* Set up the subtype for the serial number
        --subtype=_01cafe1234._sub._knx._udp */
-    char *serial_format_string = "_%s";
-    snprintf(serial_no_subtype, sizeof(serial_no_subtype), serial_format_string,
-             serial_no_lowercase);
+    const char *serial_format_string = "_%s";
+    (void)snprintf(serial_no_subtype, sizeof(serial_no_subtype), serial_format_string, serial_no ? serial_no : "NULL");
 
     /* Set SRP subtype for serial number */
     srpSubtype[1] = serial_no_subtype;
@@ -191,7 +177,7 @@ static void knx_set_dynamic_subtypes(uint64_t iid, uint32_t ia, bool pm)
 int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
     otInstance * thrInstancePtr = openthread_get_default_instance();
-    oc_device_info_t *device = oc_core_get_device_info();
+    const oc_device_info_t *device = oc_core_get_device_info();
 
     (void)serial_no;
     (void)iid;
@@ -207,11 +193,11 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     /* Setting the SRP Host name, allocating resources and calling SRP auto start should be done only on first call */
     if (isInitialized == false)
     {
-        /* Set SRP Client Host name and */
+        /* Set SRP Client Host name -> note, sn is ensured to be lowercase, see member note */
         knx_set_srp_host(thrInstancePtr, device->serialnumber);
 
-        /* Set SRP static subtypes */
-        knx_set_static_subtypes();
+        /* Set SRP static subtypes -> note, sn is ensured to be lowercase, see member note */
+        knx_set_static_subtypes(device->serialnumber);
     }
 
     /* Set or update subtypes */

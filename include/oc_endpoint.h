@@ -64,12 +64,13 @@ extern "C" {
   } transport_flags_t;
 
   /*
-    default host name size  = device serial number and leading
-    'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
-    header defined by specification
+    - default host name size  = device serial number and leading 'knx-' + 12 x char + /0  = 17, 
+      such as "knx-00fa10020700", 
+    - header type defined by specification
   */
-  #define HNAME_SIZE (4 + SN_STR_LEN_MAX + 1)
+  #define HNAME_DEFAULT_SIZE (4 + SN_STR_LEN_MAX + 1)
   #define HNAME_TYPE ("knx-%s")
+  #define HNAME_MAX_SIZE 128
   
   // reset/set a specific bit from above, used to suppress compiler warnings
   #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))
