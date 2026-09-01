@@ -19,16 +19,20 @@ extern "C" {
 
 /**
  * @brief sets the size of the MTU to be used
+ *        
  *
- * @param mtu_size size in bytes
+ * @param mtu_size size in bytes 
+ *        (MTU size covers CoAP payload/header, not UDP/IPv6 header)
+ *
  * @return int 0-success
  */
 int oc_set_mtu_size(uint32_t mtu_size);
 
 /**
- * @brief retrieve the currently used MTU size
- *
- * @return uint32_t the MTU size in bytes
+ * @brief retrieve the currently used MTU size 
+ *        
+ * @return uint32_t the MTU size in bytes 
+ *         (MTU size covers CoAP payload/header, not UDP/IPv6 header)
  */
 uint32_t oc_get_mtu_size(void);
 

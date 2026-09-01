@@ -53,16 +53,25 @@ extern "C" {
 #define COAP_MAX_OPEN_TRANSACTIONS (OC_MAX_NUM_CONCURRENT_REQUESTS)
 #endif 
 
+#define FEAR (64)
 /* 
-   Conservative size limit, as not all options have to be set at the same time.
-   Check when Proxy-Uri option is used 
+   Conservative size limit, as not all options have to be set at the same time 
+   (recheck when Proxy-Uri, Uri-Host option is used)
+   -> hdr (4), token (8), fear, options 
+      Observe (5)
+      Uri-Port (3)
+      OSCORE (32) 
+      Max-Age (5)
+      Payload marker (1)
+      ETag (8)
+      BLOCKWISE (34 -> blk 4 + 4 + size 6 + 6 + q-blk 5 + 5)  
 */
-#ifndef COAP_MAX_HEADER_SIZE // Hdr CoF  If-Match  Obs Blo strings 
+#ifndef COAP_MAX_HEADER_SIZE 
 
   #ifdef OC_BLOCK_WISE
-    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 150 + COAP_ETAG_LEN)
+    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + FEAR + 5 + 3 + 32 + 5 + 1 + COAP_ETAG_LEN + 34)
   #else 
-    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 100)
+    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + FEAR + 5 + 3 + 32 + 5 + 1 + COAP_ETAG_LEN)
   #endif 
 
 #endif 

@@ -122,22 +122,54 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
   return &app_loadstate;
 }
 
-static uint32_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE; // a static runtime variable (set/get)
-static uint16_t _OC_BLOCK_SIZE = 1024;                      // a static runtime variable (only get)
+/* 
+   runtime variables for MTU and BLOCK size, initialized with default values that relates to each other 
+   (same as oc_set_mtu_size() would calculate)
+
+   - MTU -> static runtime variable (set/get)
+   - BLOCK -> static runtime variable (only get)
+
+   Note:
+
+   2 * COAP_MAX_HEADER_SIZE -> the MTU size must be large enough to accommodate
+   - outer coap header, token, options, 
+   - inner plaintext (code, options (duplicated from outer or additional), payload)
+
+   the default block size is derived from KNX_PAYLOAD_SIZE and capped at 1024 (RFC 7959 maximum, SZX 6),
+   so it stays consistent when KNX_PAYLOAD_SIZE is configured smaller than 1024
+*/
+static uint32_t _OC_MTU_SIZE = KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE;
+static uint16_t _OC_BLOCK_SIZE = KNX_PAYLOAD_SIZE >= 1024 ? 1024 : KNX_PAYLOAD_SIZE;
 
 int oc_set_mtu_size(uint32_t mtu_size)
 {
-  (void) mtu_size;
+  // minimum MTU must accommodate at least CoAP header + 16 bytes (smallest CoAP block-wise block, i.e. SZX = 0 -> 16 << 0 = 16 bytes)
+  if (mtu_size < COAP_MAX_HEADER_SIZE + 16)
+  {
+    return -1;
+  }
+
+  /*
+    the buffer sizing is independent of block-wise transfer, hence the MTU is always stored,
+    only the derivation of the block size below requires OC_BLOCK_WISE
+  */
+
+  // add internally second coap header size, see note above
+  _OC_MTU_SIZE = mtu_size + COAP_MAX_HEADER_SIZE;
+
+  // tmp variable for block size calculation, remove the CoAP header size
+  mtu_size -= COAP_MAX_HEADER_SIZE;
 
   #ifdef OC_BLOCK_WISE
 
-  // minimum MTU must accommodate at least one block (16 bytes) plus CoAP header
-  if (mtu_size < COAP_MAX_HEADER_SIZE + 16)
-    return -1;
-
-  // store full PDU size (payload + header)
-  _OC_MTU_SIZE = mtu_size + COAP_MAX_HEADER_SIZE;
-  mtu_size -= COAP_MAX_HEADER_SIZE;
+  /*
+    a block is a chunk of the application payload, hence it can never exceed the application data buffer
+    (OC_MAX_APP_DATA_SIZE = KNX_PAYLOAD_SIZE), clamp the budget before deriving the size exponent
+  */
+  if (mtu_size > KNX_PAYLOAD_SIZE)
+  {
+    mtu_size = KNX_PAYLOAD_SIZE;
+  }
 
   // derive block size SZX (RFC 7959 Section 2.2, Size Exponent) as largest power-of-2 that fits in the MTU (range: 1024..16 bytes, SZX 6..0)
   uint16_t i;
@@ -146,6 +178,10 @@ int oc_set_mtu_size(uint32_t mtu_size)
   }
 
   _OC_BLOCK_SIZE = (uint16_t)(1 << i);
+
+  #else
+
+  (void) mtu_size;
 
   #endif 
 
