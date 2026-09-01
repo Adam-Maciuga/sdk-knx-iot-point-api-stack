@@ -139,11 +139,12 @@ static int knx_hostname_cmd(const struct shell *sh, size_t argc, char **argv)
 /* KNX QR Code command */
 static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
 {
-    char sn_upper[SN_STR_LEN_MAX + 1];  
+    char sn_upper[SN_STR_LEN_MAX + 1] = "";  
   
-    oc_device_info_t* device = oc_core_get_device_info();  
+    const oc_device_info_t* device = oc_core_get_device_info();  
     
-    memcpy(sn_upper, device->serialnumber, SN_STR_LEN_MAX + 1);
+    // copy sn max then convert to upper case, null termination is ensured by the initialization of sn_upper
+    memcpy(sn_upper, device->serialnumber, SN_STR_LEN_MAX);
     oc_charstream_convert_to_upper(sn_upper);
 
     shell_print(sh, "KNX:S:%s;P:%s", sn_upper, app_get_password());
@@ -429,7 +430,7 @@ static int knx_at_cmd(const struct shell *sh, size_t argc, char **argv)
 /* KNX Print All command: print all device parameters and tables */
 static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
 {
-    oc_device_info_t *device = oc_core_get_device_info();
+    const oc_device_info_t *device = oc_core_get_device_info();
 
     shell_print(sh, "Serial number      : %s", device->serialnumber);
     shell_print(sh, "Hardware version   : %d.%d.%d", device->hwv->major, device->hwv->minor, device->hwv->patch);
@@ -441,11 +442,13 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
     shell_print(sh, "Hostname           : %s", oc_string(device->iot_hostname));
 
     /* QR code */
-    char sn_upper_buf[SN_STR_LEN_MAX + 1];
-    memcpy(sn_upper_buf, device->serialnumber, SN_STR_LEN_MAX + 1);
-    
-    oc_charstream_convert_to_upper(sn_upper_buf);
-    shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper_buf, app_get_password());
+    char sn_upper[SN_STR_LEN_MAX + 1] = "";
+
+    // copy sn max then convert to upper case, null termination is ensured by the initialization of sn_upper
+    memcpy(sn_upper, device->serialnumber, SN_STR_LEN_MAX);
+    oc_charstream_convert_to_upper(sn_upper);
+
+    shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper, app_get_password());
 
     shell_print(sh, "Manufacturer ID    : %" PRIu32, device->mid);
     shell_print(sh, "Fabric ID          : %" PRIu64, device->fid);
