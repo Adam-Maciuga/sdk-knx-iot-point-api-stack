@@ -152,8 +152,8 @@ extern "C" {
    * @brief reads the hostname (string) from storage and sets it for the device 
    *
    * @note if the read fails the default host name is used, 
-   *       leading 'knx-' + (lower case) serial number (12 x char + /0)  = 17, such as "knx-00fa10020700", 
-   *       (leading header is defined by specification)
+   *       leading 'knx-{sn}.local' with lower case, such as "knx-00fa10020700.local" 
+   *       (specification 2.6.1.2.3)
    *
    * @return int error status, 0 = OK
    */

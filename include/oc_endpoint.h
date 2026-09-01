@@ -64,13 +64,16 @@ extern "C" {
   } transport_flags_t;
 
   /*
-    - default host name size  = device serial number and leading 'knx-' + 12 x char + /0  = 17, 
-      such as "knx-00fa10020700", 
-    - header type defined by specification
+    - hostname label = device serial number and leading 'knx-' + 12 x char = 16,
+      such as "knx-00fa10020700", used where the DNS domain is added by the caller (e.g. SRP client)
+    
+      hostname type = the label plus the '.local' domain (6) + /0 = 23,
+      such as "knx-00fa10020700.local", this is the fully qualified name reported by 'dev/hname' as defined by specification (2.6.1.2.3)
   */
-  #define HNAME_DEFAULT_SIZE (4 + SN_STR_LEN_MAX + 1)
-  #define HNAME_TYPE ("knx-%s")
-  #define HNAME_MAX_SIZE 128
+  
+  #define HNAME_LABEL ("knx-%s")
+  #define HNAME_TYPE  ("knx-%s.local")
+  #define HNAME_MAX_SIZE 64
   
   // reset/set a specific bit from above, used to suppress compiler warnings
   #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))

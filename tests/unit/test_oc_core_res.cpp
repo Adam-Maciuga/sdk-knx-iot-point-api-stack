@@ -21,7 +21,7 @@
 
 extern "C" {
 #include "oc_core_res.h"
-#include "oc_endpoint.h" /* HNAME_SIZE, SERIAL_NUM_SIZE */
+#include "oc_endpoint.h"
 #include "oc_helpers.h"
 #include "oc_ri.h"
 #include "util/oc_mmem.h"
@@ -66,23 +66,23 @@ TEST_F(DeviceHostname, SetEmptyString)
 TEST_F(DeviceHostname, ReadAndSetUsesDefaultWhenStorageUnavailable)
 {
   /* Storage is not configured → oc_storage_read() returns an error → the
-   * device must fall back to the spec-defined "knx-<serial>" host name. */
+   * device must fall back to the spec-defined "knx-<serial>.local" host name. */
   set_serial("00fa10020700");
 
   EXPECT_EQ(oc_core_read_and_set_device_hostname(), 0);
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname),
-               "knx-00fa10020700");
+               "knx-00fa10020700.local");
 }
 
 TEST_F(DeviceHostname, ReadAndSetDefaultFitsHnameBuffer)
 {
-  /* The default "knx-" + 12-char serial + NUL must be exactly HNAME_SIZE. */
+  /* The default "knx-" + 12-char serial + ".local" + NUL must fit in HNAME_MAX_SIZE + 1. */
   set_serial("aabbccddeeff");
   ASSERT_EQ(oc_core_read_and_set_device_hostname(), 0);
 
   const char *hn = oc_string(oc_core_get_device_info()->iot_hostname);
-  EXPECT_STREQ(hn, "knx-aabbccddeeff");
-  EXPECT_LT(strlen(hn) + 1, (size_t)HNAME_SIZE + 1); /* fits in HNAME_SIZE */
+  EXPECT_STREQ(hn, "knx-aabbccddeeff.local");
+  EXPECT_LE(strlen(hn) + 1, (size_t)HNAME_MAX_SIZE + 1); /* fits in HNAME_MAX_SIZE + 1 */
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

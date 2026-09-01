@@ -83,7 +83,8 @@ static void knx_set_srp_host(otInstance *thrInstancePtr, const char* serial_no)
 {
     uint16_t size;
 
-    (void)snprintf(serial_no_hostname, sizeof(serial_no_hostname), HNAME_TYPE, serial_no ? serial_no : "NULL");
+    // the SRP client appends the DNS domain itself, hence only the host name label is set here
+    (void)snprintf(serial_no_hostname, sizeof(serial_no_hostname), HNAME_LABEL, serial_no ? serial_no : "NULL");
 
     /* Enable SRP client auto start */
     otSrpClientEnableAutoStartMode(thrInstancePtr, srp_client_cb, NULL);

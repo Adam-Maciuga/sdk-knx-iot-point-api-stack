@@ -190,12 +190,12 @@ class TestDevResourceRead:
             f"IPv6 must be 16 bytes, got {len(ipv6)}")
 
     def test_5_2_6_1_hname(self, coap, oscore_ctx):
-        """GET /dev/hname → hostname 'knx-00fa10020800'."""
+        """GET /dev/hname → hostname 'knx-00fa10020800.local'."""
         resp = coap.oscore_get(oscore_ctx, "/dev/hname")
         assert resp is not None and resp.is_successful
         data = cbor2.loads(resp.payload)
-        assert data.get(1) == "knx-00fa10020800", (
-            f"Hostname should be 'knx-00fa10020800', got {data.get(1)}")
+        assert data.get(1) == "knx-00fa10020800.local", (
+            f"Hostname should be 'knx-00fa10020800.local', got {data.get(1)}")
 
     def test_5_2_6_1_fid(self, coap, oscore_ctx):
         """GET /dev/fid → fabric ID integer."""

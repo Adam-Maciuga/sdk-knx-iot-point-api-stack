@@ -109,16 +109,13 @@ int oc_core_read_and_set_device_hostname(void)
 {
 
   const oc_device_info_t* const device = oc_core_get_device_info();
-
-	// to have a fixed '\0' at the end of the (128 byte) buffer
-	#define MAX_HNAME_BUFFER_SIZE 129
   
-  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700" - if sn is not applied -> "knx-NULL"
-  char hname[MAX_HNAME_BUFFER_SIZE] = ""; 
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, device->serialnumber ? device->serialnumber : "NULL");
+  // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
+  char hname[HNAME_MAX_SIZE +1] = ""; 
+  (void)snprintf(hname, sizeof(hname), HNAME_TYPE, device->serialnumber);
 
   // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, MAX_HNAME_BUFFER_SIZE  - 1);
+  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, HNAME_MAX_SIZE);
   oc_core_set_device_hostname(hname);
 
   return 0;
@@ -166,8 +163,12 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
 
 void oc_core_set_device_sn(const char* serialnumber)
 {
-	// fails if NULL, not exactly the len or not a valid lowercase hexadecimal value
-  const bool all_ok = serialnumber && strlen(serialnumber) == SN_STR_LEN_MAX && oc_charstream_validate_is_lower(serialnumber);
+	// not NULL, 12 chars, lower case, string termination 
+  const bool all_ok = serialnumber 
+  && strlen(serialnumber) == SN_STR_LEN_MAX
+  && oc_charstream_validate_is_lower(serialnumber)
+  && serialnumber[SN_STR_LEN_MAX] == '\0';
+
 	oc_assert(all_ok == true);
 
 	// caller MUST ensure above conditions and keep the string valid for the device lifetime
