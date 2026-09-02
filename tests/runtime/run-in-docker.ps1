@@ -28,6 +28,10 @@ param(
     # committed HEAD. Respects .gitignore.
     [Alias("WorkingTree", "Dirty")]
     [switch]$IncludeUncommitted,
+    # Set RUN_SLOW_TESTS inside the container so tests gated behind it run
+    # (currently test_5_3_1_6d_unblocks_after_timeout, which waits out a ~60 s
+    # brute-force lockout timer).
+    [switch]$RunSlowTests,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$PytestArgs
 )
@@ -48,6 +52,7 @@ if (-not $PytestArgs) {
 $ArgsStr = "$Base " + ($PytestArgs -join " ")
 
 $Source = if ($IncludeUncommitted) { "working tree (uncommitted + untracked)" } else { "committed HEAD" }
+$SlowEnv = if ($RunSlowTests) { "RUN_SLOW_TESTS=1 " } else { "" }
 Write-Host "=== Running runtime tests in Docker ($Image) ===" -ForegroundColor Cyan
 Write-Host "    Repo:   $RepoRoot"
 Write-Host "    Branch: $(git -C $RepoRoot branch --show-current)"
@@ -88,7 +93,7 @@ echo '--- Running tests ---'
 RUNTIME_TEST_SERVER=build/$Preset/tests/runtime_test_server \
 DUT_IFACE=veth-dut DEVICE_HOST=`$DUT_ADDR DEVICE_IFACE=veth-test \
 COAP_TIMEOUT=15 SERVER_STARTUP_TIMEOUT=30 RUNTIME_TEST_QUIET=1 \
-python3 -m pytest -rfE $ArgsStr
+$SlowEnv`python3 -m pytest -rfE $ArgsStr
 "@
 
 $Bash = $Bash -replace "`r`n", "`n"

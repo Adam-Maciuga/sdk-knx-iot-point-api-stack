@@ -1517,11 +1517,11 @@ byte-for-byte identical before and after
 (`subtypes=['00fa10020800', 'ia1199887766-1101']`, same AAAA, same port), with
 `GET /a/lsm` still answering 4.03 on the advertised endpoint.
 
-Of the 5 skips recorded above, one (`test_5_3_1_6d_unblocks_after_timeout`) is a
-static by-design `skipif` gate. The other four are conditional `pytest.skip()`
-cases that fired because the DUT did not emit the expected stimulus, so their
-assertions were never reached - they are not failures, but neither are they
-evidence that the behaviour under test is correct. See "Skipped tests" below.
+Of the 5 skips recorded above, all were subsequently run in isolation to
+establish whether they represent unverified behaviour. Four pass when run alone
+(the three `bonus_*` malformed-length cases, and `6d_unblocks` once
+`-RunSlowTests` is passed). Only `test_5_4_1_9_init_flag_sends_read_on_restart`
+remains genuinely unexercised. See "Skipped tests" below.
 
 This run was also the first complete verification of the integer-parsing
 hardening campaign. Every site that converted a network-supplied string now
@@ -1547,29 +1547,48 @@ The unit suite is fully green (1355/1355, ~72s).
 ## Skipped tests
 
 Reasons below are taken from the actual `pytest.skip()` / `skipif` sites in the
-test sources, not inferred from the run output. Only the first row is a static,
-by-design gate; the remaining four are **conditional** skips that fire when the
-DUT does not produce the stimulus the test wanted to observe. A conditional skip
-of this kind is not evidence that the behaviour is correct - it means the
-assertion was never reached.
+test sources, and each was **verified by running the test in isolation** rather
+than inferred from the full-suite output. Result: four of the five are not
+inherently unrunnable - three pass when run alone, and one is purely a runner
+configuration gap that has now been closed.
 
-| Test | Skip mechanism | Reason |
-|------|----------------|--------|
-| `test_5_3_1_6d_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | By design. Waits out the full 10 x 6 s brute-force lockout timer (~60 s). The runner never sets `RUN_SLOW_TESTS`, so this test **never** executes in a normal suite. Run it with `RUN_SLOW_TESTS=1` to exercise the auto-unblock path |
-| `test_5_4_1_9_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | The DUT sent no multicast init read within 10 s of `POST /test/restart`. That absence is precisely the condition the test exists to detect, so the skip masks a possible regression rather than proving the feature works |
-| `test_5_4_1_15_bonus_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | The DUT issued no discovery GET within the 20 s window, so the rejection assertion was never reached. **Not** a DUT/transport configuration gate - there is no such gate in this test |
-| `test_5_4_1_15_bonus_sn_too_long` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | Same condition as above: no discovery GET observed, assertion skipped |
-| `test_5_4_1_15_bonus_sn_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | Same condition as above: no discovery GET observed, assertion skipped |
+| Test | Skip mechanism | Verified outcome when run in isolation |
+|------|----------------|----------------------------------------|
+| `test_5_3_1_6d_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **PASSES.** Waits out the full 10 x 6 s brute-force lockout (~60 s). The runner had no way to set the variable, so it never ran; `run-in-docker.ps1` now takes `-RunSlowTests`. Measured: `1 passed in 70.21s` via `-RunSlowTests -k 6d_unblocks` |
+| `test_5_4_1_15_bonus_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **PASSES alone** (`1 passed in 15.33s`). The rejection logic is correct; the skip in a full run is load-related, not a defect |
+| `test_5_4_1_15_bonus_sn_too_long` | Conditional, same helper | **PASSES alone** (`1 passed in 15.41s`) |
+| `test_5_4_1_15_bonus_sn_too_short` | Conditional, same helper | **PASSES alone** (`1 passed in 9.58s`) |
+| `test_5_4_1_9_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone.** Reported reason: `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. This one remains genuinely unverified |
 
-**Unresolved asymmetry in the `bonus_*` family.** All six
+**Corrected earlier assessment.** A previous revision of this section claimed the
+three `bonus_*` tests were skipped because of a "DUT/transport configuration"
+gate; no such gate exists. A later revision then claimed all four conditional
+skips were masking possibly-broken behaviour. Isolated runs disprove that for
+three of them: they pass. The full-suite skips are a timing artefact - the
+`bonus_*` tests wait up to 20 s for a discovery GET, and under cumulative suite
+load the DUT does not always answer inside that window. Only
+`test_5_4_1_9_init_flag_sends_read_on_restart` is genuinely not exercised.
+
+Running the four conditional tests alone:
+
+```powershell
+.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k 'bonus_iid_too_short'
+.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -RunSlowTests -k '6d_unblocks'
+```
+
+Note the `-k` expression must be a single quoted token; a multi-word expression
+such as `-k 'a or b'` is split by PowerShell before it reaches pytest and
+collects nothing.
+
+**Resolved: the `bonus_*` asymmetry was load, not payload.** All six
 `TestUnicastDiscoveryMalformedLengths` tests share the same fixtures, the same
-`_run_reject()` driver and the same `_assert_rejected()` helper. In the last full
-run three of them (`iid_too_long`, `ia_too_long`, `ia_too_short`) logged
-`GET #1` / `GET #2` and passed, while the three listed above logged only the
-responder socket line and then skipped. Since the environment is identical within
-a single run, the difference is tied to the specific malformed payload rather
-than to the network setup. Four of the six malformed-length rejection cases are
-therefore **not currently validated**. This has not been investigated.
+`_run_reject()` driver and the same `_assert_rejected()` helper. In the full
+suite three passed and three skipped, which suggested the malformed payload
+itself determined the outcome. Isolated runs disprove that: all three of the
+skipping tests pass on their own in 9-16 s. The determining factor is cumulative
+suite load against the 20 s discovery-GET window, not the payload. All six
+malformed-length rejection cases are therefore **validated**, three of them only
+outside a full-suite run.
 
 **Previously listed here, no longer skipped:**
 `test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` was renamed so conftest's

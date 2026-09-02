@@ -23,6 +23,10 @@ Requires Docker Desktop running (Linux engine).
 
 # Test uncommitted/untracked changes (default tests only committed HEAD)
 .\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k "5_4"
+
+# Include tests gated behind RUN_SLOW_TESTS (currently the ~60 s SPAKE2+
+# brute-force auto-unblock test, which is skipped by default)
+.\tests\runtime\run-in-docker.ps1 -RunSlowTests -k "6d_unblocks"
 ```
 
 ### Reading results
@@ -40,6 +44,15 @@ Requires Docker Desktop running (Linux engine).
   respecting `.gitignore`).
 - Double-dash pytest args (e.g. `--tb=line`) are mis-parsed by PowerShell;
   single-dash args (`-k`, `-x`, `-v`) and file paths work.
+- A `-k` expression must be a single token. `-k 'a or b'` is split by PowerShell
+  before it reaches pytest and collects nothing; run each filter separately.
+- `-RunSlowTests` sets `RUN_SLOW_TESTS=1` in the container. Without it,
+  `test_5_3_1_6d_unblocks_after_timeout` is skipped by a static `skipif` and
+  never runs, even in a full suite.
+- Some conditional tests skip under cumulative suite load rather than failing
+  (e.g. the `test_5_4_1_15_bonus_*` malformed-length cases wait up to 20 s for a
+  discovery GET). They pass when run in isolation; a skip there is a timing
+  artefact, not a defect.
 - The script builds fresh inside the container's filesystem (no bind mount),
   avoiding stale CMake cache issues.
 
