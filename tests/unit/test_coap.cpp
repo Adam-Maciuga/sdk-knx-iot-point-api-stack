@@ -639,6 +639,106 @@ TEST_F(CoapTest, RoundTrip_WithPayload)
   EXPECT_EQ(memcmp(parsed.payload, payload, sizeof(payload)), 0);
 }
 
+/* ---- Block1 / Block2 parse independence ---- */
+
+TEST_F(CoapTest, RoundTrip_Block1AndBlock2UseDifferentSizes)
+{
+  /*
+    Block1 and Block2 are independent options and a peer may use a different SZX
+    for the request body than for the response body. The parser must derive
+    block1_size from the Block1 field and block2_size from the Block2 field.
+    Deriving block1_size from block2_num makes the two collapse onto whichever
+    size Block2 carried, misplacing every inbound request-body block boundary.
+  */
+  coap_udp_init_message(&pkt, COAP_TYPE_CON, COAP_POST, 0x0A0A);
+  EXPECT_EQ(coap_set_header_block1(&pkt, 5, 1, 128), 1);
+  EXPECT_EQ(coap_set_header_block2(&pkt, 2, 0, 1024), 1);
+
+  size_t len = coap_serialize_message(&pkt, wire);
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
+
+  uint32_t num = 0, offset = 0;
+  uint8_t more = 0;
+  uint16_t size = 0;
+
+  ASSERT_EQ(coap_get_header_block1(&parsed, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 5u);
+  EXPECT_EQ(more, 1);
+  EXPECT_EQ(size, 128);      // must follow Block1, not Block2
+  EXPECT_EQ(offset, 5u * 128u);
+
+  num = 0;
+  more = 0;
+  size = 0;
+  offset = 0;
+
+  ASSERT_EQ(coap_get_header_block2(&parsed, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 2u);
+  EXPECT_EQ(more, 0);
+  EXPECT_EQ(size, 1024);
+  EXPECT_EQ(offset, 2u * 1024u);
+}
+
+TEST_F(CoapTest, RoundTrip_Block1SizeIsIndependentOfAbsentBlock2)
+{
+  /*
+    With no Block2 option on the wire, block2_num stays at its initial value, so
+    a block1_size derived from block2_num would silently degrade to 16 bytes
+    regardless of what the peer actually requested.
+  */
+  coap_udp_init_message(&pkt, COAP_TYPE_CON, COAP_POST, 0x0B0B);
+  EXPECT_EQ(coap_set_header_block1(&pkt, 1, 1, 512), 1);
+
+  size_t len = coap_serialize_message(&pkt, wire);
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
+
+  uint32_t num = 0, offset = 0;
+  uint8_t more = 0;
+  uint16_t size = 0;
+
+  ASSERT_EQ(coap_get_header_block2(&parsed, nullptr, nullptr, nullptr, nullptr), 0);
+  ASSERT_EQ(coap_get_header_block1(&parsed, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 1u);
+  EXPECT_EQ(more, 1);
+  EXPECT_EQ(size, 512);
+  EXPECT_EQ(offset, 512u);
+}
+
+TEST_F(CoapTest, RoundTrip_Block1SurvivesEveryValidSzxWhileBlock2Differs)
+{
+  /*
+    Sweep every legal Block1 size while Block2 is pinned to a different one, so
+    the two can never coincidentally agree except at the single overlapping size.
+  */
+  const uint16_t sizes[] = {16, 32, 64, 128, 256, 512, 1024};
+
+  for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++)
+  {
+    const uint16_t block2_size = (sizes[i] == 256) ? 1024 : 256;
+
+    coap_packet_t local;
+    coap_udp_init_message(&local, COAP_TYPE_CON, COAP_POST, (uint16_t) (0x0C00 + i));
+    ASSERT_EQ(coap_set_header_block1(&local, 0, 1, sizes[i]), 1);
+    ASSERT_EQ(coap_set_header_block2(&local, 0, 0, block2_size), 1);
+
+    size_t len = coap_serialize_message(&local, wire);
+
+    coap_packet_t parsed;
+    ASSERT_EQ(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR) << "block1 size " << sizes[i];
+
+    uint16_t got1 = 0, got2 = 0;
+    ASSERT_EQ(coap_get_header_block1(&parsed, nullptr, nullptr, &got1, nullptr), 1);
+    ASSERT_EQ(coap_get_header_block2(&parsed, nullptr, nullptr, &got2, nullptr), 1);
+
+    EXPECT_EQ(got1, sizes[i]) << "block1 size leaked from block2 (" << block2_size << ")";
+    EXPECT_EQ(got2, block2_size) << "block2 size corrupted for block1 size " << sizes[i];
+  }
+}
+
 TEST_F(CoapTest, RoundTrip_WithUriPath)
 {
   coap_udp_init_message(&pkt, COAP_TYPE_CON, COAP_GET, 0x0003);

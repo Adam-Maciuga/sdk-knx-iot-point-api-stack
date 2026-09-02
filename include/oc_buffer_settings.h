@@ -18,23 +18,32 @@ extern "C" {
 #endif
 
 /**
- * @brief sets the size of the MTU to be used
- *        
+ * @brief sets the size of the CoAp PDU to be used
  *
- * @param mtu_size size in bytes 
- *        (MTU size covers CoAP payload/header, not UDP/IPv6 header)
+ * @param pdu_size total CoAp PDU size in bytes
  *
- * @return int 0-success
+ * @return int 0-success, -1 when the size cannot hold both CoAP header budgets
+ *         plus the smallest block-wise block (16 bytes)
+ *
+ * @note
+ * - the input is the TOTAL CoAp PDU size, i.e. the size of the buffer allocated per message,
+ *   covering the CoAP payload and the CoAP headers (PLURAL), but not the UDP/IPv6 header
+ * - the payload budget left to the application is 'pdu_size - 2 * COAP_MAX_HEADER_SIZE'
+ * - two CoAP header budgets are reserved because an OSCORE message holds both layers in the
+ *   same buffer at the same time (RFC 8613, section 5.3):
+ *   - outer: CoAP header, token, Class U (unprotected) options and the OSCORE option, this is what goes on the wire
+ *   - inner: the COSE plaintext, i.e. the real request code plus the Class E (encrypted) options
+ *            inside are duplicated or replaced outside, so both representations must be budgeted independently
  */
-int oc_set_mtu_size(uint32_t mtu_size);
+int oc_set_pdu_size(uint32_t pdu_size);
 
 /**
- * @brief retrieve the currently used MTU size 
+ * @brief retrieve the currently used CoAp PDU size 
  *        
- * @return uint32_t the MTU size in bytes 
- *         (MTU size covers CoAP payload/header, not UDP/IPv6 header)
+ * @return uint32_t the PDU size in bytes, same unit as passed to oc_set_pdu_size()
+ *         (total CoAp PDU size, not including the UDP/IPv6 header)
  */
-uint32_t oc_get_mtu_size(void);
+uint32_t oc_get_pdu_size(void);
 
 /**
  * @brief retrieve the max application data size
@@ -46,7 +55,7 @@ uint32_t oc_get_mtu_size(void);
 uint32_t oc_get_max_app_data_size(void);
 
 /**
- * @brief retrieve the block size
+ * @brief retrieve the CoAp blockwise transfer block size
  *
  * @return uint16_t the block size in bytes
  */

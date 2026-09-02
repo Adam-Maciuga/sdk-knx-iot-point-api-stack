@@ -261,3 +261,122 @@ Bugs and issues discovered during unit test development.
   after setting a sleep period. `tests/runtime/requirements.txt` now pins
   `zeroconf>=0.151.3,<1.0` so the conformance level being tested against is explicit and the same
   silent drift cannot recur.
+
+## F-013: ~~`oc_set_pdu_size()` double-counts the CoAP header when deriving the block size~~ - WITHDRAWN, NOT A DEFECT
+
+- **File:** `api/oc_main.c`, `oc_set_pdu_size()`
+- **Status:** Withdrawn. The original code was correct; the finding rested on a wrong
+  assumption about the meaning of the `pdu_size` argument.
+- **The actual contract:** `include/oc_buffer_settings.h` documents the argument as
+  "MTU size covers CoAP payload/header", i.e. the payload **plus one** CoAP header.
+  The in-function comment ("add internally *second* coap header size") says the same:
+  the caller supplies the outer header, the function adds the second one for the
+  OSCORE inner plaintext layer. The stored MTU therefore ends up at
+  `payload + 2 * COAP_MAX_HEADER_SIZE`, matching the static default at line 141.
+- **Why the original three lines were consistent:** under that contract the guard,
+  the store and the block-budget subtraction all correctly used a *single*
+  `COAP_MAX_HEADER_SIZE` - add one, subtract one, guard one. Checked against the
+  default initializer, which the surrounding comment declares to be "same as
+  `oc_set_pdu_size()` would calculate", the equivalent call is
+  `oc_set_pdu_size(KNX_PAYLOAD_SIZE + COAP_MAX_HEADER_SIZE)`:
+  - stored MTU: `(payload + H) + H` = `payload + 2H` - matches line 141
+  - block budget: `(payload + H) - H` = `payload` = 1024 - matches line 142
+  - guard: `payload + H >= H + 16` holds for any `payload >= 16`
+
+  All three agree, and this is the only self-consistent reading.
+- **Where the analysis went wrong:** it assumed the argument meant "payload only",
+  which made the single `H` in the setter look asymmetric against the default's `2H`.
+  It was not asymmetric. The follow-on claim of an unsigned underflow was equally
+  unfounded: the smallest accepted argument `H + 16` minus `H` is exactly 16, which is
+  precisely *why* the original guard used a single `H`. Changing the store to `2 * H`
+  is what actually broke the contract; the matching `2 *` in the subtraction and the
+  raised guard were downstream consequences of that first wrong edit. All three have
+  been reverted.
+- **Invariant now pinned:** the guard and the block-budget subtraction must always use
+  the **same** multiple of `COAP_MAX_HEADER_SIZE`. Touching one without the other
+  silently breaks the contract. Recorded as a block comment above
+  `oc_set_pdu_size()` and enforced by
+  `PduWorstCaseFrame.GuardAndBlockBudgetUseSameHeaderMultiple`, supported by
+  `SetPduSizeToDefaultEquivalentReproducesDefaultPduSize`,
+  `SetPduSizeToDefaultEquivalentReproducesDefaultBlockSize`,
+  `PduBelowTwoHeadersPlusMinBlockIsRejected`,
+  `MinimumAcceptedPduYieldsMinimumBlockSize` and `BlockSizeIsMonotonicInPduSize`.
+- **Worth keeping from the exercise - worst-case frame headroom (measured, not
+  assumed):** `test_oc_buffer_settings.cpp` builds a maximal-option CoAP packet with
+  the stack's own serializer (full 8-byte token, long Uri-Path, Uri-Port, Observe,
+  Max-Age, ETag, Block1/Block2, Size1/Size2 and the OSCORE option) and serializes it
+  through `coap_oscore_serialize_message()`. The outer message measures **90 bytes**,
+  far below the `COAP_MAX_HEADER_SIZE` budget of 164, and
+  `outer + inner + KNX_PAYLOAD_SIZE + OSCORE_AEAD_TAG_LEN` fits the default MTU with
+  room to spare. The `2 * COAP_MAX_HEADER_SIZE` reservation in the default is
+  conservative, as intended.
+
+## D-001: `oc_set_pdu_size()` contract redefined to the total CoAP PDU size
+
+- **File:** `api/oc_main.c`, `include/oc_buffer_settings.h`
+- **Status:** Deliberate design change, not a defect. Supersedes the contract described
+  in the withdrawn F-013 above.
+- **Old contract:** the argument was the payload **plus one** (outer) CoAP header, and
+  the setter added the second (inner plaintext) header internally. Consequence:
+  `oc_get_pdu_size()` returned a different unit than `oc_set_pdu_size()` accepted, so
+  `oc_set_pdu_size(oc_get_pdu_size())` inflated the buffer by `COAP_MAX_HEADER_SIZE`
+  (164 bytes) on every call - a silent drift with no compiler or runtime warning.
+- **New contract:** the argument is the **total CoAP PDU size**, i.e. the size of the
+  buffer allocated per message, and it is stored verbatim. The payload budget left to
+  the application is `pdu_size - 2 * COAP_MAX_HEADER_SIZE`.
+- **Why two header budgets:** an OSCORE message holds both layers in the same buffer at
+  the same time (RFC 8613 section 5.3). The outer message carries the CoAP header, the
+  token, the Class U options and the OSCORE option and is what goes on the wire; the
+  inner COSE plaintext carries the real request code and the Class E options. Options
+  such as Uri-Path move inside and are duplicated or replaced outside, so both
+  representations must be budgeted for independently.
+- **Migration impact:** none. `oc_set_pdu_size()` has no production callers - it appears
+  only in its own definition, the header declaration, the unit tests and the docs.
+- **Behavioural deltas:** the guard now rejects anything below
+  `2 * COAP_MAX_HEADER_SIZE + 16` (344) instead of `COAP_MAX_HEADER_SIZE + 16` (180),
+  and a given argument now yields a smaller block size than before because one more
+  header budget is subtracted. The static defaults at `oc_main.c` lines 141-142 are
+  unchanged; the equivalent call is now
+  `oc_set_pdu_size(KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE)` (1352).
+- **Pinned by:** `BufferSettings.GetPduSizeReturnsExactlyWhatWasSet` and
+  `BufferSettings.SetPduSizeFromGetPduSizeIsIdempotent`, which would both fail if the
+  setter ever resumed adjusting the stored value.
+
+## F-014: ~~Inbound `block1_size` derived from the Block2 option's SZX~~ - RESOLVED
+
+- **File:** `messaging/coap/coap.c`, `coap_oscore_parse_options()`, Block1 case
+- **Status:** RESOLVED. Fixed by the user; regression tests added in the same pass.
+- **Defect:** the Block1 parse branch computed the block size from the wrong field:
+
+  ```c
+  coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));
+  ```
+
+  The SZX bits were read from `block2_num` instead of `block1_num`. The adjacent
+  `block1_more`, `block1_offset` and `block1_num` assignments in the same branch all
+  used `block1_num` correctly, which is what made the single wrong operand easy to
+  miss.
+- **Introduced by:** commit `4a5f26c8` (2026-03-23, "format/ comment"). That commit was
+  cosmetic in intent - it added a `(uint16_t)` cast and a trailing comment to both the
+  Block2 and Block1 branches and rewrapped `block1_offset` onto one line. The Block2
+  branch immediately above received the identical edit and is correct there; the Block1
+  branch appears to have been copy-pasted from it without switching the operand back.
+  Commit `def5d1d6` (2026-06-01, block size retype to `uint16_t`) later moved the line
+  and carried the defect forward unchanged.
+- **Impact:** Block1 and Block2 are independent options and a peer may legitimately use
+  a different SZX for the request body than for the response body. Two failure modes:
+  1. Both options present with different sizes - the inbound request-body block size
+     collapses onto whatever Block2 carried, misplacing every block boundary during a
+     block-wise upload.
+  2. Block1 present with no Block2 - `block2_num` retains its initial value, so
+     `block1_size` silently degrades to the SZX 0 minimum of 16 bytes regardless of what
+     the peer requested.
+- **Fix:** read the SZX from `block1_num`, matching the surrounding assignments.
+- **Pinned by:** three tests in `tests/unit/test_coap.cpp`, all of which were confirmed
+  to fail against the reverted defect and pass against the fix:
+  `RoundTrip_Block1AndBlock2UseDifferentSizes` (Block1=128 / Block2=1024, observed 64
+  when broken), `RoundTrip_Block1SizeIsIndependentOfAbsentBlock2` (Block1=512 with no
+  Block2, observed 16 when broken), and
+  `RoundTrip_Block1SurvivesEveryValidSzxWhileBlock2Differs` (sweeps all seven legal
+  Block1 sizes with Block2 pinned to a deliberately different value, so the two can
+  never coincidentally agree).

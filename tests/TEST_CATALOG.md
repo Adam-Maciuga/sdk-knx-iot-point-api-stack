@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (60 tests)
+### test_coap.cpp — CoAP Parser/Serializer (63 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -198,7 +198,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `Payload` | 2 | Set/get payload |
 | `SetStatusCode` | 2 | Valid codes, overflow protection |
 | `OptionHeader` | 4 | Delta encoding (small, 1-byte ext, 2-byte ext, count-only) |
-| `RoundTrip` | 7 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) |
+| `RoundTrip` | 10 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) + Block1/Block2 parse independence (F-014) |
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
 | `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
 
@@ -393,21 +393,64 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_buffer_settings.cpp — Buffer/MTU Settings (9 tests)
+### test_oc_buffer_settings.cpp — Buffer/PDU Settings (29 tests)
 
 **Source:** `api/oc_main.c` (declared in `include/oc_buffer_settings.h`)
+
+Contract under test (see D-001 in `tests/FINDINGS.md`): the argument of
+`oc_set_pdu_size()` is the **total CoAP PDU size**, i.e. payload plus the outer
+and inner CoAP headers (`2 * COAP_MAX_HEADER_SIZE`, RFC 8613 clause 5.3). It is
+stored verbatim, and the payload budget used to derive the block size is
+`pdu_size - 2 * COAP_MAX_HEADER_SIZE`.
+
+**Defaults (`PduDefaults`, 5 tests)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `DefaultPduReservesTwoCoapHeaders` | Default PDU == `KNX_PAYLOAD_SIZE + 2*COAP_MAX_HEADER_SIZE` |
+| `DefaultBlockSizeMatchesPayloadSizeCappedAt1024` | Default block size follows the payload size, capped at 1024 |
+| `DefaultBlockSizeIsAnEncodableRfc7959Size` | Default block size is a legal SZX 0..6 value (power of two, 16..1024) |
+| `DefaultBlockSizeMatchesWhatSetPduSizeWouldDerive` | Static initializer agrees with the runtime setter |
+| `DefaultPduExceedsPayloadSize` | Default PDU strictly larger than the payload budget |
+
+**Accessors (`BufferSettings`, 10 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
 | `MaxAppDataSizeReturnsKnxPayloadSize` | `oc_get_max_app_data_size()` == `KNX_PAYLOAD_SIZE` |
 | `MaxAppDataSizeIsStable` | Repeated calls return the same value |
-| `SetMtuSizeBelowMinimumReturnsError` | MTU below `COAP_MAX_HEADER_SIZE+16` → -1 |
-| `SetMtuSizeBelowMinimumDoesNotChangeState` | Failed set leaves MTU unchanged |
-| `SetMtuSizeValidReturnsZero` | Valid MTU accepted |
-| `GetMtuSizeAddsConstantHeaderOffset` | `oc_get_mtu_size()` adds a constant header offset |
+| `SetPduSizeBelowMinimumReturnsError` | PDU below `2*COAP_MAX_HEADER_SIZE+16` → -1 |
+| `SetPduSizeBelowMinimumDoesNotChangeState` | Failed set leaves PDU and block size unchanged |
+| `SetPduSizeValidReturnsZero` | Valid PDU accepted |
+| `GetPduSizeReturnsExactlyWhatWasSet` | `oc_get_pdu_size()` returns the stored value verbatim |
+| `SetPduSizeFromGetPduSizeIsIdempotent` | Feeding the getter back into the setter is a fixed point (5 iterations) |
 | `BlockSizeIsPowerOfTwoInRange` | Block size is a power of two in 16..1024 |
-| `LargeMtuYieldsMaxBlockSize` | Large MTU → 1024-byte block |
-| `SmallerMtuYieldsSmallerBlockSize` | Smaller MTU → smaller block size |
+| `LargePduYieldsMaxBlockSize` | Large PDU → 1024-byte block |
+| `SmallerPduYieldsSmallerBlockSize` | Smaller PDU → smaller block size |
+
+**Worst-case OSCORE frame (`PduWorstCaseFrame`, 11 tests)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `MeasuredOuterHeaderFitsCoapMaxHeaderSize` | Serialized max-option outer frame ≤ `COAP_MAX_HEADER_SIZE` |
+| `MeasuredInnerHeaderFitsCoapMaxHeaderSize` | Serialized max-option inner frame ≤ `COAP_MAX_HEADER_SIZE` |
+| `DefaultPduHoldsWorstCaseOscoreFrame` | Default PDU holds outer + inner headers + a full encrypted payload |
+| `PayloadCarryingFrameStaysWithinMeasuredBudget` | A payload-carrying frame stays within the measured budget |
+| `SetPduSizeToDefaultEquivalentReproducesDefaultPduSize` | Setting the default-equivalent argument restores the default PDU |
+| `SetPduSizeToDefaultEquivalentReproducesDefaultBlockSize` | ...and restores the default block size |
+| `PduBelowTwoHeadersPlusMinBlockIsRejected` | Guard rejects anything below 344 bytes |
+| `MinimumAcceptedPduYieldsMinimumBlockSize` | The smallest accepted PDU yields a 16-byte block |
+| `GuardAndBlockBudgetUseSameHeaderMultiple` | Guard and payload-budget subtraction use the same `2*` multiple |
+| `BlockSizeIsMonotonicInPduSize` | Block size never decreases as the PDU grows |
+| `LargePduAlwaysHoldsWorstCaseFrame` | Any accepted large PDU still holds the worst-case frame |
+
+**Message buffer (`PduMessageBuffer`, 2 tests + `PduZzzRestore`, 1 test)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `AllocatedMessageBufferMatchesConfiguredPduSize` | `oc_allocate_message()` sizes its buffer from `OC_PDU_SIZE` |
+| `AllocatedMessageBufferHoldsWorstCaseFrame` | The allocated buffer holds the worst-case OSCORE frame |
+| `RestoreDefaultEquivalentPduSize` | Restores global PDU state for subsequent suites |
 
 ---
 
@@ -982,7 +1025,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
-### test_5_1_discovery.py — Unicast Discovery (10 tests)
+### test_5_1_discovery.py — Unicast Discovery (10 tests, 19 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1385,7 +1428,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
-### test_5_10_generic.py — Generic Protocol Behavior (14 tests)
+### test_5_10_generic.py — Generic Protocol Behavior (14 tests, 26 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1410,7 +1453,17 @@ and `test_5_2_swu.py` (6 -> 10).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 including uncommitted changes via `-IncludeUncommitted`):
-**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 814.53s) - fully green.
+**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 815.78s) - fully green.
+
+The most recent run re-verified the stack after the buffer/PDU work: the
+total-CoAP-PDU contract of `oc_set_pdu_size()`, the power-of-two floor applied
+to the default block size in `api/oc_main.c`, the RFC 7959 legality guards added
+to `coap_set_header_block1()` / `coap_set_header_block2()` (reject reserved SZX 7
+and any non-power-of-two size), and the new `coap_floor_block_size()` helper
+applied to the peer-influenced Size1 path in `messaging/coap/engine.c`. All
+block-wise traffic (`test_5_2_swu.py`, `test_5_5_fp_tables.py`,
+`test_5_6_app_program.py`) passed unchanged, confirming no regression in live
+block-wise transfer, discovery, group communication, observe or security.
 
 This run was the first complete verification of the DNS-SD TXT record conformance
 fix. Before the fix, five tests in `test_5_1_discovery_mdns.py` failed
@@ -1464,8 +1517,11 @@ byte-for-byte identical before and after
 (`subtypes=['00fa10020800', 'ia1199887766-1101']`, same AAAA, same port), with
 `GET /a/lsm` still answering 4.03 on the advertised endpoint.
 
-The 5 skips recorded above are conditional `pytest.skip()` cases
-(environment/timing dependent), not failures - see "Skipped tests" below.
+Of the 5 skips recorded above, one (`test_5_3_1_6d_unblocks_after_timeout`) is a
+static by-design `skipif` gate. The other four are conditional `pytest.skip()`
+cases that fired because the DUT did not emit the expected stimulus, so their
+assertions were never reached - they are not failures, but neither are they
+evidence that the behaviour under test is correct. See "Skipped tests" below.
 
 This run was also the first complete verification of the integer-parsing
 hardening campaign. Every site that converted a network-supplied string now
@@ -1484,20 +1540,42 @@ lifetime in `messaging/coap/observe.c`, and both URI-wildcard helpers in
 with zero failures. `get_fb_number_from_dp()` was removed from
 `api/oc_knx_fb.c` in the same pass (no production callers).
 
-The unit suite is fully green (1312/1312, ~44s).
+The unit suite is fully green (1355/1355, ~72s).
 
 ---
 
 ## Skipped tests
 
-| Test | Reason |
-|------|--------|
-| `test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` | No longer skipped in a full run (renamed to sort before `test_5_2_9_1`). The `pytest.skip()` guard remains only for partial `-k` runs where an update may still precede it |
-| `test_5_4_1_9_init_flag_sends_read_on_restart` | Init-flag read-on-startup gate is environment-dependent; skipped when veth/network conditions not met |
-| `test_5_3_1_6d_unblocks_after_timeout` | Brute-force lockout auto-unblock is time-dependent; skipped to keep the suite fast/deterministic |
-| `test_5_4_1_15_bonus_iid_too_short` | Malformed-length discovery edge case skipped on this DUT/transport configuration |
-| `test_5_4_1_15_bonus_sn_too_long` | Malformed-length discovery edge case skipped on this DUT/transport configuration |
-| `test_5_4_1_15_bonus_sn_too_short` | Malformed-length discovery edge case skipped on this DUT/transport configuration |
+Reasons below are taken from the actual `pytest.skip()` / `skipif` sites in the
+test sources, not inferred from the run output. Only the first row is a static,
+by-design gate; the remaining four are **conditional** skips that fire when the
+DUT does not produce the stimulus the test wanted to observe. A conditional skip
+of this kind is not evidence that the behaviour is correct - it means the
+assertion was never reached.
+
+| Test | Skip mechanism | Reason |
+|------|----------------|--------|
+| `test_5_3_1_6d_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | By design. Waits out the full 10 x 6 s brute-force lockout timer (~60 s). The runner never sets `RUN_SLOW_TESTS`, so this test **never** executes in a normal suite. Run it with `RUN_SLOW_TESTS=1` to exercise the auto-unblock path |
+| `test_5_4_1_9_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | The DUT sent no multicast init read within 10 s of `POST /test/restart`. That absence is precisely the condition the test exists to detect, so the skip masks a possible regression rather than proving the feature works |
+| `test_5_4_1_15_bonus_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | The DUT issued no discovery GET within the 20 s window, so the rejection assertion was never reached. **Not** a DUT/transport configuration gate - there is no such gate in this test |
+| `test_5_4_1_15_bonus_sn_too_long` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | Same condition as above: no discovery GET observed, assertion skipped |
+| `test_5_4_1_15_bonus_sn_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | Same condition as above: no discovery GET observed, assertion skipped |
+
+**Unresolved asymmetry in the `bonus_*` family.** All six
+`TestUnicastDiscoveryMalformedLengths` tests share the same fixtures, the same
+`_run_reject()` driver and the same `_assert_rejected()` helper. In the last full
+run three of them (`iid_too_long`, `ia_too_long`, `ia_too_short`) logged
+`GET #1` / `GET #2` and passed, while the three listed above logged only the
+responder socket line and then skipped. Since the environment is identical within
+a single run, the difference is tied to the specific malformed payload rather
+than to the network setup. Four of the six malformed-length rejection cases are
+therefore **not currently validated**. This has not been investigated.
+
+**Previously listed here, no longer skipped:**
+`test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` was renamed so conftest's
+numeric sort places it before `test_5_2_9_1_swu_firmware_update`; it now asserts
+the manufacturing date and passes. Its `pytest.skip()` guard remains only for
+partial `-k` runs where an update may precede it.
 
 ## Known Bugs (from unit tests)
 

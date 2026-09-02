@@ -123,42 +123,55 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
 }
 
 /* 
-   runtime variables for MTU and BLOCK size, initialized with default values that relates to each other 
-   (same as oc_set_mtu_size() would calculate)
+   runtime variables for PDU and BLOCK size, initialized with default values that relates to each other 
+   (same as oc_set_pdu_size() would calculate)
 
-   - MTU -> static runtime variable (set/get)
-   - BLOCK -> static runtime variable (only get)
+   - PDU    -> static runtime variable (set/get)
+   - BLOCK  -> static runtime variable (get)
 
    Note:
 
-   2 * COAP_MAX_HEADER_SIZE -> the MTU size must be large enough to accommodate
-   - outer coap header, token, options, 
-   - inner plaintext (code, coap options (duplicated from outer or additional), payload)
-
+   2 * COAP_MAX_HEADER_SIZE -> see oc_set_pdu_size() header definition for explanation 
+   
    the default block size is derived from KNX_PAYLOAD_SIZE and capped at 1024 (RFC 7959 maximum, SZX 6),
    so it stays consistent when KNX_PAYLOAD_SIZE is configured smaller than 1024
-*/
-static uint32_t _OC_MTU_SIZE = KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE;
-static uint16_t _OC_BLOCK_SIZE = KNX_PAYLOAD_SIZE >= 1024 ? 1024 : KNX_PAYLOAD_SIZE;
 
-int oc_set_mtu_size(uint32_t mtu_size)
+   RFC 7959 Section 2.2 only allows block sizes of '16 << SZX' with SZX 0..6, i.e. 16, 32, 64, 128, 256, 512 or 1024,
+   any other value cannot be encoded in the 3 bit SZX field of the Block1/Block2 option. KNX_PAYLOAD_SIZE is not
+   required to be a power of two (e.g. 900), hence it is floored to the largest legal block size that still fits,
+   which is exactly what the SZX loop in oc_set_pdu_size() derives at runtime
+*/
+
+#define OC_FLOOR_BLOCK_SIZE(payload)   \
+  (      (payload) >= 1024 ? 1024 :    \
+         (payload) >= 512 ? 512   :    \
+         (payload) >= 256 ? 256   :    \
+         (payload) >= 128 ? 128   :    \
+         (payload) >= 64 ? 64     :    \
+         (payload) >= 32 ? 32     : 16 \
+  )
+
+static uint32_t oc_pdu_size = KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE;  // holds current coap pdu size 
+static uint16_t oc_blk_size = OC_FLOOR_BLOCK_SIZE(KNX_PAYLOAD_SIZE);        // holds current coap blockwise transfer block size
+
+int oc_set_pdu_size(uint32_t pdu_size)
 {
-  // at least CoAP header (see note above) + 16 bytes (smallest CoAP block-wise block, i.e. SZX = 0 -> 16 << 0 = 16 bytes)
-  if (mtu_size <  2 * COAP_MAX_HEADER_SIZE + 16)
+  // at least both CoAP header budgets (see note above) + 16 bytes (smallest CoAP block-wise block, i.e. SZX = 0 -> 16 << 0 = 16 bytes)
+  if (pdu_size < 2 * COAP_MAX_HEADER_SIZE + 16)
   {
     return -1;
   }
 
   /*
-    the buffer sizing is independent of block-wise transfer, hence the MTU is always stored,
+    the buffer sizing is independent of block-wise transfer, hence the PDU size is always stored,
     only the derivation of the block size below requires OC_BLOCK_WISE
   */
 
-  // add internally second coap header size
-  _OC_MTU_SIZE = mtu_size + 2 * COAP_MAX_HEADER_SIZE;
+  // the argument is the total PDU size, store it unchanged
+  oc_pdu_size = pdu_size;
 
-  // tmp variable for block size calculation, remove the CoAP header size
-  mtu_size -= 2 * COAP_MAX_HEADER_SIZE;
+  // tmp variable for block size calculation, remove both CoAP header budgets to get the pure payload budget
+  pdu_size -= 2 * COAP_MAX_HEADER_SIZE;
 
   #ifdef OC_BLOCK_WISE
 
@@ -166,31 +179,35 @@ int oc_set_mtu_size(uint32_t mtu_size)
     a block is a chunk of the application payload, hence it can never exceed the application data buffer
     (OC_MAX_APP_DATA_SIZE = KNX_PAYLOAD_SIZE), clamp the budget before deriving the size exponent
   */
-  if (mtu_size > KNX_PAYLOAD_SIZE)
+  if (pdu_size > KNX_PAYLOAD_SIZE)
   {
-    mtu_size = KNX_PAYLOAD_SIZE;
+    pdu_size = KNX_PAYLOAD_SIZE;
   }
 
-  // derive block size SZX (RFC 7959 Section 2.2, Size Exponent) as largest power-of-2 that fits in the MTU (range: 1024..16 bytes, SZX 6..0)
+  /* 
+    derive block size SZX (RFC 7959 Section 2.2, Size Exponent) as largest power-of-2 that fits in the payload budget
+    - range: 1024..16 bytes, SZX 6..0
+    - 
+  */
   uint16_t i;
-  for (i = 10; i >= 4 && (mtu_size >> i) == 0; i--)
+  for (i = 10; i >= 4 && (pdu_size >> i) == 0; i--)
   {
   }
 
-  _OC_BLOCK_SIZE = (uint16_t)(1 << i);
+  oc_blk_size = (uint16_t)(1 << i);
 
   #else
 
-  (void) mtu_size;
+  (void) pdu_size;
 
   #endif 
 
   return 0;
 }
 
-uint32_t oc_get_mtu_size(void)
+uint32_t oc_get_pdu_size (void)
 {
-  return _OC_MTU_SIZE;
+  return oc_pdu_size;
 }
 
 uint32_t oc_get_max_app_data_size(void)
@@ -200,7 +217,7 @@ uint32_t oc_get_max_app_data_size(void)
 
 uint16_t oc_get_block_size(void) 
 {
-  return  _OC_BLOCK_SIZE;
+  return  oc_blk_size;
 }
 
 static void oc_shutdown_device(void)

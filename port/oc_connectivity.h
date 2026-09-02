@@ -28,7 +28,7 @@ extern "C" {
 #ifdef OC_TCP
 #define OC_PDU_SIZE (oc_get_max_app_data_size() + 2 * COAP_MAX_HEADER_SIZE)
 #else  
-#define OC_PDU_SIZE (oc_get_mtu_size())
+#define OC_PDU_SIZE (oc_get_pdu_size())
 #endif 
 
 #define OC_BLOCK_SIZE (oc_get_block_size())

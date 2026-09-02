@@ -270,7 +270,7 @@ or tear down the whole stack and are INTEGRATION.
 | oc_set_hostname_cb / oc_get_hostname_cb | DONE |
 | oc_set_programming_mode_cb / oc_get_programming_mode_cb | DONE |
 | oc_set_lsm_change_cb / oc_get_lsm_change_cb | DONE |
-| oc_set_mtu_size / oc_get_mtu_size | DONE (test_oc_buffer_settings.cpp) |
+| oc_set_pdu_size / oc_get_pdu_size | DONE (test_oc_buffer_settings.cpp) |
 | oc_get_max_app_data_size / oc_get_block_size | DONE (test_oc_buffer_settings.cpp) |
 | oc_main_initialized | DONE |
 | _oc_signal_event_loop | DONE (NULL-callbacks guard path) |

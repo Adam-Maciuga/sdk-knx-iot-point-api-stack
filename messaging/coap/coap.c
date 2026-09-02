@@ -927,7 +927,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
         coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;               // can only be 0 or 1
-        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
+        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block1_num & 0x07));  // can't be more than 16 bit
         coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
         coap_pkt->block1_num >>= 4;
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
