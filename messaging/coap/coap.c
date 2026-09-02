@@ -70,6 +70,34 @@ static uint16_t coap_log_2(uint16_t value)
   return result - 1;
 }
 
+// floor an arbitrary byte count down to a valid RFC 7959 block size (16..1024, SZX 0..6), see coap.h for details
+uint16_t coap_floor_block_size(uint32_t size)
+{
+  if (size >= 1024)
+  {
+    // cap at SZX 6, 2048 would encode to the reserved SZX 7
+    return 1024;
+  }
+
+  if (size < 16)
+  {
+    // SZX 0 is the smallest representable block
+    return 16;
+  }
+
+  /*
+    derive the SZX exponent the same way the serializer does (see COAP_SERIALIZE_BLOCK_OPTION in coap.h)
+    and expand it back to bytes, so the result is by construction a size that survives the encoding unchanged.
+    
+    coap_log_2() floors, hence 'size / 16' 
+    - 100  / 16 = 6  yields SZX 0 -> 16 bytes
+    - 700  / 16 = 43 yields SZX 5 -> 512 bytes
+    - 1000 / 16 = 62 yields SZX 6 -> 1024 bytes
+
+  */
+  return (uint16_t)(16 << coap_log_2((uint16_t)(size / 16)));
+}
+
 void print_coap_service(uint8_t code, char* text)
 {
   #ifdef OC_DEBUG
@@ -1763,7 +1791,14 @@ int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t*
   Parameters:
   - num:  block number (20-bit max, 0x0FFFFF)
   - more: M-bit (1 = more blocks follow, 0 = last block)
-  - size: block size in bytes (power-of-2, valid range 16..2048)
+  - size: block size in bytes, must be a power of two in the range 16..1024
+
+  Note:
+
+  RFC 7959 Section 2.2 encodes the block size as the 3 bit exponent SZX, the wire value is 2^(SZX + 4).
+  Only SZX 0..6 (16..1024 bytes) are valid, SZX 7 is reserved and a message using it must be treated as an error.
+  A size of 2048 would encode to the reserved SZX 7 and any other non power of two would be silently truncated
+  down to the next lower valid size by the serializer, leaving sender and peer disagreeing on the block boundaries.
 
   Returns 1 on success, 0 if parameters are out of range.
 */
@@ -1771,15 +1806,27 @@ int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t si
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (size < 16) {
+  if (size < 16) 
+  {
     return 0;
   }
 
-  if (size > 2048) {
+  // 2048 would encode to the reserved SZX 7, see note above
+  if (size > 1024) {
     return 0;
   }
 
-  if (num > 0x0FFFFF) {
+  // reject anything that is not a power of two, it cannot be represented by SZX
+  if ((size & (size - 1)) != 0) 
+  {
+    // 1024 -> 10000000000b, 1024 - 1 = 01111111111b, AND = 00000000000b == 0
+    // 1025 -> 10000000001b, 1025 - 1 = 10000000000b, AND = 10000000000b != 0
+    // 1500 -> 10111011100b, 1500 - 1 = 10111011011b, AND = 10111011000b != 0
+    return 0;
+  }
+
+  if (num > 0x0FFFFF) 
+  {
     return 0;
   }
 
@@ -1831,22 +1878,43 @@ int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t*
   Parameters:
   - num:  block number (20-bit max, 0x0FFFFF)
   - more: M-bit (1 = more blocks follow, 0 = last block)
-  - size: block size in bytes (power-of-2, valid range 16..2048)
+  - size: block size in bytes, must be a power of two in the range 16..1024
+
+  Note:
+
+  RFC 7959 Section 2.2 encodes the block size as the 3 bit exponent SZX, the wire value is 2^(SZX + 4).
+  Only SZX 0..6 (16..1024 bytes) are valid, SZX 7 is reserved and a message using it must be treated as an error.
+  A size of 2048 would encode to the reserved SZX 7 and any other non power of two would be silently truncated
+  down to the next lower valid size by the serializer, leaving sender and peer disagreeing on the block boundaries.
 
   Returns 1 on success, 0 if parameters are out of range.
 */
-int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size) {
+int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (size < 16) {
+  if (size < 16) 
+  {
     return 0;
   }
 
-  if (size > 2048) {
+  // 2048 would encode to the reserved SZX 7, see note above
+  if (size > 1024) 
+  {
     return 0;
   }
 
-  if (num > 0x0FFFFF) {
+  // reject anything that is not a power of two within allowed range, it cannot be represented by SZX
+  if ((size & (size - 1)) != 0) 
+  {
+    // 1024 -> 10000000000b, 1024 - 1 = 01111111111b, AND = 00000000000b == 0
+    // 1025 -> 10000000001b, 1025 - 1 = 10000000000b, AND = 10000000000b != 0
+    // 1500 -> 10111011100b, 1500 - 1 = 10111011011b, AND = 10111011000b != 0
+    return 0;
+  }
+
+  if (num > 0x0FFFFF) 
+  {
     return 0;
   }
 

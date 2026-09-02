@@ -1504,13 +1504,24 @@ int coap_receive(oc_message_t* incoming_message)
         {
           OC_DBG("initiating block-wise transfer with block1 option");
           
-          // tmp copy
-          uint32_t peer_mtu = 0;
+          // value of the peer's Size1 option (RFC 7959 Section 4), a total body size in bytes, not a block or PDU size
+          uint32_t peer_size1 = 0;
 
-          if (coap_get_header_size1(inbound_coap_pkt, &peer_mtu) == 1)
+          if (coap_get_header_size1(inbound_coap_pkt, &peer_size1) == 1)
           {
-            // if the peer specified a Size1 option (especially in case of 4.13 response), use it to determine the block size for the block-wise transfer, but cap it at OC_BLOCK_SIZE
-            block1_size = (uint16_t) MIN(peer_mtu, OC_BLOCK_SIZE);
+            /*
+              if the peer specified a Size1 option (especially in case of 4.13 response), use it to determine the block size
+              for the block-wise transfer, but cap it at OC_BLOCK_SIZE.
+              Size1 is a total body size in bytes and can be any value, so the result must be floored to a valid
+              RFC 7959 block size (16..1024, SZX 0..6), otherwise the serializer would silently truncate it down
+              and sender and peer would disagree on the block boundaries.
+              
+              MIN 
+              - peer 64, own block size 1024 -> 64, floor to peer 64 (not own 1024)
+              - peer 512, own block size 256 -> 256, floor to own 256 (not peer 512)
+
+            */
+            block1_size = coap_floor_block_size(MIN(peer_size1, (uint32_t) OC_BLOCK_SIZE));
           }
           else
           {

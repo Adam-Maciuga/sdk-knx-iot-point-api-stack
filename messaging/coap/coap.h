@@ -237,7 +237,7 @@ typedef struct coap_packet_t
     {                                                                                 \
       block |= 0x8;                                                                   \
     }                                                                                 \
-    /* RFC 7959, SZX 0...6 = 16...1024 bytes */                                                                                  \
+    /* RFC 7959, SZX 0...6 = 16...1024 bytes */                                       \
     block |= 0xF & coap_log_2(coap_pkt->field##_size / 16);                           \
     option_length += coap_serialize_int_option(number, current_number, option, block);\
     if (option)                                                                       \
@@ -415,6 +415,19 @@ int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len);
 
 uint32_t coap_get_payload(void* packet, const uint8_t** payload);
 uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length);
+
+/*
+  Floor an arbitrary byte count down to a valid RFC 7959 block size.
+
+  RFC 7959 Section 2.2 encodes the block size as the 3 bit exponent SZX, the wire value is 2^(SZX + 4),
+  so only 16, 32, 64, 128, 256, 512 and 1024 can be represented. Any other value would be silently
+  truncated down by the serializer, leaving sender and peer disagreeing on the block boundaries.
+
+  Values above 1024 are capped at 1024 (SZX 6), values below 16 are raised to 16 (SZX 0).
+
+  Returns the largest valid block size that does not exceed 'size'.
+*/
+uint16_t coap_floor_block_size(uint32_t size);
 
 size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer);
 

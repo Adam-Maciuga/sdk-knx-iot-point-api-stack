@@ -289,7 +289,117 @@ TEST_F(CoapTest, Block2_InvalidSizeTooSmall)
 TEST_F(CoapTest, Block2_InvalidSizeTooLarge)
 {
   init_con_get();
-  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 4096), 0); /* > 2048 */
+  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 4096), 0); /* > 1024 */
+}
+
+TEST_F(CoapTest, Block2_ReservedSzx7SizeIsRejected)
+{
+  /*
+    RFC 7959 Section 2.2: SZX is a 3 bit exponent, valid values are 0..6 (16..1024 bytes).
+    2048 would encode to the reserved SZX 7, which a peer must treat as an error.
+  */
+  init_con_get();
+  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 2048), 0);
+}
+
+TEST_F(CoapTest, Block2_NonPowerOfTwoSizeIsRejected)
+{
+  /*
+    a non power of two cannot be represented by SZX and would be silently truncated
+    down by the serializer, leaving sender and peer on different block boundaries
+  */
+  init_con_get();
+  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 700), 0);
+  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 900), 0);
+  EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, 300), 0);
+}
+
+TEST_F(CoapTest, Block2_AllValidSzxSizesAreAccepted)
+{
+  init_con_get();
+  for (uint16_t szx = 0; szx <= 6; szx++)
+  {
+    uint16_t size = (uint16_t)(16 << szx);
+    EXPECT_EQ(coap_set_header_block2(&pkt, 0, 0, size), 1) << "valid RFC 7959 block size rejected: " << size;
+  }
+}
+
+TEST_F(CoapTest, Block1_ReservedSzx7SizeIsRejected)
+{
+  init_con_get();
+  EXPECT_EQ(coap_set_header_block1(&pkt, 0, 0, 2048), 0);
+}
+
+TEST_F(CoapTest, Block1_NonPowerOfTwoSizeIsRejected)
+{
+  init_con_get();
+  EXPECT_EQ(coap_set_header_block1(&pkt, 0, 0, 700), 0);
+  EXPECT_EQ(coap_set_header_block1(&pkt, 0, 0, 900), 0);
+}
+
+TEST_F(CoapTest, Block1_AllValidSzxSizesAreAccepted)
+{
+  init_con_get();
+  for (uint16_t szx = 0; szx <= 6; szx++)
+  {
+    uint16_t size = (uint16_t)(16 << szx);
+    EXPECT_EQ(coap_set_header_block1(&pkt, 0, 0, size), 1) << "valid RFC 7959 block size rejected: " << size;
+  }
+}
+
+TEST(CoapFloorBlockSize, ValidSizesArePreserved)
+{
+  for (uint16_t szx = 0; szx <= 6; szx++)
+  {
+    uint16_t size = (uint16_t)(16 << szx);
+    EXPECT_EQ(coap_floor_block_size(size), size) << "valid block size was altered: " << size;
+  }
+}
+
+TEST(CoapFloorBlockSize, NonPowerOfTwoIsFlooredDown)
+{
+  /* the result must never exceed the requested size, otherwise a block would overrun the peer's budget */
+  EXPECT_EQ(coap_floor_block_size(700), 512);
+  EXPECT_EQ(coap_floor_block_size(900), 512);
+  EXPECT_EQ(coap_floor_block_size(1000), 512);
+  EXPECT_EQ(coap_floor_block_size(300), 256);
+  EXPECT_EQ(coap_floor_block_size(17), 16);
+  EXPECT_EQ(coap_floor_block_size(1023), 512);
+}
+
+TEST(CoapFloorBlockSize, LargeValuesAreCappedAtSzx6)
+{
+  /* 2048 would encode to the reserved SZX 7 */
+  EXPECT_EQ(coap_floor_block_size(1024), 1024);
+  EXPECT_EQ(coap_floor_block_size(2048), 1024);
+  EXPECT_EQ(coap_floor_block_size(65535), 1024);
+  EXPECT_EQ(coap_floor_block_size(0xFFFFFFFFu), 1024);
+}
+
+TEST(CoapFloorBlockSize, SmallValuesAreRaisedToSzx0)
+{
+  /* 16 is the smallest representable block, there is no SZX below 0 */
+  EXPECT_EQ(coap_floor_block_size(0), 16);
+  EXPECT_EQ(coap_floor_block_size(1), 16);
+  EXPECT_EQ(coap_floor_block_size(15), 16);
+}
+
+TEST(CoapFloorBlockSize, ResultIsAlwaysAcceptedByTheBlockSetters)
+{
+  /*
+    the whole point of the helper: whatever a peer sends as Size1, the floored result
+    must be a value the RFC 7959 guards in coap_set_header_block1/2 accept
+  */
+  coap_packet_t p;
+  uint32_t probes[] = {0, 1, 15, 16, 17, 63, 300, 511, 700, 900, 1000, 1023, 1024, 2048, 65535};
+
+  for (size_t i = 0; i < sizeof(probes) / sizeof(probes[0]); i++)
+  {
+    uint16_t floored = coap_floor_block_size(probes[i]);
+    coap_udp_init_message(&p, COAP_TYPE_CON, COAP_GET, 42);
+    EXPECT_EQ(coap_set_header_block1(&p, 0, 0, floored), 1) << "probe " << probes[i] << " floored to rejected size " << floored;
+    EXPECT_EQ(coap_set_header_block2(&p, 0, 0, floored), 1) << "probe " << probes[i] << " floored to rejected size " << floored;
+  }
 }
 
 TEST_F(CoapTest, Block2_InvalidNumTooLarge)
