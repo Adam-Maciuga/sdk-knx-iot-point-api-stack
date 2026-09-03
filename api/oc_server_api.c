@@ -550,14 +550,25 @@ void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t*
 void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 {
   coap_separate_t* cur = (coap_separate_t*)oc_list_head(handle->requests);
-  
+  if (!cur)
+  {
+    OC_ERR("no separate request stored, cannot set up the response buffer");
+    return;
+  }
+
   handle->response_state = oc_blockwise_alloc_response_buffer(
     oc_string(cur->uri), oc_string_len(cur->uri), 
     &cur->endpoint,
     cur->method, OC_BLOCKWISE_SERVER);
 
+  if (!handle->response_state)
+  {
+    OC_ERR("could not allocate the response buffer for the separate response");
+    return;
+  }
+
   #ifdef OC_BLOCK_WISE
-  // allocates buffer in oc_blockwise_alloc_response_buffer() with OC_MAX_APP_DATA_SIZE, so use it below
+  // allocated buffer in oc_blockwise_alloc_response_buffer = OC_MAX_APP_DATA_SIZE, so use it below
   oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
   #else
   oc_rep_new(handle->buffer, OC_BLOCK_SIZE);
@@ -566,6 +577,27 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
 {
+  if (!handle->response_state)
+  {
+    /*
+      no response buffer was allocated (e.g. block-wise buffers exhausted), the pending separate
+      requests cannot be answered (no response will be sent out), hence drop them and let the 
+      peer run into its own timeout
+    */
+    OC_ERR("no response buffer for the separate response, dropping the pending requests");
+
+    coap_separate_t* pending = (coap_separate_t*)oc_list_head(handle->requests);
+    while (pending)
+    {
+      coap_separate_t* next_pending = pending->next;
+      coap_separate_clear(handle, pending);
+      pending = next_pending;
+    }
+
+    handle->active = false;
+    return;
+  }
+
   oc_response_buffer_t response_buffer = 
   {
     .buffer = handle->response_state->buffer,
@@ -704,14 +736,11 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 
 void oc_send_separate_response(oc_separate_response_t* handle, oc_status_t response_code)
 {
-  size_t length;
-  if (handle->response_state->payload_size != 0)
+  size_t length = 0;
+
+  if (handle->response_state)
   {
-    length = handle->response_state->payload_size;
-  }
-  else
-  {
-    length = oc_rep_get_encoded_payload_size();
+    length = handle->response_state->payload_size != 0 ? handle->response_state->payload_size : oc_rep_get_encoded_payload_size();
   }
 
   oc_send_separate_response_with_length(handle, response_code, length);
