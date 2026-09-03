@@ -59,12 +59,6 @@ void oc_receive_message(oc_message_t *message);
  */
 void oc_send_message(oc_message_t *message);
 
-/**
- * @brief close all tls sessions
- *
- */
-void oc_close_all_tls_sessions(void);
-
 #ifdef __cplusplus
 }
 #endif

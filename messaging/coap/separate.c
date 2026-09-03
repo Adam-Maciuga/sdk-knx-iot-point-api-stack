@@ -117,16 +117,7 @@ int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc
 
 void coap_separate_resume(void* response, coap_separate_t* separate_store, uint8_t code, uint16_t mid)
 {
-  #ifdef OC_TCP
-  if (separate_store->endpoint.flags & TCP)
-  {
-    coap_tcp_init_message(response, code);
-  }
-  else
-  #endif
-  {
-    coap_udp_init_message(response, separate_store->type, code, mid);
-  }
+  coap_udp_init_message(response, separate_store->type, code, mid);
   if (separate_store->token_len)
   {
     coap_set_token(response, separate_store->token, separate_store->token_len);

@@ -18,9 +18,6 @@
 #include "messaging/coap/engine.h"
 #include "messaging/coap/oc_coap.h"
 #include "messaging/coap/observe.h"
-#ifdef OC_TCP
-#include "messaging/coap/coap_signal.h"
-#endif
 
 #include "port/oc_random.h"
 #include "oc_buffer.h"
@@ -28,9 +25,6 @@
 #include "oc_events.h"
 #include "oc_network_events.h"
 #include "oc_signal_event_loop.h"
-#ifdef OC_TCP
-#include "oc_session_events.h"
-#endif
 #include "oc_api.h"
 #include "oc_ri.h"
 #include "oc_knx_sec.h"
@@ -54,10 +48,6 @@ OC_LIST(client_cbs);
 OC_LIST(timed_callbacks);
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
-
-#ifdef OC_TCP
-oc_event_callback_retval_t oc_remove_ping_handler(void* data);
-#endif
 
 static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 {
@@ -635,35 +625,16 @@ static void start_processes(void)
 
   oc_process_start(&oc_oscore_handler, NULL);
 
-  #ifdef KNX_TCP_TLS
-  oc_process_start(&oc_tls_handler, NULL);
-  #endif
-
   oc_process_start(&oc_network_events, NULL);
-  #ifdef OC_TCP
-  oc_process_start(&oc_session_events, NULL);
-  #endif
 }
 
 static void stop_processes(void)
 {
-  #ifdef OC_TCP
-  oc_process_exit(&oc_session_events);
-  #endif
   oc_process_exit(&oc_network_events);
   oc_process_exit(&oc_etimer_process);
   oc_process_exit(&timed_callback_events);
   oc_process_exit(&coap_engine);
   oc_process_exit(&oc_oscore_handler);
-
-  #ifdef KNX_TCP_TLS
-  oc_process_exit(&oc_tls_handler);
-  #endif
-  oc_process_exit(&oc_oscore_handler);
-  #ifdef KNX_TCP_TLS
-  oc_process_exit(&oc_tls_handler); // TBD FIXME why is this here called twice!?
-  #endif
-
   oc_process_exit(&message_buffer_handler);
 }
 
@@ -1544,13 +1515,6 @@ static void notify_client_cb_503(oc_client_cb_t* cb)
     handler(&client_response);
   }
 
-  #ifdef OC_TCP
-  if ((oc_string_len(cb->uri) == 5 &&  memcmp((const char*)oc_string(cb->uri), "/ping", 5) == 0))
-  {
-    oc_ri_remove_timed_event_callback(cb, oc_remove_ping_handler);
-  }
-  #endif
-
   free_client_cb(cb);
 }
 
@@ -1768,14 +1732,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
       }
     }
   }
-
-  #ifdef OC_TCP
-  if (pkt->code == PONG_7_03 || (oc_string_len(cb->uri) == 5 &&
-    memcmp((const char*)oc_string(cb->uri), "/ping", 5) == 0))
-  {
-    oc_ri_remove_timed_event_callback(cb, oc_remove_ping_handler);
-  }
-  #endif
 
   if (!oc_ri_is_client_cb_valid(cb))
   {

@@ -45,9 +45,6 @@ typedef uint64_t oc_clock_time_t;
 // TODO verify added by NXP
 #define SELECT_TIMEOUT_SEC (1)
 
-// Add support for passing TCP/TLS/DTLS session connection events to the
-// application.
-#define OC_SESSION_EVENTS
 // Add request history for deduplicate UDP/DTLS messages.
 #define OC_REQUEST_HISTORY
 

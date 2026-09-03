@@ -373,16 +373,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         */
         coap_packet_t request_virtual[1];
 
-        #ifdef OC_TCP
-        if (obs->endpoint.flags & TCP)
-        {
-          coap_tcp_init_message(request_virtual, COAP_GET);
-        }
-        else
-        #endif
-        {
-          coap_udp_init_message(request_virtual, COAP_TYPE_NON, COAP_GET, 0);
-        }
+        coap_udp_init_message(request_virtual, COAP_TYPE_NON, COAP_GET, 0);
         memcpy(request_virtual->token, obs->token, obs->token_len);
         request_virtual->token_len = obs->token_len;
         coap_set_header_uri_path(request_virtual, oc_string(resource->uri), oc_string_len(resource->uri));
@@ -408,27 +399,12 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         const coap_message_type_t msg_type = obs->use_con ? COAP_TYPE_CON : COAP_TYPE_NON;
         const uint16_t mid = coap_get_next_mid();
 
-        #ifdef OC_TCP
-        if (obs->endpoint.flags & TCP)
-        {
-          coap_tcp_init_message(notification, CONTENT_2_05);
-        }
-        else
-        #endif
-        {
-          // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
-          coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
-        }
+        // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
+        coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
 
         #ifdef OC_BLOCK_WISE
-        #ifdef OC_TCP
-        if (!(obs->endpoint.flags & TCP) && response_buf->response_length > obs->block2_size)
-        {
-
-        #else
         if (response_buf->response_length > obs->block2_size)
         {
-          #endif
           notification->type = COAP_TYPE_CON;
           response_state = oc_blockwise_find_response_buffer(
             oc_string(obs->resource->uri) + 1,
@@ -476,15 +452,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         #endif
         { // payload fits
 
-          #ifdef OC_TCP
-          if (!(obs->endpoint.flags & TCP) && obs->use_con && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
-          {
-
-          #else
           if (obs->use_con && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
           {
-            #endif
-
             // RFC 7641 4.5: periodic CON to verify client is still alive; skip for NON observers
             OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
             notification->type = COAP_TYPE_CON;
@@ -699,16 +668,7 @@ void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
         // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
         const coap_message_type_t msg_type = obs->use_con ? COAP_TYPE_CON : COAP_TYPE_NON;
 
-        #ifdef OC_TCP
-        if (obs->endpoint.flags & TCP)
-        {
-          coap_tcp_init_message(notification, CONTENT_2_05);
-        }
-        else
-        #endif
-        {
-          coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
-        }
+        coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
 
         // build notification with the fully-formed S-Mode envelope payload (same bytes as the sent S-Mode message)
         coap_set_header_content_format(notification, APPLICATION_CBOR);

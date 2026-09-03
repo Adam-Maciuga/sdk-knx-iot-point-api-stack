@@ -15,10 +15,8 @@
  * - _oc_signal_event_loop with no app callbacks registered (NULL-guard path).
  * oc_main_init / oc_main_poll / oc_main_shutdown / oc_shutdown_device (static)
  * bootstrap and tear down the whole stack (RI, SPAKE2+, connectivity, mDNS,
- * group multicasts) and are INTEGRATION-level. oc_set_drop_commands /
- * oc_drop_command only exist when KNX_TCP_TLS is defined, which no build
- * configuration currently does, so they are not compiled here. These are
- * documented in tests/COVERAGE_LEDGER.md.
+ * group multicasts) and are INTEGRATION-level. These are documented in
+ * tests/COVERAGE_LEDGER.md.
  */
 
 extern "C" {

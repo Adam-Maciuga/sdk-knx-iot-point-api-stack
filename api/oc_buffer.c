@@ -95,14 +95,6 @@ void oc_send_message(oc_message_t* message)
   _oc_signal_event_loop();
 }
 
-#ifdef KNX_TCP_TLS
-void oc_close_all_tls_sessions(void)
-{
-  oc_process_post(&message_buffer_handler, oc_events[TLS_CLOSE_ALL_SESSIONS], NULL);
-  _oc_signal_event_loop();
-}
-#endif 
-
 OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 {
   OC_PROCESS_BEGIN();

@@ -47,20 +47,12 @@
 #include "timestamp.h"
 #include "port/oc_random.h"
 
-#ifdef KNX_TCP_TLS
-#include "oc_tls.h"
-#endif
-
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
 #endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
-#endif
-
-#ifdef OC_TCP
-#include "coap_signal.h"
 #endif
 
 OC_PROCESS(coap_engine, "CoAP Engine");
@@ -258,44 +250,40 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
   
   memcpy(his.fields.address, endpoint->addr.ipv6.address, 16);
 
-  // the type is initialized in relation of the use of UDP/TCP
-  if (coap->transport_type == COAP_TRANSPORT_UDP)
+  for (const oc_request_history_entry_t* h = g_history; h < g_history + OC_REQUEST_HISTORY_SIZE; h++)
   {
-    for (const oc_request_history_entry_t* h = g_history; h < g_history + OC_REQUEST_HISTORY_SIZE; h++)
-    {
-      /* 
-        match and not timed out ? 
-        NOTE: if timed out and match; 
-              - treat as no duplicate, 
-              - don't delete history entry, 
-              - will be overwritten on roll over of counter
-      */
-      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
-          // cmp just received inbound msg with history entries
-          && his.timestamp - h->timestamp <= OC_REQUEST_HISTORY_TIMEOUT)
-      { // not timed out and match 
+    /*
+      match and not timed out ?
+      NOTE: if timed out and match;
+            - treat as no duplicate,
+            - don't delete history entry,
+            - will be overwritten on roll over of counter
+    */
+    if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
+        // cmp just received inbound msg with history entries
+        && his.timestamp - h->timestamp <= OC_REQUEST_HISTORY_TIMEOUT)
+    { // not timed out and match
 
-        OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
-        oc_char_print_hex((char*)his.fields.address, 16);
+      OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+      oc_char_print_hex((char*)his.fields.address, 16);
 
-        // RFC 7252 section 4.5: re-send cached response if available
-        const bool resend = response_cache_lookup_and_resend(&his);
-        
-        OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
-        return true;
-      }
+      // RFC 7252 section 4.5: re-send cached response if available
+      const bool resend = response_cache_lookup_and_resend(&his);
+
+      OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
+      return true;
     }
-
-    // no duplicate, update the history entry
-    g_history[g_history_idx] = his;
-
-    // roll over id from 0...n-1 (31) (use only 2 power n max size) -> 32 & 0b00111111 = 0, 1 & 0b00111111 = 1, ... 
-    g_history_idx = (g_history_idx + 1) & (OC_REQUEST_HISTORY_SIZE - 1);
-
-    OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
-    oc_char_print_hex((char*)his.fields.address, 16);
-
   }
+
+  // no duplicate, update the history entry
+  g_history[g_history_idx] = his;
+
+  // roll over id from 0...n-1 (31) (use only 2 power n max size) -> 32 & 0b00111111 = 0, 1 & 0b00111111 = 1, ...
+  g_history_idx = (g_history_idx + 1) & (OC_REQUEST_HISTORY_SIZE - 1);
+
+  OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+  oc_char_print_hex((char*)his.fields.address, 16);
+
   return false;
 }
 
@@ -494,16 +482,6 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
   return false;
 }
 
-#ifdef KNX_TCP_TLS
-static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data)
-{
-  (void)data; // Unused in single-device mode
-  oc_close_all_tls_sessions();
-  oc_set_drop_commands(false);
-  return OC_EVENT_DONE;
-}
-#endif
-
 /*
   CoAP + S-MODE handling 
   
@@ -600,11 +578,6 @@ int coap_receive(oc_message_t* incoming_message)
   oc_client_cb_t* client_cb = NULL;
   #endif
 
-  #ifdef OC_TCP
-  if (incoming_message->endpoint.flags & TCP)
-    coap_status_code = coap_tcp_parse_message(message, incoming_message->data, (uint32_t)incoming_message->length);
-  else
-  #endif
   coap_status_code = coap_parse_udp_message(inbound_coap_pkt, incoming_message->data, incoming_message->length);
 
   // msg was filled before from an inbound request or self issued request message
@@ -692,13 +665,6 @@ int coap_receive(oc_message_t* incoming_message)
     }
     #endif
 
-    #ifdef OC_TCP
-    if (coap_check_signal_message(message))
-    {
-      coap_status_code = handle_coap_signal_message(message, &incoming_message->endpoint);
-    }
-    #endif
-
     // extract block1 + size options from payload (block 1/2 can be part of a single message -> RFC 7959 section 2.3)
     if (coap_get_header_block1(inbound_coap_pkt, &block1_num, &block1_more, &block1_size, &block1_offset))
     {
@@ -716,27 +682,22 @@ int coap_receive(oc_message_t* incoming_message)
     block2_size = MIN(block2_size, OC_BLOCK_SIZE);
     #endif
 
-    #ifdef OC_TCP
-    if (!(incoming_message->endpoint.flags & TCP))
-    #endif
-    {
-      /*
-        Transaction searches by matching mid or token, CHECK must be on this code position to set a value,
-        since the value persists "beyond" the call (on leave or reenter the method, the value is not cleared)
+    /*
+      Transaction searches by matching mid or token, CHECK must be on this code position to set a value,
+      since the value persists "beyond" the call (on leave or reenter the method, the value is not cleared)
 
-        Here we want to catch all kind of transactions, standard CON coap transactions and s-mode transactions.
-        For s-mode messages we have two types:
-        - CON s-mode transactions, uc
-          -> runs via standard CON coap transaction
-          -> messages without token, an empty ACK response on a former CON request message DOES NOT carry a token
-          -> messages with token, an ACK response on a former CON request message, searches former request
-        - NON s-mode transactions, uc + mc
-          -> runs via s-mode transaction
-          -> messages with token, a NON echo uc response on a former NON s-mode (uc/mc) request message, searches former request
-      */
+      Here we want to catch all kind of transactions, standard CON coap transactions and s-mode transactions.
+      For s-mode messages we have two types:
+      - CON s-mode transactions, uc
+        -> runs via standard CON coap transaction
+        -> messages without token, an empty ACK response on a former CON request message DOES NOT carry a token
+        -> messages with token, an ACK response on a former CON request message, searches former request
+      - NON s-mode transactions, uc + mc
+        -> runs via s-mode transaction
+        -> messages with token, a NON echo uc response on a former NON s-mode (uc/mc) request message, searches former request
+    */
 
-      transaction = get_any_transaction_by_token_or_mid(inbound_coap_pkt->mid, inbound_coap_pkt->token, inbound_coap_pkt->token_len);
-    }
+    transaction = get_any_transaction_by_token_or_mid(inbound_coap_pkt->mid, inbound_coap_pkt->token, inbound_coap_pkt->token_len);
 
     if (is_inbound_request)
     {
@@ -754,25 +715,16 @@ int coap_receive(oc_message_t* incoming_message)
 
       const char* href;
       size_t href_len = coap_get_header_uri_path(inbound_coap_pkt, &href);
-      #ifdef OC_TCP
-      if (incoming_message->endpoint.flags & TCP)
+      // on inbound request it can only be con or non, no ack/rst
+      if (is_con)
       {
-        coap_tcp_init_message(response, CONTENT_2_05);
+        // CON -> PREPARE (not send) a possible response with type ACK + same mid
+        coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_ACK, CONTENT_2_05, inbound_coap_pkt->mid);
       }
       else
-      #endif
       {
-        // on inbound request it can only be con or non, no ack/rst 
-        if (is_con)
-        {
-          // CON -> PREPARE (not send) a possible response with type ACK + same mid 
-          coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_ACK, CONTENT_2_05, inbound_coap_pkt->mid);
-        }
-        else
-        {
-          // NON -> PREPARE (not send) a possible response with type NON + increases mid
-          coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());
-        }
+        // NON -> PREPARE (not send) a possible response with type NON + increases mid
+        coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());
       }
 
       if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
@@ -942,14 +894,6 @@ int coap_receive(oc_message_t* incoming_message)
 
           if (!request_buffer && block1_num == 0)
           {
-            #ifdef KNX_TCP_TLS
-            if (oc_drop_command() && is_coap_request_code)
-            {
-              OC_WRN("cannot process NEW block-wise request during closing TLS sessions");
-              goto init_reset_message;
-            }
-            #endif
-
             OC_DBG("creating NEW block-wise request buffer");
             request_buffer = oc_blockwise_alloc_request_buffer(href, href_len,
                                                                &incoming_message->endpoint, inbound_coap_pkt->code,
@@ -1073,13 +1017,6 @@ int coap_receive(oc_message_t* incoming_message)
                 
                 if (!request_buffer)
                 {
-                  #ifdef KNX_TCP_TLS
-                  if (oc_drop_command() && is_coap_request_code)
-                  {
-                    OC_WRN("cannot process NEW block-wise request during closing TLS sessions");
-                    goto init_reset_message;
-                  }
-                  #endif
                   request_buffer = oc_blockwise_alloc_request_buffer(
                     href, href_len, &incoming_message->endpoint, inbound_coap_pkt->code,
                     OC_BLOCKWISE_SERVER);
@@ -1111,23 +1048,8 @@ int coap_receive(oc_message_t* incoming_message)
           goto init_reset_message;
         }
         OC_DBG("no block options; processing regular request");
-        #ifdef KNX_TCP_TLS
-        if (oc_drop_command() && is_coap_request_code)
-        {
-          OC_WRN("cannot process NEW request during closing TLS sessions");
-          goto init_reset_message;
-        }
-        #endif
-
-        #ifdef OC_TCP
-        if ((incoming_message->endpoint.flags & TCP &&
-            incoming_block_len <= OC_MAX_APP_DATA_SIZE) ||
-          (!(incoming_message->endpoint.flags & TCP) &&
-            incoming_block_len <= block1_size)) { 
-        #else
         if (incoming_block_len <= block1_size)
         {
-          #endif
           if (incoming_block_len > 0)
           {
             OC_DBG("creating request buffer");
@@ -1189,14 +1111,6 @@ int coap_receive(oc_message_t* incoming_message)
         {
           goto init_reset_message;
         }
-
-        #ifdef KNX_TCP_TLS
-        if (oc_drop_command() && is_coap_request_code)
-        {
-          OC_WRN("cannot process NEW request during closing TLS sessions");
-          goto init_reset_message;
-        }
-        #endif
         #endif
 
           #ifdef OC_BLOCK_WISE
@@ -1213,21 +1127,6 @@ int coap_receive(oc_message_t* incoming_message)
           #endif
           #ifdef OC_BLOCK_WISE
           uint32_t payload_size = 0;
-          #ifdef OC_TCP
-          if (incoming_message->endpoint.flags & TCP)
-          {
-            const void* payload = oc_blockwise_dispatch_block(response_buffer,
-                                                              0, response_buffer->payload_size + 1, &payload_size);
-            if (payload && response_buffer->payload_size > 0)
-            {
-              coap_set_payload(response, payload, payload_size);
-            }
-
-            response_buffer->ref_count = 0;
-          }
-          else { 
-          #endif
-          
           const uint8_t* payload = oc_blockwise_dispatch_block(response_buffer, 0, block2_size, &payload_size);
           if (payload)
           {
@@ -1245,9 +1144,6 @@ int coap_receive(oc_message_t* incoming_message)
           {
             response_buffer->ref_count = 0;
           }
-          #ifdef OC_TCP
-          }
-          #endif
           #endif
         }
         #ifdef OC_BLOCK_WISE
@@ -1703,37 +1599,15 @@ int coap_receive(oc_message_t* incoming_message)
 
   OC_ERR("unexpected/invalid CoAP data");
 
-  #ifdef OC_TCP
-  if (incoming_message->endpoint.flags & TCP)
-  {
-    // coap over TCP : mid/con/ack are NOT relevant, no echo option
-    echo_ctx.type = COAP_TYPE_NON;
-    echo_ctx.mid  = 0;
-    echo_ctx.echo_len = 0;
-    coap_send_response_with_empty_application_payload(&echo_ctx);
-  }
-  else
-  #endif
-  {
-    // coap over UDP : mid/con/ack are relevant, no echo option
-    echo_ctx.echo_len = 0; 
-    coap_send_response_with_empty_application_payload(&echo_ctx);
-  }
+  // coap over UDP : mid/con/ack are relevant, no echo option
+  echo_ctx.echo_len = 0;
+  coap_send_response_with_empty_application_payload(&echo_ctx);
 
   return coap_status_code;
 
 init_reset_message:
 
-  #ifdef OC_TCP
-  if (incoming_message->endpoint.flags & TCP)
-  {
-    coap_tcp_init_message(outbound_coap_pkt, INTERNAL_SERVER_ERROR_5_00);
-  }
-  else
-  #endif
-  {
-    coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_RST, EMPTY_0_00, inbound_coap_pkt->mid);
-  }
+  coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_RST, EMPTY_0_00, inbound_coap_pkt->mid);
   #ifdef OC_BLOCK_WISE
   if (request_buffer)
   {
@@ -1811,14 +1685,6 @@ send_message:
       transaction = NULL;
     }
   }
-
-  #ifdef KNX_TCP_TLS
-  if (coap_status_code == CLOSE_ALL_TLS_SESSIONS)
-  {
-    oc_set_drop_commands(true);
-    oc_set_delayed_callback(NULL, &close_all_tls_sessions_callback, 2);
-  }
-  #endif
 
   #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(false);

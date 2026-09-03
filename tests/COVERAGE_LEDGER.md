@@ -62,7 +62,6 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | oc_replay.c | test_oc_replay.cpp | DONE |
 | oc_ri.c | test_oc_ri.cpp | DONE |
 | oc_server_api.c | test_oc_server_api.cpp | DONE |
-| oc_session_events.c | test_oc_session_events.cpp | DONE |
 | oc_test_control.c | test_oc_test_control.cpp | DONE |
 | oc_uuid.c | test_oc_uuid.cpp | DONE |
 
@@ -73,7 +72,6 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | oc_oscore_context.c | test_oc_oscore_context.cpp | DONE |
 | oc_oscore_crypto.c | test_oc_oscore_crypto.cpp | DONE |
 | oc_oscore_engine.c | — | INTEGRATION |
-| oc_tls.c | — | COMPILED-OUT |
 | spake2plus.c | test_spake2plus.cpp | DONE |
 
 ### messaging/coap/
@@ -81,7 +79,6 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | Source | Test file | Status |
 |--------|-----------|--------|
 | coap.c | test_coap.cpp | DONE |
-| coap_signal.c | — | COMPILED-OUT |
 | engine.c | test_coap_engine.cpp | DONE |
 | observe.c | test_coap_observe.cpp | DONE |
 | oscore.c | test_coap_oscore.cpp | DONE |
@@ -116,7 +113,6 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | port/oc_log.c | test_oc_log.cpp | DONE |
 | port/dns-sd_mdns.c | — | INTEGRATION |
 | port/linux/ipadapter.c | — | INTEGRATION |
-| port/linux/tcpadapter.c | — | COMPILED-OUT |
 
 > Note: `port/windows/*` and `port/zephyr/*` variants (mutex.c,
 > network_addresses.c, random.c, connectivity_*.c, dns-sd-thread/wifi.c,
@@ -278,26 +274,6 @@ or tear down the whole stack and are INTEGRATION.
 | oc_main_poll | INTEGRATION — runs the process / etimer loop |
 | oc_main_shutdown | INTEGRATION — tears down mDNS, RI, connectivity |
 | oc_shutdown_device (static) | INTEGRATION — connectivity + mutex destroy |
-| oc_set_drop_commands / oc_drop_command | NOT COMPILED — guarded by KNX_TCP_TLS, not defined in any build config |
-
-### api/oc_session_events.c — DONE (oc_handle_session); TCP block is compiled out in this config
-
-In the unit-test build OC_TCP is NOT defined, so the entire `#ifdef OC_TCP`
-block is excluded from the binary and cannot be exercised. The only compiled
-function is `oc_handle_session`, tested in `test_oc_session_events.cpp` for both
-session states on a stack endpoint (KNX_TCP_TLS off -> observer-removal only;
-OC_SESSION_EVENTS on -> callback no-op when unset).
-
-| Function | Status |
-|----------|--------|
-| oc_handle_session | DONE |
-| oc_session_events_is_ongoing | UNTESTABLE here — OC_TCP-only, compiled out |
-| oc_session_events_set_event_delay | UNTESTABLE here — OC_TCP-only, compiled out |
-| oc_session_start_event | UNTESTABLE here — OC_TCP-only, compiled out (INTEGRATION when OC_TCP) |
-| oc_session_end_event | UNTESTABLE here — OC_TCP-only, compiled out (INTEGRATION when OC_TCP) |
-| free_session_state_delayed (static) | UNTESTABLE here — OC_TCP-only, compiled out (INTEGRATION when OC_TCP) |
-| oc_process_session_event (static) | UNTESTABLE here — OC_TCP-only, compiled out (INTEGRATION when OC_TCP) |
-| oc_session_events OC_PROCESS_THREAD | UNTESTABLE here — OC_TCP-only, compiled out (INTEGRATION when OC_TCP) |
 
 ### api/oc_network_events.c — DONE (process-not-running early-out); scheduler-driven paths are integration-level
 
@@ -352,12 +328,10 @@ INTEGRATION.
 | oc_lf_get_line (static) | DONE (transitive) |
 | oc_lf_get_entry_uri | DONE |
 | oc_lf_get_entry_param | DONE |
-| oc_close_session | DONE (plain no-op path; SECURED/TCP branches INTEGRATION) |
 | oc_do_s_mode_message_update | INTEGRATION — builds + sends an s-mode CoAP message |
 | oc_do_well_known_message_update | INTEGRATION — builds + sends a .well-known update |
 | oc_init_s_mode_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
 | oc_init_well_known_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
-| oc_send_ping / oc_remove_ping_handler | INTEGRATION — OC_TCP CoAP ping + client-cb/delayed-callback registry |
 
 ### api/oc_knx.c — DONE (LSM string/getter, runtime predicate, and the read-only GET handlers); stateful POST handlers + storage/crypto/SPAKE paths are integration-level
 
@@ -499,15 +473,6 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 | oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events |
 | OC_PROCESS_THREAD(oc_oscore_handler) | INTEGRATION — live process/event loop |
 
-### security/oc_tls.c — COMPILED-OUT (entire file under `#ifdef KNX_TCP_TLS`)
-
-The whole of `oc_tls.c` is wrapped in `#ifdef KNX_TCP_TLS`, which is **OFF** in
-the `linux-test` build (and in all unit-test presets). Every function
-(`oc_tls_pbkdf2`, `oc_tls_prf`, `oc_sec_derive_owner_psk`, all peer/session/
-handler functions) is therefore compiled out and not present in the unit binary.
-Concrete reason: **compiled out by `#ifdef KNX_TCP_TLS` (disabled in test build)**.
-TLS handshake/PRF behavior is validated at runtime/integration with TLS enabled.
-
 ### messaging/coap/separate.c — DONE (full public OC_SERVER API)
 
 `test_separate.cpp` exercises the three public functions on stack structs
@@ -527,14 +492,6 @@ remove + free).
 | coap_separate_resume | DONE (type/code/mid/token + observe-0 header) |
 | coap_separate_clear | DONE (middle-of-list removal + free) |
 | coap_separate_accept (CON request) | INTEGRATION — sends an empty ACK over the network (`coap_send_response_with_empty_ack`) |
-
-### messaging/coap/coap_signal.c — COMPILED-OUT (entire file under `#ifdef OC_TCP`)
-
-The complete body of `coap_signal.c` (lines 24–411) is wrapped in `#ifdef OC_TCP`,
-which is **OFF** in the `linux-test` build. All CSM/Ping/Pong/Release/Abort
-signaling functions are compiled out and absent from the unit binary.
-Concrete reason: **compiled out by `#ifdef OC_TCP` (disabled in test build)**.
-CoAP-over-TCP signaling is validated at runtime/integration with TCP enabled.
 
 ### util/oc_process.c — DONE (full cooperative scheduler API)
 
@@ -668,13 +625,6 @@ etc.) binds real sockets, joins multicast groups, and runs receive threads.
 Concrete reason: **requires live network sockets and the connectivity thread
 loop** — exercised by integration tests.
 
-### port/linux/tcpadapter.c — COMPILED-OUT (entire body under `#ifdef OC_TCP`)
-
-The functional body of `tcpadapter.c` (everything after the includes) is wrapped
-in `#ifdef OC_TCP`, which is **OFF** in the test build. No TCP adapter symbols
-are present in the unit binary. Concrete reason: **compiled out by `#ifdef
-OC_TCP` (disabled in test build)**.
-
 ### api/oc_buffer.c — DONE (pool primitives); message routing is integration-level
 
 The message-pool primitives are unit-tested in `test_oc_buffer.cpp` (the fixture
@@ -692,7 +642,6 @@ API that also lives logically alongside the buffer module is covered by
 | oc_message_unref | DONE |
 | oc_receive_message | INTEGRATION — posts INBOUND_NETWORK_EVENT to the message_buffer_handler process; needs the process scheduler + event table |
 | oc_send_message | INTEGRATION — posts OUTBOUND_NETWORK_EVENT + signals the event loop; routes to OSCORE/IP layers |
-| oc_close_all_tls_sessions | INTEGRATION — `KNX_TCP_TLS`-gated, posts TLS_CLOSE_ALL_SESSIONS |
 | message_buffer_handler (OC_PROCESS_THREAD) | INTEGRATION — routes to OSCORE/CoAP processes and calls oc_send_buffer (real network I/O) |
 
 ### api/oc_blockwise.c — DONE (all public functions, full alloc/find/scrub/free lifecycle)

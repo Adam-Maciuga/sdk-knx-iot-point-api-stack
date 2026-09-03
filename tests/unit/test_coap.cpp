@@ -47,7 +47,6 @@ TEST_F(CoapTest, InitMessage_CON_GET)
 {
   coap_udp_init_message(&pkt, COAP_TYPE_CON, COAP_GET, 0xABCD);
 
-  EXPECT_EQ(pkt.transport_type, COAP_TRANSPORT_UDP);
   EXPECT_EQ(pkt.type, COAP_TYPE_CON);
   EXPECT_EQ(pkt.code, COAP_GET);
   EXPECT_EQ(pkt.mid, 0xABCD);

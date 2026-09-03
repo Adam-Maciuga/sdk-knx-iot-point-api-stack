@@ -24,9 +24,6 @@
 #include "oc_main.h"
 
 #include <stdlib.h>
-#ifdef KNX_TCP_TLS
-static bool drop_commands = false;
-#endif
 
 // marker if init was done, to handle a shutdown without init
 static bool initialized = false;  
@@ -274,28 +271,8 @@ int oc_main_init(const oc_handler_t* handler)
     
   }
 
-  #ifdef KNX_TCP_TLS
-  drop_commands = false;
-
-  ret = oc_tls_init_context();
-  if (ret < 0)
-  {
-    oc_ri_shutdown();
-    oc_shutdown_device();
-    goto err;
-  }
-  #endif
-
   oc_knx_load_device();
   oc_knx_load_fingerprint();
-
-  #ifdef KNX_TCP_TLS
-  oc_sec_load_unique_ids(0);
-  #ifdef OC_PKI
-    OC_DBG("loading ECDSA keypair");
-    oc_sec_load_ecdsa_keypair(0);
-  #endif
-  #endif
 
   #ifdef OC_SERVER
   // called one time on startup
@@ -386,11 +363,6 @@ void oc_main_shutdown(void)
 
   oc_ri_shutdown();
 
-  #ifdef KNX_TCP_TLS
-  oc_tls_shutdown();
-  drop_commands = false;
-  #endif 
-
   oc_shutdown_device();
 
   app_callbacks = NULL;
@@ -409,14 +381,3 @@ void _oc_signal_event_loop(void)
   }
 }
 
-#ifdef KNX_TCP_TLS
-void oc_set_drop_commands(bool drop)
-{
-  drop_commands = drop;
-}
-
-bool oc_drop_command(void)
-{
-  return drop_commands;
-}
-#endif

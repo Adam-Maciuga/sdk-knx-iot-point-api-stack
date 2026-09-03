@@ -21,7 +21,7 @@
  *
  * Worst-case frame sizing:
  *   The pdu is the hard upper bound for anything received from the bus:
- *   OC_PDU_SIZE (port/oc_connectivity.h) is oc_get_pdu_size() in the non-TCP
+ *   OC_PDU_SIZE (port/oc_connectivity.h) is oc_get_pdu_size() in the UDP-only
  *   build, and oc_allocate_message() (api/oc_buffer.c) mallocs exactly that
  *   many bytes for message->data. A received OSCORE message must therefore fit
  *   outer CoAP header + options, inner (plaintext) code + options, the
@@ -473,7 +473,7 @@ TEST(PduWorstCaseFrame, LargePduAlwaysHoldsWorstCaseFrame)
 
 /*
   oc_allocate_message() takes the network-event mutex and sizes message->data
-  with OC_PDU_SIZE (= oc_get_pdu_size() in the non-TCP build), so this fixture
+  with OC_PDU_SIZE (= oc_get_pdu_size() in the UDP-only build), so this fixture
   initializes the mutex and restores the default-equivalent pdu afterwards
 */
 class PduMessageBuffer : public ::testing::Test

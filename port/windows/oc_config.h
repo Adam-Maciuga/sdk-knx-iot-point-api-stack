@@ -28,9 +28,6 @@ typedef uint64_t oc_clock_time_t;
 // Maximum number of concurrent requests
 #define OC_MAX_NUM_CONCURRENT_REQUESTS (20)
 
-// Add support for passing TCP/TLS/DTLS session connection events to the app.
-#define OC_SESSION_EVENTS
-
 // Add support for dns lookup to the endpoint.
 #define OC_DNS_LOOKUP
 

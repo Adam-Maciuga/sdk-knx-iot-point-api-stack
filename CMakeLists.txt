@@ -115,7 +115,6 @@ set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_replay.c
     ${PROJECT_SOURCE_DIR}/api/oc_ri.c
     ${PROJECT_SOURCE_DIR}/api/oc_server_api.c
-    ${PROJECT_SOURCE_DIR}/api/oc_session_events.c
     ${PROJECT_SOURCE_DIR}/api/oc_uuid.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_client.c
@@ -145,13 +144,11 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_context.c
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_crypto.c
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_engine.c
-    ${PROJECT_SOURCE_DIR}/security/oc_tls.c
     ${PROJECT_SOURCE_DIR}/security/spake2plus.c
 )
 
 set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/coap.c
-    ${PROJECT_SOURCE_DIR}/messaging/coap/coap_signal.c
     ${PROJECT_SOURCE_DIR}/messaging/coap/engine.c
     ${PROJECT_SOURCE_DIR}/messaging/coap/observe.c
     ${PROJECT_SOURCE_DIR}/messaging/coap/oscore.c

@@ -115,18 +115,15 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth
   return NULL;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp)
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len)
 {
   // search for a transaction by token
   coap_transaction_t* t = coap_get_transaction_by_token(pkt);
 
   if (!t)
   {
-    if (!tcp)
-    {
-      // on no TCP search by mid (TCP : mid NOT relevant)
-      t = coap_get_transaction_by_mid(pkt->mid);
-    }
+    // not found by token, search by mid
+    t = coap_get_transaction_by_mid(pkt->mid);
 
     if (!t)
     {

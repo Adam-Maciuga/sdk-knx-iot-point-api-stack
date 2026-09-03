@@ -12,10 +12,6 @@
 #include "conf.h"
 #include "port/oc_random.h"
 
-#ifdef OC_TCP
-#include "messaging/coap/coap_signal.h"
-#endif 
-
 #ifdef OC_CLIENT
 
 // used to send out a coap (uc/mc) s-mode message and a well-known (mc) message
@@ -184,59 +180,6 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   coap_set_header_uri_path(udp_coap_request, uri, strlen(uri));
 
   return true;
-}
-
-#ifdef OC_TCP
-oc_event_callback_retval_t oc_remove_ping_handler(void *data) {
-  oc_client_cb_t *cb = (oc_client_cb_t *)data;
-
-  oc_client_response_t timeout_response;
-  timeout_response.code = OC_PING_TIMEOUT;
-  timeout_response.endpoint = &cb->endpoint;
-  timeout_response.user_data = cb->user_data;
-  cb->handler.response(&timeout_response);
-
-  return oc_ri_remove_client_cb(cb);
-}
-
-bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, 
-        uint16_t timeout_seconds, oc_response_handler_t handler, 
-        void *user_data) {
-  oc_client_handler_t client_handler = {
-    .response = handler,
-  };
-
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(
-    "/ping", endpoint, 0, NULL, client_handler, LOW_QOS, user_data);
-  if (!cb) {
-    return false;
-  }
-
-  if (!coap_send_ping_message(endpoint, custody ? 1 : 0, cb->token,
-          cb->token_len)) {
-    oc_ri_remove_client_cb(cb);
-    return false;
-  }
-
-  oc_set_delayed_callback(cb, oc_remove_ping_handler, timeout_seconds);
-  return true;
-}
-#endif 
-
-void oc_close_session(oc_endpoint_t *endpoint) 
-{
-  if (endpoint->flags & SECURED) 
-  {
-    #ifdef KNX_TCP_TLS
-    oc_tls_close_connection(endpoint);
-    #endif 
-  }
-  else if (endpoint->flags & TCP)
-  {
-    #ifdef OC_TCP
-    oc_connectivity_end_session(endpoint);
-    #endif
-  }
 }
 
 int oc_lf_number_of_entries(const char *payload, int payload_len) {

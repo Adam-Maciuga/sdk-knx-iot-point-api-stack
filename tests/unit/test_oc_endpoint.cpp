@@ -63,7 +63,7 @@ TEST(EndpointCompare, DifferentAddress)
 
 TEST(EndpointCompare, MulticastVsUnicast_StillEqual)
 {
-  /* compare ignores MULTICAST and ACCEPTED flags */
+  /* compare ignores the MULTICAST flag */
   uint8_t addr[16] = {0x20, 0x01};
   oc_endpoint_t ep1 = make_ipv6(addr, 5683);
   oc_endpoint_t ep2 = make_ipv6(addr, 5683, MULTICAST);
@@ -244,18 +244,6 @@ TEST_F(EndpointToString, UnsecuredUsesCoapScheme)
   /* coap:// scheme, bracketed address, and the port suffix must be present */
   EXPECT_EQ(strncmp(oc_string(s), "coap://[", 8), 0);
   EXPECT_NE(strstr(oc_string(s), "]:5683"), nullptr);
-  oc_free_string(&s);
-}
-
-TEST_F(EndpointToString, SecuredUsesCoapsScheme)
-{
-  uint8_t addr[16] = { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 0, 1 };
-  oc_endpoint_t ep = make_ipv6(addr, 5684, SECURED);
-  oc_string_t s;
-  ASSERT_EQ(oc_endpoint_to_string(&ep, &s), 0);
-  EXPECT_EQ(strncmp(oc_string(s), "coaps://[", 9), 0);
-  EXPECT_NE(strstr(oc_string(s), "]:5684"), nullptr);
   oc_free_string(&s);
 }
 

@@ -90,12 +90,6 @@ enum {
  */
 #define IS_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
 
-/** enum value for coap transport type  */
-typedef enum 
-{
-  COAP_TRANSPORT_UDP, COAP_TRANSPORT_TCP
-} coap_transport_type_t;
-
 /** parsed message struct — fields ordered by descending alignment to minimize padding */
 typedef struct coap_packet_t
 {
@@ -119,7 +113,6 @@ typedef struct coap_packet_t
   size_t echo_len;
 
   // --- 4-byte aligned: uint32_t and enums ---
-  coap_transport_type_t transport_type;   // UDP or TCP
   coap_message_type_t   type;             // CON, NON, ACK, ...
   uint32_t max_age;                       // defines the maximum time in seconds that a response can be cached before it is considered "not fresh"
   uint32_t observe;                       /* RFC 7641: CoAP Observe option value (0..2^24-1)
@@ -166,17 +159,6 @@ typedef struct coap_packet_t
   uint8_t kid[OSCORE_SENDER_ID_LEN];      // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile
   uint8_t kid_len;
   uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
-
-  #ifdef OC_TCP
-  // --- TCP: ordered by alignment ---
-  const char* alt_addr;
-  size_t      alt_addr_len;
-  uint32_t    max_msg_size;
-  uint32_t    hold_off;
-  uint16_t    bad_csm_opt;
-  uint8_t     blockwise_transfer;
-  uint8_t     custody;
-  #endif
 } coap_packet_t;
 
 /** option format serialization */
@@ -296,7 +278,6 @@ void print_coap_service(uint8_t code, char* text);
 
 /*
  @brief  forwards a CoAP message to lower (OSCORE) layers,
- *       defined as extra message wrapper that allows for TCP = enabled extra code -> one code place,
  *       after finally sending the (plain/encrypted) message the message will be "released" - if not tracked
  */
 void coap_send_message(oc_message_t* message);
@@ -438,15 +419,6 @@ size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer
  *        the previous oscore decryption was ok, or it was a plain message
  */
 int coap_receive(oc_message_t* incoming_message);
-
-#ifdef OC_TCP
-// TCP
-void coap_tcp_init_message(void* packet, uint8_t code);
-size_t coap_tcp_get_packet_size(const uint8_t* data);
-coap_status_t coap_tcp_parse_message(void* packet, uint8_t* data, uint32_t data_len);
-void coap_tcp_parse_message_length(const uint8_t* data, size_t* message_length,
-        uint8_t* num_extended_length_bytes);
-#endif 
 
 #ifdef __cplusplus
 }
