@@ -56,18 +56,18 @@ static uint16_t coap_log_2(uint16_t value)
   uint16_t result = 0;
   /* 
      RFC 7959, SZX 0...6 = 16...1024 bytes, examples:
-     - in 1 (16/16) = 1: out 0  -> 2p(0+4) = 16
-     - in 2 (32/16) = 2: out 1  -> 2p(1+4) = 32
-     - in 3 (64/16) = 4: out 2  -> 2p(2+4) = 64
+     - in 16/16 = 1: out 0  -> 2p(0+4) = 16
+     - in 32/16 = 2: out 1  -> 2p(1+4) = 32
+     - in 64/16 = 4: out 2  -> 2p(2+4) = 64
   */
 
-  do 
+  while (value > 1)
   {
-    value = value >> 1;
+    value >>= 1;
     result++;
-  } while (value);
+  }
 
-  return result - 1;
+  return result;
 }
 
 // floor an arbitrary byte count down to a valid RFC 7959 block size (16..1024, SZX 0..6), see coap.h for details
@@ -90,9 +90,9 @@ uint16_t coap_floor_block_size(uint32_t size)
     and expand it back to bytes, so the result is by construction a size that survives the encoding unchanged.
     
     coap_log_2() floors, hence 'size / 16' 
-    - 100  / 16 = 6  yields SZX 0 -> 16 bytes
+    - 100  / 16 = 6  yields SZX 2 -> 64 bytes
     - 700  / 16 = 43 yields SZX 5 -> 512 bytes
-    - 1000 / 16 = 62 yields SZX 6 -> 1024 bytes
+    - 1000 / 16 = 62 yields SZX 5 -> 512 bytes
 
   */
   return (uint16_t)(16 << coap_log_2((uint16_t)(size / 16)));
@@ -904,6 +904,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         break;
       
       case COAP_OPTION_BLOCK2:
+      {
+
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options) 
         {
@@ -911,14 +913,25 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block2_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;               // can only be 0 or 1
-        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
-        coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << (coap_pkt->block2_num & 0x07);
-        coap_pkt->block2_num >>= 4;
+        
+        const uint32_t szx = coap_pkt->block2_num & 0x07; // bit 0..2, block size exponent
+        if (szx == 0x07)
+        {
+          // RFC 7959, clause 2.2: SZX 7 is reserved, it must not be accepted as a block size of 2048
+          return BAD_OPTION_4_02;
+        }
+
+        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;  // fold to boolean 0/1 (false/true)
+        coap_pkt->block2_size = (uint16_t)(16 << szx);               // can't be more than 16 bit
+        coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << szx;
+        coap_pkt->block2_num >>= 4; // block number bit 4...n
         OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num, coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
         break;
+      }
 
       case COAP_OPTION_BLOCK1:
+      {
+
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options)
         {
@@ -926,12 +939,21 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;               // can only be 0 or 1
-        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block1_num & 0x07));  // can't be more than 16 bit
-        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
-        coap_pkt->block1_num >>= 4;
+        
+        const uint32_t szx = coap_pkt->block1_num & 0x07; // bit 0..2, block size exponent
+        if (szx == 0x07)
+        {
+          // RFC 7959, clause 2.2: SZX 7 is reserved, it must not be accepted as a block size of 2048
+          return BAD_OPTION_4_02;
+        }
+
+        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;  // fold to boolean 0/1 (false/true)
+        coap_pkt->block1_size = (uint16_t)(16 << szx);               // can't be more than 16 bit
+        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << szx;
+        coap_pkt->block1_num >>= 4; // block number bit 4...n
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
         break; 
+      }
       
       case COAP_OPTION_SIZE2:
         // class E option: OSCORE RFC 8613, clause 4.1.1
