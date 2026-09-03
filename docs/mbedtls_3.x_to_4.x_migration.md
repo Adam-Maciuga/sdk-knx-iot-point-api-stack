@@ -795,11 +795,16 @@ psa_generate_random(rnd, sizeof(rnd));
 
 ### 1. Stack includes in the PSA config file
 
-`knx_mbedtls_config.h` includes KNX-IoT stack config header:
+`knx_mbedtls_config.h` included a KNX-IoT stack config header:
 
 ```c
 #include <oc_config.h>      /* OC_PKI */
 ```
+
+> **REMOVED.** PKI is not supported and `OC_PKI` was never defined by any build
+> configuration, so the `OC_PKI`-guarded blocks and this include were deleted from
+> `knx_mbedtls_config.h`. The include-directory plumbing described below is still
+> required: `knx_psa_crypto_config.h` includes `port/oc_assert.h` for `oc_exit`.
 
 This works because `port/CMakeLists.txt` adds the stack's include directories to all
 tf-psa-crypto CMake sub-targets after `FetchContent_MakeAvailable(mbedtls)`.
