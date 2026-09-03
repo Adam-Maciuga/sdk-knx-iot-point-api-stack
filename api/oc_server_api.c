@@ -557,6 +557,7 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
     cur->method, OC_BLOCKWISE_SERVER);
 
   #ifdef OC_BLOCK_WISE
+  // allocates buffer in oc_blockwise_alloc_response_buffer() with OC_MAX_APP_DATA_SIZE, so use it below
   oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
   #else
   oc_rep_new(handle->buffer, OC_BLOCK_SIZE);

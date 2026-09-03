@@ -1785,7 +1785,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     return OC_EVENT_DONE;
   }
 
-  // assign
+  // assign (handle ptr cant be NULL -> static)
   oc_set_separate_response_buffer(&delayed_separate_response_for_a_spake_request);
 
   // step 1
