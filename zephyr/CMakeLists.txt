@@ -335,11 +335,6 @@ zephyr_compile_definitions(
     KNX_RESPONSE_TIME_SECONDS=${CONFIG_KNX_RESET_PROCESS_TIME_S}
 )
 
-## Security
-zephyr_compile_definitions(
-    $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
-)
-
 ## Logging
 # OC_PRINT_ENABLED → OC_PRINT, OC_DEBUG_ENABLED → OC_DEBUG (internal names).
 # OC_PRINT is driven by CONFIG_KNXIOT_LOG_LEVEL (controls which Zephyr log
