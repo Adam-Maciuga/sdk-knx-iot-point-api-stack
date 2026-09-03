@@ -60,12 +60,6 @@ extern "C" {
 #define PRINTipaddr(endpoint)                   \
   do {                                                                         \
     const char *scheme = "coap";                                               \
-    if ((endpoint).flags & SECURED)                                            \
-      scheme = "coaps";                                                        \
-    if ((endpoint).flags & TCP)                                                \
-      scheme = "coap+tcp";                                                     \
-    if ((endpoint).flags & TCP && (endpoint).flags & SECURED)                  \
-      scheme = "coaps+tcp";                                                    \
     if ((endpoint).flags & IPV4) {                                             \
       PRINTF("%s://%d.%d.%d.%d:%d", scheme, ((endpoint).addr.ipv4.address)[0], \
             ((endpoint).addr.ipv4.address)[1],                                 \
@@ -93,14 +87,8 @@ extern "C" {
 
 #define PRINTipaddr_flags(endpoint)             \
   do {                                                                         \
-    if ((endpoint).flags & SECURED) {                                          \
-      PRINTF("Secured ");                                                      \
-    };                                                                         \
     if ((endpoint).flags & MULTICAST) {                                        \
       PRINTF("MULTICAST ");                                                    \
-    };                                                                         \
-    if ((endpoint).flags & TCP) {                                              \
-      PRINTF("TCP ");                                                          \
     };                                                                         \
     if ((endpoint).flags & IPV4) {                                             \
       PRINTF("IPV4 ");                                                         \
@@ -111,9 +99,6 @@ extern "C" {
     if ((endpoint).flags & OSCORE) {                                           \
       PRINTF("OSCORE ");                                                       \
     };                                                                         \
-    if ((endpoint).flags & ACCEPTED) {                                         \
-      PRINTF("ACCEPTED ");                                                     \
-    };                                                                         \
     if ((endpoint).flags & OSCORE_DECRYPTED) {                                 \
       PRINTF("OSCORE_DECRYPTED ");                                             \
     };                                                                         \
@@ -122,12 +107,6 @@ extern "C" {
 #define SNPRINTFipaddr(str, size, endpoint)     \
   do {                                                                         \
     const char *scheme = "coap";                                               \
-    if ((endpoint).flags & SECURED)                                            \
-      scheme = "coaps";                                                        \
-    if ((endpoint).flags & TCP)                                                \
-      scheme = "coap+tcp";                                                     \
-    if ((endpoint).flags & TCP && (endpoint).flags & SECURED)                  \
-      scheme = "coaps+tcp";                                                    \
     memset(str, 0, size);                                                      \
     if ((endpoint).flags & IPV4) {                                             \
       SNPRINTF(str, size, "%s://%d.%d.%d.%d:%d", scheme,                       \

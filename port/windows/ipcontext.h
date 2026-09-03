@@ -23,32 +23,6 @@
 extern "C" {
 #endif
 
-typedef enum {
-  ADAPTER_STATUS_NONE = 0, // Nothing happens
-  ADAPTER_STATUS_ACCEPT,   // Receiving no meaningful data
-  ADAPTER_STATUS_RECEIVE,  // Receiving meaningful data
-  ADAPTER_STATUS_ERROR     // Error
-} adapter_receive_state_t;
-
-#ifdef OC_TCP
-typedef struct tcp_context_t
-{
-  struct sockaddr_storage server;
-  SOCKET server_sock;
-  uint16_t port;
-  WSAEVENT server_event;
-#ifdef KNX_TCP_TLS
-  struct sockaddr_storage secure;
-  SOCKET secure_sock;
-  uint16_t tls_port;
-  WSAEVENT secure_event;
-#endif
-  HANDLE signal_event;
-  HANDLE event_thread_handle;
-  DWORD event_thread;
-} tcp_context_t;
-#endif
-
 typedef struct ip_context_t
 {
   struct ip_context_t *next;
@@ -58,14 +32,6 @@ typedef struct ip_context_t
   SOCKET mcast_sock;
   SOCKET server_sock;
   uint16_t port;
-#ifdef KNX_UDP_DTLS
-  struct sockaddr_storage secure;
-  SOCKET secure_sock;
-  uint16_t dtls_port;
-#endif 
-#ifdef OC_TCP
-  tcp_context_t tcp;
-#endif
   HANDLE event_thread_handle;
   HANDLE event_server_handle;
   DWORD event_thread;

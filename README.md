@@ -19,11 +19,10 @@ The [Point API Schema](https://gitlab.knx.org/public-projects/knx-iot-point-api/
 - Device discovery via DNS-SD and mDNS (RFC 6762)
 - Semantic discovery of functional blocks per KNX Volume 7
 
-**Security** — TLS or OSCORE secure group communication and property access.
+**Security** — OSCORE secure group communication and property access.
 
 - OSCORE (RFC 8613) for application-layer security across unicast, multicast, and low-latency communication
 - SPAKE2+ (RFC 9383) for password-based mutual authentication and session key derivation (PASE)
-- Optional TLS (RFC 5246) for transport-layer encryption during commissioning and LDevID enrollment
 
 **Point Read/Write/Publish/Subscribe** — each parameter and diagnostic property (sensor, actuator, setpoint, diagnostic value) has a unique URI for direct access (GET), update (PUT), or subscription (Observe).
 
@@ -127,7 +126,7 @@ For Linux or CI-style local runs, see `tests/runtime/run-local-ci.sh`.
 api/                     client/server APIs, resource handlers, KNX helpers, CBOR utilities
 include/                 public headers for the stack APIs and helpers
 messaging/coap/          tailored CoAP implementation and OSCORE message handling
-security/                OSCORE, TLS, and SPAKE2+ security implementation
+security/                OSCORE and SPAKE2+ security implementation
 util/                    low-level internal primitives used by the core framework
 port/                    shared platform abstractions and OS-specific adaptations
   linux/                 Linux port
@@ -164,8 +163,8 @@ Key areas:
 
 - C and CMake
 - CoAP, Core Link Format, and CBOR
-- OSCORE, DTLS, and SPAKE2+
-- [Mbed TLS](https://github.com/Mbed-TLS/mbedtls)
+- OSCORE and SPAKE2+
+- [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) (crypto library for OSCORE and SPAKE2+)
 - [TinyCBOR](https://github.com/intel/tinycbor)
 - Google Test for unit tests
 - Python and pytest for runtime conformance tests

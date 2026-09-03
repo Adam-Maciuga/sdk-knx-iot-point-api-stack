@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1312 unit tests** (53 files) + **352 runtime tests** (17 files) = **1664 total**
+> **1350 unit tests** (52 files) + **352 runtime tests** (17 files) = **1702 total**
 >
-> Branch: `work_in_progress` | Unit: 1312 registered and passed (windows-test-gcc, GCC/CTest, ~44s, 100% passed out of 1312).
+> Branch: `work_in_progress` | Unit: 1350 registered and passed (windows-test-gcc, GCC/CTest, ~38s, 100% passed out of 1350).
 > Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 814.53s) - fully green. This run verified the DNS-SD TXT record conformance fix (RFC 6763 clause 6) together with the `zeroconf>=0.151.3` pin. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -10,7 +10,7 @@
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -358,7 +358,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_endpoint.cpp — Endpoint Handling (29 tests)
+### test_oc_endpoint.cpp — Endpoint Handling (28 tests)
 
 **Source:** `api/oc_endpoint.c`
 
@@ -370,7 +370,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `IsLinkLocal` | 5 | fe80:: detection, global, loopback, NULL, non-IPv6 |
 | `NewEndpoint` | 1 | Allocates a zeroed endpoint |
 | `FreeEndpoint` | 1 | NULL free is a no-op |
-| `EndpointToString` | 4 | coap/coaps URI formatting, NULL args, non-IPv6 error |
+| `EndpointToString` | 3 | coap:// URI formatting, NULL args, non-IPv6 error |
 | `EndpointParsePath` | 5 | Path extraction, query strip, missing scheme/path errors |
 | `EndpointListCopy` | 2 | Multi-node list copy breaks aliasing; NULL source no-op |
 
@@ -713,14 +713,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_client_api.cpp — Client API (14 tests)
+### test_oc_client_api.cpp — Client API (13 tests)
 
 **Source:** `api/oc_client_api.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `ClientApiLF` | 9 | Link-format response parsing: entry count, entry URI, rt/if params, missing param |
-| `ClientApiSession` | 1 | Close-session on plain endpoint is a no-op |
 | `ClientApiInitMsg` | 4 | s-mode / well-known message init (confirmable + non-confirmable) |
 
 ---
@@ -923,18 +922,6 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `ServerApiQuery` | 8 | Query value/exists lookups, iterate-query walking, NULL request |
 | `ServerApiResponse` | 7 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, NULL-safe builders |
 | `ServerApiResource` | 14 | Resource new/bind/handler/interfaces/ACL/periodic/properties/DPT/rt, const-respecting mutators |
-
----
-
-### test_oc_session_events.cpp — Session Events (3 tests)
-
-**Source:** `api/oc_session_events.c`
-
-| Test | What it verifies |
-|------|-----------------|
-| `HandleSessionConnectedIsSafe` | Handling session-connected is safe |
-| `HandleSessionDisconnectedNoObserversIsSafe` | Disconnected with no observers is safe |
-| `HandleSessionDisconnectedSecuredTcpIsSafe` | Disconnected on secured TCP is safe |
 
 ---
 

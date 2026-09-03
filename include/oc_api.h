@@ -951,29 +951,6 @@ extern "C"
   bool oc_do_well_known_message_update(void);
 
   /**
-   * @brief close the tls session on the indicated endpoint
-   *
-   * @param endpoint endpoint indicating a session
-   */
-  void oc_close_session(oc_endpoint_t* endpoint);
-
-  #ifdef OC_TCP
-  /**
-   * @brief send CoAP ping over the TCP connection
-   *
-   * @param custody custody on/off
-   * @param endpoint endpoint to be used
-   * @param timeout_seconds timeout for the ping
-   * @param handler the response handler
-   * @param user_data the user data to be conveyed to the response handler
-   * @return true
-   * @return false
-   */
-  bool oc_send_ping(bool custody, oc_endpoint_t* endpoint, uint16_t timeout_seconds, oc_response_handler_t handler,
-                    void* user_data);
-  #endif 
-
-  /**
    * @brief Schedule a callback to be invoked after a set number of seconds.
    *
    * @param[in] cb_data user defined context pointer that is passed to the oc_trigger_t callback

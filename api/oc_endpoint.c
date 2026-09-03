@@ -15,9 +15,6 @@
 #include <string.h>
 
 #define OC_SCHEME_COAP "coap://"
-#define OC_SCHEME_COAPS "coaps://"
-#define OC_SCHEME_COAP_TCP "coap+tcp://"
-#define OC_SCHEME_COAPS_TCP "coaps+tcp://"
 
 #define OC_IPV6_ADDRSTRLEN (46)
 #define OC_IPV6_ADDRLEN (16)
@@ -125,28 +122,7 @@ static void oc_ipv6_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* end
     (void)snprintf(&ip[str_idx], 2 + 5 + 1, "]:%u", endpoint->addr.ipv6.port);
   }
 
-  #ifdef OC_TCP
-  if (endpoint->flags & TCP)
-  {
-    if (endpoint->flags & SECURED)
-    {
-      oc_concat_strings(endpoint_str, OC_SCHEME_COAPS_TCP, ip);
-    }
-    else
-    {
-      oc_concat_strings(endpoint_str, OC_SCHEME_COAP_TCP, ip);
-    }
-  }
-  else
-  #endif
-  if (endpoint->flags & SECURED)
-  {
-    oc_concat_strings(endpoint_str, OC_SCHEME_COAPS, ip);
-  }
-  else
-  {
-    oc_concat_strings(endpoint_str, OC_SCHEME_COAP, ip);
-  }
+  oc_concat_strings(endpoint_str, OC_SCHEME_COAP, ip);
 }
 
 int oc_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)
@@ -348,8 +324,8 @@ int oc_endpoint_compare(const oc_endpoint_t* ep1, const oc_endpoint_t* ep2)
   {
     return -1;
   }
-  // compare only same types (unicast/multicast and accepted don't care in comparison, means treated as the same)
-  if ((ep1->flags & ~(MULTICAST | ACCEPTED)) != (ep2->flags & ~(MULTICAST | ACCEPTED)))
+  // compare only same types (unicast/multicast don't care in comparison, means treated as the same)
+  if ((ep1->flags & ~MULTICAST) != (ep2->flags & ~MULTICAST))
   {
     return -1;
   }

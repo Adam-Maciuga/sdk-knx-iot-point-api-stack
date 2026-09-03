@@ -112,8 +112,8 @@ static ip_context_t *get_ip_context_for_device(void)
   ctx.port = 0;
   for (const oc_endpoint_t *ep = knx_eps_head; ep; ep = ep->next)
   {
-    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
-    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
+    // pick ipv6, non-multicast IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6)
     {
       ctx.port = ep->addr.ipv6.port;
       break;
@@ -313,8 +313,8 @@ static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
   const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
   while (ep && count < MAX_IF_INDICES)
   {
-    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
-    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6 && ep->interface_index > 0)
+    // pick ipv6, non-multicast IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && ep->interface_index > 0)
     {
       const unsigned int idx = (unsigned int)ep->interface_index;
       bool already = false;
@@ -359,8 +359,8 @@ static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const 
   const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
   while (ep && count < MAX_AAAA_RECORDS)
   {
-    // pick ipv6, non-multicast, non-secure, non-TCP IPv6 endpoints -> unicast server
-    if ((ep->flags & (IPV6 | MULTICAST | SECURED | TCP)) == IPV6)
+    // pick ipv6, non-multicast IPv6 endpoints -> unicast server
+    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6)
     {
       // note that 'out' is wiped with zero before calling this function, so we can safely set the fields we need and leave the rest zeroed
 
@@ -617,8 +617,6 @@ static int open_mdns_listen_socket_ipv6(void)
     {
       /*
         Pick ipv6, non-multicast endpoints -> collect their interface index.
-        SECURED and TCP are deliberately not filtered here: only the interface index is used, and that is a property of the NIC,
-        not of the transport. Excluding them could drop an interface that carries no plaintext UDP endpoint.
       */
       if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && ep->interface_index > 0) 
       {

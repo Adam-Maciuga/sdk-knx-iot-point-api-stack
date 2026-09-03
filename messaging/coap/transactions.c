@@ -49,10 +49,6 @@
 #include "oc_client_state.h"
 #endif
 
-#ifdef KNX_TCP_TLS
-#include "security/oc_tls.h"
-#endif
-
 // coap + smode transactions
 OC_LIST(transactions_list);
 
@@ -160,13 +156,8 @@ void coap_send_transaction(coap_transaction_t *t)
   const bool smode_non_uc = smode_non && !multicast;
   const bool smode_con_uc = smode_con && !multicast;
 
-  #ifdef OC_TCP
-  if (!(t->message->endpoint.flags & TCP) && con_type) 
+  if (con_type)
   {
-  #else 
-  if (con_type) 
-  {
-  #endif
 
     if (t->retransmit_counter < COAP_MAX_RETRANSMIT) 
     {
@@ -227,14 +218,7 @@ void coap_send_transaction(coap_transaction_t *t)
       #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
       #endif
-      #ifdef KNX_TCP_TLS
-      if (t->message->endpoint.flags & SECURED) {
-        oc_tls_close_connection(&t->message->endpoint);
-      } else
-      #endif 
-      {
-        coap_clear_transaction(t);
-      }
+      coap_clear_transaction(t);
     }
   }
   else if (smode_non_uc)

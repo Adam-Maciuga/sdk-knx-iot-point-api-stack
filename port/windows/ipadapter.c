@@ -25,9 +25,6 @@
 #include <malloc.h>
 #include <stdlib.h>
 
-#ifdef OC_TCP
-#include "tcpadapter.h"
-#endif
 #undef interface
 #include "ipadapter.h"
 #include "ipcontext.h"
@@ -129,9 +126,6 @@ static void remove_all_network_interface_cbs(void) {
 void oc_network_event_handler_mutex_init(void) {
   mutex = mutex_new();
   oc_network_interface_cb_mutex = mutex_new();
-#ifdef OC_TCP
-  oc_tcp_adapter_mutex_init();
-#endif
 }
 
 void oc_network_event_handler_mutex_lock(void) {
@@ -142,23 +136,13 @@ void oc_network_event_handler_mutex_unlock(void) {
   mutex_unlock(mutex);
 }
 
-#ifdef OC_SESSION_EVENTS
-static void remove_all_session_event_cbs(void);
-#endif
-
 void oc_network_event_handler_mutex_destroy(void) {
-#ifdef OC_TCP
-  oc_tcp_adapter_mutex_destroy();
-#endif
   ifchange_initialized = false;
   mutex_free(mutex);
   closesocket(ifchange_sock);
   mutex_free(oc_network_interface_cb_mutex);
   remove_all_ip_interface();
   remove_all_network_interface_cbs();
-#ifdef OC_SESSION_EVENTS
-  remove_all_session_event_cbs();
-#endif
   WSACleanup();
 }
 
@@ -341,18 +325,10 @@ static void free_endpoints_list(ip_context_t *dev) {
 }
 
 static void get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
-        unsigned char family, uint16_t port, bool secure, bool tcp) {
+        unsigned char family, uint16_t port) {
   ifaddr_t *ifaddr;
 
   oc_endpoint_t ep = { 0 };
-
-  if (secure) {
-    ep.flags = SECURED;
-  }
-
-  if (tcp) {
-    ep.flags |= TCP;
-  }
 
   for (ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
     // Filter by interface if filter is set
@@ -393,16 +369,7 @@ static void refresh_endpoints_list(ip_context_t *dev, ifaddr_t *ifaddr_list) {
     ifaddr_supplied = true;
   }
 
-  get_interface_addresses(ifaddr_list, dev, AF_INET6, dev->port, false, false);
-#ifdef KNX_UDP_DTLS
-  get_interface_addresses(ifaddr_list, dev, AF_INET6, dev->dtls_port, true, false);
-#endif
-#ifdef OC_TCP
-  get_interface_addresses(ifaddr_list, dev, AF_INET6, dev->tcp.port, false, true);
-#ifdef KNX_TCP_TLS
-  get_interface_addresses(ifaddr_list, dev, AF_INET6, dev->tcp.tls_port, true, true);
-#endif
-#endif /* OC_TCP */
+  get_interface_addresses(ifaddr_list, dev, AF_INET6, dev->port);
   if (!ifaddr_supplied) {
     free_network_addresses(ifaddr_list);
   }
@@ -674,11 +641,6 @@ static void * network_event_thread(void *data) {
   OC_WSAEVENTSELECT(dev->server_sock, server6_event, FD_READ);
   dev->event_server_handle = server6_event;
 
-#ifdef KNX_UDP_DTLS
-  WSAEVENT secure6_event = WSACreateEvent();
-  OC_WSAEVENTSELECT(dev->secure_sock, secure6_event, FD_READ);
-#endif
-
 #undef OC_WSAEVENTSELECT
 
   DWORD events_list_size = 0;
@@ -693,11 +655,6 @@ static void * network_event_thread(void *data) {
   DWORD SERVER6 = events_list_size;
   events_list[events_list_size] = server6_event;
   events_list_size++;
-#if defined(KNX_UDP_DTLS)
-  DWORD SECURE6 = events_list_size;
-  events_list[events_list_size] = secure6_event;
-  events_list_size++;
-#endif
 
   DWORD i, index;
 
@@ -764,21 +721,6 @@ static void * network_event_thread(void *data) {
           goto common;
         }
 
-#ifdef KNX_UDP_DTLS
-        if (i == SECURE6) 
-        {
-          int count = recv_msg(dev->secure_sock, message->data, OC_PDU_SIZE, &message->endpoint, false, &message->mcast_dest);
-          if (count < 0) 
-          {
-            oc_message_unref(message);
-            continue;
-          }
-          message->length = count;
-          message->endpoint.flags = IPV6 | SECURED;
-          message->encrypted = 1;
-          goto common;
-        }
-#endif
       common:
 #ifdef OC_DEBUG
         OC_DBG("incoming message, %" PRIu64 " bytes, from ", message->length);
@@ -1044,34 +986,13 @@ int oc_send_buffer(oc_message_t *message) {
     OC_ERR("NO IP context for device");
     return -1;
   }
-#ifdef OC_TCP
-  if (message->endpoint.flags & TCP) {
-    return oc_tcp_send_buffer(dev, message, &receiver);
-  }
-#endif 
-
-  #if 1
-  /* 
-   Note, OSCORE always uses server_sock (not secure_sock) to maintain consistent source port.
-   The secure_sock is only for DTLS which is not used with OSCORE. IPv6 uses server_sock for both OSCORE and unsecured messages.
+  /*
+   Note, OSCORE always uses server_sock to maintain a consistent source port.
+   IPv6 uses server_sock for both OSCORE and unsecured messages.
   */
   send_sock = dev->server_sock;
-  #else
-  if (message->endpoint.flags & SECURED) {
-    // IPv6 and SECURE
-    send_sock = dev->secure_sock;
-  } else {
-    // IPv6
-    send_sock = dev->server_sock;
-  }
-  #endif
 
-  
-#ifdef KNX_UDP_DTLS
-  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, (int)dev->secure_sock, message->endpoint.flags);
-#else
-  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, -1, message->endpoint.flags);
-#endif
+  OC_INF("send_sock=%d server_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, message->endpoint.flags);
 
   // For multicast destinations not coming from oc_send_discovery_request
   // (e.g. OSCORE multicast from oc_buffer.c), configure the outgoing interface.
@@ -1235,64 +1156,6 @@ void handle_network_interface_event_callback(oc_interface_event_t event) {
   mutex_unlock(oc_network_interface_cb_mutex);
 }
 
-#ifdef OC_SESSION_EVENTS
-OC_LIST(oc_session_event_cb_list);
-
-static void remove_all_session_event_cbs(void) {
-  oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list),
-                        *next;
-  while (cb_item != NULL) {
-    next = cb_item->next;
-    oc_list_remove(oc_session_event_cb_list, cb_item);
-    free(cb_item);
-    cb_item = next;
-  }
-}
-
-int oc_add_session_event_callback(session_event_handler_t cb) {
-  if (!cb)
-    return -1;
-
-  oc_session_event_cb_t *cb_item = calloc(1, sizeof(oc_session_event_cb_t));
-  if (!cb_item) {
-    OC_ERR("session event callback item alloc failed");
-    return -1;
-  }
-
-  cb_item->handler = cb;
-  oc_list_add(oc_session_event_cb_list, cb_item);
-  return 0;
-}
-
-int oc_remove_session_event_callback(session_event_handler_t cb) {
-  if (!cb)
-    return -1;
-
-  oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list);
-  while (cb_item != NULL && cb_item->handler != cb) {
-    cb_item = cb_item->next;
-  }
-  if (!cb_item) {
-    return -1;
-  }
-  oc_list_remove(oc_session_event_cb_list, cb_item);
-
-  free(cb_item);
-  return 0;
-}
-
-void handle_session_event_callback(const oc_endpoint_t *endpoint,
-        oc_session_state_t state) {
-  if (oc_list_length(oc_session_event_cb_list) > 0) {
-    oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list);
-    while (cb_item) {
-      cb_item->handler(endpoint, state);
-      cb_item = cb_item->next;
-    }
-  }
-}
-#endif /* OC_SESSION_EVENTS */
-
 static uint16_t g_multicast_port = COAP_PORT_UNSECURED;
 static uint16_t g_unicast_port = 0; // on '0' -> let OS assign ephemeral port - value is set by oc_connectivity_set_port()
 
@@ -1349,14 +1212,6 @@ int oc_connectivity_init(void) {
   
   
 
-#ifdef KNX_UDP_DTLS
-  memset(&dev->secure, 0, sizeof(dev->secure));
-  struct sockaddr_in6 *sm = (struct sockaddr_in6 *)&dev->secure;
-  sm->sin6_family = AF_INET6;
-  sm->sin6_port = 0;
-  sm->sin6_addr = in6addr_any;
-#endif
-
   dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
   dev->mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -1364,14 +1219,6 @@ int oc_connectivity_init(void) {
     OC_ERR("creating server sockets");
     return -1;
   }
-
-#ifdef KNX_UDP_DTLS
-  dev->secure_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-  if (dev->secure_sock == SOCKET_ERROR) {
-    OC_ERR("creating secure socket");
-    return -1;
-  }
-#endif
 
   int on = 1;
   if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&on,
@@ -1425,44 +1272,8 @@ int oc_connectivity_init(void) {
     return -1;
   }
 
-#ifdef KNX_UDP_DTLS
-  if (setsockopt(dev->secure_sock, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&on,
-                 sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d", WSAGetLastError());
-    return -1;
-  }
-  if (setsockopt(dev->secure_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
-                 sizeof(on)) == SOCKET_ERROR) {
-    OC_ERR("setting reuseaddr option %d", WSAGetLastError());
-    return -1;
-  }
-  if (bind(dev->secure_sock, (struct sockaddr *)&dev->secure,
-           sizeof(dev->secure)) == SOCKET_ERROR) {
-    OC_ERR("binding IPv6 secure socket %d", WSAGetLastError());
-    return -1;
-  }
-
-  socklen = sizeof(dev->secure);
-  if (getsockname(dev->secure_sock, (struct sockaddr *)&dev->secure,
-                  &socklen) == SOCKET_ERROR) {
-    OC_ERR("obtaining secure socket information %d", WSAGetLastError());
-    return -1;
-  }
-
-  dev->dtls_port = ntohs(sm->sin6_port);
-#endif /* KNX_UDP_DTLS */
-
   OC_INF("### IP port info ###");
   OC_INF("IPv6 port: %u", dev->port);
-#ifdef KNX_UDP_DTLS
-  OC_INF("IPv6 secure port: %u", dev->dtls_port);
-#endif
-
-#ifdef OC_TCP
-  if (oc_tcp_connectivity_init(dev) != 0) {
-    OC_ERR("Could not initialize TCP adapter");
-  }
-#endif
 
   if (!ifchange_initialized) {
     ifchange_sock =
@@ -1532,31 +1343,12 @@ void oc_connectivity_shutdown() {
   closesocket(dev->server_sock);
   closesocket(dev->mcast_sock);
 
-#ifdef KNX_UDP_DTLS
-  closesocket(dev->secure_sock);
-#endif
-
-#ifdef OC_TCP
-  oc_tcp_connectivity_shutdown(dev);
-#endif
-
   free_endpoints_list(dev);
   oc_list_remove(ip_contexts, dev);
   free(dev);
 
   OC_DBG("oc_connectivity_shutdown");
 }
-
-#ifdef OC_TCP
-void oc_connectivity_end_session(oc_endpoint_t *endpoint) {
-  if (endpoint->flags & TCP) {
-    ip_context_t *dev = get_ip_context_for_device();
-    if (dev) {
-      oc_tcp_end_session(endpoint);
-    }
-  }
-}
-#endif
 
 #ifdef OC_DNS_LOOKUP
 int oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags flags) {
@@ -1568,7 +1360,7 @@ int oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags fl
   struct addrinfo hints, *result = NULL;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = (flags & IPV6) ? AF_INET6 : AF_INET;
-  hints.ai_socktype = (flags & TCP) ? SOCK_STREAM : SOCK_DGRAM;
+  hints.ai_socktype = SOCK_DGRAM;
   int ret = getaddrinfo(domain, NULL, &hints, &result);
 
   if (ret == 0) {

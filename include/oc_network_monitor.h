@@ -12,7 +12,6 @@
 #define OC_NETWORK_HELPERS_H
 
 #include "oc_network_events.h"
-#include "oc_session_events.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,22 +32,6 @@ int oc_add_network_interface_event_callback(interface_event_handler_t cb);
   @return 0 if success. -1 return if error occur.
 */
 int oc_remove_network_interface_event_callback(interface_event_handler_t cb);
-
-/**
-  @brief Add the callback to receive change notifications for
-   Network interface event.
-  @param cb  The callback to be added. Must not be NULL.
-  @return 0 if success. -1 return if error occur.
-*/
-int oc_add_session_event_callback(session_event_handler_t cb);
-
-/**
-  @brief Remove the callback to receive change notifications for
-   Network interface event.
-  @param cb  The callback to be removed. Must not be NULL.
-  @return 0 if success. -1 return if error occur.
-*/
-int oc_remove_session_event_callback(session_event_handler_t cb);
 
 #ifdef __cplusplus
 }

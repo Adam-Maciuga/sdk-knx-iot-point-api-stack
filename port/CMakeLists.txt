@@ -167,7 +167,6 @@ target_sources(kis-port PRIVATE
     ${PORT_DIR}/oc_network_interface.c
     ${CMAKE_CURRENT_SOURCE_DIR}/random_psa.c
     ${PORT_DIR}/storage.c
-    ${PORT_DIR}/tcpadapter.c
 )
 
 target_include_directories(kis-port 

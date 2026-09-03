@@ -20,25 +20,9 @@ extern "C" {
 
 typedef enum {
   ADAPTER_STATUS_NONE = 0, // Nothing happens
-  ADAPTER_STATUS_ACCEPT,   // Receiving no meaningful data
   ADAPTER_STATUS_RECEIVE,  // Receiving meaningful data
   ADAPTER_STATUS_ERROR     // Error
 } adapter_receive_state_t;
-
-#ifdef OC_TCP
-typedef struct tcp_context_t
-{
-  struct sockaddr_storage server;
-  int server_sock;
-  uint16_t port;
-#ifdef KNX_TCP_TLS
-  struct sockaddr_storage secure;
-  int secure_sock;
-  uint16_t tls_port;
-#endif
-  int connect_pipe[2];
-} tcp_context_t;
-#endif
 
 typedef struct ip_context_t
 {
@@ -49,14 +33,6 @@ typedef struct ip_context_t
   int mcast_sock;
   int server_sock;
   uint16_t port;
-#ifdef KNX_UDP_DTLS
-  struct sockaddr_storage secure;
-  int secure_sock;
-  uint16_t dtls_port;
-#endif
-#ifdef OC_TCP
-  tcp_context_t tcp;
-#endif
   pthread_t event_thread;
   int terminate;
   pthread_mutex_t rfds_mutex;

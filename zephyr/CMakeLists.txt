@@ -175,7 +175,6 @@ set(API_SOURCES
     ${STACK_ROOT}/api/oc_replay.c
     ${STACK_ROOT}/api/oc_ri.c
     ${STACK_ROOT}/api/oc_server_api.c
-    ${STACK_ROOT}/api/oc_session_events.c
     ${STACK_ROOT}/api/oc_uuid.c
     ${STACK_ROOT}/api/oc_knx.c
     ${STACK_ROOT}/api/oc_knx_client.c
@@ -204,13 +203,11 @@ set(CORE_SOURCES
     ${STACK_ROOT}/security/oc_oscore_context.c
     ${STACK_ROOT}/security/oc_oscore_crypto.c
     ${STACK_ROOT}/security/oc_oscore_engine.c
-    ${STACK_ROOT}/security/oc_tls.c
     ${STACK_ROOT}/security/spake2plus.c
 )
 
 set(COAP_SOURCES
     ${STACK_ROOT}/messaging/coap/coap.c
-    ${STACK_ROOT}/messaging/coap/coap_signal.c
     ${STACK_ROOT}/messaging/coap/engine.c
     ${STACK_ROOT}/messaging/coap/observe.c
     ${STACK_ROOT}/messaging/coap/oscore.c

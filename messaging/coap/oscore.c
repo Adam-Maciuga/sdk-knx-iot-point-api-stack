@@ -7,7 +7,6 @@
 
 #include "oscore.h"
 #include "coap.h"
-#include "coap_signal.h"
 #include "oc_ri.h"
 
 void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured)
@@ -351,23 +350,8 @@ bool oscore_is_oscore_message(oc_message_t* msg)
 {
   const uint8_t* current_option = NULL;
 
-  // determine exact location of the CoAP options in the packet buffer
-  #ifdef OC_TCP
-  if (msg->endpoint.flags & TCP)
-  {
-    // Calculate CoAP_TCP header length
-    size_t message_length = 0;
-    uint8_t num_extended_length_bytes = 0;
-    coap_tcp_parse_message_length(msg->data, &message_length, &num_extended_length_bytes);
-
-    current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
-  }
-  else
-  #endif
-  {
-    // header position for UDP 
-    current_option = msg->data + COAP_HEADER_LEN;
-  }
+  // determine exact location of the CoAP options in the packet buffer (UDP)
+  current_option = msg->data + COAP_HEADER_LEN;
 
   // add token size and jump to the end 
   const size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;

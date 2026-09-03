@@ -18,9 +18,6 @@
 #include "port/oc_clock.h"
 #include "conf.h"
 
-#ifdef KNX_TCP_TLS
-#include "oc_tls.h"
-#endif
 #include "util/oc_process.h"
 
 OC_PROCESS(oc_oscore_handler, "OSCORE Process");
@@ -35,33 +32,13 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
   packet->buffer = msg->data;
   uint8_t* current_option = NULL;
 
-  #ifdef OC_TCP
-  if (msg->endpoint.flags & TCP)
-  {
-    packet->transport_type = COAP_TRANSPORT_TCP;
-    // parse header fields
-    size_t message_length = 0;
-    uint8_t num_extended_length_bytes = 0;
-    coap_tcp_parse_message_length(msg->data, &message_length, &num_extended_length_bytes);
+  packet->version = (COAP_HEADER_VERSION_MASK & packet->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
+  packet->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & packet->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
+  packet->mid = (uint16_t)(packet->buffer[2] << 8 | packet->buffer[3]);
+  packet->code = packet->buffer[1];
+  packet->token_len = (COAP_HEADER_TOKEN_LEN_MASK & packet->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
 
-    packet->type = COAP_TYPE_NON;
-    packet->mid = 0;
-    packet->code = packet->buffer[1 + num_extended_length_bytes];
-
-    current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
-  }
-  else
-  #endif
-  {
-    packet->transport_type = COAP_TRANSPORT_UDP;
-    packet->version = (COAP_HEADER_VERSION_MASK & packet->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
-    packet->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & packet->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
-    packet->mid = (uint16_t)(packet->buffer[2] << 8 | packet->buffer[3]);
-    packet->code = packet->buffer[1];
-    packet->token_len = (COAP_HEADER_TOKEN_LEN_MASK & packet->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
-
-    current_option = msg->data + COAP_HEADER_LEN;
-  }
+  current_option = msg->data + COAP_HEADER_LEN;
 
   #ifdef OC_DEBUG
 
@@ -822,7 +799,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           - OBSERVE response, each server response uses the initial client 'request' token, 
             the device acts as a client that subscribes on a resource 
       */
-      oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt, &request_piv, &request_piv_len, false);
+      oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt, &request_piv, &request_piv_len);
       if (!oscore_ctx)
       {
         OC_ERR("response error (8.4 step 2), ignore silently, cannot find a matching oscore Request Sender Context from inbound response");
@@ -1214,12 +1191,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   coap_packet_t coap_pkt[1];
 
   // parse outgoing message and copy to CoAP packet ... ('msg' may just be released, -> data may be NULL)
-  #ifdef OC_TCP
-  if (from_org_msg_cloned_outgoing_msg->endpoint.flags & TCP)
-    coap_status_t code = coap_tcp_parse_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, (uint32_t)from_org_msg_cloned_outgoing_msg->length);
-  else
-  #endif
-    coap_status_t code = coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
+  coap_status_t code = coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
 
   if (code != COAP_NO_ERROR)
   {
@@ -1383,11 +1355,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       AAD        : compose_AAD(recipient_id, inbound_piv)
   */
 
-  if (is_outbound_request
-  #ifdef OC_TCP
-      || coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01
-  #endif
-  )
+  if (is_outbound_request)
   { // 8.1
 
     // use context SSN as Partial IV (before increment)
@@ -1712,22 +1680,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   return 0;
 
   #endif
-
-  #if defined(OC_CLIENT) && defined(KNX_TCP_TLS)
-  OC_DBG_OSCORE("Outbound network event: forwarding to TLS");
-  if (!oc_tls_connected(&from_org_msg_cloned_outgoing_msg->endpoint))
-  {
-    OC_DBG_OSCORE("Posting INIT_TLS_CONN_EVENT");
-    oc_process_post(&oc_tls_handler, oc_events[INIT_TLS_CONN_EVENT], from_org_msg_cloned_outgoing_msg);
-  }
-  else
-  #endif
-  {
-    #ifdef KNX_TCP_TLS
-    OC_DBG_OSCORE("Posting RI_TO_TLS_EVENT");
-    oc_process_post(&oc_tls_handler, oc_events[RI_TO_TLS_EVENT], from_org_msg_cloned_outgoing_msg);
-    #endif
-  }
 
   return 0;
 }

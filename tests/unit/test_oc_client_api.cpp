@@ -6,7 +6,6 @@
  *   oc_lf_get_entry_uri      — extract the <uri> of the Nth record
  *   oc_lf_get_entry_param    — extract a ;param=value of the Nth record
  *                              (also drives the static oc_lf_get_line)
- *   oc_close_session         — plain (non-secured/non-TCP) endpoint is a no-op
  *
  * INTEGRATION (documented, not unit-tested here):
  *   oc_do_s_mode_message_update / oc_do_well_known_message_update send the
@@ -18,11 +17,6 @@
  *   build the CoAP header/token/uri without touching the network. Deeper
  *   assertions on the populated packet are not possible because the message and
  *   coap_packet_t live in file-static storage with no public accessor.
- *   oc_send_ping / oc_remove_ping_handler (OC_TCP) send a CoAP ping and use the
- *   delayed-callback / client-cb registry. All require a live transport.
- *   oc_close_session's SECURED / TCP branches call into TLS / connectivity
- *   teardown (live session) and are integration-level; only the plain no-op
- *   branch is unit-tested.
  */
 
 #include <gtest/gtest.h>
@@ -119,18 +113,6 @@ TEST_F(ClientApiLF, GetEntryParamMissingReturnsZero)
   int p_len = 0;
   /* "xx" is not a parameter of the record */
   EXPECT_EQ(oc_lf_get_entry_param(LF2, (int)strlen(LF2), 0, "xx", &p, &p_len), 0);
-}
-
-/* ─────────────────────────────── oc_close_session ─────────────────────────── */
-
-TEST(ClientApiSession, CloseSessionPlainEndpointIsNoOp)
-{
-  oc_endpoint_t ep;
-  memset(&ep, 0, sizeof(ep));
-  ep.flags = IPV6; /* neither SECURED nor TCP */
-  /* must not call into TLS / connectivity teardown -> no crash */
-  oc_close_session(&ep);
-  SUCCEED();
 }
 
 /* ──────────────────── oc_init_s_mode / well_known message ──────────────────

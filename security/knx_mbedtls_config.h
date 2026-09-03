@@ -22,14 +22,15 @@
  * and are no longer defined here.
  *
  * Note:
- * KNX_TCP_TLS is not defined in any current build configuration (Linux,
- * Windows, Zephyr). The TLS/DTLS code in security/oc_tls.c is therefore
- * dormant. All TLS-specific options below are kept for completeness and
- * future activation.
+ * The KNX-IoT Point API Stack does not support TLS or DTLS as a transport;
+ * only UDP CoAP + OSCORE is used. The former KNX_TCP_TLS transport code and
+ * its guards were removed. The remaining TLS/DTLS protocol options below are
+ * only needed to build the Mbed TLS library itself and do not enable a TLS
+ * transport in the stack.
  *
  * Note:
- * OC_PKI is currently not used. X.509 options are kept for when PKI
- * support is added.
+ * OC_PKI is currently not used and never defined by any build configuration.
+ * X.509 options are kept for when PKI support is added.
  *
  * OC flags used in this file:
  * OC_PKI          // TODO => KNX_TLS_PKI, OC_PKI is only used with TLS.
@@ -70,8 +71,8 @@
 
 /* ── TLS/DTLS protocol ───────────────────────────────────────────────────────
  *
- * Note: KNX_TCP_TLS is not currently defined anywhere in the stack.
- * These options are kept for when TLS/DTLS support is activated.
+ * Note: the stack has no TLS/DTLS transport. These options only configure the
+ * Mbed TLS library build.
  */
 
 /* Supported TLS versions */
@@ -100,23 +101,6 @@
 #define MBEDTLS_SSL_DTLS_ANTI_REPLAY
 #define MBEDTLS_SSL_DTLS_HELLO_VERIFY
 #define MBEDTLS_SSL_COOKIE_C
-
-/* Supported key exchange methods */
-// Kconfig: CONFIG_MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
-// Kconfig: CONFIG_MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
-// Kconfig: CONFIG_MBEDTLS_PSK_MAX_LEN = 16  // TODO is 16 enough for all Zephyr modules?
-// Note:
-// Save some RAM by adjusting to your exact needs.
-// 16: 128-bits keys are generally enough.
-// Kconfig: CONFIG_MBEDTLS_KEY_EXCHANGE_RSA_ENABLED  // TODO shouldn't this be set?
-// Kconfig: CONFIG_MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
-#define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
-#define MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
-#define MBEDTLS_PSK_MAX_LEN 16
-//#define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED  // TODO shouldn't this be set?
-#ifdef KNX_TCP_TLS
-#define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
-#endif /* KNX_TCP_TLS */
 
 #define MBEDTLS_SSL_ALL_ALERT_MESSAGES
 
@@ -154,65 +138,17 @@
 
 #endif
 
-/* ── Automatic dependencies ──────────────────────────────────────────────────
+/* Note: the former "Automatic dependencies" block was guarded by KNX_TCP_TLS
+ * (the removed TLS/DTLS transport). It derived MBEDTLS_X509_, PK_ and ASN1_ macros
+ * from the TLS key-exchange options and was never compiled, because enabling
+ * it cascaded into MBEDTLS_OID_C, which was removed in Mbed TLS 4.0. It has
+ * been dropped along with the transport. Mbed TLS 4.x resolves these
+ * dependencies itself if X.509/PKI support is ever activated.
  *
- * The following macros are derived from the TLS/X.509 options above.
- * Mbed TLS 4.x resolves many of these automatically; they are kept here for
- * clarity and to ensure correctness in standalone (non-Zephyr) builds.
- *
- * Note: Guarded by KNX_TCP_TLS because MBEDTLS_OID_C was removed in Mbed TLS 4.0.
- * Without the guard, MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED cascades into
- * MBEDTLS_X509_CRT_PARSE_C → MBEDTLS_X509_USE_C → MBEDTLS_OID_C and causes a
- * compile error even when TLS is not activated.
- */
-#ifdef KNX_TCP_TLS
-
-#if defined(MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED) || \
-        defined(MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED) || \
-        defined(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED)
-#define MBEDTLS_X509_CRT_PARSE_C
-#endif
-
-#if defined(CONFIG_MBEDTLS_PEM_CERTIFICATE_FORMAT) && \
-    defined(MBEDTLS_X509_CRT_PARSE_C)
-#define MBEDTLS_PEM_PARSE_C
-#define MBEDTLS_PEM_WRITE_C
-#define MBEDTLS_BASE64_C
-#endif
-
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-#define MBEDTLS_X509_USE_C
-#endif
-
-#if defined(MBEDTLS_X509_USE_C)
-#define MBEDTLS_PK_PARSE_C
-#endif
-
-#if defined(MBEDTLS_PK_PARSE_C) || defined(MBEDTLS_PK_WRITE_C)
-#define MBEDTLS_PK_C
-#endif
-
-#if defined(CONFIG_MBEDTLS_ASN1_PARSE_C) || defined(MBEDTLS_X509_USE_C)
-#define MBEDTLS_ASN1_PARSE_C
-#endif
-
-#if defined(MBEDTLS_ECDSA_C) || defined(MBEDTLS_RSA_C) || defined(MBEDTLS_PK_WRITE_C)
-#define MBEDTLS_ASN1_WRITE_C
-#endif
-
-//#define MBEDTLS_X509_CHECK_EXTENDED_KEY_USAGE   // Remove the MBEDTLS_X509_CHECK_KEY_USAGE and MBEDTLS_X509_CHECK_EXTENDED_KEY_USAGE config.h options and let the code behave as if they were always enabled. Fixes #4405.
-
-/* Note: MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE was removed in Mbed TLS 4.x.
+ * Note: MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE was removed in Mbed TLS 4.x.
  * Use the runtime API instead: mbedtls_ssl_conf_preference_order().
  * Fixes #4398.
  */
-
-#endif /* KNX_TCP_TLS */
 
 // #include "mbedtls/check_config.h"
 

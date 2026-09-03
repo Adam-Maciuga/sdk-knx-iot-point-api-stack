@@ -168,30 +168,6 @@ extern "C" {
    */
   bool oc_main_initialized(void);
 
-#ifdef KNX_TCP_TLS
-  /**
-   * Set acceptance of new commands(GET/PUT/POST/DELETE)
-   *
-   * The device drops/accepts new commands when the drop is set to true/false.
-   *
-   * @note Only available if KNX_TCP_TLS is set; this call is used to drop all new incoming
-   *       commands during closing TLS sessions (CLOSE_ALL_TLS_SESSIONS).
-   *
-   * @param[in] drop set whether all new commands will be accepted/dropped
-   */
-  void oc_set_drop_commands(bool drop);
-
-  /**
-   * Get status of dropping new commands.
-   *
-   * @return true if dropping new commands
-   *
-   * @note Only available if KNX_TCP_TLS is set; this call is used to check on a closing TLS sessions
-   *       (CLOSE_ALL_TLS_SESSIONS), to not allow new commands during the closure.
-   */
-  bool oc_drop_command(void);
-#endif /* KNX_TCP_TLS */
-
   void _oc_signal_event_loop(void);
 
 #ifdef __cplusplus
