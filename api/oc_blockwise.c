@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
 #include "oc_endpoint.h"
 #include "port/oc_log.h"
@@ -335,4 +334,3 @@ bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_b
   return true;
 }
 
-#endif

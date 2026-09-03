@@ -7,9 +7,8 @@
 /*
  * Unit tests for api/oc_blockwise.c (CoAP block-wise transfer buffers).
  *
- * The whole module is compiled under OC_BLOCK_WISE (defined in
- * port/linux/oc_config.h) with OC_CLIENT + OC_SERVER, so every public function
- * is available. The file-static lists oc_blockwise_requests /
+ * The whole module is compiled with OC_CLIENT + OC_SERVER, so every public
+ * function is available. The file-static lists oc_blockwise_requests /
  * oc_blockwise_responses are populated only via the alloc functions; therefore
  * the find/scrub/get-ptr functions are exercised through real alloc'd buffers.
  *

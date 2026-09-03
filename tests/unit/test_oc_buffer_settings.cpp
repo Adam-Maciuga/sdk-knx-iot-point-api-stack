@@ -10,8 +10,7 @@
  *
  * Requirements:
  *   None - all functions operate on static globals, no stack init needed.
- *   OC_BLOCK_WISE is enabled via the port oc_config.h, so the block-size
- *   derivation path in oc_set_pdu_size is active.
+ *   The block-size derivation path in oc_set_pdu_size is always active.
  *
  * Note: these functions share process-global state (oc_pdu_size /
  *       oc_blk_size). Each test sets the pdu explicitly before asserting,

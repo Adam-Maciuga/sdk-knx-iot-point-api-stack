@@ -41,9 +41,7 @@
 #include <string.h>
 #include "port/oc_random.h"
 
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
@@ -215,9 +213,7 @@ void coap_send_transaction(coap_transaction_t *t)
       }
       #endif
 
-      #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
-      #endif
       coap_clear_transaction(t);
     }
   }

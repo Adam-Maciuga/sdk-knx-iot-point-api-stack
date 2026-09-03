@@ -67,13 +67,7 @@ extern "C" {
       BLOCKWISE (34 -> blk 4 + 4 + size 6 + 6 + q-blk 5 + 5)  
 */
 #ifndef COAP_MAX_HEADER_SIZE 
-
-  #ifdef OC_BLOCK_WISE
-    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + FEAR + 5 + 3 + 32 + 5 + 1 + COAP_ETAG_LEN + 34)
-  #else 
-    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + FEAR + 5 + 3 + 32 + 5 + 1 + COAP_ETAG_LEN)
-  #endif 
-
+  #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + FEAR + 5 + 3 + 32 + 5 + 1 + COAP_ETAG_LEN + 34)
 #endif 
 
 // number of observer slots (each takes about xxx bytes)

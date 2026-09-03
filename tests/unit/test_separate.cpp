@@ -8,8 +8,8 @@
  *   coap_separate_resume  — initialize a response packet from a stored request
  *   coap_separate_clear   — remove a store from the handle list and free it
  *
- * separate.c is guarded by #ifdef OC_SERVER (ON in the test build) and uses
- * OC_BLOCK_WISE (ON), so coap_separate_accept takes the 5-argument signature.
+ * separate.c is guarded by #ifdef OC_SERVER (ON in the test build), so
+ * coap_separate_accept takes the 5-argument signature.
  *
  * SPDX-License-Identifier: Apache-2.0
  */

@@ -47,9 +47,7 @@
 #include "timestamp.h"
 #include "port/oc_random.h"
 
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
@@ -57,16 +55,10 @@
 
 OC_PROCESS(coap_engine, "CoAP Engine");
 
-// use either w/wo blockwise transfer version
-#ifdef OC_BLOCK_WISE
 extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response, 
                                              oc_blockwise_state_t** request_state,
                                              oc_blockwise_state_t** response_state, 
                                              uint16_t block2_size, oc_endpoint_t* endpoint);
-#else
-extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
-                                             uint8_t* buffer, oc_endpoint_t* endpoint);
-#endif
 
 #ifdef OC_REQUEST_HISTORY
 /*
@@ -570,9 +562,7 @@ int coap_receive(oc_message_t* incoming_message)
   uint16_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
   uint8_t  block1_more = 0, block2_more = 0;
 
-  #ifdef OC_BLOCK_WISE
   oc_blockwise_state_t* request_buffer = NULL, *response_buffer = NULL;
-  #endif
 
   #ifdef OC_CLIENT
   oc_client_cb_t* client_cb = NULL;
@@ -677,10 +667,8 @@ int coap_receive(oc_message_t* incoming_message)
       block2 = true;
     }
 
-    #ifdef OC_BLOCK_WISE
     block1_size = MIN(block1_size, OC_BLOCK_SIZE);
     block2_size = MIN(block2_size, OC_BLOCK_SIZE);
-    #endif
 
     /*
       Transaction searches by matching mid or token, CHECK must be on this code position to set a value,
@@ -870,7 +858,6 @@ int coap_receive(oc_message_t* incoming_message)
 
       if (transaction)
       {
-        #ifdef OC_BLOCK_WISE
         const uint8_t* incoming_block;
         uint32_t incoming_block_len = coap_get_payload(inbound_coap_pkt, &incoming_block);
         if (block1)
@@ -1106,26 +1093,13 @@ int coap_receive(oc_message_t* incoming_message)
         OC_ERR("incoming payload size exceeds block size");
 
         goto init_reset_message;
-        #else
-        if (block1 || block2)
-        {
-          goto init_reset_message;
-        }
-        #endif
 
-          #ifdef OC_BLOCK_WISE
       request_handler :
         if (oc_ri_invoke_coap_entity_handler(inbound_coap_pkt,
                                              outbound_coap_pkt, &request_buffer,
                                              &response_buffer,
                                              block2_size, &incoming_message->endpoint))
         {
-          #else
-          if (oc_ri_invoke_coap_entity_handler(message, response,
-                                               transaction->message->data + COAP_MAX_HEADER_SIZE,
-                                               &incoming_message->endpoint)) { 
-          #endif
-          #ifdef OC_BLOCK_WISE
           uint32_t payload_size = 0;
           const uint8_t* payload = oc_blockwise_dispatch_block(response_buffer, 0, block2_size, &payload_size);
           if (payload)
@@ -1144,9 +1118,7 @@ int coap_receive(oc_message_t* incoming_message)
           {
             response_buffer->ref_count = 0;
           }
-          #endif
         }
-        #ifdef OC_BLOCK_WISE
         else
         {
           if (request_buffer)
@@ -1159,7 +1131,6 @@ int coap_receive(oc_message_t* incoming_message)
             response_buffer->ref_count = 0;
           }
         }
-        #endif
         if (outbound_coap_pkt->code != EMPTY_0_00)
         {
           goto send_message;
@@ -1181,10 +1152,8 @@ int coap_receive(oc_message_t* incoming_message)
       #endif
 
       #ifdef OC_CLIENT
-      #ifdef OC_BLOCK_WISE
       uint16_t response_mid = coap_get_next_mid();
       bool error_response = false;
-      #endif
 
       if (!is_reset)
       {
@@ -1193,12 +1162,10 @@ int coap_receive(oc_message_t* incoming_message)
         client_cb = oc_ri_find_client_cb_by_token(inbound_coap_pkt->token, inbound_coap_pkt->token_len);
         OC_INF("scanning for client callback -> %s", client_cb ? "... found" : "... not found");
 
-        #ifdef OC_BLOCK_WISE
         if (inbound_coap_pkt->code >= BAD_REQUEST_4_00 && inbound_coap_pkt->code != REQUEST_ENTITY_TOO_LARGE_4_13)
         {
           error_response = true;
         }
-        #endif
       }
       #endif
 
@@ -1377,7 +1344,6 @@ int coap_receive(oc_message_t* incoming_message)
 
       #ifdef OC_CLIENT
 
-      #ifdef OC_BLOCK_WISE
       if (client_cb)
       {
         request_buffer = oc_blockwise_find_request_buffer_by_client_cb(&incoming_message->endpoint, client_cb);
@@ -1556,12 +1522,10 @@ int coap_receive(oc_message_t* incoming_message)
           response_buffer->payload_size = response_buffer->next_block_offset;
         }
       }
-      #endif
 
       if (client_cb)
       {
         OC_DBG("calling present client cb");
-        #ifdef OC_BLOCK_WISE
         if (request_buffer)
         {
           request_buffer->ref_count = 0; 
@@ -1586,9 +1550,6 @@ int coap_receive(oc_message_t* incoming_message)
         }
 
         goto send_message;
-        #else
-        oc_ri_invoke_client_cb(message, client_cb, &incoming_message->endpoint);
-        #endif
       }
       #endif
     }
@@ -1608,7 +1569,6 @@ int coap_receive(oc_message_t* incoming_message)
 init_reset_message:
 
   coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_RST, EMPTY_0_00, inbound_coap_pkt->mid);
-  #ifdef OC_BLOCK_WISE
   if (request_buffer)
   {
     request_buffer->ref_count = 0;
@@ -1618,7 +1578,6 @@ init_reset_message:
   {
     response_buffer->ref_count = 0;
   }
-  #endif
 
 send_message:
   if (coap_status_code == CLEAR_TRANSACTION)
@@ -1634,7 +1593,7 @@ send_message:
         // prepare response with token from inbound request
         coap_set_token(outbound_coap_pkt, inbound_coap_pkt->token, inbound_coap_pkt->token_len);
       }
-      #if defined(OC_CLIENT) && defined(OC_BLOCK_WISE)
+      #ifdef OC_CLIENT
       else
       {
         oc_blockwise_response_state_t* b = (oc_blockwise_response_state_t*)response_buffer;
@@ -1686,9 +1645,7 @@ send_message:
     }
   }
 
-  #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(false);
-  #endif
 
   OC_DBG("####### COAP END #######");
   return coap_status_code;

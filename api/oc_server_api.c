@@ -556,11 +556,7 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
     &cur->endpoint,
     cur->method, OC_BLOCKWISE_SERVER);
 
-  #ifdef OC_BLOCK_WISE
   oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
-  #else
-  oc_rep_new(handle->buffer, OC_BLOCK_SIZE);
-  #endif
 }
 
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
@@ -599,7 +595,6 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
         coap_separate_resume(response, current, (uint8_t)oc_status_code(response_code), t->mid);
         coap_set_header_content_format(response, response_buffer.content_format);
 
-        #ifdef OC_BLOCK_WISE
         oc_blockwise_state_t* response_state = NULL;
         if (response_buffer.response_length > current->block2_size)
         {
@@ -648,7 +643,6 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
           }
         }
         else
-        #endif
           if (response_buffer.response_length > 0)
           {
             coap_set_payload(response, handle->response_state->buffer, response_buffer.response_length);
@@ -681,9 +675,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
       }
     }
     
-    #ifdef OC_BLOCK_WISE
     next_separate_request:
-    #endif
     
     // current is NULLed after the call 
     coap_separate_clear(handle, current);
