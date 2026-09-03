@@ -9,14 +9,7 @@
 #include "messaging/coap/engine.h"
 #include "oc_signal_event_loop.h"
 #include "port/oc_network_events_mutex.h"
-#include "messaging/coap/coap.h"
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-
-#ifdef OC_TCP_TLS
-#include "security/oc_tls.h"
-#endif 
 #include "security/oc_oscore.h"
 #include "messaging/coap/oscore.h"
 #include "oc_buffer.h"
