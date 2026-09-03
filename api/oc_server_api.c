@@ -566,6 +566,7 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
     OC_ERR("could not allocate the response buffer for the separate response");
     return;
   }
+  // allocated buffer in oc_blockwise_alloc_response_buffer = OC_MAX_APP_DATA_SIZE, so use it below
   oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
 }
 
