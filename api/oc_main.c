@@ -161,18 +161,11 @@ int oc_set_pdu_size(uint32_t pdu_size)
     return -1;
   }
 
-  /*
-    the buffer sizing is independent of block-wise transfer, hence the PDU size is always stored,
-    only the derivation of the block size below requires OC_BLOCK_WISE
-  */
-
   // the argument is the total PDU size, store it unchanged
   oc_pdu_size = pdu_size;
 
   // tmp variable for block size calculation, remove both CoAP header budgets to get the pure payload budget
   pdu_size -= 2 * COAP_MAX_HEADER_SIZE;
-
-  #ifdef OC_BLOCK_WISE
 
   /*
     a block is a chunk of the application payload, hence it can never exceed the application data buffer
@@ -194,12 +187,6 @@ int oc_set_pdu_size(uint32_t pdu_size)
   }
 
   oc_blk_size = (uint16_t)(1 << i);
-
-  #else
-
-  (void) pdu_size;
-
-  #endif 
 
   return 0;
 }

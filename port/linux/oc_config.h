@@ -34,10 +34,6 @@ typedef uint64_t oc_clock_time_t;
 #define OC_DNS_LOOKUP
 #define OC_DNS_CACHE
 
-
-// Dynamic memory allocation.
-#define OC_BLOCK_WISE
-
 // The maximum size of a response to an OBSERVE request, in bytes.
 #define OC_MAX_OBSERVE_SIZE 512
 

@@ -63,9 +63,7 @@ typedef struct coap_observer_t
 
 	// --- 2-byte aligned: uint16_t ---
 	uint16_t last_mid;
-	#ifdef OC_BLOCK_WISE
 	uint16_t block2_size;
-	#endif 
 
 	// --- 1-byte: uint8_t, bool ---
 	uint8_t token_len;
@@ -82,11 +80,7 @@ typedef struct coap_observer_t
   
 	
 
-#ifdef OC_BLOCK_WISE
 int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size, oc_endpoint_t* endpoint);
-#else
-int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, oc_endpoint_t* endpoint);
-#endif
 
 int coap_remove_observers_on_dos_change(bool reset);
 

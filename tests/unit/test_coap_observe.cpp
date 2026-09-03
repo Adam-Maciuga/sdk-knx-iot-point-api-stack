@@ -86,11 +86,7 @@ static int add_test_observer(oc_resource_t *resource, oc_endpoint_t *ep,
   memset(&res, 0, sizeof(res));
   res.code = CONTENT_2_05;
 
-#ifdef OC_BLOCK_WISE
   return coap_observe_handler(&req, &res, resource, 0, ep);
-#else
-  return coap_observe_handler(&req, &res, resource, ep);
-#endif
 }
 
 /* ---------------- fixture ------------------------------------------------ */
@@ -302,11 +298,7 @@ TEST_F(CoapObserve, DeregisterViaHandler)
   memset(&res, 0, sizeof(res));
   res.code = CONTENT_2_05;
 
-#ifdef OC_BLOCK_WISE
   coap_observe_handler(&req, &res, &tr.resource, 0, &ep);
-#else
-  coap_observe_handler(&req, &res, &tr.resource, &ep);
-#endif
 
   EXPECT_EQ(tr.data.num_observers, 0);
 }

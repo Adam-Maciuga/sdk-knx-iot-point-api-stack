@@ -18,9 +18,7 @@
 #include "oc_endpoint.h"
 #include "oc_ri.h"
 #include <stdbool.h>
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,7 +97,6 @@ typedef struct oc_client_cb_t
 
 } oc_client_cb_t;
 
-#ifdef OC_BLOCK_WISE
 /**
  * @brief invoke a client callback when a response is received
  *
@@ -111,18 +108,6 @@ typedef struct oc_client_cb_t
  * @return false
  */
 bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_state, oc_client_cb_t* cb, oc_endpoint_t* endpoint);
-#else
-/**
- * @brief invoke the Client callback when a response is received
- *
- * @param response the response
- * @param cb the callback
- * @param endpoint the endpoint
- * @return true
- * @return false
- */
-bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint);
-#endif
 
 /**
  * @brief allocate a client callback, please read the additional notes

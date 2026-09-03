@@ -29,9 +29,7 @@
 #include "oc_ri.h"
 #include "oc_knx_sec.h"
 
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif
 
 #include "security/oc_oscore.h"
 
@@ -963,17 +961,11 @@ static void free_all_event_timers(void)
   }
 }
 
-#ifdef OC_BLOCK_WISE
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       oc_blockwise_state_t** request_state,
                                       oc_blockwise_state_t** response_state,
                                       uint16_t block2_size, oc_endpoint_t* endpoint)
 {
-#else
-bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* buffer, oc_endpoint_t* endpoint)
-{
-#endif
-
   // flags that capture status along various stages of processing the request.
   bool method_impl = true, bad_request = false, success = false, forbidden = false, entity_too_large = false;
 
@@ -988,13 +980,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   oc_response_t response_obj;                   // filled completely later on, hence no init with '0'
   oc_response_buffer_t response_buffer = {0};   // partiality filled later on, hence init with '0'
 
-  #ifdef OC_BLOCK_WISE
   #ifndef OC_SERVER
   (void)block2_size;
   #endif
-  #endif
 
-  // postpone allocating response_state right after calling oc_parse_rep() in order to reducing peak memory in OC_BLOCK_WISE 
+  // postpone allocating response_state right after calling oc_parse_rep() in order to reduce peak memory
 
   // init response object (sets all data)
   response_obj.separate_response = NULL;
@@ -1032,16 +1022,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   const uint8_t* payload = NULL;
   uint32_t payload_len = 0;
 
-  #ifdef OC_BLOCK_WISE
   if (*request_state)
   {
     // not NULL, so set payload + len
     payload = (*request_state)->buffer;
     payload_len = (*request_state)->payload_size;
   }
-  #else
-  payload_len = coap_get_payload(request, &payload);
-  #endif
 
   // prepare request (except the matching resource pointer)
   new_request._payload = payload;
@@ -1138,7 +1124,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   }
 
   // alloc response_state, it also affects response_buffer
-  #ifdef OC_BLOCK_WISE
   if (!bad_request && matching_resource)
   {
     // either core/application resource was found
@@ -1169,10 +1154,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       }
     }
   }
-  #else
-  response_buffer.buffer = buffer;
-  response_buffer.buffer_size = OC_BLOCK_SIZE;
-  #endif
 
   if (!bad_request && matching_resource)
   {
@@ -1231,9 +1212,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     }
   }
 
-  #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(false);
-  #endif
 
   if (new_request.request_payload)
   {
@@ -1306,11 +1285,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
         
         */
 
-        #ifdef OC_BLOCK_WISE
         int observe_result = coap_observe_handler(request, response, matching_resource, block2_size, endpoint);
-        #else
-        int observe_result = coap_observe_handler(request, response, matching_resource, endpoint);
-        #endif
 
         if (observe_result == -2)
         { // (a)
@@ -1354,13 +1329,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
 
         */
 
-        #ifdef OC_BLOCK_WISE
         if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint) > 0)
         { // (e) 
-        #else
-        if (coap_observe_handler(request, response, matching_resource, endpoint) > 0)
-        { // (e) 
-        #endif
           if (matching_resource->properties & OC_PERIODIC)
           {
             remove_periodic_observe_callback(matching_resource);
@@ -1395,14 +1365,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       out a response with it.
     */
 
-    #ifdef OC_BLOCK_WISE
     // note, observe value may also be 'invalid'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client, block2_size) == 1)
     {
-    #else
-    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client) == 1)
-    {
-    #endif
       response_obj.separate_response->active = true;
     }
   }
@@ -1438,11 +1403,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
 
       if (response_buffer.response_length > 0)
       {
-        #ifdef OC_BLOCK_WISE
         (*response_state)->payload_size = (uint32_t)response_buffer.response_length;
-        #else
-        coap_set_payload(response, response_buffer.buffer, response_buffer.response_length);
-        #endif
 
         if (response_buffer.content_format > 0)
         {
@@ -1481,9 +1442,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
 static void free_client_cb(oc_client_cb_t* cb)
 {
   oc_list_remove(client_cbs, cb);
-  #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers_for_client_cb(cb);
-  #endif
   oc_free_string(&cb->uri);
   oc_free_string(&cb->query);
   free(cb);
@@ -1602,13 +1561,8 @@ bool oc_ri_is_client_cb_valid(oc_client_cb_t* client_cb)
   return false;
 }
 
-#ifdef OC_BLOCK_WISE
 bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_state, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
 {
-#else
-bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
-{
-#endif
   
   // set as default = CBOR and read the actual content format from the response, if present
   oc_content_format_t cf = APPLICATION_CBOR;
@@ -1632,7 +1586,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     .code = get_oc_status_code_from_coap_code(pkt->code)
   };
 
-  #ifdef OC_BLOCK_WISE
   if (response_state)
   {
     /* 
@@ -1646,12 +1599,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     payload = (*response_state)->buffer;
     payload_len = (*response_state)->payload_size;
   }
-  #else
-  
-  coap_get_header_observe(pkt, (uint32_t*)&client_response.observe_option);
-  payload_len = coap_get_payload(response, (const uint8_t**)&payload);
-  
-  #endif
 
   /* 
      > de-register, = inbound notification (response) to a non-observe request, 
@@ -1746,9 +1693,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
     free_client_cb(cb);
 
-    #ifdef OC_BLOCK_WISE
     *response_state = NULL;
-    #endif
   }
   else
   { 
@@ -1869,9 +1814,7 @@ void oc_ri_shutdown(void)
   free_all_client_cbs();
   #endif
 
-  #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(true);
-  #endif
 
   // wait until no event is pending anymore
   while (oc_main_poll())
