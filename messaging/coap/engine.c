@@ -942,13 +942,15 @@ int coap_receive(oc_message_t* incoming_message)
 
           if (!request_buffer && block1_num == 0)
           {
+            #ifdef KNX_TCP_TLS
             if (oc_drop_command() && is_coap_request_code)
             {
-              OC_WRN("cannot process new request during closing TLS sessions");
+              OC_WRN("cannot process NEW block-wise request during closing TLS sessions");
               goto init_reset_message;
             }
+            #endif
 
-            OC_DBG("creating new block-wise request buffer");
+            OC_DBG("creating NEW block-wise request buffer");
             request_buffer = oc_blockwise_alloc_request_buffer(href, href_len,
                                                                &incoming_message->endpoint, inbound_coap_pkt->code,
                                                                OC_BLOCKWISE_SERVER);
@@ -1071,11 +1073,13 @@ int coap_receive(oc_message_t* incoming_message)
                 
                 if (!request_buffer)
                 {
+                  #ifdef KNX_TCP_TLS
                   if (oc_drop_command() && is_coap_request_code)
                   {
-                    OC_WRN("cannot process new request during closing TLS sessions");
+                    OC_WRN("cannot process NEW block-wise request during closing TLS sessions");
                     goto init_reset_message;
                   }
+                  #endif
                   request_buffer = oc_blockwise_alloc_request_buffer(
                     href, href_len, &incoming_message->endpoint, inbound_coap_pkt->code,
                     OC_BLOCKWISE_SERVER);
@@ -1107,11 +1111,13 @@ int coap_receive(oc_message_t* incoming_message)
           goto init_reset_message;
         }
         OC_DBG("no block options; processing regular request");
+        #ifdef KNX_TCP_TLS
         if (oc_drop_command() && is_coap_request_code)
         {
-          OC_WRN("cannot process new request during closing TLS sessions");
+          OC_WRN("cannot process NEW request during closing TLS sessions");
           goto init_reset_message;
         }
+        #endif
 
         #ifdef OC_TCP
         if ((incoming_message->endpoint.flags & TCP &&
@@ -1183,9 +1189,17 @@ int coap_receive(oc_message_t* incoming_message)
         {
           goto init_reset_message;
         }
+
+        #ifdef KNX_TCP_TLS
+        if (oc_drop_command() && is_coap_request_code)
+        {
+          OC_WRN("cannot process NEW request during closing TLS sessions");
+          goto init_reset_message;
+        }
+        #endif
         #endif
 
-        #ifdef OC_BLOCK_WISE
+          #ifdef OC_BLOCK_WISE
       request_handler :
         if (oc_ri_invoke_coap_entity_handler(inbound_coap_pkt,
                                              outbound_coap_pkt, &request_buffer,

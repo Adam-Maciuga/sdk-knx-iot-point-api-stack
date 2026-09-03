@@ -16,9 +16,9 @@
  * oc_main_init / oc_main_poll / oc_main_shutdown / oc_shutdown_device (static)
  * bootstrap and tear down the whole stack (RI, SPAKE2+, connectivity, mDNS,
  * group multicasts) and are INTEGRATION-level. oc_set_drop_commands /
- * oc_drop_command dereference the drop_commands buffer that is only allocated by
- * oc_main_init, so they are INTEGRATION too. These are documented in
- * tests/COVERAGE_LEDGER.md.
+ * oc_drop_command only exist when KNX_TCP_TLS is defined, which no build
+ * configuration currently does, so they are not compiled here. These are
+ * documented in tests/COVERAGE_LEDGER.md.
  */
 
 extern "C" {

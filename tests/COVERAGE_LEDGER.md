@@ -278,7 +278,7 @@ or tear down the whole stack and are INTEGRATION.
 | oc_main_poll | INTEGRATION — runs the process / etimer loop |
 | oc_main_shutdown | INTEGRATION — tears down mDNS, RI, connectivity |
 | oc_shutdown_device (static) | INTEGRATION — connectivity + mutex destroy |
-| oc_set_drop_commands / oc_drop_command | INTEGRATION — deref drop_commands buffer allocated only by oc_main_init |
+| oc_set_drop_commands / oc_drop_command | NOT COMPILED — guarded by KNX_TCP_TLS, not defined in any build config |
 
 ### api/oc_session_events.c — DONE (oc_handle_session); TCP block is compiled out in this config
 

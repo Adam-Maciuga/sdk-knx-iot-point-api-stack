@@ -24,7 +24,9 @@
 #include "oc_main.h"
 
 #include <stdlib.h>
-static bool* drop_commands;
+#ifdef KNX_TCP_TLS
+static bool drop_commands = false;
+#endif
 
 // marker if init was done, to handle a shutdown without init
 static bool initialized = false;  
@@ -272,13 +274,9 @@ int oc_main_init(const oc_handler_t* handler)
     
   }
 
-  drop_commands = (bool*) calloc(1, sizeof(bool));
-  if (!drop_commands)
-  {
-    oc_abort("Insufficient stack memory");
-  }
-
   #ifdef KNX_TCP_TLS
+  drop_commands = false;
+
   ret = oc_tls_init_context();
   if (ret < 0)
   {
@@ -390,12 +388,10 @@ void oc_main_shutdown(void)
 
   #ifdef KNX_TCP_TLS
   oc_tls_shutdown();
+  drop_commands = false;
   #endif 
 
   oc_shutdown_device();
-
-  free(drop_commands);
-  drop_commands = NULL;
 
   app_callbacks = NULL;
 }
@@ -413,12 +409,14 @@ void _oc_signal_event_loop(void)
   }
 }
 
+#ifdef KNX_TCP_TLS
 void oc_set_drop_commands(bool drop)
 {
-  *drop_commands = drop;
+  drop_commands = drop;
 }
 
 bool oc_drop_command(void)
 {
-  return *drop_commands;
+  return drop_commands;
 }
+#endif
