@@ -743,7 +743,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
       }
 
-      #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id/ms
+      #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id, cnf:osc:ms
       bool id_only = true; // used to delete the AT table entry
 
       /*
@@ -788,11 +788,19 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               // address each string
               char* acl_string = (char*)array + i * STRING_ARRAY_ITEM_MAX_LEN;
 
-              // compact the input strings as acl bit mask definitions
-              acl_scopes += oc_ri_get_scope_mask(acl_string, strlen(acl_string));
+              /* 
+                 compact the input strings as acl bit mask definitions, no privilege escalation possible
+
+                (a) an empty input array yields OC_ACL_NONE (0), the loop does not start -> 4.00
+                (b) an unknown ["if.unknown"] or empty [""] name yields OC_ACL_NONE (0) -> 4.00
+                (c) a known name ["if.o"] yields the corresponding bit -> accepted    
+                (d) a combination of (b) and (c) yields the union of the bits -> accepted                    
+                    (a scope of ["if.o", "if.unknown"] is accepted as ["if.o"], we accept a badly implemented MaC)
+              */
+              acl_scopes |= oc_ri_get_scope_mask(acl_string, strlen(acl_string));
             }
 
-            // no scope (an empty array) or a bad scope was set (such as if.ll)
+            // (a) - (d)
             if (acl_scopes == OC_ACL_NONE)
             {
               OC_ERR("No valid access scope was set!");

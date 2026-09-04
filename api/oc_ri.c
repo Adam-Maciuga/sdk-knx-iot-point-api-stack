@@ -277,15 +277,19 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
     32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
   */
 
-  // get name from FULL array
-  for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++)
+  /*
+    get name from FULL array, index 0 (OC_ACL_NONE) and the gaps (interfaces that are not a scope, such as
+    if.ll) hold an empty name and must never match, otherwise an empty input name would return an undefined
+    scope bit instead of OC_ACL_NONE
+  */
+  for (int i = 1; i <= MAX_ACL_SCOPE_BIT; i++)
   {
     // scope = if.i; i = 1; 1 << 1 = 2 -- scope = if.swu; i = 11; 1 << 11 = 4096
 
     const char* n = scope_string_name[i];
+    const size_t n_len = strlen(n);
 
-    if (acl_scope_name_len == strlen(n) &&
-      strncmp(acl_scope_name, n, acl_scope_name_len) == 0)
+    if (n_len > 0 && acl_scope_name_len == n_len && strncmp(acl_scope_name, n, acl_scope_name_len) == 0)
     {
       // on a hit return immediately
       return (oc_acl_mask_t)(1 << i);
