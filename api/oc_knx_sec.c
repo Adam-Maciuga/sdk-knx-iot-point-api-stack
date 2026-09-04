@@ -453,15 +453,41 @@ const oc_resource_t core_resource_a_sen = {
   true,
   &core_resource_a_sen_data};
 
-// empty ... when 'id' string is an empty string "" 
+/*
+  empty ... when 'id' string is an empty string ""
+  the returned entry wipes the at-table RAM content (but not the storage), a free RAM at-table slot 
+  may still carry leftovers (salt, context id, ga) of a beforehand rejected entry
+*/
 static oc_auth_at_t* find_empty_at_entry(void)
 {
-  
+
   for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) == 0)
     {
-      // found an empty 'id' string ...
+      // found an empty 'id' string ... reset the remaining content before handing the slot out
+      entry->scope = OC_ACL_NONE;
+      entry->profile = OC_PROFILE_UNKNOWN;
+
+      // oscore object
+      oc_free_string(&entry->osc_ms);
+      oc_new_byte_string(&entry->osc_ms, "", 0);
+
+      oc_free_string(&entry->osc_salt);
+      oc_new_byte_string(&entry->osc_salt, "", 0);
+
+      oc_free_string(&entry->osc_contextid);
+      oc_new_byte_string(&entry->osc_contextid, "", 0);
+
+      oc_free_string(&entry->osc_id);
+      oc_new_byte_string(&entry->osc_id, "", 0);
+
+      // release a possible ga array, free ignores NULL ptr
+      free(entry->ga);
+
+      entry->ga = NULL;
+      entry->ga_len = 0;
+
       return entry;
     }
   }
@@ -727,6 +753,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
+
+        // NOTHING is cleared here, a partial update (d) must keep the properties that are not in the payload
       }
       else
       {
@@ -747,13 +775,10 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       bool id_only = true; // used to delete the AT table entry
 
       /*
-        Set access token id, note that an access token is (too) complex to use
-        a shadow copy as for POST on pub/rcp/go.
+        The access token id is written to the entry as the LAST step (see 'b + d' below), an entry only
+        becomes visible in the AT table once all checks passed. Note that an access token is (too) complex
+        to use a shadow copy as for POST on pub/rcp/go.
       */
-      oc_free_string(&at_entry->id);
-      oc_new_string(&at_entry->id, oc_string(*access_token_id), oc_string_len(*access_token_id));
-
-      // access token id already set
       int current_at_properties = 1;
 
       while (object)
@@ -1016,16 +1041,22 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
             cnf_object = cnf_object->next;
           }
+        } 
+        else if (object->type == OC_REP_NIL)
+        {
+          // an empty (array) element such as [{0: '12', 9: []}]  - as a kind of MaC mistake ar attack - causes a "not an id only"
+          id_only = false;
         }
 
         object = object->next;
       }
 
       /*
-        a: created +  id only/< min elements = ERROR (to few elements)
+        a: created +  id only/< min elements = ERROR (to few elements, the claimed slot stays free
+                                               because the id is written as the last step)
         b: created +  5 elements             = OK (create)
         c: changed +  id only                = OK (delete)
-        d: changed +  1...n elements         = OK (update)
+        d: changed +  1...n elements         = OK (update, a rejected update never deletes the entry)
       */
       if (return_status == OC_STATUS_CHANGED && id_only)
       {
@@ -1045,6 +1076,10 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
         // b + d
         OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
+
+        // all checks passed, only now the entry gets its id and becomes visible in the AT table
+        oc_free_string(&at_entry->id);
+        oc_new_string(&at_entry->id, oc_string(*access_token_id), oc_string_len(*access_token_id));
 
         // debugging
         oc_print_auth_at_entry(at_entry);

@@ -33,6 +33,16 @@ Runtime conformance tests — EITT 5.3 Security
 5.3.8.4   Overwrite existing access token entry
 5.3.8.5   Create multiple AT entries in single write
 5.3.8.6   Update multiple AT entries
+5.3.8.7a  Create with id only -> 4.00 (no entry created)
+5.3.8.7b  Create without scope (9) -> 4.00
+5.3.8.7c  Create without cnf:osc:id (8:4:0) -> 4.00
+5.3.8.7d  Create without cnf:osc:ms (8:4:2) -> 4.00
+5.3.8.7e  Create with an empty scope array -> 4.00
+5.3.8.7f  Empty scope array on an existing AT does NOT delete it
+5.3.8.7g  Id only POST on an existing AT deletes it
+5.3.8.7h  Partial update of an existing AT is accepted
+5.3.8.7i  Invalid scope names ("", if.ll, if.unknown) -> 4.00
+5.3.8.7j  Mixed scope (valid + unknown name) -> only the valid bits stored
 5.3.9.1   Read list of access tokens (GET /auth/at)
 5.3.9.3a  Read access token list without security (unconfigured)
 5.3.9.3b  Read access token list without security (configured)
@@ -542,6 +552,255 @@ class TestWriteAccessToken:
         data = cbor2.loads(resp.payload)
         assert data.get(9) == [4, 5, 6, 0], (
             f"Upd2 scope mismatch: expected [4,5,6,0], got {data.get(9)}")
+
+
+# ===========================================================================
+# 5.3.8.7 - Mandatory properties and id-only handling of POST /auth/at
+# ===========================================================================
+
+class TestWriteAccessTokenMandatoryProperties:
+    """5.3.8.7: create/update/delete decision table of POST /auth/at.
+
+    The handler classifies every posted AT entry as:
+      (a) created + id only / < 5 mandatory properties -> 4.00
+      (b) created + 5 mandatory properties             -> 2.01
+      (c) changed + id only                            -> delete
+      (d) changed + 1..n properties                    -> update
+    The mandatory properties are id (0), scope (9), profile (38),
+    cnf:osc:id (8:4:0) and cnf:osc:ms (8:4:2).
+    """
+
+    @staticmethod
+    def _at_absent(coap, oscore_ctx, token_id):
+        """Return True when GET /auth/at/{id} reports no such entry."""
+        resp = coap.oscore_get(oscore_ctx, f"/auth/at/{token_id}",
+                               accept=APPLICATION_CBOR)
+        if resp is None:
+            pytest.skip(f"GET /auth/at/{token_id} timed out")
+        return not resp.is_successful
+
+    def test_5_3_8_7a_create_with_id_only_rejected(self, coap, oscore_ctx):
+        """POST /auth/at with only the id -> 4.00, no entry created.
+
+        Case (a): a new entry needs all 5 mandatory properties.
+        """
+        token_id = "IdOnlyNew"
+        payload = cbor2.dumps([{0: token_id}])
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (id only, create) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at with id only should return 4.00, got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    def test_5_3_8_7b_create_without_scope_rejected(self, coap, oscore_ctx):
+        """POST /auth/at without scope (9) -> 4.00, no entry created."""
+        token_id = "NoScope"
+        payload = cbor2.dumps([{
+            0: token_id,
+            38: 2,
+            8: {4: {0: b"\x77\x01", 2: os.urandom(16)}},
+        }])
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (no scope) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at without scope should return 4.00, got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    def test_5_3_8_7c_create_without_sender_id_rejected(self, coap, oscore_ctx):
+        """POST /auth/at without cnf:osc:id (8:4:0) -> 4.00, no entry."""
+        token_id = "NoSndId"
+        payload = cbor2.dumps([{
+            0: token_id,
+            9: ["if.sec"],
+            38: 2,
+            8: {4: {2: os.urandom(16)}},
+        }])
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (no sender id) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at without cnf:osc:id should return 4.00, "
+            f"got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    def test_5_3_8_7d_create_without_master_secret_rejected(
+            self, coap, oscore_ctx):
+        """POST /auth/at without cnf:osc:ms (8:4:2) -> 4.00, no entry."""
+        token_id = "NoMs"
+        payload = cbor2.dumps([{
+            0: token_id,
+            9: ["if.sec"],
+            38: 2,
+            8: {4: {0: b"\x77\x02"}},
+        }])
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (no master secret) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at without cnf:osc:ms should return 4.00, "
+            f"got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    def test_5_3_8_7e_create_with_empty_scope_array_rejected(
+            self, coap, oscore_ctx):
+        """POST /auth/at with an empty scope array -> 4.00, no entry.
+
+        An empty CBOR array is parsed as OC_REP_NIL, so it counts as an
+        extra (invalid) element and never as a mandatory property.
+        """
+        token_id = "EmptyScope"
+        payload = cbor2.dumps([{
+            0: token_id,
+            9: [],
+            38: 2,
+            8: {4: {0: b"\x77\x03", 2: os.urandom(16)}},
+        }])
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (empty scope) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at with an empty scope array should return 4.00, "
+            f"got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    def test_5_3_8_7f_empty_scope_array_does_not_delete_entry(
+            self, coap, oscore_ctx):
+        """POST [{id, 9: []}] on an existing AT must NOT delete it.
+
+        Case (c) only applies to a true id-only request. An empty array is
+        an extra element, so the entry is kept (attack / bad MaC defense).
+        """
+        token_id = "KeepMe"
+        payload = _make_at_payload(
+            token_id, ["if.sec"], b"\x77\x04", os.urandom(16))
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (create KeepMe) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at (create KeepMe) failed: {resp.code}")
+
+        resp = coap.oscore_post(oscore_ctx, "/auth/at",
+                                payload=cbor2.dumps([{0: token_id, 9: []}]))
+        assert resp is not None, "POST /auth/at (empty scope update) timed out"
+
+        resp = coap.oscore_get(oscore_ctx, f"/auth/at/{token_id}",
+                               accept=APPLICATION_CBOR)
+        assert resp is not None, f"GET /auth/at/{token_id} timed out"
+        assert resp.is_successful, (
+            f"AT '{token_id}' was deleted by an empty scope array: "
+            f"{resp.code}")
+        at_scope = cbor2.loads(resp.payload).get(9, [])
+        assert at_scope == ["if.sec"], (
+            f"An empty scope array must leave the stored scope untouched, "
+            f"got {at_scope}")
+
+    def test_5_3_8_7g_id_only_deletes_existing_entry(self, coap, oscore_ctx):
+        """POST [{id}] on an existing AT deletes it.
+
+        Case (c): changed + id only -> delete.
+        """
+        token_id = "DelMe"
+        payload = _make_at_payload(
+            token_id, ["if.sec"], b"\x77\x05", os.urandom(16))
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (create DelMe) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at (create DelMe) failed: {resp.code}")
+
+        resp = coap.oscore_post(oscore_ctx, "/auth/at",
+                                payload=cbor2.dumps([{0: token_id}]))
+        assert resp is not None, "POST /auth/at (id only delete) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at (id only delete) failed: {resp.code}")
+
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' still exists after an id only POST")
+
+    def test_5_3_8_7h_update_of_existing_entry_accepted(
+            self, coap, oscore_ctx):
+        """POST [{id, 9: [...]}] on an existing AT updates the scope.
+
+        Case (d): changed + 1..n properties -> update, no 4.00.
+        """
+        token_id = "UpdOne"
+        payload = _make_at_payload(
+            token_id, ["if.sec"], b"\x77\x06", os.urandom(16))
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at (create UpdOne) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at (create UpdOne) failed: {resp.code}")
+
+        resp = coap.oscore_post(
+            oscore_ctx, "/auth/at",
+            payload=cbor2.dumps([{0: token_id, 9: ["if.sec", "if.swu"]}]))
+        assert resp is not None, "POST /auth/at (update UpdOne) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at (update UpdOne) failed: {resp.code}")
+
+        resp = coap.oscore_get(oscore_ctx, f"/auth/at/{token_id}",
+                               accept=APPLICATION_CBOR)
+        assert resp is not None, f"GET /auth/at/{token_id} timed out"
+        assert resp.is_successful, (
+            f"GET /auth/at/{token_id} failed: {resp.code}")
+        at_scope = cbor2.loads(resp.payload).get(9, [])
+        assert "if.swu" in at_scope, (
+            f"Updated scope should contain if.swu, got {at_scope}")
+
+    @pytest.mark.parametrize("scope,label", [
+        ([""], "empty name"),
+        (["if.ll"], "interface that is not a scope"),
+        (["if.unknown"], "unknown name"),
+    ])
+    def test_5_3_8_7i_invalid_scope_names_rejected(
+            self, coap, oscore_ctx, scope, label):
+        """POST /auth/at with an invalid scope name -> 4.00, no entry.
+
+        An empty name must not match the empty placeholder entries of the
+        scope name table, otherwise an undefined scope bit is accepted.
+        """
+        token_id = "BadScope"
+        payload = _make_at_payload(
+            token_id, scope, b"\x77\x07", os.urandom(16))
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, f"POST /auth/at ({label}) timed out"
+        assert resp.code == "4.00", (
+            f"POST /auth/at with scope {scope} ({label}) should return 4.00, "
+            f"got {resp.code}")
+        assert self._at_absent(coap, oscore_ctx, token_id), (
+            f"AT '{token_id}' must not exist after a rejected create")
+
+    @pytest.mark.parametrize("scope,label", [
+        (["if.o", "if.unknown"], "valid first, unknown second"),
+        (["if.unknown", "if.o"], "unknown first, valid second"),
+        (["if.o", ""], "valid plus empty name"),
+        (["if.o", "if.ll"], "valid plus a non-scope interface"),
+    ])
+    def test_5_3_8_7j_mixed_scope_keeps_only_the_valid_names(
+            self, coap, oscore_ctx, scope, label):
+        """POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored.
+
+        The scope names are OR-ed into a bit mask, an unknown name contributes
+        nothing. A badly implemented MaC that sends one valid and one unknown
+        name is accepted, but the entry must end up with the valid scope only.
+        """
+        token_id = "MixScope"
+        payload = _make_at_payload(
+            token_id, scope, b"\x77\x08", os.urandom(16))
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, f"POST /auth/at ({label}) timed out"
+        assert resp.is_successful, (
+            f"POST /auth/at with scope {scope} ({label}) should be accepted, "
+            f"got {resp.code}")
+
+        resp = coap.oscore_get(oscore_ctx, f"/auth/at/{token_id}",
+                               accept=APPLICATION_CBOR)
+        assert resp is not None, f"GET /auth/at/{token_id} timed out"
+        assert resp.is_successful, (
+            f"GET /auth/at/{token_id} failed: {resp.code}")
+        at_scope = cbor2.loads(resp.payload).get(9, [])
+        assert at_scope == ["if.o"], (
+            f"Only the valid scope name should be stored, got {at_scope}")
 
 
 # ===========================================================================

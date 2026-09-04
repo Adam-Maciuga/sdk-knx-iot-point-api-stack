@@ -288,6 +288,49 @@ TEST(ScopeMask, LengthMismatchIsNone)
   EXPECT_EQ(oc_ri_get_scope_mask("if.swu", 3), OC_ACL_NONE);
 }
 
+TEST(ScopeMask, EmptyNameIsNone)
+{
+  /*
+    index 0 of the scope name table is the empty name of OC_ACL_NONE, an empty input name must
+    not match it and return bit 0 (an undefined scope) instead of OC_ACL_NONE
+  */
+  EXPECT_EQ(oc_ri_get_scope_mask("", 0), OC_ACL_NONE);
+}
+
+TEST(ScopeMask, EmptyNameWithNonZeroLengthIsNone)
+{
+  EXPECT_EQ(oc_ri_get_scope_mask("", 1), OC_ACL_NONE);
+}
+
+TEST(ScopeMask, InterfacesThatAreNotAScopeAreNone)
+{
+  // if.ll, if.b, if.pm and if.m.x are valid interfaces but have no scope bit
+  EXPECT_EQ(oc_ri_get_scope_mask("if.ll", 5), OC_ACL_NONE);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.b", 4), OC_ACL_NONE);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.pm", 5), OC_ACL_NONE);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.m.x", 6), OC_ACL_NONE);
+}
+
+TEST(ScopeMask, InternalGaScopeIsNotReachableByName)
+{
+  // <ga> is an internal only scope above MAX_ACL_SCOPE_BIT and must not be settable by a MaC
+  EXPECT_EQ(oc_ri_get_scope_mask("<ga>", 4), OC_ACL_NONE);
+}
+
+TEST(ScopeMask, AllKnownNamesMapToTheirOwnBit)
+{
+  EXPECT_EQ(oc_ri_get_scope_mask("if.i", 4), OC_ACL_I);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.o", 4), OC_ACL_O);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.g.s", 6), OC_ACL_G);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.c", 4), OC_ACL_C);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.p", 4), OC_ACL_P);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.d", 4), OC_ACL_D);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.a", 4), OC_ACL_A);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.s", 4), OC_ACL_S);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.sec", 6), OC_ACL_SEC);
+  EXPECT_EQ(oc_ri_get_scope_mask("if.swu", 6), OC_ACL_SWU);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * mask → string-array expanders + framing  (need oc_mmem for string arrays)
  * ═══════════════════════════════════════════════════════════════════════════ */
