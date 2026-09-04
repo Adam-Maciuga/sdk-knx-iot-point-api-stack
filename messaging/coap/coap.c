@@ -638,7 +638,13 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
           return BAD_OPTION_4_02;
         }
 
-        coap_parse_inner_oscore_option(coap_pkt, current_options, option_length);
+        // returns 0 on success, -1 if at least one of OSCORE option values is malformed
+        const int result = coap_parse_inner_oscore_option(coap_pkt, current_options, option_length);
+        if (result != 0)
+        {
+          return BAD_OPTION_4_02;
+        }
+
         break;
 
 		  case COAP_OPTION_CONTENT_FORMAT:

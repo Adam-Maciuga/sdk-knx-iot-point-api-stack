@@ -263,6 +263,101 @@ TEST(OscoreOption, ParseInnerFull)
   EXPECT_EQ(pkt.kid[1], 0xFF);
 }
 
+TEST(OscoreOption, ParseInnerPivLengthTooBig)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x06 (nnn=6): the flag bits allow 0..7, RFC 8613 clause 6.1 permits 0..5 only */
+  uint8_t option[] = {0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerPivExceedsOptionValue)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x03 (nnn=3), but only one PIV byte is present */
+  uint8_t option[] = {0x03, 0xAA};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerPivMaximumLengthIsAccepted)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x05 (nnn=5): the maximum length still fits in pkt.piv */
+  uint8_t option[] = {0x05, 0x01, 0x02, 0x03, 0x04, 0x05};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), 0);
+  EXPECT_EQ(pkt.piv_len, OSCORE_PIV_LEN);
+}
+
+TEST(OscoreOption, ParseInnerMissingKidContextLengthByte)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x10 (h=1) announces a kid context, but the (s) byte is missing */
+  uint8_t option[] = {0x10};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerKidContextLengthTooBig)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x10 (h=1), s=17 does not fit in pkt.kid_ctx (16 bytes) */
+  uint8_t option[] = {0x10, 0x11, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                      0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerKidContextExceedsOptionValue)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x10 (h=1), s=4 but only two bytes follow */
+  uint8_t option[] = {0x10, 0x04, 0xCC, 0xDD};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerKidContextMaximumLengthIsAccepted)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x10 (h=1), s=16 exactly fills pkt.kid_ctx */
+  uint8_t option[] = {0x10, 0x10, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                      0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), 0);
+  EXPECT_EQ(pkt.kid_ctx_len, OSCORE_ID_CONTEXT_LEN);
+}
+
+TEST(OscoreOption, ParseInnerKidTooLong)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x08 (k=1), 8 remaining bytes do not fit in pkt.kid (7 bytes) */
+  uint8_t option[] = {0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
+TEST(OscoreOption, ParseInnerKidMaximumLengthIsAccepted)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  /* flags=0x08 (k=1), 7 remaining bytes exactly fill pkt.kid */
+  uint8_t option[] = {0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), 0);
+  EXPECT_EQ(pkt.kid_len, OSCORE_SENDER_ID_LEN);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * coap_serialize_oscore_option
  * ═══════════════════════════════════════════════════════════════════════════ */

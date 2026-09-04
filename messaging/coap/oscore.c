@@ -187,7 +187,7 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   /* 
     OSCORE Option structure From RFC 8613:
 
-    0 1 2 3 4 5 6 7 <------------- n bytes -------------->
+    0 1 2 3 4 5 6 7 <------------- n bytes --------------->
     +-+-+-+-+-+-+-+-+--------------------------------------
     |0 0 0|h|k|  n  |       Partial IV (if any) ...
     +-+-+-+-+-+-+-+-+--------------------------------------
@@ -217,6 +217,20 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
 
   if (coap_pkt->piv_len > 0) 
   {
+    if (coap_pkt->piv_len > OSCORE_PIV_LEN)
+    {
+      // the 'nnn' flag bits allow 0 ... 7, but RFC 8613, clause 6.1 permits 0 ... 5 only
+      OC_ERR("OSCORE option: partial IV length (%u) exceeds %d", coap_pkt->piv_len, OSCORE_PIV_LEN);
+      return -1;
+    }
+
+    if (option_length < coap_pkt->piv_len)
+    {
+      // the announced partial IV does not fit in the remaining option value
+      OC_ERR("OSCORE option: partial IV length (%u) exceeds the option value (%zu)", coap_pkt->piv_len, option_length);
+      return -1;
+    }
+
     // copy PIV
     memcpy(coap_pkt->piv, current_option, coap_pkt->piv_len);
     current_option += coap_pkt->piv_len;
@@ -229,10 +243,31 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   // kid context (if any), check if 'h' flag bit is set
   if (coap_pkt->oscore_flags & OSCORE_FLAGS_KIDCTX_BITMASK)
   {
+    if (option_length == 0)
+    {
+      // the 'h' flag announces a kid context, but the (s) byte is not part of the option value
+      OC_ERR("OSCORE option: kid context announced, but the option value ends before the (s) byte");
+      return -1;
+    }
+
     // (s) 1 byte
     coap_pkt->kid_ctx_len = *current_option;
     current_option++;
     option_length--;
+
+    if (coap_pkt->kid_ctx_len > OSCORE_ID_CONTEXT_LEN)
+    {
+      // the announced kid context does not fit in coap_pkt->kid_ctx
+      OC_ERR("OSCORE option: kid context length (%u) exceeds %d", coap_pkt->kid_ctx_len, OSCORE_ID_CONTEXT_LEN);
+      return -1;
+    }
+
+    if (option_length < coap_pkt->kid_ctx_len)
+    {
+      // the announced kid context does not fit in the remaining option value
+      OC_ERR("OSCORE option: kid context length (%u) exceeds the option value (%zu)", coap_pkt->kid_ctx_len, option_length);
+      return -1;
+    }
 
     // copy kid context (s bytes)
     memcpy(coap_pkt->kid_ctx, current_option, coap_pkt->kid_ctx_len);
@@ -246,6 +281,13 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   // kid (if any), check if 'k' flag bit is set
   if (coap_pkt->oscore_flags & OSCORE_FLAGS_KID_BITMASK) 
   {
+    if (option_length > OSCORE_SENDER_ID_LEN)
+    {
+      // the remaining option value does not fit in coap_pkt->kid (so it is bigger as expected !)
+      OC_ERR("OSCORE option: kid length (%zu) exceeds %d", option_length, OSCORE_SENDER_ID_LEN);
+      return -1;
+    }
+
     // copy kid (remaining bytes in option)
     coap_pkt->kid_len = (uint8_t) option_length;
     memcpy(coap_pkt->kid, current_option, option_length);
