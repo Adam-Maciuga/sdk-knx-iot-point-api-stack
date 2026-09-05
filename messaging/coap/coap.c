@@ -555,7 +555,11 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         return REQUEST_ENTITY_TOO_LARGE_4_13;
       }
 
-      // add behind application payload a null-terminator
+      /*
+        add behind application payload a null-terminator
+        - the buffer holding 'data' is allocated with one byte more than OC_PDU_SIZE (see oc_allocate_message),
+          hence the terminator still fits even when the datagram fills the buffer completely
+      */
       coap_pkt->payload[coap_pkt->payload_len] = '\0';
       break;
     }

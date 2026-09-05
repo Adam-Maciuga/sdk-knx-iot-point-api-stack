@@ -15,8 +15,10 @@
 
 extern "C" {
 #include "coap.h"
+#include "oc_buffer.h"
 #include "oc_buffer_settings.h"
 #include "oc_ri.h"
+#include "port/oc_network_events_mutex.h"
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1013,4 +1015,95 @@ TEST_F(CoapPayloadLimitTest, EmptyPayload_Accepted)
 
   ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
   EXPECT_EQ(parsed.payload_len, 0u);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Full-size datagram → null-terminator must stay inside the message buffer
+ *
+ * A datagram of exactly OC_PDU_SIZE bytes fills the receive buffer completely
+ * (the IP adapter receive limit is OC_PDU_SIZE).  When the options take more
+ * than 2 * COAP_MAX_HEADER_SIZE bytes, the payload stays below
+ * OC_MAX_APP_DATA_SIZE, so the 4.13 guard does not fire and the parser writes
+ * the null-terminator at index OC_PDU_SIZE.  oc_allocate_message() therefore
+ * reserves one byte more than OC_PDU_SIZE.
+ *
+ * Runs against a real oc_allocate_message() buffer so ASan flags a regression.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class CoapFullPduTest : public ::testing::Test {
+protected:
+  oc_message_t *msg = nullptr;
+  coap_packet_t parsed;
+
+  void SetUp() override
+  {
+    oc_network_event_handler_mutex_init();
+    msg = oc_allocate_message();
+    ASSERT_NE(msg, nullptr);
+    ASSERT_NE(msg->data, nullptr);
+    memset(&parsed, 0, sizeof(parsed));
+  }
+
+  void TearDown() override
+  {
+    if (msg)
+    {
+      oc_message_unref(msg);
+    }
+  }
+
+  /* Append a Uri-Path option (number 11) of seg_len bytes at 'pos', returns the new position */
+  static size_t append_uri_path_option(uint8_t *data, size_t pos, unsigned delta, size_t seg_len)
+  {
+    /* extended option length: nibble 13 plus one byte holding (len - 13) */
+    data[pos++] = (uint8_t)((delta << 4) | 13);
+    data[pos++] = (uint8_t)(seg_len - 13);
+
+    for (size_t i = 0; i < seg_len; i++)
+    {
+      data[pos++] = (uint8_t)('a' + (i % 26));
+    }
+
+    return pos;
+  }
+};
+
+TEST_F(CoapFullPduTest, FullPduWithLargeOptions_TerminatorStaysInsideBuffer)
+{
+  const size_t pdu_size = oc_get_pdu_size();
+  const size_t seg_len = 200;
+
+  uint8_t *data = msg->data;
+
+  data[0] = 0x40;      /* version 1, type CON, token length 0 */
+  data[1] = COAP_POST; /* code */
+  data[2] = 0x12;      /* mid hi */
+  data[3] = 0x34;      /* mid lo */
+
+  /* two long Uri-Path segments push the payload offset beyond 2 * COAP_MAX_HEADER_SIZE */
+  size_t pos = append_uri_path_option(data, COAP_HEADER_LEN, 11, seg_len);
+  pos = append_uri_path_option(data, pos, 0, seg_len);
+
+  data[pos++] = 0xFF; /* payload marker */
+
+  const size_t payload_offset = pos;
+  const size_t payload_len = pdu_size - payload_offset;
+
+  /* the payload must stay below the limit, otherwise the 4.13 guard would hide the case under test */
+  ASSERT_LT(payload_len, (size_t)oc_get_max_app_data_size());
+
+  for (size_t i = 0; i < payload_len; i++)
+  {
+    data[pos++] = (uint8_t)('A' + (i % 26));
+  }
+
+  /* the datagram fills the buffer completely */
+  ASSERT_EQ(pos, pdu_size);
+
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, pdu_size), COAP_NO_ERROR);
+  EXPECT_EQ(parsed.payload_len, (uint32_t)payload_len);
+
+  /* the terminator sits at index OC_PDU_SIZE, which is the extra byte of the allocation */
+  EXPECT_EQ(&parsed.payload[parsed.payload_len], data + pdu_size);
+  EXPECT_EQ(parsed.payload[parsed.payload_len], '\0');
 }

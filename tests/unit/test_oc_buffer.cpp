@@ -62,6 +62,19 @@ TEST_F(BufferPool, AllocateMessageDataIsWritableForFullPdu)
   oc_message_unref(m);
 }
 
+TEST_F(BufferPool, AllocateMessageReservesTerminatorByteBehindFullPdu)
+{
+  oc_message_t *m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  ASSERT_NE(m->data, nullptr);
+  /* a datagram may fill the buffer completely, the CoAP parser then writes the
+   * null-terminator at index OC_PDU_SIZE, so one extra byte must be allocated
+   * (validated by the allocator under ASan in CI). */
+  m->data[OC_PDU_SIZE] = '\0';
+  EXPECT_EQ(m->data[OC_PDU_SIZE], '\0');
+  oc_message_unref(m);
+}
+
 TEST_F(BufferPool, AllocateMessageReturnsDistinctBuffers)
 {
   oc_message_t *a = oc_allocate_message();

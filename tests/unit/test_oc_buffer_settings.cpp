@@ -472,8 +472,10 @@ TEST(PduWorstCaseFrame, LargePduAlwaysHoldsWorstCaseFrame)
 
 /*
   oc_allocate_message() takes the network-event mutex and sizes message->data
-  with OC_PDU_SIZE (= oc_get_pdu_size() in the UDP-only build), so this fixture
-  initializes the mutex and restores the default-equivalent pdu afterwards
+  with OC_PDU_SIZE + 1 (= oc_get_pdu_size() + 1 in the UDP-only build; the extra
+  byte holds the null-terminator the CoAP parser appends behind a full-size
+  payload), so this fixture initializes the mutex and restores the
+  default-equivalent pdu afterwards
 */
 class PduMessageBuffer : public ::testing::Test
 {

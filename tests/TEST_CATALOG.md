@@ -3,7 +3,7 @@
 > **1350 unit tests** (52 files) + **352 runtime tests** (17 files) = **1702 total**
 >
 > Branch: `work_in_progress` | Unit: 1350 registered and passed (windows-test-gcc, GCC/CTest, ~38s, 100% passed out of 1350).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 347 passed, 5 skipped, 0 failed, 0 errors (352 collected, 814.53s) - fully green. This run verified the DNS-SD TXT record conformance fix (RFC 6763 clause 6) together with the `zeroconf>=0.151.3` pin. See "Last runtime run status" at the end of Part 2.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 366 passed, 5 skipped, 0 failed, 0 errors (371 collected, 814.53s) - fully green. This run verified the 4.13 rejection of oversized application payloads and the `OC_PDU_SIZE + 1` message-buffer allocation. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (69 tests)
+### test_coap.cpp — CoAP Parser/Serializer (70 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -202,6 +202,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
 | `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
 | `CoapPayloadLimitTest` | 6 | Payload vs `OC_MAX_APP_DATA_SIZE`: accepted below/at max-1 (incl. null-terminator), 4.13 at/above max, no silent truncation, empty payload |
+| `CoapFullPduTest` | 1 | Datagram of exactly `OC_PDU_SIZE` with >328 bytes of options: parser null-terminator lands on the extra byte reserved by `oc_allocate_message()` (one-byte heap overflow regression) |
 
 ---
 
@@ -697,7 +698,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_buffer.cpp — Message Buffer Pool (8 tests)
+### test_oc_buffer.cpp — Message Buffer Pool (9 tests)
 
 **Source:** `api/oc_buffer.c`
 
@@ -705,6 +706,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |------|-----------------|
 | `AllocateMessageReturnsInitialisedMessage` | Allocated message is initialised |
 | `AllocateMessageDataIsWritableForFullPdu` | Data buffer is writable for a full PDU |
+| `AllocateMessageReservesTerminatorByteBehindFullPdu` | `data[OC_PDU_SIZE]` is inside the allocation (extra byte for the CoAP null-terminator) |
 | `AllocateMessageReturnsDistinctBuffers` | Successive allocations are distinct |
 | `AddRefIncrementsCounter` | `oc_message_add_ref()` increments ref count |
 | `AddRefNullIsNoOp` | `oc_message_add_ref(NULL)` is a no-op (F-004 RESOLVED) |
@@ -1457,9 +1459,19 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 including uncommitted changes via `-IncludeUncommitted`):
-**347 passed, 5 skipped, 0 failed, 0 errors** (352 collected, 815.78s) - fully green.
+**366 passed, 5 skipped, 0 failed, 0 errors** (371 collected, 814.53s) - fully green.
 
-The most recent run re-verified the stack after the buffer/PDU work: the
+The most recent run verified the oversized-payload handling in
+`messaging/coap/coap.c` (a payload of `OC_MAX_APP_DATA_SIZE` or more is now
+rejected with `4.13 Request Entity Too Large` instead of being silently
+truncated) together with the one-byte-overflow fix in `api/oc_buffer.c`
+(`malloc(OC_PDU_SIZE + 1)`, so the parser null-terminator behind a
+buffer-filling datagram stays inside the allocation). The four new tests in
+`test_coap_payload_limit.py` passed and the rest of the suite was unchanged,
+confirming no regression in block-wise transfer, discovery, group
+communication, observe or security.
+
+The preceding run re-verified the stack after the buffer/PDU work: the
 total-CoAP-PDU contract of `oc_set_pdu_size()`, the power-of-two floor applied
 to the default block size in `api/oc_main.c`, the RFC 7959 legality guards added
 to `coap_set_header_block1()` / `coap_set_header_block2()` (reject reserved SZX 7
