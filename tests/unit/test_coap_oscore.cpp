@@ -476,3 +476,68 @@ TEST(OscoreIsOscoreMessage, ReturnsFalseWhenNoOptions)
 
   EXPECT_FALSE(oscore_is_oscore_message(&msg));
 }
+
+/* ---- Malformed option headers (must be rejected, never read past the buffer) ---- */
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedExtendedDelta)
+{
+  /*
+    Option delta nibble 13 announces one extension byte, but the message ends
+    right after the nibble byte. Reading the extension byte would run past the buffer.
+  */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xD0};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedTwoByteExtendedDelta)
+{
+  /* Option delta nibble 14 announces two extension bytes, only one is present. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xE0, 0x01};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedExtendedLength)
+{
+  /* Option length nibble 13 announces one extension byte, the message ends before it. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x0D};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedOptionValue)
+{
+  /* Uri-Path (11) declares 5 value bytes but only 2 are present in the message. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xB5, 'a', 'b'};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, DetectsOscoreOptionFollowedByExtendedDeltaOption)
+{
+  /* OSCORE option (9) with a 2-byte value, followed by an option using delta nibble 13. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x92, 0x09, 0x01, 0xD3, 0x02, 'a', '=', 'b'};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_TRUE(oscore_is_oscore_message(&msg));
+}

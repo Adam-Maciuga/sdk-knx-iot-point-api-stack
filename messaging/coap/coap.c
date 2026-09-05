@@ -517,6 +517,79 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   return option_length;
 }
 
+/*
+  decodes the extension bytes of an option delta or option length nibble (RFC 7252 clause 3.1)
+  - 'value' holds the nibble on entry the method and the fully decoded value on return of method 
+  - 'current' is updated with the consumed extension bytes (0,1,2) on return
+  - returns false if the extension bytes are not completely inside the received datagram
+*/
+static bool coap_parse_option_nibble(uint8_t** current, const uint8_t* end, size_t* value)
+{
+  // 0..12 are used directly, 15 is reserved and rejected later by the option number check
+  const size_t extension_bytes = *value == 13 ? 1 : *value == 14 ? 2 : 0;
+
+  if (*current + extension_bytes > end)
+  { // outside
+    return false;
+  }
+
+  if (extension_bytes == 1)
+  {
+    // extended nibble, add 8-bit number from the next byte
+    *value += (*current)[0];
+  } 
+  else if (extension_bytes == 2)
+  {
+    // extended nibble, add always 255 = 269 - 14, then the 16-bit number from the next two bytes
+    *value += 255 + ((size_t)(*current)[0] << 8) + (*current)[1];
+  }
+
+  // update the current pointer to point to the next option header
+  *current += extension_bytes;
+  return true;
+}
+
+bool coap_next_option(uint8_t** current, const uint8_t* end, unsigned int* option_number, size_t* option_length)
+{
+  /* 
+    current option = previous option number + delta, examples:
+
+    (13): option = 0, option += delta (13); option += option[next 1 byte] (7)   -> option = 20  -> the delta 7 = 20 - 13, see RFC
+    (14): option = 0, option += delta (14); option += option[next 2 byte] (431) -> option = 445 -> the delta 431 is 700 - 269, see RFC
+
+   */
+
+  // first option fields
+  size_t option_delta = (*current)[0] >> 4;   // 0..14
+  *option_length = (*current)[0] & 0x0F;      // 0..14
+
+  // skip the current option field as such
+  ++(*current);
+
+  /*
+    check option 'delta and length' extension bytes
+    - must be inside the msg,
+      otherwise the message is malformed and must be rejected before reading the options
+  */
+  if (!coap_parse_option_nibble(current, end, &option_delta) || 
+      !coap_parse_option_nibble(current, end, option_length))
+  {
+    OC_ERR("truncated option header");
+    return false;
+  }
+
+  // check option 'value' must be inside the msg, otherwise it is malformed -> rejected reading the options
+  if (*current + *option_length > end)
+  {
+    OC_ERR("unsupported option");
+    return false;
+  }
+
+  // next option number = current option number + delta
+  *option_number += (unsigned int)option_delta;
+  return true;
+}
+
 coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
                                         uint32_t data_len, uint8_t* current_options,
                                         bool accept_inner_options,
@@ -529,9 +602,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
   // delete all CoAP options in coap packet
   memset(coap_pkt->options, 0, sizeof(coap_pkt->options));
 
+  // end of the received msg, loop invariant
+  const uint8_t* const data_end = data + data_len;
+
   // current option number as value
   unsigned int option_number = 0;
-  while (current_options < data + data_len) 
+  while (current_options < data_end) 
   {
     // application payload marker 0xFF found, currently only checking for 0xF* because rest is reserved
     if ((current_options[0] & 0xF0) == 0xF0) 
@@ -565,68 +641,20 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
     }
 
     /* 
-      option = previous option number + delta (number is not used directly), examples:
-      
-      (13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7) -> option = 20
-      Note: The delta 7 is 20 - 13, see RFC.
-      (14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431) -> option = 445
-      Note: The delta 431 is 700 - 269, see RFC.
-
+      next option = previous option + delta,
+      the option header is malformed if it does not fit into the received msg
      */
-
-    // first option fields
-    unsigned int option_delta = current_options[0] >> 4; // 0..14
-    size_t option_length = current_options[0] & 0x0F; // 0..14
-
-    // skip the current option field as such
-    ++current_options;	
-
-    if (option_delta == 13) 
+    size_t option_length = 0;
+    if (!coap_next_option(&current_options, data_end, &option_number, &option_length))
     {
-      // extended options, add 8-bit number from next option byte
-      option_delta += current_options[0];
-      // jump to next byte
-      ++current_options;
-    } else if (option_delta == 14) 
-    {
-      // extended options, 
-      option_delta += 255; // add always 255 = 269 - 14
-      // add 16 bit, hi byte
-      option_delta += current_options[0] << 8;
-      // jump to next byte
-      ++current_options;
-      // add 16 bit, lo byte
-      option_delta += current_options[0];
-      // jump to next byte
-      ++current_options;
-    }
-      
-    if (option_length == 13) 
-    {
-      // see above
-      option_length += current_options[0];
-      ++current_options;
-    } else if (option_length == 14) 
-    {
-      // see above
-      option_length += 255;
-      option_length += current_options[0] << 8;
-      ++current_options;
-      option_length += current_options[0];
-      ++current_options;
+      return BAD_OPTION_4_02;
     }
 
-    option_number += option_delta;
+    // ECHO option is the last option, hence it is not allowed to have any options after it
     if (option_number <= COAP_OPTION_ECHO) 
     {
-      OC_DBG("OPTION %u (delta %u, len %zu):", option_number, option_delta, option_length);
+      OC_DBG("OPTION %u (len %zu):", option_number, option_length);
       SET_OPTION(coap_pkt, option_number);
-    }
-
-    if (current_options + option_length > data + data_len) 
-    {
-      OC_ERR("unsupported option");
-      return BAD_OPTION_4_02;
     }
 
     switch (option_number) 

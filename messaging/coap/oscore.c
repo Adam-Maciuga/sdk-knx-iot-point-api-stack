@@ -390,19 +390,18 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer)
 // checks message header to find the CoAP OSCORE option header
 bool oscore_is_oscore_message(oc_message_t* msg)
 {
-  const uint8_t* current_option = NULL;
 
-  // determine exact location of the CoAP options in the packet buffer (UDP)
-  current_option = msg->data + COAP_HEADER_LEN;
-
-  // add token size and jump to the end 
+  // determine exact location of the CoAP options in the packet buffer (UDP) = header + token
   const size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
-  current_option += token_len;
+  uint8_t* current_option = msg->data + COAP_HEADER_LEN + token_len;
+
+  // end of the received msg, loop invariant
+  const uint8_t* const data_end = msg->data + msg->length;
 
   // parse outer options, first option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
   unsigned int option_number = 0;
 
-  while (current_option < msg->data + msg->length)
+  while (current_option < data_end)
   {
     if ((current_option[0] & 0xF0) == 0xF0)
     {
@@ -410,66 +409,15 @@ bool oscore_is_oscore_message(oc_message_t* msg)
       break;
     }
 
-    /* option = previous option number + delta (number is not used directly), examples:
-
-     (13): option = 0, option += delta (13); option += option[next 1 byte] (7)
-     -> option = 20
-     Note: The delta 7 is 20 - 13, see RFC
-
-     (14): option = 0, option += delta (14); option += option[next 2 byte] (431)
-     -> option = 445
-     Note: The delta 431 is 700 - 269, see RFC
+    /* 
+       next option = previous option + delta,
+       the option header is malformed if it does not fit into the received msg
     */
-
-    // first option fields
-    unsigned int option_delta = current_option[0] >> 4; // 0..14
-    size_t option_length = current_option[0] & 0x0F; // 0..14
-
-    // skip the current option field as such
-    current_option++;
-
-    if (option_delta == 13)
+    size_t option_length = 0;
+    if (!coap_next_option(&current_option, data_end, &option_number, &option_length))
     {
-      // extended options, add 8-bit number from next option byte
-      option_delta += current_option[0];
-
-      // jump to next byte
-      current_option++;
+      return false;
     }
-    else if (option_delta == 14)
-    {
-      // extended options, 
-      option_delta += 255; // add always 255 = 269 - 14
-
-      // add 16 bit, hi byte
-      option_delta += current_option[0] << 8;
-      // jump to next byte
-      current_option++;
-      // add 16 bit, lo byte
-      option_delta += current_option[0];
-      // jump to next byte
-      current_option++;
-    }
-
-    if (option_length == 13)
-    {
-      // see above
-      option_length += current_option[0];
-      current_option++;
-    }
-    else if (option_length == 14)
-    {
-      // see above
-      option_length += 255;
-      option_length += current_option[0] << 8;
-
-      current_option++;
-      option_length += current_option[0];
-
-      current_option++;
-    }
-
-    option_number += option_delta;
 
     if (option_number == COAP_OPTION_OSCORE)
     {

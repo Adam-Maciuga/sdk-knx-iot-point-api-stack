@@ -322,6 +322,18 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
 /**
  *
+ * @brief reads the next CoAP option header (RFC 7252 clause 3.1) at *current
+ *
+ * @note  'option_number' is the running option number, the decoded delta is added to it on return,
+ *        'option_length' returns the length of the option value,
+ *        'current' is updated to the first byte of the option value on return,
+ *        returns false if the option header or the option value is not completely inside the received message
+ *
+ */
+bool coap_next_option(uint8_t** current, const uint8_t* end, unsigned int* option_number, size_t* option_length);
+
+/**
+ *
  * @brief parses *data and copy from it coap header/token/mid/options to *packet
  *
  * @note  does not copy OSCORE option security content

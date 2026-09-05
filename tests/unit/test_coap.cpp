@@ -808,6 +808,85 @@ TEST_F(CoapTest, Parse_WrongVersion)
   EXPECT_NE(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
 }
 
+/* ---- Malformed option headers (must be rejected, never read past the buffer) ---- */
+
+TEST_F(CoapTest, Parse_TruncatedOneByteExtendedDelta)
+{
+  /*
+    Option delta nibble 13 announces one extension byte, but the datagram ends
+    right after the nibble byte. Reading the extension byte would run past the buffer.
+  */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xD0};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedDelta)
+{
+  /* Option delta nibble 14 announces two extension bytes, only one is present. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xE0, 0x01};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_TruncatedOneByteExtendedLength)
+{
+  /* Option length nibble 13 announces one extension byte, the datagram ends before it. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x0D};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedLength)
+{
+  /* Option length nibble 14 announces two extension bytes, only one is present. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x0E, 0x00};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_TruncatedOptionValue)
+{
+  /* Uri-Path (11) declares 5 value bytes but only 2 are present in the datagram. */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xB5, 'a', 'b'};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+/* ---- Well-formed extended option headers (positive counterpart) ---- */
+
+TEST_F(CoapTest, Parse_OneByteExtendedDelta)
+{
+  /* delta nibble 13 + extension 2 -> option 15 (Uri-Query), value "a=b" */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xD3, 0x02, 'a', '=', 'b'};
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), COAP_NO_ERROR);
+
+  const char* query = nullptr;
+  EXPECT_EQ(coap_get_header_uri_query(&parsed, &query), 3u);
+  EXPECT_EQ(memcmp(query, "a=b", 3), 0);
+}
+
+TEST_F(CoapTest, Parse_OneByteExtendedLength)
+{
+  /* Uri-Path (11) with length nibble 13 + extension 0 -> 13 value bytes */
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xBD, 0x00,
+                    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'};
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), COAP_NO_ERROR);
+
+  const char* path = nullptr;
+  EXPECT_EQ(coap_get_header_uri_path(&parsed, &path), 13u);
+  EXPECT_EQ(memcmp(path, "abcdefghijklm", 13), 0);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Message-ID generation: coap_init_connection / coap_get_next_mid
  * ═══════════════════════════════════════════════════════════════════════════ */

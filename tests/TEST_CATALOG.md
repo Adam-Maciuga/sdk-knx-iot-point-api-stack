@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1350 unit tests** (52 files) + **352 runtime tests** (17 files) = **1702 total**
+> **1384 unit tests** (52 files) + **371 runtime tests** (19 files) = **1755 total**
 >
-> Branch: `work_in_progress` | Unit: 1350 registered and passed (windows-test-gcc, GCC/CTest, ~38s, 100% passed out of 1350).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree incl. uncommitted changes): last full run was 366 passed, 5 skipped, 0 failed, 0 errors (371 collected, 814.53s) - fully green. This run verified the 4.13 rejection of oversized application payloads and the `OC_PDU_SIZE + 1` message-buffer allocation. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1384 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1384).
+> Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 366 passed, 5 skipped, 0 failed, 0 errors (371 collected, 815.11s) - fully green. This run verified the hardened CoAP option parsing (`coap_next_option()` bounds checks) in addition to the 4.13 rejection of oversized application payloads and the `OC_PDU_SIZE + 1` message-buffer allocation. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (70 tests)
+### test_coap.cpp — CoAP Parser/Serializer (86 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -200,13 +200,15 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `OptionHeader` | 4 | Delta encoding (small, 1-byte ext, 2-byte ext, count-only) |
 | `RoundTrip` | 10 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) + Block1/Block2 parse independence (F-014) |
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
+| `Parse_Truncated*` | 5 | Malformed option headers rejected with 4.02 before any out-of-bounds read: 1-/2-byte extended delta, 1-/2-byte extended length, truncated option value |
+| `Parse_*Extended*` | 2 | Well-formed extended encodings decode correctly (delta nibble 13 -> Uri-Query, length nibble 13 -> 13-byte Uri-Path) |
 | `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
 | `CoapPayloadLimitTest` | 6 | Payload vs `OC_MAX_APP_DATA_SIZE`: accepted below/at max-1 (incl. null-terminator), 4.13 at/above max, no silent truncation, empty payload |
 | `CoapFullPduTest` | 1 | Datagram of exactly `OC_PDU_SIZE` with >328 bytes of options: parser null-terminator lands on the extra byte reserved by `oc_allocate_message()` (one-byte heap overflow regression) |
 
 ---
 
-### test_coap_oscore.cpp — OSCORE Option (24 tests)
+### test_coap_oscore.cpp — OSCORE Option (38 tests)
 
 **Source:** `messaging/coap/oscore.c`
 
@@ -217,7 +219,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `PivSsnRoundTrip` | 2 | Conversion integrity (small, large) |
 | `OscoreOption` | 6 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants) |
 | `OscoreSerialize` | 2 | Serialization to wire format (PIV-only, full round-trip) |
-| `OscoreIsOscoreMessage` | 3 | Detects OSCORE option presence (true, non-OSCORE option, no options) |
+| `OscoreIsOscoreMessage` | 8 | Detects OSCORE option presence (true, non-OSCORE option, no options, OSCORE followed by extended-delta option) and rejects malformed option headers without reading past the buffer (truncated 1-/2-byte extended delta, truncated extended length, truncated option value) |
 
 ---
 
@@ -1457,11 +1459,19 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 ## Last runtime run status
 
-Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
-including uncommitted changes via `-IncludeUncommitted`):
-**366 passed, 5 skipped, 0 failed, 0 errors** (371 collected, 814.53s) - fully green.
+Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`):
+**366 passed, 5 skipped, 0 failed, 0 errors** (371 collected, 815.11s) - fully green.
 
-The most recent run verified the oversized-payload handling in
+The most recent run verified the hardened CoAP option parsing in
+`messaging/coap/coap.c` and `messaging/coap/oscore.c`: the option delta/length
+extension bytes and the option value are now bounds-checked by the shared
+`coap_next_option()` helper before they are dereferenced, so a truncated option
+header is answered with `4.02 Bad Option` (respectively routed away from the
+OSCORE layer) instead of reading past the end of the datagram. The whole suite
+was unchanged, confirming no regression in block-wise transfer, discovery, group
+communication, observe or security.
+
+The preceding run verified the oversized-payload handling in
 `messaging/coap/coap.c` (a payload of `OC_MAX_APP_DATA_SIZE` or more is now
 rejected with `4.13 Request Entity Too Large` instead of being silently
 truncated) together with the one-byte-overflow fix in `api/oc_buffer.c`
