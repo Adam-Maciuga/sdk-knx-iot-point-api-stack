@@ -11,9 +11,11 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <vector>
 
 extern "C" {
 #include "coap.h"
+#include "oc_buffer_settings.h"
 #include "oc_ri.h"
 }
 
@@ -920,4 +922,95 @@ TEST_F(CoapTest, SetHeaderLocationQuery_SkipsLeadingQuestionMarks)
   size_t len = coap_set_header_location_query(&pkt, "?id=7");
   EXPECT_EQ(len, strlen("id=7"));
   EXPECT_EQ(strncmp(pkt.location_query, "id=7", 4), 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Oversized application payload → 4.13 Request Entity Too Large
+ *
+ * The parser must reject a payload that does not fit into the application
+ * data buffer (OC_MAX_APP_DATA_SIZE, one byte reserved for the terminator)
+ * instead of silently truncating it.
+ * See KNX IoT Point API spec 2.6.3.3.2 and RFC 7252 clause 12.1.2.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class CoapPayloadLimitTest : public ::testing::Test {
+protected:
+  std::vector<uint8_t> wire;
+  coap_packet_t parsed;
+
+  /* Build a minimal CON POST (no token, no options) carrying payload_len bytes of payload */
+  void build_post_with_payload(size_t payload_len)
+  {
+    wire.assign(COAP_HEADER_LEN + 1 + payload_len, 0);
+
+    wire[0] = 0x40;      /* version 1, type CON, token length 0 */
+    wire[1] = COAP_POST; /* code */
+    wire[2] = 0x12;      /* mid hi */
+    wire[3] = 0x34;      /* mid lo */
+    wire[4] = 0xFF;      /* payload marker */
+
+    for (size_t i = 0; i < payload_len; i++)
+    {
+      wire[COAP_HEADER_LEN + 1 + i] = (uint8_t)('A' + (i % 26));
+    }
+
+    memset(&parsed, 0, sizeof(parsed));
+  }
+};
+
+TEST_F(CoapPayloadLimitTest, PayloadBelowMax_Accepted)
+{
+  const size_t max_app_data = oc_get_max_app_data_size();
+  build_post_with_payload(max_app_data - 2);
+
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  EXPECT_EQ(parsed.payload_len, (uint32_t)(max_app_data - 2));
+  /* the parser appends a null-terminator behind the payload */
+  EXPECT_EQ(parsed.payload[parsed.payload_len], '\0');
+}
+
+TEST_F(CoapPayloadLimitTest, PayloadAtMaxMinusOne_Accepted)
+{
+  const size_t max_app_data = oc_get_max_app_data_size();
+  build_post_with_payload(max_app_data - 1);
+
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  EXPECT_EQ(parsed.payload_len, (uint32_t)(max_app_data - 1));
+  EXPECT_EQ(parsed.payload[parsed.payload_len], '\0');
+}
+
+TEST_F(CoapPayloadLimitTest, PayloadExactlyMax_RejectedWith413)
+{
+  const size_t max_app_data = oc_get_max_app_data_size();
+  build_post_with_payload(max_app_data);
+
+  /* the terminator would no longer fit into the application data buffer */
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+}
+
+TEST_F(CoapPayloadLimitTest, PayloadAboveMax_RejectedWith413)
+{
+  const size_t max_app_data = oc_get_max_app_data_size();
+  build_post_with_payload(max_app_data + 100);
+
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+}
+
+TEST_F(CoapPayloadLimitTest, OversizedPayload_IsNotTruncated)
+{
+  const size_t max_app_data = oc_get_max_app_data_size();
+  build_post_with_payload(max_app_data + 1);
+
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+
+  /* no truncated payload must be handed over to the application layer */
+  EXPECT_NE(parsed.payload_len, (uint32_t)(max_app_data - 1));
+}
+
+TEST_F(CoapPayloadLimitTest, EmptyPayload_Accepted)
+{
+  build_post_with_payload(0);
+
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  EXPECT_EQ(parsed.payload_len, 0u);
 }

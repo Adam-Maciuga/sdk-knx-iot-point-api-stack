@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (63 tests)
+### test_coap.cpp — CoAP Parser/Serializer (69 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -201,6 +201,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `RoundTrip` | 10 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) + Block1/Block2 parse independence (F-014) |
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
 | `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
+| `CoapPayloadLimitTest` | 6 | Payload vs `OC_MAX_APP_DATA_SIZE`: accepted below/at max-1 (incl. null-terminator), 4.13 at/above max, no silent truncation, empty payload |
 
 ---
 
@@ -1433,6 +1434,22 @@ and `test_5_2_swu.py` (6 -> 10).
 | **TestDefaultOptions** | `test_5_10_5_1_accept_omitted` | 5.10.5.1 |
 | | `test_5_10_5_2_content_format_omitted` | 5.10.5.2 |
 | | `test_5_10_5_3_unknown_critical_option` | 5.10.5.3 |
+
+---
+
+### test_coap_payload_limit.py — Oversized Application Payload (4 tests)
+
+Not an EITT test — verifies that a request whose payload exceeds
+`OC_MAX_APP_DATA_SIZE` (`KNX_PAYLOAD_SIZE` = 1024) in a single datagram is
+answered with `4.13 Request Entity Too Large` instead of being silently
+truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
+
+| Class | Test | What it covers |
+|-------|------|----------------|
+| **TestOversizedPayloadRejected** | `test_payload_exactly_max_returns_413` | Payload == max, no room for the null-terminator |
+| | `test_payload_above_max_returns_413` | Payload well above max |
+| | `test_payload_below_max_is_not_rejected_with_413` | Payload that still fits must not be rejected as too large |
+| | `test_dut_still_responsive_after_oversized_request` | DUT survives the oversized request and keeps serving |
 
 ---
 

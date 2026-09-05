@@ -547,11 +547,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
       {
         /*
-          if application payload is too big
-          - cut payload at max size - 1, this allows to include the null-terminator
-          - don't care if the payload values then are NOT correct
+          the application payload does not fit into the application data buffer (one byte is reserved for the null-terminator)
+          - reject the message, the peer is expected to use CoAP block-wise transfer (RFC 7959) instead
+          - see KNX IoT Point API spec 2.6.3.3.2 (similar case here) and RFC 7252 clause 12.1.2
         */
-        coap_pkt->payload_len = OC_MAX_APP_DATA_SIZE - 1;
+        OC_ERR("payload len %u exceeds max app data size %u", coap_pkt->payload_len, OC_MAX_APP_DATA_SIZE);
+        return REQUEST_ENTITY_TOO_LARGE_4_13;
       }
 
       // add behind application payload a null-terminator
