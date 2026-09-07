@@ -58,3 +58,6 @@ tests/runtime/.docker-run.sh
 # EITT reference traces (large, not tracked)
 EITT_REFERENCE_PROJECT/
 /Folder.DotSettings.user
+
+# local reviews
+/reviews
