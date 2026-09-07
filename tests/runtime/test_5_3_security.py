@@ -57,6 +57,8 @@ Runtime conformance tests — EITT 5.3 Security
 5.3.17.1  Anti-replay window (SSN jump + old SSNs)
 5.3.17.7  Echo challenge on first unicast request (new context)
 5.3.18.1  Message integrity (corrupted auth tag)
+5.3.18.2  EMPTY (code 0.00) CON/NON/ACK with an OSCORE option is refused,
+           EMPTY RST stays valid, EMPTY RST carrying a token is refused
 5.3.19.1  OSCORE encryption with 32-byte master secret
 5.3.19.2  Master salt applied correctly
 5.3.19.6  Master salt + context ID for configuration messages
@@ -1635,6 +1637,144 @@ class TestMessageIntegrity:
                     f"got {resp.code}")
         except Exception:
             pass
+
+
+# ===========================================================================
+# 5.3.18.2 — EMPTY (code 0.00) messages can never be OSCORE messages
+# ===========================================================================
+
+class TestEmptyMessageIsNotOscore:
+    """5.3.18.2: an EMPTY CoAP message carrying an OSCORE option is refused.
+
+    RFC 7252 clause 4.1: a message with code 0.00 (EMPTY) carries no
+    token, no options and no payload. It can therefore never transport
+    an OSCORE option, regardless of the type that announces it
+    (CON = ping, NON = not defined, ACK = acknowledgement of a CON).
+
+    The stack rejects such a datagram in ``oscore_parse_outer_message``
+    before any option is interpreted. RST is deliberately excluded from
+    that rejection: an EMPTY RST is the legal CoAP reset and is handled
+    by the OSCORE receive path, so it must NOT kill the connection.
+
+    These tests forge the outer header directly on the socket, because a
+    well-behaved client can never produce such a message.
+    """
+
+    @staticmethod
+    def _build_empty_with_oscore_option(coap, msg_type, oscore_option):
+        """Forge an EMPTY (code 0.00) message that carries an OSCORE option."""
+        import struct
+
+        from coap_client import _encode_option
+
+        mid = coap._next_mid()
+        # TKL = 0, as RFC 7252 4.1 demands for an EMPTY message
+        ver_type_tkl = (1 << 6) | (msg_type << 4) | 0
+        header = struct.pack("!BBH", ver_type_tkl, 0x00, mid)
+        return header + _encode_option(9, oscore_option)
+
+    @pytest.mark.parametrize("msg_type,type_name", [
+        (0, "CON"),
+        (1, "NON"),
+        (2, "ACK"),
+    ])
+    def test_5_3_18_2_empty_message_with_oscore_option_rejected(
+            self, coap, oscore_ctx, msg_type, type_name):
+        """EMPTY CON/NON/ACK carrying an OSCORE option is never processed."""
+        pm_payload = cbor2.dumps({1: True})
+
+        # Take a real OSCORE option off a valid request so the forged
+        # message differs from a legitimate one only in code and type.
+        oscore_opt, _ciphertext, _piv = oscore_ctx.protect_request(
+            3, "/dev/pm", pm_payload, content_format=APPLICATION_CBOR)
+
+        raw_msg = self._build_empty_with_oscore_option(
+            coap, msg_type, oscore_opt)
+        coap._sock.sendto(raw_msg, (coap.host, coap.port, 0, 0))
+
+        # The device must not answer with anything successful. A 4.00 or a
+        # silent drop are both conformant.
+        coap._sock.settimeout(2.0)
+        try:
+            resp = coap._recv_response(2.0)
+            if resp is not None:
+                assert not resp.is_successful, (
+                    f"EMPTY {type_name} with OSCORE option must not be "
+                    f"processed, got {resp.code}")
+        except Exception:
+            pass
+
+        # The device must still be alive and serving OSCORE afterwards.
+        resp = coap.oscore_get(oscore_ctx, "/dev/sn")
+        assert resp is not None and resp.is_successful, (
+            f"device stopped serving OSCORE after an EMPTY {type_name} "
+            f"with OSCORE option: "
+            f"{resp.code if resp else 'timeout'}")
+
+    def test_5_3_18_2_empty_reset_does_not_break_oscore(
+            self, coap, oscore_ctx):
+        """An EMPTY RST stays valid and must not disturb the OSCORE path."""
+        import struct
+
+        mid = coap._next_mid()
+        ver_type_tkl = (1 << 6) | (3 << 4) | 0  # RST, TKL = 0
+        raw_msg = struct.pack("!BBH", ver_type_tkl, 0x00, mid)
+        coap._sock.sendto(raw_msg, (coap.host, coap.port, 0, 0))
+
+        coap._sock.settimeout(1.0)
+        try:
+            coap._recv_response(1.0)
+        except Exception:
+            pass
+
+        resp = coap.oscore_get(oscore_ctx, "/dev/sn")
+        assert resp is not None and resp.is_successful, (
+            f"device stopped serving OSCORE after an EMPTY RST: "
+            f"{resp.code if resp else 'timeout'}")
+
+    def test_5_3_18_2_empty_reset_with_token_rejected(
+            self, coap, oscore_ctx):
+        """An EMPTY RST that announces a token is refused.
+
+        RST is the one EMPTY message the outer parser lets through, so
+        it needs its own TKL check: RFC 7252 clause 4.1 gives an EMPTY
+        message no token, and a forged ``RST, code 0.00, TKL=8`` must
+        not be classified as a reset while carrying 8 attacker-chosen
+        token bytes.
+
+        The message carries an OSCORE option, otherwise the datagram
+        would never be routed to the OSCORE layer at all.
+        """
+        import struct
+
+        from coap_client import _encode_option
+
+        pm_payload = cbor2.dumps({1: True})
+        oscore_opt, _ciphertext, _piv = oscore_ctx.protect_request(
+            3, "/dev/pm", pm_payload, content_format=APPLICATION_CBOR)
+
+        mid = coap._next_mid()
+        token = bytes(range(1, 9))  # 8 attacker-chosen bytes
+        ver_type_tkl = (1 << 6) | (3 << 4) | len(token)  # RST, TKL = 8
+        raw_msg = (struct.pack("!BBH", ver_type_tkl, 0x00, mid)
+                   + token
+                   + _encode_option(9, oscore_opt))
+        coap._sock.sendto(raw_msg, (coap.host, coap.port, 0, 0))
+
+        coap._sock.settimeout(2.0)
+        try:
+            resp = coap._recv_response(2.0)
+            if resp is not None:
+                assert not resp.is_successful, (
+                    f"EMPTY RST carrying a token must not be processed, "
+                    f"got {resp.code}")
+        except Exception:
+            pass
+
+        resp = coap.oscore_get(oscore_ctx, "/dev/sn")
+        assert resp is not None and resp.is_successful, (
+            f"device stopped serving OSCORE after an EMPTY RST with a "
+            f"token: {resp.code if resp else 'timeout'}")
 
 
 # ===========================================================================

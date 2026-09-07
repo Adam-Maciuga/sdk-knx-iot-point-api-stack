@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1384 unit tests** (52 files) + **371 runtime tests** (19 files) = **1755 total**
+> **1392 unit tests** (52 files) + **376 runtime tests** (19 files) = **1768 total**
 >
-> Branch: `work_in_progress` | Unit: 1384 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1384).
-> Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 366 passed, 5 skipped, 0 failed, 0 errors (371 collected, 815.11s) - fully green. This run verified the hardened CoAP option parsing (`coap_next_option()` bounds checks) in addition to the 4.13 rejection of oversized application payloads and the `OC_PDU_SIZE + 1` message-buffer allocation. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1392 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1392).
+> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 371 passed, 5 skipped, 0 failed, 0 errors (376 collected, 823.70s) - fully green. This run verified the inbound length guards in `coap_parse_udp_message()` / `oscore_is_oscore_message()` and the EMPTY-message rules (type and TKL) in `oscore_parse_outer_message()`. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (86 tests)
+### test_coap.cpp — CoAP Parser/Serializer (91 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -201,6 +201,10 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `RoundTrip` | 10 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) + Block1/Block2 parse independence (F-014) |
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
 | `Parse_Truncated*` | 5 | Malformed option headers rejected with 4.02 before any out-of-bounds read: 1-/2-byte extended delta, 1-/2-byte extended length, truncated option value |
+| `Parse_NullData` / `Parse_TruncatedFixedHeader` | 2 | NULL data and `data_len` 0..3 rejected with 4.00 before the fixed CoAP header is read |
+| `Parse_TokenAnnouncedBeyondMessage` | 1 | Token length nibble 1..8 announcing more token bytes than the datagram carries is rejected with 4.00; `packet->token` stays wiped (no stale heap bytes copied) |
+| `Parse_TokenExactlyFitsMessage` | 1 | Positive boundary: datagram ending exactly after the announced token (`data_len == 4 + token_len`) parses and the token matches the wire |
+| `Parse_ShortMessageDoesNotLeakBytesBehindTheDatagram` | 1 | Recycled-buffer regression: bytes past `data_len` pre-filled with a sentinel must never reach `packet->token` |
 | `Parse_*Extended*` | 2 | Well-formed extended encodings decode correctly (delta nibble 13 -> Uri-Query, length nibble 13 -> 13-byte Uri-Path) |
 | `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
 | `CoapPayloadLimitTest` | 6 | Payload vs `OC_MAX_APP_DATA_SIZE`: accepted below/at max-1 (incl. null-terminator), 4.13 at/above max, no silent truncation, empty payload |
@@ -208,7 +212,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap_oscore.cpp — OSCORE Option (38 tests)
+### test_coap_oscore.cpp — OSCORE Option (41 tests)
 
 **Source:** `messaging/coap/oscore.c`
 
@@ -219,7 +223,7 @@ Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
 | `PivSsnRoundTrip` | 2 | Conversion integrity (small, large) |
 | `OscoreOption` | 6 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants) |
 | `OscoreSerialize` | 2 | Serialization to wire format (PIV-only, full round-trip) |
-| `OscoreIsOscoreMessage` | 8 | Detects OSCORE option presence (true, non-OSCORE option, no options, OSCORE followed by extended-delta option) and rejects malformed option headers without reading past the buffer (truncated 1-/2-byte extended delta, truncated extended length, truncated option value) |
+| `OscoreIsOscoreMessage` | 11 | Detects OSCORE option presence (true, non-OSCORE option, no options, OSCORE followed by extended-delta option, OSCORE after a full 8-byte token) and rejects malformed input without reading past the buffer: truncated 1-/2-byte extended delta, truncated extended length, truncated option value, `length` 0..3 (fixed header incomplete), token nibble 1..8 announcing more bytes than the datagram carries |
 
 ---
 
@@ -1187,7 +1191,7 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
-### test_5_3_security.py — Security & OSCORE (71 tests)
+### test_5_3_security.py — Security & OSCORE (76 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1252,6 +1256,9 @@ and `test_5_2_swu.py` (6 -> 10).
 | **TestEchoPaseToken** | `test_5_3_17_8_echo_on_pase_at_post` | 5.3.17.8 |
 | **TestMessageIntegrity** | `test_5_3_18_1_corrupted_auth_tag_rejected` | 5.3.18.1 |
 | | `test_5_3_18_1_different_auth_tag_rejected` | 5.3.18.1 |
+| **TestEmptyMessageIsNotOscore** | `test_5_3_18_2_empty_message_with_oscore_option_rejected` (3 params: CON/NON/ACK) | 5.3.18.2 |
+| | `test_5_3_18_2_empty_reset_does_not_break_oscore` | 5.3.18.2 |
+| | `test_5_3_18_2_empty_reset_with_token_rejected` | 5.3.18.2 |
 | **TestOscoreEncryption32ByteMs** | `test_5_3_19_1_oscore_with_32_byte_master_secret` | 5.3.19.1 |
 | | `test_5_3_19_1_oscore_with_16_byte_master_secret` | 5.3.19.1 |
 | **TestOscoreMasterSalt** | `test_5_3_19_2_oscore_with_master_salt` | 5.3.19.2 |
@@ -1459,10 +1466,26 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 ## Last runtime run status
 
-Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`):
-**366 passed, 5 skipped, 0 failed, 0 errors** (371 collected, 815.11s) - fully green.
+Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
+run with `-IncludeUncommitted`):
+**371 passed, 5 skipped, 0 failed, 0 errors** (376 collected, 823.70s) - fully green.
 
-The most recent run verified the hardened CoAP option parsing in
+The most recent run verified the inbound length hardening of both parse entry
+points. `coap_parse_udp_message()` in `messaging/coap/coap.c` now rejects a
+datagram shorter than the fixed CoAP header and one whose announced token
+exceeds the received bytes, so the token `memcpy` can no longer copy stale heap
+bytes from behind the datagram into the response. `oscore_parse_outer_message()`
+in `security/oc_oscore_engine.c` now applies both EMPTY-message rules of RFC 7252
+clause 4.1: an EMPTY message (code 0.00) is rejected outright unless it is a RST,
+and a RST that announces a token is rejected as well, so a forged
+`RST, code 0.00, TKL=8` can no longer be classified as a reset while carrying 8
+attacker-chosen token bytes. The five tests in `TestEmptyMessageIsNotOscore`
+(`test_5_3_security.py`: CON/NON/ACK forged, the legal EMPTY-RST regression
+guard, and the EMPTY RST with a token) passed, and the rest of the suite was
+unchanged, confirming no regression in block-wise transfer, discovery, group
+communication, observe or security.
+
+The preceding run verified the hardened CoAP option parsing in
 `messaging/coap/coap.c` and `messaging/coap/oscore.c`: the option delta/length
 extension bytes and the option value are now bounds-checked by the shared
 `coap_next_option()` helper before they are dereferenced, so a truncated option

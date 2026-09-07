@@ -390,9 +390,24 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer)
 // checks message header to find the CoAP OSCORE option header
 bool oscore_is_oscore_message(oc_message_t* msg)
 {
+  /*
+    the fixed CoAP header must be fully present before data[0] may be read, otherwise uninitialized heap memory behind the
+    received datagram would be interpreted as a CoAP header
+  */
+  if (msg->length < COAP_HEADER_LEN)
+  {
+    return false;
+  }
 
   // determine exact location of the CoAP options in the packet buffer (UDP) = header + token
   const size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+
+  // the announced token must be fully covered by the received datagram
+  if (msg->length < COAP_HEADER_LEN + token_len)
+  {
+    return false;
+  }
+
   uint8_t* current_option = msg->data + COAP_HEADER_LEN + token_len;
 
   // end of the received msg, loop invariant

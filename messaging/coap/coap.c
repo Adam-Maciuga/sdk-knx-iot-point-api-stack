@@ -1093,15 +1093,33 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   // wipe CoAP packet
   memset(coap_pkt, 0, sizeof(coap_packet_t));
 
-  // set pointer to CoAP packet bytes
+  /*
+    the fixed CoAP header must be fully present before data[0..3] may be read, otherwise 
+    uninitialized heap memory behind the received datagram would be interpreted as a CoAP header
+
+    - init payload after the check, on error the caller will use
+      the wiped packet (from above) to serialize something if needed for a 4.00
+  */
+  if (!data || data_len < COAP_HEADER_LEN)
+  {
+    OC_ERR("CoAP message is shorter than the fixed CoAP header");
+    return BAD_REQUEST_4_00;
+  }
+
+  // set coap pointer to message data pointer
   coap_pkt->buffer = data;
 
-  // parse header fields
-  coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
-  coap_pkt->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
-  coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
-  coap_pkt->mid = (uint16_t)(coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3]);
-  coap_pkt->code = coap_pkt->buffer[1];
+  /*
+    parse header fields, the first header byte carries version, type and token length,
+    read it once since a uint8_t buffer may alias the packet the fields are stored in
+  */
+  const uint8_t header_flags = data[0];
+
+  coap_pkt->version   = (COAP_HEADER_VERSION_MASK & header_flags) >> COAP_HEADER_VERSION_POSITION;
+  coap_pkt->type      = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & header_flags) >> COAP_HEADER_TYPE_POSITION);
+  coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & header_flags) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  coap_pkt->code      = data[1];
+  coap_pkt->mid       = (uint16_t)(data[2] << 8 | data[3]);
 
   if (coap_pkt->version != 1) 
   {
@@ -1109,9 +1127,17 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
     return BAD_REQUEST_4_00;
   }
 
+  // token, the 4-bit header field allows up to 15 while packet->token holds only COAP_TOKEN_LEN bytes
   if (coap_pkt->token_len > COAP_TOKEN_LEN) 
   {
     OC_ERR("Token Length must not be more than 8");
+    return BAD_REQUEST_4_00;
+  }
+
+  // the token announced in the header must be fully covered by the received message
+  if (data_len < (size_t)COAP_HEADER_LEN + coap_pkt->token_len)
+  {
+    OC_ERR("Token announced in the CoAP header exceeds the received message");
     return BAD_REQUEST_4_00;
   }
 
@@ -1120,12 +1146,10 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
 
   // copy token
   memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
-
-  // debugging
   OC_DBG("Token (len %u) : ", coap_pkt->token_len);
   OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
-  // real ptr to option 
+  // real ptr to CoAP option 
   current_option += coap_pkt->token_len;
 
   // parse inner + outer options of 'decrypted' message, OSCORE option must be either removed (on receive) or not yet present (on sending), otherwise 4.02  

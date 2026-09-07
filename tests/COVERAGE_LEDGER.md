@@ -465,7 +465,7 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 
 | Function | Status |
 |----------|--------|
-| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above) |
+| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_5_3_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
 | increment_ssn_in_context (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |

@@ -22,23 +22,34 @@
 
 OC_PROCESS(oc_oscore_handler, "OSCORE Process");
 
-// parses (and assign if found) the oscore message outer options, checks if it is an OSCORE message (packet is wiped with '0' inside method)
+/*
+  parses (and assign if found) the oscore message outer options, checks if it is an OSCORE message 
+  (packet is wiped with '0' inside method)
+
+  precondition -> msg passed oscore_is_oscore_message(), which already guarantees that the fixed 
+  CoAP header and the announced token are fully covered by msg->length, so the header and token
+  bytes may be read without further length checks here
+*/
 static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t* packet)
 {
-  // init with '0'
+  // wipe CoAP packet
   memset(packet, 0, sizeof(coap_packet_t));
 
   // set coap pointer to message data pointer
   packet->buffer = msg->data;
-  uint8_t* current_option = NULL;
 
-  packet->version = (COAP_HEADER_VERSION_MASK & packet->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
-  packet->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & packet->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
-  packet->mid = (uint16_t)(packet->buffer[2] << 8 | packet->buffer[3]);
-  packet->code = packet->buffer[1];
-  packet->token_len = (COAP_HEADER_TOKEN_LEN_MASK & packet->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  /*
+    parse header fields, the first header byte carries version, type and token length,
+    read it once since a uint8_t buffer may alias the packet the fields are stored in
+  */
+  const uint8_t* const data = msg->data;
+  const uint8_t header_flags = data[0];
 
-  current_option = msg->data + COAP_HEADER_LEN;
+  packet->version   = (COAP_HEADER_VERSION_MASK & header_flags) >> COAP_HEADER_VERSION_POSITION;
+  packet->type      = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & header_flags) >> COAP_HEADER_TYPE_POSITION);
+  packet->token_len = (COAP_HEADER_TOKEN_LEN_MASK & header_flags) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  packet->code      = data[1];
+  packet->mid       = (uint16_t)(data[2] << 8 | data[3]);
 
   #ifdef OC_DEBUG
 
@@ -46,31 +57,59 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
 
   #endif
 
-  const bool is_ack_with_empty_payload = packet->type == COAP_TYPE_ACK && packet->code == EMPTY_0_00;
-
-  if (is_ack_with_empty_payload)
-  {
-    OC_WRN("CoAP EMPTY ACK with 'zero' payload can't be a valid OSCORE message");
-    return BAD_REQUEST_4_00;
-  }
-
   if (packet->version != 1)
   {
     OC_WRN("CoAP version must be 1");
     return BAD_REQUEST_4_00;
   }
 
-  // token
+  /*
+    OSCORE specific, has no counterpart in coap_parse_udp_message
+
+    RFC 7252, clause 4.1 : an EMPTY message (code 0.00) carries no token, no options and no payload,
+
+    (a) it can never transport an OSCORE option, no matter which type announces it (CON = ping,
+        NON = not defined, ACK = acknowledgement of a CON)
+
+    (b) RST is the one EMPTY message that stays valid here, it is classified as 'is_reset'
+        further down and handled by the OSCORE receive path
+
+    (c) since (b) lets RST pass, the missing token is enforced separately, otherwise a forged
+        'RST, code 0.00, TKL=8' would be classified as a reset while carrying 8 attacker-chosen
+        token bytes
+  */
+
+  if (packet->code == EMPTY_0_00)
+  {
+    if (packet->type != COAP_TYPE_RST)
+    { // (a)
+      OC_WRN("CoAP EMPTY message (type %i) with 'zero' payload can't be a valid OSCORE message", packet->type);
+      return BAD_REQUEST_4_00;
+    }
+
+    if (packet->token_len != 0)
+    { // (c)
+      OC_WRN("CoAP EMPTY message (type %i) must not carry a token, token length is %u", packet->type, packet->token_len);
+      return BAD_REQUEST_4_00;
+    }
+  }
+
+  // token, the 4-bit header field allows up to 15 while packet->token holds only COAP_TOKEN_LEN bytes
   if (packet->token_len > COAP_TOKEN_LEN)
   {
     OC_WRN("Token Length must not be more than 8");
     return BAD_REQUEST_4_00;
   }
 
+  // (abused) ptr to token 
+  uint8_t* current_option = msg->data + COAP_HEADER_LEN;
+
+  // copy token
   memcpy(packet->token, current_option, packet->token_len);
   OC_DBG_OSCORE("Token len %u : ", packet->token_len);
   OC_LOGbytes(packet->token, packet->token_len);
 
+  // real ptr to CoAP option 
   current_option += packet->token_len;
 
   // parse outer options of 'decrypted' message, any present - not allowed - outer option causes a 4.02
@@ -84,11 +123,13 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
 static coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, coap_packet_t* packet)
 {
   /*
-    (a) don't init entire coap packet with '0', a present coap package is NOW used for parsing the inner message,
-        so that already parsed (outer) options (e.g. kid, kid_context,...) are kept
+    (a) don't init entire coap packet with '0', a present coap package is NOW used for parsing
+        the inner message, so that already parsed (outer) options (e.g. kid, kid_context,...)
+        are kept
 
-    (b) set payload len back to zero, since previous payload len was calculated based on the outer message, and inner message may have different payload
-        len (e.g. due to different options, or even payload len = 0 if no application payload is present in inner message) 
+    (b) set payload len back to zero, since previous payload len was calculated based on the 
+        outer message, and inner message may have different payload len (e.g. due to different
+        options, or even payload len = 0 if no application payload is present in inner message) 
   */
 
   // set coap pointer to message payload data (inner options, payload)
@@ -97,6 +138,19 @@ static coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, 
   // (b)
   packet->payload = NULL;
   packet->payload_len = 0;
+
+  /*
+     the inner plaintext must at least contain the inner CoAP code, otherwise data[0] 
+     would read beyond the plaintext
+
+     - init payload with NULL/0 before, on error the caller will not use
+       the now stale payload to serialize it for a 4.00
+  */
+  if (!data || data_len < 1)
+  {
+    OC_WRN("OSCORE plaintext does not contain the inner CoAP code");
+    return BAD_REQUEST_4_00;
+  }
 
   // inner coap code + inner option from (inner) plaintext message, see https://www.rfc-editor.org/rfc/rfc8613#section-5.3
   packet->code = data[0];

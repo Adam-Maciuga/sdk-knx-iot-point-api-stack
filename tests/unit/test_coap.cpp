@@ -858,6 +858,107 @@ TEST_F(CoapTest, Parse_TruncatedOptionValue)
   EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
 }
 
+/* ---- Truncated fixed header / token (must never read past the datagram) ---- */
+
+TEST_F(CoapTest, Parse_NullData)
+{
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, nullptr, 0), BAD_REQUEST_4_00);
+}
+
+TEST_F(CoapTest, Parse_TruncatedFixedHeader)
+{
+  /*
+    The fixed CoAP header is 4 bytes. Anything shorter must be rejected before data[0..3]
+    is read, otherwise heap memory behind the datagram is interpreted as a CoAP header.
+  */
+  uint8_t data[COAP_HEADER_LEN] = {0x40, 0x02, 0x12, 0x34};
+
+  for (size_t len = 0; len < COAP_HEADER_LEN; len++)
+  {
+    coap_packet_t parsed;
+    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), BAD_REQUEST_4_00) << "data_len " << len;
+  }
+}
+
+TEST_F(CoapTest, Parse_TokenAnnouncedBeyondMessage)
+{
+  /*
+    The token length nibble announces up to 8 token bytes. If the datagram ends before the
+    announced token, copying it would read the stale heap bytes of the previous message.
+  */
+  uint8_t data[COAP_HEADER_LEN + COAP_TOKEN_LEN];
+
+  for (uint8_t token_len = 1; token_len <= COAP_TOKEN_LEN; token_len++)
+  {
+    memset(data, 0xAA, sizeof(data));
+    data[0] = (uint8_t)(0x40 | token_len); /* version 1, CON, announced token length */
+    data[1] = COAP_POST;
+    data[2] = 0x12;
+    data[3] = 0x34;
+
+    /* one byte short of the announced token */
+    const size_t len = (size_t)COAP_HEADER_LEN + token_len - 1;
+
+    coap_packet_t parsed;
+    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), BAD_REQUEST_4_00) << "token_len " << (int)token_len;
+
+    /* the announced token was rejected, so no byte of it may have been copied into the packet */
+    uint8_t zero[COAP_TOKEN_LEN] = {0};
+    EXPECT_EQ(memcmp(parsed.token, zero, sizeof(zero)), 0) << "token_len " << (int)token_len;
+  }
+}
+
+TEST_F(CoapTest, Parse_TokenExactlyFitsMessage)
+{
+  /* positive counterpart: a datagram that ends exactly after the announced token is valid */
+  uint8_t data[COAP_HEADER_LEN + COAP_TOKEN_LEN];
+
+  for (uint8_t token_len = 1; token_len <= COAP_TOKEN_LEN; token_len++)
+  {
+    memset(data, 0, sizeof(data));
+    data[0] = (uint8_t)(0x40 | token_len);
+    data[1] = COAP_POST;
+    data[2] = 0x12;
+    data[3] = 0x34;
+
+    for (uint8_t i = 0; i < token_len; i++)
+    {
+      data[COAP_HEADER_LEN + i] = (uint8_t)(0x10 + i);
+    }
+
+    const size_t len = (size_t)COAP_HEADER_LEN + token_len;
+
+    coap_packet_t parsed;
+    ASSERT_EQ(coap_parse_udp_message(&parsed, data, len), COAP_NO_ERROR) << "token_len " << (int)token_len;
+    EXPECT_EQ(parsed.token_len, token_len);
+    EXPECT_EQ(memcmp(parsed.token, data + COAP_HEADER_LEN, token_len), 0) << "token_len " << (int)token_len;
+  }
+}
+
+TEST_F(CoapTest, Parse_ShortMessageDoesNotLeakBytesBehindTheDatagram)
+{
+  /*
+    Simulates the recycled message buffer: the bytes behind the reported length still carry the
+    content of the previous message. A 4-byte datagram announcing an 8-byte token must not expose them.
+  */
+  uint8_t data[COAP_HEADER_LEN + COAP_TOKEN_LEN];
+  memset(data, 0xA5, sizeof(data)); /* sentinel standing in for the previous message */
+
+  data[0] = (uint8_t)(0x40 | COAP_TOKEN_LEN);
+  data[1] = COAP_POST;
+  data[2] = 0x12;
+  data[3] = 0x34;
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, COAP_HEADER_LEN), BAD_REQUEST_4_00);
+
+  for (size_t i = 0; i < COAP_TOKEN_LEN; i++)
+  {
+    EXPECT_NE(parsed.token[i], 0xA5) << "token byte " << i << " carries data from behind the datagram";
+  }
+}
+
 /* ---- Well-formed extended option headers (positive counterpart) ---- */
 
 TEST_F(CoapTest, Parse_OneByteExtendedDelta)

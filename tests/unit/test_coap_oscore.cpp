@@ -541,3 +541,61 @@ TEST(OscoreIsOscoreMessage, DetectsOscoreOptionFollowedByExtendedDeltaOption)
 
   EXPECT_TRUE(oscore_is_oscore_message(&msg));
 }
+
+/* ---- Truncated fixed header / token (must never read past the datagram) ---- */
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedFixedHeader)
+{
+  /*
+    The fixed CoAP header is 4 bytes. Anything shorter must be rejected before data[0] is read,
+    otherwise heap memory behind the datagram is interpreted as a CoAP header.
+  */
+  uint8_t data[COAP_HEADER_LEN] = {0x40, 0x02, 0x12, 0x34};
+
+  for (size_t len = 0; len < COAP_HEADER_LEN; len++)
+  {
+    oc_message_t msg{};
+    msg.data = data;
+    msg.length = len;
+
+    EXPECT_FALSE(oscore_is_oscore_message(&msg)) << "length " << len;
+  }
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseWhenTokenExceedsMessage)
+{
+  /*
+    The token length nibble announces up to 8 token bytes. If the datagram ends before the
+    announced token, the option scan would start behind the received message.
+  */
+  uint8_t data[COAP_HEADER_LEN + COAP_TOKEN_LEN + 1];
+
+  for (uint8_t token_len = 1; token_len <= COAP_TOKEN_LEN; token_len++)
+  {
+    memset(data, 0x90, sizeof(data)); /* sentinel that would look like an OSCORE option */
+    data[0] = (uint8_t)(0x40 | token_len); /* version 1, CON, announced token length */
+    data[1] = 0x02;
+    data[2] = 0x12;
+    data[3] = 0x34;
+
+    oc_message_t msg{};
+    msg.data = data;
+    msg.length = (size_t)COAP_HEADER_LEN + token_len - 1; /* one byte short of the token */
+
+    EXPECT_FALSE(oscore_is_oscore_message(&msg)) << "token_len " << (int)token_len;
+  }
+}
+
+TEST(OscoreIsOscoreMessage, DetectsOscoreOptionAfterFullToken)
+{
+  /* positive counterpart: full 8-byte token present, OSCORE option follows it */
+  uint8_t data[] = {0x48, 0x02, 0x12, 0x34,
+                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                    0x90};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_TRUE(oscore_is_oscore_message(&msg));
+}
