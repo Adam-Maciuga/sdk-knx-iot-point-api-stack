@@ -571,10 +571,6 @@ TEST_F(DnsSd, SleepPeriodChangeGetsARepeat)
 /* RFC 6762 section 10.1: a cleared SP needs a TTL 0 for the old TXT record. */
 TEST_F(DnsSd, ClearingTheSleepPeriodSendsATxtGoodbye)
 {
-  /* F-016: the mDNS library drops a TXT record in the answer slot, so the
-     goodbye packet leaves with an empty body. Remove this skip with the fix. */
-  GTEST_SKIP() << "F-016: TXT answer record dropped by mdns.h";
-
   ASSERT_EQ(publish(false), 0);
   knx_dns_sd_set_sleep_period(30);
   advance_ms(0);
@@ -771,10 +767,6 @@ TEST_F(DnsSd, AaaaQueryForTheHostnameGetsTheAaaaAnswer)
 
 TEST_F(DnsSd, TxtQueryForTheInstanceGetsTheTxtAnswer)
 {
-  /* F-016: the mDNS library drops a TXT record in the answer slot, so the
-     answer packet leaves with an empty body. Remove this skip with the fix. */
-  GTEST_SKIP() << "F-016: TXT answer record dropped by mdns.h";
-
   ASSERT_EQ(publish(false), 0);
   knx_dns_sd_set_sleep_period(30);
 

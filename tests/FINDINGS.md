@@ -405,10 +405,10 @@ Bugs and issues discovered during unit test development.
   `MDNS_ANNOUNCE_WAIT_S` rose to 1.5 s so the repeat passes before the next step.
 - **Verification:** `test_dns_sd_mdns.cpp`: the four cases `SecondAnnouncementFollowsOneSecondLater`,
   `RepeatLeavesOnlyOnce`, `ChangeWithinOneSecondRestartsTheRepeat` and `SleepPeriodChangeGetsARepeat`
-  are red on the previous code and green on the fix. The runtime suite was not run on the developer
-  host (no `pytest`, veth needs root); the CI runtime job verifies the changed capture filter.
+  are red on the previous code and green on the fix. The runtime suite `-k 5_1` is 130 passed, and
+  its announcement capture shows the repeat one second after the first packet.
 
-## F-016: TXT record in the answer slot of an mDNS packet is dropped (empty SP goodbye and empty TXT answer)
+## F-016: ~~TXT record in the answer slot of an mDNS packet is dropped (empty SP goodbye and empty TXT answer)~~ - RESOLVED
 
 - **File:** `port/dns-sd_mdns.c` (`knx_dns_sd_set_sleep_period` for `sp == 0`, `send_txt_response`)
   and the vendored mDNS library `mdns.h` (`mdns_answer_add_record`,
@@ -429,10 +429,18 @@ Bugs and issues discovered during unit test development.
   over the single `answer` argument. A TXT record passed as `answer` therefore leaves the packet
   empty, while the header still counts one answer. The stack passes a TXT record as `answer` at
   the two places above.
-- **Status:** Open. The two test cases carry a `GTEST_SKIP()` with this id.
-- **Fix proposal:** one hunk in `port/mdns.patch`: after the `answer` record is added in
-  `mdns_answer_multicast_rclass_ttl()` and in `mdns_query_answer_unicast()`, call
-  `mdns_answer_add_txt_record(buffer, capacity, data, &record, 1, rclass, ttl, &string_table)`.
+- **Status:** Resolved.
+- **Resolution:** two hunks added to `port/mdns.patch`. After the `answer` record is added, both
+  `mdns_answer_multicast_rclass_ttl()` and `mdns_query_answer_unicast()` now call
+  `mdns_answer_add_txt_record(buffer, capacity, data, &record, 1, rclass, ttl, &string_table)`
+  (`&answer` in the unicast function, which keeps no local copy). The multicast path carries the
+  two call sites of the stack; the unicast path is patched to keep the library consistent.
   `mdns_answer_add_record()` ignores a TXT record and `mdns_answer_add_txt_record()` ignores every
-  other type, so the extra call changes nothing for the other record types. Then remove the two
-  skips and close this entry.
+  other type, so the extra call is a no-op for the other record types. The hardcoded
+  `answer_rrs = htons(1)` needed no change - it was already correct once the record is written.
+  The note above `FetchContent_Declare(mdns)` in `port/CMakeLists.txt` records the reason.
+- **Verification:** the `GTEST_SKIP()` calls were removed from
+  `ClearingTheSleepPeriodSendsATxtGoodbye` and `TxtQueryForTheInstanceGetsTheTxtAnswer`; both pass
+  with their original assertions. `test_dns_sd_mdns.cpp` is 28 passed, 0 skipped; the full Linux
+  suite is 1420 passed, 0 skipped. The runtime suite `-k 5_1` is 130 passed, and its capture of the
+  cleared sleep period now shows two goodbye packets instead of an empty one.

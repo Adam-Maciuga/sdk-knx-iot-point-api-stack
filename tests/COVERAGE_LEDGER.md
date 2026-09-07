@@ -628,8 +628,7 @@ The test links with `--wrap=sendto` (records the packets), `--wrap=recvfrom`
 otherwise), `--wrap=get_ip_context_for_device` (one fake loopback endpoint)
 and `--wrap=oc_clock_time` (a test-controlled clock, no real sleep for the
 repeat). The responder cases wait for the real listener thread with a bounded
-poll. Two cases carry a `GTEST_SKIP()` for the open finding F-016 (a TXT
-record in the answer slot leaves the packet empty). The target is registered
+poll. The target is registered
 under `if(UNIX)`, because the source and the `--wrap` facility are POSIX/GNU ld
 only.
 

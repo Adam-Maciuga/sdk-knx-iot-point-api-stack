@@ -147,6 +147,8 @@ FetchContent_Declare(
     GIT_TAG main
     # Note:
     # Issues #96 and #97 have not been fixed yet.
+    # The patch also adds the missing coalescing of a TXT record that is passed in the answer slot,
+    # without it such a packet carries a header that counts one answer and no record (see F-016).
     PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${PROJECT_SOURCE_DIR}/port/mdns.patch -P "${PROJECT_SOURCE_DIR}/cmake/patch.cmake"
 )
 

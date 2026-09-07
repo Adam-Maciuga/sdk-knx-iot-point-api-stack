@@ -1,4 +1,4 @@
-diff --git a/mdns.c b/mdns.c
+﻿diff --git a/mdns.c b/mdns.c
 index f1903aa..d482d01 100644
 --- a/mdns.c
 +++ b/mdns.c
@@ -61,3 +61,24 @@ index d0794bf..571ce93 100644
  
  		data = strdata;
  	}
+@@ -1401,7 +1410,11 @@ mdns_query_answer_unicast(int sock, const void* address, size_t address_size, vo
+ 	answer.rclass = rclass;
+ 	answer.ttl = ttl;
+ 	data = mdns_answer_add_record(buffer, capacity, data, answer, &string_table);
++	// mdns_answer_add_record() skips a TXT record, so coalesce the answer here as it is done for
++	// authority and additional below. This path is currently unused by the stack, it is kept in
++	// step with the multicast path below.
++	data = mdns_answer_add_txt_record(buffer, capacity, data, &answer, 1, rclass, ttl, &string_table);
+ 
+ 	// Fill in authority records
+ 	for (size_t irec = 0; data && (irec < authority_count); ++irec) {
+ 		mdns_record_t record = authority[irec];
+@@ -1454,6 +1467,8 @@ mdns_answer_multicast_rclass_ttl(int sock, void* buffer, size_t capacity, mdns_re
+ 	mdns_record_t record = answer;
+ 	mdns_record_update_rclass_ttl(&record, rclass, ttl);
+ 	data = mdns_answer_add_record(buffer, capacity, data, record, &string_table);
++	// mdns_answer_add_record() skips a TXT record, so coalesce the answer here as it is done for authority and additional below.
++	data = mdns_answer_add_txt_record(buffer, capacity, data, &record, 1, rclass, ttl, &string_table);
+ 
+ 	// Fill in authority records
+ 	for (size_t irec = 0; data && (irec < authority_count); ++irec) {
