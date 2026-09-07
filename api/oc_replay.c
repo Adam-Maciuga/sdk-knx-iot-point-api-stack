@@ -199,19 +199,19 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
         OC_DBG("outside window (size %" PRIu32 ") left bound by %" PRIi64, replay_window_size, ssn_diff);
 				result = ECHO; // not known if it was (ever) received before
 			}
-			else if (rec->window & 1 << ssn_diff)
+			else if (rec->window & ((uint32_t)1 << ssn_diff))
 			{
 				// diff < size -> inside window, already received before -> replay
-        OC_DBG("wnd new\t= %" PRIx32, rec->window);
-        OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%X) -> replay", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
+				OC_DBG("wnd new\t= %" PRIx32, rec->window);
+        OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%X) -> replay", replay_window_size, ssn_diff, (uint32_t)1 << ssn_diff);
 				result = REPLAY; // known that it was received before
 			}
 			else
 			{
 				// SSN not received before, tick the bit; DO NOT update rx_ssn (not the max)
-				rec->window |= 1 << ssn_diff;
+				rec->window |= (uint32_t)1 << ssn_diff;
 				OC_DBG("wnd new\t= %" PRIx32, rec->window);
-				OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%X) -> synced", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
+        OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%X) -> synced", replay_window_size, ssn_diff, (uint32_t)1 << ssn_diff);
 				result = SYNCED;
 			}
 		}
