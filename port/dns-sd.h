@@ -21,7 +21,9 @@ extern "C" {
    @brief Publish a KNX mDNS service with new values in order to enable DNS-SD discovery on server side.
           Sends 'goodbye' with old values before the new publishing (if not yet done, such as on a previous call of 
           'dns stop' service). 
-  
+          Sends the new announcement a second time one second later (RFC 6762, section 8.3 and 8.4).
+          The repeat runs on the RI event loop, so the caller keeps polling with oc_main_poll().
+
    @param serial_no KNX serial number
    @param iid KNX Installation ID, set to 0 if the device has not been commissioned yet
    @param ia KNX Individual Address, set to 0 if the device has not been commissioned yet

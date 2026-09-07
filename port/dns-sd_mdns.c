@@ -16,6 +16,9 @@
  *
  * Service publishing consists of two complementary mechanisms:
  *   1. Proactive multicast announcements at startup / parameter change.
+ *      RFC 6762, section 8.3 asks for at least two of them, one second
+ *      apart, and section 8.4 repeats that step on every record change.
+ *      The repeat runs as a delayed callback on the RI event loop.
  *   2. A background listener thread that responds to incoming PTR queries
  *      for _knx._udp.local, ensuring that mDNS browsers (like dns-sd -B)
  *      discover our service at any time.
@@ -27,6 +30,7 @@
 #endif
 
 #include "dns-sd.h"
+#include "oc_api.h"
 #include "oc_log.h"
 #include "util/oc_list.h" // oc_list_head() for iterating endpoint list
 
@@ -184,6 +188,9 @@ static HANDLE listener_thread_handle = NULL;
 #define KNX_SERVICE_TYPE "_knx._udp.local."
 #define KNX_SUBTYPE_PM "_pm._sub._knx._udp.local."
 #define MDNS_BUF_SIZE 2048
+
+// RFC 6762 section 8.3: the second unsolicited announcement follows "one second apart"
+#define MDNS_ANNOUNCEMENT_REPEAT_DELAY_S 1
 
 // Scratch buffer for building mDNS packets (no heap allocation). Must be 32-bit aligned as required by mdns.h.
 #ifdef _MSC_VER
@@ -558,6 +565,48 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
 
   }
   return summary;
+}
+
+/**
+ * @brief Send the current advertisement a second time.
+ *
+ * RFC 6762 section 8.3: "The Multicast DNS responder MUST send at least two
+ * unsolicited responses, one second apart." Section 8.4 applies the same step
+ * to every change of the records. Multicast carries no acknowledgement, so a
+ * lost single announcement leaves every cache with the old record until its
+ * TTL runs out.
+ *
+ * Runs as a delayed callback on the RI event loop, the same thread that sends
+ * the first announcement, so mdns_buf and the socket see no concurrent use.
+ */
+static oc_event_callback_retval_t repeat_announcement(void *data)
+{
+  (void)data;
+  if (current_advertisement.valid)
+  {
+    (void)send_announcement(&current_advertisement, false);
+  }
+  return OC_EVENT_DONE;
+}
+
+/**
+ * @brief Arm the delayed second announcement, replacing a pending one.
+ *
+ * A new change within the second restarts the delay, so the repeat always
+ * carries the newest record and the old record gets no late second copy.
+ */
+static void schedule_announcement_repeat(void)
+{
+  oc_remove_delayed_callback(NULL, repeat_announcement);
+  oc_set_delayed_callback(NULL, repeat_announcement, MDNS_ANNOUNCEMENT_REPEAT_DELAY_S);
+}
+
+/**
+ * @brief Drop a pending second announcement.
+ */
+static void cancel_announcement_repeat(void)
+{
+  oc_remove_delayed_callback(NULL, repeat_announcement);
 }
 
 
@@ -1423,6 +1472,11 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     current_advertisement.knx.ia = prev_ia;
     current_advertisement.knx.pm = prev_pm;
     current_advertisement.valid = prev_valid;
+    cancel_announcement_repeat();
+  }
+  else
+  {
+    schedule_announcement_repeat();
   }
 
   OC_DBG("DNS-SD: announcement %s", ret == 0 ? "succeeded" : "failed");
@@ -1490,7 +1544,10 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
   // reannounce immediately so the updated TXT record (SP=<n> or empty) is picked up w/o the caller having to call knx_dns_sd_update_service separately
   if (current_advertisement.valid) 
   {
-    (void)send_announcement(&current_advertisement, false);
+    if (send_announcement(&current_advertisement, false) == 0)
+    {
+      schedule_announcement_repeat();
+    }
   }
 
   OC_INF("DNS-SD: DNS-SD sleep period set to %d.", sp);
@@ -1508,6 +1565,9 @@ mdns_knx_record_t knx_dns_sd_get_current_record(void)
 
 void knx_dns_sd_stop(void)
 {
+  // a repeat after the goodbye would revive the record in every cache
+  cancel_announcement_repeat();
+
   // send goodbye for current advertisement
   if (current_advertisement.valid) 
   {

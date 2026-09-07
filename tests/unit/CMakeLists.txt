@@ -152,6 +152,25 @@ kis_add_test(test_oc_abort           test_oc_abort.cpp)
 kis_add_test(test_oc_network_interface test_oc_network_interface.cpp)
 kis_add_test(test_oc_random          test_oc_random.cpp)
 kis_add_test(test_oc_log             test_oc_log.cpp)
+# The mDNS announcement tests are POSIX-only: the source uses <net/if.h>,
+# if_nametoindex("lo"), ssize_t and the glibc socket entry points, and the
+# --wrap facility below is a GNU ld feature. Guarded with if(UNIX) so the
+# windows-test-gcc preset keeps building.
+#
+# The wraps redirect sendto to a recorder (no packet leaves the host),
+# recvfrom to an empty socket (the listener thread answers no real query),
+# get_ip_context_for_device to a fake context with one loopback endpoint
+# (dns-sd_mdns.c runs without oc_connectivity_init()) and oc_clock_time to a
+# test-controlled clock (the one-second repeat needs no real sleep).
+if(UNIX)
+    kis_add_test(test_dns_sd_mdns    test_dns_sd_mdns.cpp)
+    target_link_options(test_dns_sd_mdns PRIVATE
+        -Wl,--wrap=sendto
+        -Wl,--wrap=recvfrom
+        -Wl,--wrap=get_ip_context_for_device
+        -Wl,--wrap=oc_clock_time
+    )
+endif()
 # oc_rep macros use g_err |= cbor_encode_*() which is an invalid
 # enum-to-int conversion in strict C++. Allow it with -fpermissive.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

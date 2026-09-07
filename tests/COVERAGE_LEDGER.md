@@ -111,7 +111,7 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | port/linux/oc_network_interface.c | test_oc_network_interface.cpp | DONE |
 | port/random_psa.c | test_oc_random.cpp | DONE |
 | port/oc_log.c | test_oc_log.cpp | DONE |
-| port/dns-sd_mdns.c | — | INTEGRATION |
+| port/dns-sd_mdns.c | test_dns_sd_mdns.cpp | DONE |
 | port/linux/ipadapter.c | — | INTEGRATION |
 
 > Note: `port/windows/*` and `port/zephyr/*` variants (mutex.c,
@@ -605,17 +605,33 @@ it is absent from the unit binary.
 | knx_log_bytes_hex | DONE (single line, empty, 16-byte, 33-byte wrap) |
 | oc_file_print | COMPILED-OUT — `#if defined(OC_PRINT) && defined(KNX_LOG_TO_FILE)` (off) |
 
-### port/dns-sd_mdns.c — INTEGRATION (mDNS sockets + listener thread)
+### port/dns-sd_mdns.c — DONE (`--wrap` for the sockets, real listener thread)
 
-The public service-announcement API (`knx_publish_service` and friends) opens
-multicast UDP sockets, spawns a background listener thread, and sends/receives
-real mDNS packets — all network/thread behavior validated at integration level.
-The pure static helpers (`dns_name_equal`, `is_knx_subtype_query`) are
-**file-static** and only reachable by `#include`-ing `dns-sd_mdns.c`, which is not
-viable: it is already compiled into `libkis-port` (duplicate symbols) and pulls
-in the header-only `mdns.h` plus POSIX socket code that does not compile as part
-of a g++ test TU. Concrete reason: **network/thread I/O + statics unreachable
-without a duplicate-symbol `#include`**.
+`test_dns_sd_mdns.cpp` covers every public function and, through the listener
+thread, the static query responder:
+
+- `knx_dns_sd_update_service`: one announcement at once, the RFC 6762 section 8.3
+  repeat one second later, the restart of that repeat on a change within the
+  second, the goodbye for the old record, NULL serial number, rollback on a
+  send failure, failure without an interface.
+- `knx_dns_sd_set_sleep_period`: SP in the TXT record, the TXT goodbye when SP
+  goes back to 0, no goodbye when SP was unset, nothing before a publish.
+- `knx_dns_sd_stop`: goodbye, cancel of the pending repeat, nothing without a
+  publish.
+- `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record`.
+- `mdns_query_callback` and the `send_*_response` helpers (static): PTR for the
+  service type, the serial, the IA and the `_pm` subtype (only in programming
+  mode), SRV, AAAA, TXT and ANY, plus foreign names and unhandled types.
+
+The test links with `--wrap=sendto` (records the packets), `--wrap=recvfrom`
+(hands the listener thread the queries the test queued, an empty socket
+otherwise), `--wrap=get_ip_context_for_device` (one fake loopback endpoint)
+and `--wrap=oc_clock_time` (a test-controlled clock, no real sleep for the
+repeat). The responder cases wait for the real listener thread with a bounded
+poll. Two cases carry a `GTEST_SKIP()` for the open finding F-016 (a TXT
+record in the answer slot leaves the packet empty). The target is registered
+under `if(UNIX)`, because the source and the `--wrap` facility are POSIX/GNU ld
+only.
 
 ### port/linux/ipadapter.c — INTEGRATION (live UDP/multicast sockets + RX threads)
 

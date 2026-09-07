@@ -56,11 +56,12 @@ KNX_SERVICE_TYPE = "_knx._udp.local."
 # Timeouts (ms for zeroconf, seconds for CoAP)
 MDNS_BROWSE_TIMEOUT_S = 2
 # How long to wait after a CoAP state-change before querying mDNS.
-# The stack re-announces within ~10 ms of the trigger; 1 s is ample even
-# under ASan CI load.  The passive-capture approach no longer relies on
-# this wait to catch announcements -- it is only used in cleanup/restore
-# steps after a state change.
-MDNS_ANNOUNCE_WAIT_S = 1
+# The stack re-announces within ~10 ms of the trigger and repeats that
+# announcement one second later (RFC 6762 section 8.3).  1.5 s lets the repeat
+# pass before the next step, even under ASan CI load.  The passive-capture
+# approach no longer relies on this wait to catch announcements -- it is
+# only used in cleanup/restore steps after a state change.
+MDNS_ANNOUNCE_WAIT_S = 1.5
 COAP_TIMEOUT = 5.0
 
 
@@ -623,9 +624,18 @@ def _parse_mdns_packets(iface_idx: int,
 
 
 class TransitionResult:
-    """Parsed result of a single mDNS state-change transition."""
+    """Parsed result of a single mDNS state-change transition.
 
-    def __init__(self, packets: "list[MdnsPacketInfo]"):
+    Packets that arrived before *trigger_time* belong to the previous step
+    (for example the RFC 6762 section 8.3 repeat of the setup announcement)
+    and are dropped, so goodbyes/announces only hold the reaction to the
+    trigger.
+    """
+
+    def __init__(self, packets: "list[MdnsPacketInfo]",
+                 trigger_time: "float | None" = None):
+        if trigger_time is not None:
+            packets = [p for p in packets if p.timestamp >= trigger_time]
         self.packets   = packets
         self.goodbyes  = [p for p in packets if p.is_goodbye]
         self.announces = [p for p in packets if not p.is_goodbye]
@@ -699,10 +709,11 @@ def _run_transition(iface_idx: int, trigger_fn,
     t.start()
     time.sleep(0.15)  # let socket bind before triggering
 
+    trigger_time = time.monotonic()
     trigger_fn()
 
     t.join(timeout + 2)
-    return TransitionResult(captured)
+    return TransitionResult(captured, trigger_time)
 
 
 # ---------------------------------------------------------------------------

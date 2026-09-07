@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1392 unit tests** (52 files) + **376 runtime tests** (19 files) = **1768 total**
+> **1420 unit tests** (53 files) + **376 runtime tests** (19 files) = **1796 total**
 >
-> Branch: `work_in_progress` | Unit: 1392 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1392).
+> Branch: `work_in_progress` | Unit: 1392 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1392). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run.
 > Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 371 passed, 5 skipped, 0 failed, 0 errors (376 collected, 823.70s) - fully green. This run verified the inbound length guards in `coap_parse_udp_message()` / `oscore_is_oscore_message()` and the EMPTY-message rules (type and TKL) in `oscore_parse_outer_message()`. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -10,7 +10,7 @@
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 52 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -994,6 +994,28 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `AppPrecalculatedSpake` | 7 | Record getter: non-NULL, valid contents, stable pointer, salt + iteration-count match, L is an uncompressed P-256 point, w0 non-zero |
 | `AppSpakeRecord` | 1 | w0 and L re-derived from password + salt + iterations match the record |
 | `AppPrecalculatedSpakeInit` | 1 | `oc_spake2plus_init_data()` succeeds with the valid stub record |
+
+---
+
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (28 tests, 2 skipped)
+
+**Source:** `port/dns-sd_mdns.c`
+
+Linker `--wrap` of `sendto`, `recvfrom`, `get_ip_context_for_device` and
+`oc_clock_time`: no packet leaves the host, the listener thread receives only
+the queries the test queues, one fake loopback endpoint stands in for the
+connectivity layer, and a test-controlled clock drives the RI timed-event list
+through `oc_main_poll()`. Two cases are skipped for the open finding F-016.
+The target is registered under `if(UNIX)`, since the source is POSIX-only and
+`--wrap` is a GNU ld feature.
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `knx_dns_sd_update_service` | 9 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface |
+| `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear (skipped, F-016), no goodbye for an unset SP, nothing before a publish |
+| `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
+| getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
+| query responder | 10 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT (skipped, F-016), foreign names, unhandled type |
 
 ---
 

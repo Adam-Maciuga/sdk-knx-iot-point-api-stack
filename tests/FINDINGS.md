@@ -380,3 +380,59 @@ Bugs and issues discovered during unit test development.
   `RoundTrip_Block1SurvivesEveryValidSzxWhileBlock2Differs` (sweeps all seven legal
   Block1 sizes with Block2 pinned to a deliberately different value, so the two can
   never coincidentally agree).
+
+## F-015: ~~DNS-SD unsolicited announcement sent once per change (RFC 6762 section 8.3 violation)~~ - RESOLVED
+
+- **File:** `port/dns-sd_mdns.c` (`knx_dns_sd_update_service`, `knx_dns_sd_set_sleep_period`).
+- **Severity:** Medium - multicast carries no acknowledgement. A lost single announcement leaves
+  every cache with the old record until its TTL runs out.
+- **Found by:** a review of the announcement path against RFC 6762 section 8.3, confirmed by
+  `test_dns_sd_mdns.cpp`. The runtime test `test_5_1_901_3_transition_pm_disable` had encoded the
+  single announcement: its capture window opened exactly one second after the setup change, so a
+  conformant responder fails it with the repeat of the setup announcement.
+- **Description:** RFC 6762 section 8.3 requires at least two unsolicited responses, one second
+  apart, and section 8.4 applies the same step to every change of a record. The stack sent
+  `send_announcement()` once per change. The KNX IoT standard 3/10/5 clause 2.6.1.2.2 names RFC 6763
+  without a change, so RFC 6762 applies as written. The normative test case 5.1.2.5a measures the
+  TTL of the `_pm` PTR record and names no count of responses; a device with two announcements
+  passes it. The test `5.1.901.3` has no id in the `08_10_5` catalog and encoded the behavior of
+  this stack, not a requirement.
+- **Resolution:** Every successful announcement schedules `repeat_announcement()` as a delayed
+  callback on the RI event loop (`oc_set_delayed_callback`, one second). A new change within that
+  second restarts the delay, so the repeat always carries the newest record. `knx_dns_sd_stop()`
+  cancels a pending repeat before the goodbye. `test_5_1_discovery_mdns.py` now drops packets that
+  arrive before the trigger of a transition (`TransitionResult(packets, trigger_time)`), and
+  `MDNS_ANNOUNCE_WAIT_S` rose to 1.5 s so the repeat passes before the next step.
+- **Verification:** `test_dns_sd_mdns.cpp`: the four cases `SecondAnnouncementFollowsOneSecondLater`,
+  `RepeatLeavesOnlyOnce`, `ChangeWithinOneSecondRestartsTheRepeat` and `SleepPeriodChangeGetsARepeat`
+  are red on the previous code and green on the fix. The runtime suite was not run on the developer
+  host (no `pytest`, veth needs root); the CI runtime job verifies the changed capture filter.
+
+## F-016: TXT record in the answer slot of an mDNS packet is dropped (empty SP goodbye and empty TXT answer)
+
+- **File:** `port/dns-sd_mdns.c` (`knx_dns_sd_set_sleep_period` for `sp == 0`, `send_txt_response`)
+  and the vendored mDNS library `mdns.h` (`mdns_answer_add_record`,
+  `mdns_answer_multicast_rclass_ttl`, `mdns_query_answer_unicast`).
+- **Severity:** Medium - a cleared sleep period never reaches a cache, so a listener keeps
+  `SP=<n>` until the TTL runs out, and a direct TXT query gets a packet without a record. The
+  discovery chain of `zeroconf` is not affected, because it reads the TXT record from the
+  additional section of the PTR and SRV answers.
+- **Found by:** two cases of `test_dns_sd_mdns.cpp`. `ClearingTheSleepPeriodSendsATxtGoodbye`
+  sets SP to 30 and back to 0 and expects the goodbye for the TXT record `SP=30`.
+  `TxtQueryForTheInstanceGetsTheTxtAnswer` sends a TXT query and expects the TXT record as the
+  answer. Both cases recorded the same 12-byte packet: `00 00 84 00 00 00 00 01 00 00 00 00`.
+  That is a bare DNS header. Its ANCOUNT field (bytes 7 and 8) promises one answer record, and
+  no record follows. A receiver reads the count, finds no record and discards the packet.
+- **Description:** `mdns_answer_add_record()` returns without writing when the record type is
+  TXT ("TXT records will be coalesced into one record later"). The coalescing step
+  `mdns_answer_add_txt_record()` runs only over the authority and the additional arrays, never
+  over the single `answer` argument. A TXT record passed as `answer` therefore leaves the packet
+  empty, while the header still counts one answer. The stack passes a TXT record as `answer` at
+  the two places above.
+- **Status:** Open. The two test cases carry a `GTEST_SKIP()` with this id.
+- **Fix proposal:** one hunk in `port/mdns.patch`: after the `answer` record is added in
+  `mdns_answer_multicast_rclass_ttl()` and in `mdns_query_answer_unicast()`, call
+  `mdns_answer_add_txt_record(buffer, capacity, data, &record, 1, rclass, ttl, &string_table)`.
+  `mdns_answer_add_record()` ignores a TXT record and `mdns_answer_add_txt_record()` ignores every
+  other type, so the extra call changes nothing for the other record types. Then remove the two
+  skips and close this entry.
