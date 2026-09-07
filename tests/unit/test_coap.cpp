@@ -1118,12 +1118,19 @@ TEST_F(CoapTest, SetHeaderLocationQuery_SkipsLeadingQuestionMarks)
 class CoapPayloadLimitTest : public ::testing::Test {
 protected:
   std::vector<uint8_t> wire;
+  size_t wire_len;
   coap_packet_t parsed;
 
   /* Build a minimal CON POST (no token, no options) carrying payload_len bytes of payload */
   void build_post_with_payload(size_t payload_len)
   {
-    wire.assign(COAP_HEADER_LEN + 1 + payload_len, 0);
+    wire_len = COAP_HEADER_LEN + 1 + payload_len;
+
+    /*
+      one spare byte behind the datagram mimics the receive buffer of oc_allocate_message,
+      which is allocated with one byte more than OC_PDU_SIZE so the parser can append the null-terminator
+    */
+    wire.assign(wire_len + 1, 0);
 
     wire[0] = 0x40;      /* version 1, type CON, token length 0 */
     wire[1] = COAP_POST; /* code */
@@ -1145,7 +1152,7 @@ TEST_F(CoapPayloadLimitTest, PayloadBelowMax_Accepted)
   const size_t max_app_data = oc_get_max_app_data_size();
   build_post_with_payload(max_app_data - 2);
 
-  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), COAP_NO_ERROR);
   EXPECT_EQ(parsed.payload_len, (uint32_t)(max_app_data - 2));
   /* the parser appends a null-terminator behind the payload */
   EXPECT_EQ(parsed.payload[parsed.payload_len], '\0');
@@ -1156,7 +1163,7 @@ TEST_F(CoapPayloadLimitTest, PayloadAtMaxMinusOne_Accepted)
   const size_t max_app_data = oc_get_max_app_data_size();
   build_post_with_payload(max_app_data - 1);
 
-  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), COAP_NO_ERROR);
   EXPECT_EQ(parsed.payload_len, (uint32_t)(max_app_data - 1));
   EXPECT_EQ(parsed.payload[parsed.payload_len], '\0');
 }
@@ -1167,7 +1174,7 @@ TEST_F(CoapPayloadLimitTest, PayloadExactlyMax_RejectedWith413)
   build_post_with_payload(max_app_data);
 
   /* the terminator would no longer fit into the application data buffer */
-  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), REQUEST_ENTITY_TOO_LARGE_4_13);
 }
 
 TEST_F(CoapPayloadLimitTest, PayloadAboveMax_RejectedWith413)
@@ -1175,7 +1182,7 @@ TEST_F(CoapPayloadLimitTest, PayloadAboveMax_RejectedWith413)
   const size_t max_app_data = oc_get_max_app_data_size();
   build_post_with_payload(max_app_data + 100);
 
-  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), REQUEST_ENTITY_TOO_LARGE_4_13);
 }
 
 TEST_F(CoapPayloadLimitTest, OversizedPayload_IsNotTruncated)
@@ -1183,7 +1190,7 @@ TEST_F(CoapPayloadLimitTest, OversizedPayload_IsNotTruncated)
   const size_t max_app_data = oc_get_max_app_data_size();
   build_post_with_payload(max_app_data + 1);
 
-  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), REQUEST_ENTITY_TOO_LARGE_4_13);
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), REQUEST_ENTITY_TOO_LARGE_4_13);
 
   /* no truncated payload must be handed over to the application layer */
   EXPECT_NE(parsed.payload_len, (uint32_t)(max_app_data - 1));
@@ -1193,7 +1200,7 @@ TEST_F(CoapPayloadLimitTest, EmptyPayload_Accepted)
 {
   build_post_with_payload(0);
 
-  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire.size()), COAP_NO_ERROR);
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), COAP_NO_ERROR);
   EXPECT_EQ(parsed.payload_len, 0u);
 }
 
