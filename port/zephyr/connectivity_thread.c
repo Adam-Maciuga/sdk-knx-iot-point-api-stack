@@ -16,11 +16,14 @@
 */
 
 #include <stddef.h>
+#include <stdlib.h>
 #include "oc_buffer.h"
 #include "oc_endpoint.h"
+#include "oc_network_monitor.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
 #include "port/oc_network_interface.h"
+#include "util/oc_list.h"
 
 #include <zephyr/kernel.h>
 #include <openthread/instance.h>
@@ -259,4 +262,71 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 int oc_network_refresh_endpoints(void)
 {
     return 0;
+}
+
+/* ── Network interface event monitor ─────────────────────────────────────── */
+/* api/oc_network_events.c dispatches interface events through
+ * handle_network_interface_event_callback() for every port, so this backend
+ * provides the same registry as the Linux, Windows and Wi-Fi ports. This port
+ * does not raise the events itself; it only forwards those posted through
+ * oc_network_interface_event().
+ */
+
+OC_LIST(oc_network_interface_cb_list);
+
+int oc_add_network_interface_event_callback(interface_event_handler_t cb)
+{
+    if (!cb)
+    {
+        return -1;
+    }
+
+    oc_network_interface_cb_t *cb_item = calloc(1, sizeof(oc_network_interface_cb_t));
+
+    if (!cb_item)
+    {
+        OC_ERR("Failed to allocate network interface callback item!");
+        return -1;
+    }
+
+    cb_item->handler = cb;
+    oc_list_add(oc_network_interface_cb_list, cb_item);
+
+    return 0;
+}
+
+int oc_remove_network_interface_event_callback(interface_event_handler_t cb)
+{
+    if (!cb)
+    {
+        return -1;
+    }
+
+    oc_network_interface_cb_t *cb_item = oc_list_head(oc_network_interface_cb_list);
+
+    while (cb_item != NULL && cb_item->handler != cb)
+    {
+        cb_item = cb_item->next;
+    }
+
+    if (cb_item == NULL)
+    {
+        return -1;
+    }
+
+    oc_list_remove(oc_network_interface_cb_list, cb_item);
+    free(cb_item);
+
+    return 0;
+}
+
+void handle_network_interface_event_callback(oc_interface_event_t event)
+{
+    oc_network_interface_cb_t *cb_item = oc_list_head(oc_network_interface_cb_list);
+
+    while (cb_item != NULL)
+    {
+        cb_item->handler(event);
+        cb_item = cb_item->next;
+    }
 }
