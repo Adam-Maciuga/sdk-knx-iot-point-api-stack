@@ -91,7 +91,7 @@ static void srp_client_cb(const otSockAddr *aServerSockAddr, void *aContext)
     OC_INF("KNX IoT SRP client cb\n");
 }
 
-static void knx_set_srp_host(otInstance *thrInstancePtr, char *serial_no)
+static void knx_set_srp_host(otInstance *thrInstancePtr, const char *serial_no)
 {
   uint16_t size;
 
