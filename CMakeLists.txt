@@ -68,7 +68,17 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
-set(KNX_PAYLOAD_SIZE "1024" CACHE STRING "Maximum payload bytes, allocated by stack/applications per default (see notes below on compile defintion)" FORCE)
+set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/applications per CoAP message" FORCE)
+
+## KNX payload size (bytes)
+# 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 273 = 1041)
+# stays below COAP_MAX_MESSAGE_SIZE (1152), the RFC 7252 clause 4.6 guidance for an unknown path MTU (1280)
+#  - used for stack AND application 'malloc/calloc' calls
+#    such as for application read responses or stack discovery responses
+#  - must be carefully chosen since stack resources usually need more bytes than application datapoints
+#    (such as for discovery linked list responses, here it depends on how many application resources
+#     are defined and responded)
+#  - can be overwritten at runtime by applications with oc_set_pdu_size()
 
 # Network
 # IPv6 unicast port
@@ -260,13 +270,7 @@ target_compile_definitions(kis-common INTERFACE
     KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS}
 
     
-    ## KNX payload size (bytes)
-    #  - defines the default value that is used for stack AND application 'malloc/calloc' calls
-    #    such as for application read responses or stack discovery responses
-    #  - must be carfully choosen since stack resources may need much more bytes than application datapoints
-    #    (stack needs a minimum of 1k for discovery responses + extra buffer,
-    #     this depends on how many application resources are defined and responded)
-    #  - cannot be overwritten at runtime by applications
+    # see notes on defintion above
     KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE}
 )
 

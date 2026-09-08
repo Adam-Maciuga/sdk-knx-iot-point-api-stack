@@ -35,7 +35,10 @@ bool oc_do_s_mode_message_update(void* recipient)
 
   if (payload_size > 0)
   {
-    // udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
+    /*
+      udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
+      the gap must be the plain budget: coap_serialize_message() below writes inner AND outer options into one flat message
+    */
     coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
 
     udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
@@ -119,7 +122,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
   // no callback is possible to this (outbound) s-mode POST message, the message needs to generate its own token/mid
   memcpy(&udp_message_update->endpoint, s_mode_message_ep, sizeof(oc_endpoint_t));
 
-  // s-mode message MAY carry a payload, this step is needed
+  // s-mode message MAY carry a payload, this step is needed (same plain budget offset as used in oc_do_s_mode_message_update)
   oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
 
   // default it to an CON s-mode message

@@ -23,12 +23,16 @@ extern "C" {
  * @param pdu_size total CoAp PDU size in bytes
  *
  * @return int 0-success, -1 when the size cannot hold both CoAP header budgets
- *         plus the smallest block-wise block (16 bytes)
+ *         plus the smallest block-wise block (16 bytes), or when it exceeds
+ *         COAP_MAX_MESSAGE_SIZE
  *
  * @note
  * - the input is the TOTAL CoAp PDU size, i.e. the size of the buffer allocated per message,
  *   covering the CoAP payload and the CoAP headers (PLURAL), but not the UDP/IPv6 header
- * - the payload budget left to the application is 'pdu_size - 2 * COAP_MAX_HEADER_SIZE'
+ * - the upper bound is COAP_MAX_MESSAGE_SIZE (1152), the size RFC 7252 clause 4.6 recommends a CoAP
+ *   message does not exceed when the path MTU is unknown; KNX_PAYLOAD_SIZE is dimensioned so the
+ *   default PDU stays below it
+ * - the payload budget left to the application is 'pdu_size - (COAP_MAX_OUTER_HEADER_SIZE + COAP_MAX_INNER_HEADER_SIZE)'
  * - two CoAP header budgets are reserved because an OSCORE message holds both layers in the
  *   same buffer at the same time (RFC 8613, section 5.3):
  *   - outer: CoAP header, token, Class U (unprotected) options and the OSCORE option, this is what goes on the wire

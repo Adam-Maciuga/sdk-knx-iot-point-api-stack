@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1420 unit tests** (53 files) + **376 runtime tests** (19 files) = **1796 total**
+> **1433 unit tests** (53 files) + **385 runtime tests** (20 files) = **1818 total**
 >
-> Branch: `work_in_progress` | Unit: 1392 registered and passed (windows-test-gcc, GCC/CTest, ~90s, 100% passed out of 1392). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run. On `linux-test-gcc` the full unit run is 1420 passed, 0 skipped (~88s).
-> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 371 passed, 5 skipped, 0 failed, 0 errors (376 collected, 823.70s) - fully green. This run verified the inbound length guards in `coap_parse_udp_message()` / `oscore_is_oscore_message()` and the EMPTY-message rules (type and TKL) in `oscore_parse_outer_message()`. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1405 registered and passed (windows-test-gcc, GCC/CTest, ~52s, 100% passed out of 1405). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run. On `linux-test-gcc` the full unit run is 1433 passed, 0 skipped.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.32s) - fully green. This run verified the three-way CoAP header budget split (D-002) and the new Block2 reassembly in the test client (F-017). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -401,62 +401,96 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_buffer_settings.cpp — Buffer/PDU Settings (29 tests)
+### test_oc_buffer_settings.cpp — Buffer/PDU Settings (39 tests)
 
 **Source:** `api/oc_main.c` (declared in `include/oc_buffer_settings.h`)
 
 Contract under test (see D-001 in `tests/FINDINGS.md`): the argument of
-`oc_set_pdu_size()` is the **total CoAP PDU size**, i.e. payload plus the outer
-and inner CoAP headers (`2 * COAP_MAX_HEADER_SIZE`, RFC 8613 clause 5.3). It is
-stored verbatim, and the payload budget used to derive the block size is
-`pdu_size - 2 * COAP_MAX_HEADER_SIZE`.
+`oc_set_pdu_size()` is the **total CoAP PDU size**, i.e. payload plus the CoAP
+header budget. Since the header split (RFC 8613 clause 4.1.1) that budget is
+`OC_COAP_HEADER_BUDGET = COAP_MAX_OUTER_HEADER_SIZE + COAP_MAX_INNER_HEADER_SIZE`,
+not a multiple of a single constant. The argument is stored verbatim, the payload
+budget used to derive the block size is `pdu_size - OC_COAP_HEADER_BUDGET`, and the
+accepted range is `OC_COAP_HEADER_BUDGET + 16 .. COAP_MAX_MESSAGE_SIZE`.
+
+Current values: outer 54, inner 219, plain 273, `KNX_PAYLOAD_SIZE` 768,
+default PDU 1041, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 
 **Defaults (`PduDefaults`, 5 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
-| `DefaultPduReservesTwoCoapHeaders` | Default PDU == `KNX_PAYLOAD_SIZE + 2*COAP_MAX_HEADER_SIZE` |
-| `DefaultBlockSizeMatchesPayloadSizeCappedAt1024` | Default block size follows the payload size, capped at 1024 |
+| `DefaultPduReservesTwoCoapHeaders` | Default PDU == `KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET` |
+| `DefaultBlockSizeMatchesPayloadSizeCappedAt1024` | Default block == `EXPECTED_DEFAULT_BLOCK_SIZE` (512 at the current payload) and is a power of two. Name retains the historical 1024 cap; the value is now derived from `KNX_PAYLOAD_SIZE` and the RFC 7252 clause 4.6 ceiling |
 | `DefaultBlockSizeIsAnEncodableRfc7959Size` | Default block size is a legal SZX 0..6 value (power of two, 16..1024) |
 | `DefaultBlockSizeMatchesWhatSetPduSizeWouldDerive` | Static initializer agrees with the runtime setter |
 | `DefaultPduExceedsPayloadSize` | Default PDU strictly larger than the payload budget |
 
-**Accessors (`BufferSettings`, 10 tests)**
+**Accessors (`BufferSettings`, 9 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
 | `MaxAppDataSizeReturnsKnxPayloadSize` | `oc_get_max_app_data_size()` == `KNX_PAYLOAD_SIZE` |
 | `MaxAppDataSizeIsStable` | Repeated calls return the same value |
-| `SetPduSizeBelowMinimumReturnsError` | PDU below `2*COAP_MAX_HEADER_SIZE+16` → -1 |
-| `SetPduSizeBelowMinimumDoesNotChangeState` | Failed set leaves PDU and block size unchanged |
+| `SetPduSizeBelowMinimumDoesNotChangeState` | PDU below `OC_COAP_HEADER_BUDGET+16` is refused and leaves PDU and block size unchanged |
 | `SetPduSizeValidReturnsZero` | Valid PDU accepted |
 | `GetPduSizeReturnsExactlyWhatWasSet` | `oc_get_pdu_size()` returns the stored value verbatim |
 | `SetPduSizeFromGetPduSizeIsIdempotent` | Feeding the getter back into the setter is a fixed point (5 iterations) |
 | `BlockSizeIsPowerOfTwoInRange` | Block size is a power of two in 16..1024 |
-| `LargePduYieldsMaxBlockSize` | Large PDU → 1024-byte block |
+| `LargePduYieldsMaxBlockSize` | The largest accepted PDU (`MAXIMUM_PDU_ARG`) yields exactly `ON_WIRE_BLOCK_CEILING` (512 today) with no clamp needed |
 | `SmallerPduYieldsSmallerBlockSize` | Smaller PDU → smaller block size |
 
 **Worst-case OSCORE frame (`PduWorstCaseFrame`, 11 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
-| `MeasuredOuterHeaderFitsCoapMaxHeaderSize` | Serialized max-option outer frame ≤ `COAP_MAX_HEADER_SIZE` |
-| `MeasuredInnerHeaderFitsCoapMaxHeaderSize` | Serialized max-option inner frame ≤ `COAP_MAX_HEADER_SIZE` |
+| `MeasuredOuterHeaderFitsOuterBudget` | Serialized max-option outer frame ≤ `COAP_MAX_OUTER_HEADER_SIZE` |
+| `MeasuredInnerHeaderFitsInnerBudget` | Serialized max-option inner frame ≤ `COAP_MAX_INNER_HEADER_SIZE` |
 | `DefaultPduHoldsWorstCaseOscoreFrame` | Default PDU holds outer + inner headers + a full encrypted payload |
 | `PayloadCarryingFrameStaysWithinMeasuredBudget` | A payload-carrying frame stays within the measured budget |
 | `SetPduSizeToDefaultEquivalentReproducesDefaultPduSize` | Setting the default-equivalent argument restores the default PDU |
 | `SetPduSizeToDefaultEquivalentReproducesDefaultBlockSize` | ...and restores the default block size |
-| `PduBelowTwoHeadersPlusMinBlockIsRejected` | Guard rejects anything below 344 bytes |
+| `PduBelowTwoHeadersPlusMinBlockIsRejected` | Guard rejects anything below `OC_COAP_HEADER_BUDGET + 16` (289 bytes) |
 | `MinimumAcceptedPduYieldsMinimumBlockSize` | The smallest accepted PDU yields a 16-byte block |
-| `GuardAndBlockBudgetUseSameHeaderMultiple` | Guard and payload-budget subtraction use the same `2*` multiple |
+| `GuardAndBlockBudgetUseSameHeaderMultiple` | Guard and payload-budget subtraction use the same header budget |
 | `BlockSizeIsMonotonicInPduSize` | Block size never decreases as the PDU grows |
 | `LargePduAlwaysHoldsWorstCaseFrame` | Any accepted large PDU still holds the worst-case frame |
+
+**Header budgets (`CoapHeaderBudgets`, 4 tests)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `PlainIsTheSumOfOuterAndInner` | `COAP_MAX_HEADER_SIZE` == outer + inner |
+| `OuterIsSmallerThanInner` | The Class U budget is the smaller of the two |
+| `OuterCoversTheOscoreOption` | The outer budget leaves room for a full OSCORE option value |
+| `InnerCoversEchoAndTheUris` | The inner budget covers Echo plus the KNX Uri-Path/Uri-Query maxima |
+
+**Message size (`CoapMessageSize`, 3 tests)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `DefaultBlockKeepsDatagramWithinGuidance` | The default block keeps a full datagram within `COAP_MAX_MESSAGE_SIZE` |
+| `DerivedBlockNeverExceedsTheCeiling` | The derived block never exceeds `OC_MAX_ON_WIRE_BLOCK_SIZE` (RFC 7252 clause 4.6) |
+| `SetPduSizeRejectsBothOutOfRangeDirections` | Both `MINIMUM-1` and `MAXIMUM+1` → -1, `MAXIMUM` → 0 |
+
+**Serialization modes (`CoapSerializationModes`, 4 tests)**
+
+Pins the three thin wrappers in `messaging/coap/oscore.c` to the mode triple they
+must forward. Verified non-vacuous: transposing one argument in
+`oscore_serialize_plaintext()` makes `PlaintextWrapperUsesInnerOnlyMode` fail.
+
+| Test | What it verifies |
+|------|-----------------|
+| `PlaintextWrapperUsesInnerOnlyMode` | `oscore_serialize_plaintext()` == `(inner, !outer, !oscore)` |
+| `OscoreWrapperUsesOuterOnlyMode` | `oscore_serialize_message()` == `(!inner, outer, oscore)` |
+| `PlainCoapWrapperUsesBothOptionSets` | `coap_serialize_message()` == `(inner, outer, !oscore)` |
+| `TheThreeModesProduceDifferentFrames` | Inner and outer frames differ, guarding against a degenerate serializer |
 
 **Message buffer (`PduMessageBuffer`, 2 tests + `PduZzzRestore`, 1 test)**
 
 | Test | What it verifies |
 |------|-----------------|
-| `AllocatedMessageBufferMatchesConfiguredPduSize` | `oc_allocate_message()` sizes its buffer from `OC_PDU_SIZE` |
+| `AllocatedMessageBufferMatchesConfiguredPduSize` | `oc_allocate_message()` sizes its buffer from `OC_PDU_SIZE` at the maximum accepted PDU |
 | `AllocatedMessageBufferHoldsWorstCaseFrame` | The allocated buffer holds the worst-case OSCORE frame |
 | `RestoreDefaultEquivalentPduSize` | Restores global PDU state for subsequent suites |
 
@@ -1034,12 +1068,57 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess - no mocks.
-17 `.py` files in `tests/runtime/`. 312 tests collected (with parametrize).
+20 `test_*.py` files in `tests/runtime/`. 385 tests collected (with parametrize).
 The per-section headers below count unique test functions; the extra collected
 items come from parametrized cases in `test_5_2_device_resources.py` (16 -> 24)
 and `test_5_2_swu.py` (6 -> 10).
 
 **DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
+
+---
+
+### Expected behaviour: block-wise responses (RFC 7959)
+
+Any response body larger than the DUT's configured application buffer
+(`KNX_PAYLOAD_SIZE`, currently 768, which floors to a 512-byte block) is delivered
+block-wise. This is normal, conformant behaviour and **not** truncation:
+
+- The DUT sets **Block2 (option 23)** with the `M` ("more") bit on every block but the
+  last, and **Size2 (option 28)** on the first block giving the total body length.
+- Because a block ends at a fixed byte offset, the payload of a non-final block
+  routinely ends mid-token, e.g. `...;rt="urn:knx:dpa.65500.201";i`. That is a block
+  boundary, not a half-written buffer.
+- Block2 is a **Class E** option under OSCORE, so on protected exchanges it is carried
+  inside the encrypted inner message, never as an outer option.
+
+`coap_client.py` handles this for the test author:
+
+| Helper | Behaviour |
+|---|---|
+| `get()` | Reassembles Block2 into one complete body before returning |
+| `oscore_get()` | Same, with Block2 encoded as an inner Class E option |
+| `request()` / `oscore_request()` | **One request, one block.** Use these only when a test deliberately wants a single block; pass `block2=` to select which |
+| `multicast_get()` | Does **not** reassemble - see below |
+
+Multicast is deliberately excluded: RFC 7959 section 2.8 requires the remaining blocks
+to be fetched by **unicast**, so a multicast responder legitimately returns only the
+first block. Tests asserting over a multicast link-format body must therefore check the
+Block2 `M` bit and discard the trailing partial entry, as
+`test_5_1_1_3e_if_wildcard` does. Its unicast twin, `test_5_1_1_4e_if_wildcard`,
+validates the complete reassembled body.
+
+Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
+
+| Request | Blocks | Full body |
+|---|---|---|
+| `GET /.well-known/core` | 1 | 396 bytes (no Block2) |
+| `GET /.well-known/core?if=*` | 2 | 688 bytes |
+| `GET /.well-known/core?rt=*` | 2 | 688 bytes |
+| `GET /dev` (OSCORE) | 2 | 553 bytes |
+
+Historical note: these four bodies crossing the block boundary is what surfaced the
+client's missing Block2 support. See F-017 in `FINDINGS.md` (withdrawn - the stack was
+correct, the client was not).
 
 ---
 
@@ -1470,10 +1549,35 @@ and `test_5_2_swu.py` (6 -> 10).
 
 ---
 
+### test_coap_header_budget.py — Worst-Case CoAP Header Budgets (9 tests)
+
+Not an EITT test — pins the three mode-specific header budgets of D-002 against a
+live DUT. Every request is built with each KNX URI option at its declared maximum
+(`KNX_MAX_URI_PATH_LEN` 48 over 8 segments, `KNX_MAX_URI_QUERY_LEN` 64 over 4
+params). An under-budgeted frame makes `coap_oscore_serialize_message()` return 0
+and drop the message **silently**, so every test asserts a real answer came back.
+The OSCORE cases also exercise the Echo option implicitly: the DUT challenges the
+first protected request and `oscore_request()` auto-retries with the Echo value,
+which is the largest inner option in the budget.
+
+| Class | Test | What it covers |
+|-------|------|----------------|
+| **TestInnerHeaderBudgetWorstCase** | `test_oscore_get_with_maximum_uri_query_is_answered` | `COAP_MAX_INNER_HEADER_SIZE` with max Uri-Query |
+| | `test_oscore_get_with_maximum_uri_path_is_answered` | Max Uri-Path; asserts a 4.xx class answer, not a drop |
+| | `test_oscore_get_with_maximum_path_and_query_is_answered` | Both at maximum simultaneously |
+| | `test_dut_still_responsive_after_worst_case_inner_frame` | DUT survives the worst-case inner frame |
+| **TestPlainHeaderBudgetWorstCase** | `test_plain_discovery_with_maximum_uri_query_is_answered` | `COAP_MAX_HEADER_SIZE` (outer+inner) on unprotected `/.well-known/core` |
+| | `test_plain_request_with_maximum_uri_path_is_answered` | Max Uri-Path, unprotected |
+| | `test_plain_discovery_with_maximum_path_and_query_is_answered` | Both at maximum, unprotected |
+| | `test_dut_still_responsive_after_worst_case_plain_frame` | DUT survives the worst-case plain frame |
+| **TestOuterHeaderBudgetBlockwise** | `test_oscore_discovery_pages_are_all_delivered` | `COAP_MAX_OUTER_HEADER_SIZE` across a paginated OSCORE discovery |
+
+---
+
 ### test_coap_payload_limit.py — Oversized Application Payload (4 tests)
 
 Not an EITT test — verifies that a request whose payload exceeds
-`OC_MAX_APP_DATA_SIZE` (`KNX_PAYLOAD_SIZE` = 1024) in a single datagram is
+`OC_MAX_APP_DATA_SIZE` (`KNX_PAYLOAD_SIZE` = 768) in a single datagram is
 answered with `4.13 Request Entity Too Large` instead of being silently
 truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
@@ -1490,9 +1594,32 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 run with `-IncludeUncommitted`):
-**371 passed, 5 skipped, 0 failed, 0 errors** (376 collected, 823.70s) - fully green.
+**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 849.32s) - fully green.
 
-The most recent run verified the inbound length hardening of both parse entry
+The most recent run covered two changes. First, the CoAP header budget was split
+three ways (D-002 in `FINDINGS.md`): `COAP_MAX_OUTER_HEADER_SIZE` (54),
+`COAP_MAX_INNER_HEADER_SIZE` (219) and their sum `COAP_MAX_HEADER_SIZE` (273),
+each selected by the serialization mode actually in use. `KNX_PAYLOAD_SIZE` dropped
+from 1024 to 768 and `COAP_MAX_MESSAGE_SIZE` became 1152, giving a 1041-byte default
+PDU and a 512-byte default block.
+
+Second, that smaller payload pushed the larger link-format bodies
+(`/.well-known/core?if=*` and `?rt=*` at 688 bytes, `/dev` at 553) past the 512-byte
+block boundary for the first time, which exposed a gap in the **test client**, not the
+stack: `coap_client.py` had no Block1/Block2 support and silently returned only the
+first block, and `multicast_get()` never populated `CoapResponse.options` so Block2 was
+invisible on that path entirely. Four discovery tests failed as a result. The client now
+reassembles Block2 in `get()` and `oscore_get()` (Block2 encoded as an inner Class E
+option under OSCORE), and `test_5_1_1_3e_if_wildcard` discards the trailing partial
+entry because RFC 7959 section 2.8 forbids reassembling a multicast response. All four
+recovered with no product change. This was originally filed as a link-format truncation
+defect and is now recorded as **F-017 - WITHDRAWN, NOT A DEFECT**; the stack had been
+paginating correctly all along, setting the Block2 "more" bit and Size2.
+
+The rest of the suite was unchanged, confirming no regression in block-wise transfer,
+discovery, group communication, observe or security.
+
+The preceding run verified the inbound length hardening of both parse entry
 points. `coap_parse_udp_message()` in `messaging/coap/coap.c` now rejects a
 datagram shorter than the fixed CoAP header and one whose announced token
 exceeds the received bytes, so the token `memcpy` can no longer copy stale heap

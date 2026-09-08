@@ -47,10 +47,11 @@ extern "C" {
 
 /*
   the default block size the stack initializes oc_blk_size with (api/oc_main.c),
-  floored to a legal RFC 7959 block size (16 << SZX, SZX 0..6) and capped at 1024 (SZX 6).
-  Derived independently of oc_main.c so a regression there is not mirrored here.
+  floored to a legal RFC 7959 block size (16 << SZX, SZX 0..6) and additionally capped so a serialized
+  datagram stays within the RFC 7252 clause 4.6 guidance. Derived independently of oc_main.c so a
+  regression there is not mirrored here.
 */
-#define EXPECTED_DEFAULT_BLOCK_SIZE                                                                                                                  \
+#define FLOORED_PAYLOAD_BLOCK_SIZE                                                                                                                   \
   (KNX_PAYLOAD_SIZE >= 1024   ? 1024                                                                                                                 \
    : KNX_PAYLOAD_SIZE >= 512  ? 512                                                                                                                  \
    : KNX_PAYLOAD_SIZE >= 256  ? 256                                                                                                                  \
@@ -59,15 +60,31 @@ extern "C" {
    : KNX_PAYLOAD_SIZE >= 32   ? 32                                                                                                                   \
                               : 16)
 
+#define EXPECTED_DEFAULT_BLOCK_SIZE (FLOORED_PAYLOAD_BLOCK_SIZE < ON_WIRE_BLOCK_CEILING ? FLOORED_PAYLOAD_BLOCK_SIZE : ON_WIRE_BLOCK_CEILING)
+
 /*
   oc_set_pdu_size() takes the TOTAL CoAP PDU size, see include/oc_buffer_settings.h;
   the payload budget is the argument minus both CoAP header budgets (outer + inner).
   This is the argument that reproduces the static defaults.
 */
-#define DEFAULT_EQUIVALENT_PDU_ARG (KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE)
+#define COAP_HEADER_BUDGET (COAP_MAX_OUTER_HEADER_SIZE + COAP_MAX_INNER_HEADER_SIZE)
+#define DEFAULT_EQUIVALENT_PDU_ARG (KNX_PAYLOAD_SIZE + COAP_HEADER_BUDGET)
 
 // smallest argument the guard accepts: both CoAP header budgets plus the smallest block (SZX 0)
-#define MINIMUM_PDU_ARG (2 * COAP_MAX_HEADER_SIZE + 16)
+#define MINIMUM_PDU_ARG (COAP_HEADER_BUDGET + 16)
+
+// largest argument the guard accepts: the RFC 7252 clause 4.6 message size guidance (see api/oc_main.c)
+#define MAXIMUM_PDU_ARG COAP_MAX_MESSAGE_SIZE
+
+// the block-size ceiling imposed by the RFC 7252 clause 4.6 message size guidance (see api/oc_main.c)
+#define ON_WIRE_BLOCK_CEILING                                                                                                                          \
+  ((COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 1024   ? 1024                                                                 \
+   : (COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 512  ? 512                                                                  \
+   : (COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 256  ? 256                                                                  \
+   : (COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 128  ? 128                                                                  \
+   : (COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 64   ? 64                                                                   \
+   : (COAP_MAX_MESSAGE_SIZE - COAP_HEADER_BUDGET - OSCORE_AEAD_TAG_LEN) >= 32   ? 32                                                                   \
+                                                                                : 16)
 
 /*
   capture the untouched defaults before any TEST() body can call oc_set_pdu_size();
@@ -89,10 +106,10 @@ static bool is_power_of_two(uint32_t v)
 #define SCRATCH_BUFFER_SIZE (8 * 1024)
 
 /*
-  the longest Uri-Path the header budget accounts for; COAP_MAX_HEADER_SIZE
-  reserves FEAR (64) bytes for the path and similar variable-length options
+  the longest Uri-Path the inner header budget accounts for, see KNX_MAX_URI_PATH_LEN /
+  KNX_MAX_URI_PATH_SEGMENTS in messaging/coap/constants.h
 */
-#define MAX_URI_PATH "p/an-example-of-a-very-long-knx-point-api-resource-path"
+#define MAX_URI_PATH "p/an-example-of-a-very-long-knx-resource-path"
 
 /*
   fills a coap packet with the maximal option set that COAP_MAX_HEADER_SIZE budgets for:
@@ -126,9 +143,10 @@ static void fill_max_option_packet(coap_packet_t* pkt, const uint8_t* payload, s
   coap_set_header_size2(pkt, 0xFFFFFFFF);
   coap_set_header_oscore(pkt, piv, sizeof(piv), kid, sizeof(kid), kid_ctx, sizeof(kid_ctx));
 
-  // no public setter exists for Uri-Port, set the field and mark the option directly
-  pkt->uri_port = 0xFFFF;
-  SET_OPTION(pkt, COAP_OPTION_URI_PORT);
+  /*
+    Uri-Port is deliberately NOT set: it is a parse-only option in this stack, it is excluded from
+    COAP_MAX_OUTER_HEADER_SIZE and coap_oscore_serialize_message() asserts that it is clear on outgoing packets.
+  */
 
   if (payload != NULL && payload_len > 0)
   {
@@ -187,9 +205,9 @@ static size_t worst_case_frame_size(void)
 
 TEST(PduDefaults, DefaultPduReservesTwoCoapHeaders)
 {
-  /* api/oc_main.c: oc_pdu_size = KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE.
-   * One header budget for the outer message, one for the inner plaintext. */
-  EXPECT_EQ(g_default_pdu, (uint32_t)(KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE));
+  /* api/oc_main.c: oc_pdu_size = KNX_PAYLOAD_SIZE + COAP_MAX_OUTER_HEADER_SIZE + COAP_MAX_INNER_HEADER_SIZE.
+   * One budget for the outer message, one for the inner plaintext. */
+  EXPECT_EQ(g_default_pdu, (uint32_t)(KNX_PAYLOAD_SIZE + COAP_HEADER_BUDGET));
 }
 
 TEST(PduDefaults, DefaultBlockSizeMatchesPayloadSizeCappedAt1024)
@@ -261,7 +279,7 @@ TEST(BufferSettings, SetPduSizeBelowMinimumReturnsError)
 
 TEST(BufferSettings, SetPduSizeBelowMinimumDoesNotChangeState)
 {
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
   uint32_t before_pdu = oc_get_pdu_size();
   uint16_t before_block = oc_get_block_size();
 
@@ -273,7 +291,7 @@ TEST(BufferSettings, SetPduSizeBelowMinimumDoesNotChangeState)
 
 TEST(BufferSettings, SetPduSizeValidReturnsZero)
 {
-  EXPECT_EQ(oc_set_pdu_size(2048), 0);
+  EXPECT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
   EXPECT_EQ(oc_set_pdu_size(1024), 0);
 }
 
@@ -283,8 +301,8 @@ TEST(BufferSettings, GetPduSizeReturnsExactlyWhatWasSet)
 {
   /* the argument is the total PDU size and is stored unchanged, so the getter
    * reports the same unit the setter accepts */
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
-  EXPECT_EQ(oc_get_pdu_size(), 2048u);
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
+  EXPECT_EQ(oc_get_pdu_size(), (uint32_t)MAXIMUM_PDU_ARG);
 
   ASSERT_EQ(oc_set_pdu_size(1024), 0);
   EXPECT_EQ(oc_get_pdu_size(), 1024u);
@@ -294,12 +312,12 @@ TEST(BufferSettings, SetPduSizeFromGetPduSizeIsIdempotent)
 {
   /* setter and getter speak the same unit, so re-applying the current value
    * must not drift the buffer size */
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
 
   for (int i = 0; i < 5; i++)
   {
     ASSERT_EQ(oc_set_pdu_size(oc_get_pdu_size()), 0);
-    EXPECT_EQ(oc_get_pdu_size(), 2048u) << "pdu drifted on iteration " << i;
+    EXPECT_EQ(oc_get_pdu_size(), (uint32_t)MAXIMUM_PDU_ARG) << "pdu drifted on iteration " << i;
   }
 }
 
@@ -307,7 +325,7 @@ TEST(BufferSettings, SetPduSizeFromGetPduSizeIsIdempotent)
 
 TEST(BufferSettings, BlockSizeIsPowerOfTwoInRange)
 {
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
   uint16_t block = oc_get_block_size();
   EXPECT_TRUE(is_power_of_two(block)) << "block size = " << block;
   EXPECT_GE(block, 16);
@@ -316,18 +334,21 @@ TEST(BufferSettings, BlockSizeIsPowerOfTwoInRange)
 
 TEST(BufferSettings, LargePduYieldsMaxBlockSize)
 {
-  /* the payload budget is the argument minus both header budgets, so this stays
-   * comfortably above 1024 and the largest supported block must be selected */
-  ASSERT_EQ(oc_set_pdu_size(2048 + 2 * COAP_MAX_HEADER_SIZE), 0);
-  EXPECT_EQ(oc_get_block_size(), 1024);
+  /* the largest accepted PDU must yield exactly the block-size ceiling, no clamp is needed to get there */
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
+  EXPECT_EQ(oc_get_block_size(), (uint16_t)ON_WIRE_BLOCK_CEILING);
 }
 
 TEST(BufferSettings, SmallerPduYieldsSmallerBlockSize)
 {
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
+  /*
+    both arguments must stay below the RFC 7252 clause 4.6 ceiling, otherwise the clamp flattens them
+    to the same block size and the comparison says nothing about the derivation
+  */
+  ASSERT_EQ(oc_set_pdu_size(COAP_HEADER_BUDGET + 256), 0);
   uint16_t big = oc_get_block_size();
 
-  ASSERT_EQ(oc_set_pdu_size(1024), 0);
+  ASSERT_EQ(oc_set_pdu_size(COAP_HEADER_BUDGET + 64), 0);
   uint16_t small = oc_get_block_size();
 
   EXPECT_TRUE(is_power_of_two(small)) << "block size = " << small;
@@ -337,25 +358,25 @@ TEST(BufferSettings, SmallerPduYieldsSmallerBlockSize)
 
 /* -------------------- worst-case OSCORE frame vs. pdu budget --------------- */
 
-TEST(PduWorstCaseFrame, MeasuredOuterHeaderFitsCoapMaxHeaderSize)
+TEST(PduWorstCaseFrame, MeasuredOuterHeaderFitsOuterBudget)
 {
   /* the outer message carries the Class U options plus the OSCORE option;
-   * COAP_MAX_HEADER_SIZE must budget for all of them at once */
+   * COAP_MAX_OUTER_HEADER_SIZE must budget for all of them at once */
   size_t outer = measured_outer_overhead();
 
   EXPECT_GT(outer, 0u) << "serializer produced an empty outer message";
-  EXPECT_LE(outer, (size_t)COAP_MAX_HEADER_SIZE)
-    << "measured outer overhead " << outer << " exceeds COAP_MAX_HEADER_SIZE " << (size_t)COAP_MAX_HEADER_SIZE;
+  EXPECT_LE(outer, (size_t)COAP_MAX_OUTER_HEADER_SIZE)
+    << "measured outer overhead " << outer << " exceeds COAP_MAX_OUTER_HEADER_SIZE " << (size_t)COAP_MAX_OUTER_HEADER_SIZE;
 }
 
-TEST(PduWorstCaseFrame, MeasuredInnerHeaderFitsCoapMaxHeaderSize)
+TEST(PduWorstCaseFrame, MeasuredInnerHeaderFitsInnerBudget)
 {
   /* the inner plaintext carries the inner code and the Class E options */
   size_t inner = measured_inner_overhead();
 
   EXPECT_GT(inner, 0u) << "serializer produced an empty plaintext";
-  EXPECT_LE(inner, (size_t)COAP_MAX_HEADER_SIZE)
-    << "measured inner overhead " << inner << " exceeds COAP_MAX_HEADER_SIZE " << (size_t)COAP_MAX_HEADER_SIZE;
+  EXPECT_LE(inner, (size_t)COAP_MAX_INNER_HEADER_SIZE)
+    << "measured inner overhead " << inner << " exceeds COAP_MAX_INNER_HEADER_SIZE " << (size_t)COAP_MAX_INNER_HEADER_SIZE;
 }
 
 TEST(PduWorstCaseFrame, DefaultPduHoldsWorstCaseOscoreFrame)
@@ -390,7 +411,7 @@ TEST(PduWorstCaseFrame, SetPduSizeToDefaultEquivalentReproducesDefaultPduSize)
    * inner one, so this argument must reproduce the static default exactly */
   ASSERT_EQ(oc_set_pdu_size(DEFAULT_EQUIVALENT_PDU_ARG), 0);
 
-  EXPECT_EQ(oc_get_pdu_size(), (uint32_t)(KNX_PAYLOAD_SIZE + 2 * COAP_MAX_HEADER_SIZE));
+  EXPECT_EQ(oc_get_pdu_size(), (uint32_t)(KNX_PAYLOAD_SIZE + COAP_HEADER_BUDGET));
   EXPECT_EQ(oc_get_pdu_size(), g_default_pdu);
   EXPECT_LE(worst_case_frame_size(), (size_t)oc_get_pdu_size());
 }
@@ -427,9 +448,8 @@ TEST(PduWorstCaseFrame, MinimumAcceptedPduYieldsMinimumBlockSize)
 TEST(PduWorstCaseFrame, GuardAndBlockBudgetUseSameHeaderMultiple)
 {
   /*
-    api/oc_main.c must use the same multiple of COAP_MAX_HEADER_SIZE in the guard
-    and in the block budget subtraction. Changing only one of the two breaks
-    exactly one of the expectations below.
+    api/oc_main.c must use the same header budget in the guard and in the block budget
+    subtraction. Changing only one of the two breaks exactly one of the expectations below.
   */
   ASSERT_EQ(oc_set_pdu_size(MINIMUM_PDU_ARG), 0);
   EXPECT_EQ(oc_get_block_size(), 16) << "guard and block budget use different header multiples";
@@ -447,7 +467,7 @@ TEST(PduWorstCaseFrame, BlockSizeIsMonotonicInPduSize)
   uint16_t previous = 0;
   uint32_t pdu;
 
-  for (pdu = base; pdu <= base + 4096; pdu += 16)
+  for (pdu = base; pdu <= (uint32_t)MAXIMUM_PDU_ARG; pdu += 16)
   {
     ASSERT_EQ(oc_set_pdu_size(pdu), 0) << "pdu = " << pdu;
     uint16_t block = oc_get_block_size();
@@ -462,10 +482,156 @@ TEST(PduWorstCaseFrame, BlockSizeIsMonotonicInPduSize)
 
 TEST(PduWorstCaseFrame, LargePduAlwaysHoldsWorstCaseFrame)
 {
-  /* any pdu at or above the payload size must still hold the worst-case frame */
-  ASSERT_EQ(oc_set_pdu_size(2 * KNX_PAYLOAD_SIZE), 0);
+  /* the largest accepted pdu must still hold the worst-case frame */
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
 
   EXPECT_GE(oc_get_pdu_size(), (uint32_t)worst_case_frame_size());
+}
+
+/* -------------------- the three header budgets -------------------- */
+
+TEST(CoapHeaderBudgets, PlainIsTheSumOfOuterAndInner)
+{
+  /* plain CoAP takes both branches of coap_serialize_options(), so its budget must cover both */
+  EXPECT_EQ((size_t)COAP_MAX_HEADER_SIZE, (size_t)COAP_MAX_OUTER_HEADER_SIZE + (size_t)COAP_MAX_INNER_HEADER_SIZE);
+  EXPECT_GE((size_t)COAP_MAX_HEADER_SIZE, (size_t)COAP_MAX_OUTER_HEADER_SIZE);
+  EXPECT_GE((size_t)COAP_MAX_HEADER_SIZE, (size_t)COAP_MAX_INNER_HEADER_SIZE);
+}
+
+TEST(CoapHeaderBudgets, OuterIsSmallerThanInner)
+{
+  /*
+    the point of the split: the outer budget only carries Class U options, so it must be markedly smaller
+    than the inner one, which carries ETag, Uri-Path, Uri-Query, the block options and Echo
+  */
+  EXPECT_LT((size_t)COAP_MAX_OUTER_HEADER_SIZE, (size_t)COAP_MAX_INNER_HEADER_SIZE);
+}
+
+TEST(CoapHeaderBudgets, OuterCoversTheOscoreOption)
+{
+  /* OSCORE option value (RFC 8613 clause 6.1) plus its 2-byte option header must fit the outer budget */
+  EXPECT_GE((size_t)COAP_MAX_OUTER_HEADER_SIZE, (size_t)(2 + OSCORE_MAX_OPTION_VALUE_LEN));
+}
+
+TEST(CoapHeaderBudgets, InnerCoversEchoAndTheUris)
+{
+  /* the options the old single constant only absorbed through undocumented slack */
+  EXPECT_GE((size_t)COAP_MAX_INNER_HEADER_SIZE, (size_t)(1 + COAP_ECHO_LEN));
+  EXPECT_GE((size_t)COAP_MAX_INNER_HEADER_SIZE, (size_t)(KNX_MAX_URI_PATH_LEN + KNX_MAX_URI_QUERY_LEN));
+}
+
+TEST(CoapHeaderBudgets, PlainFrameFitsThePlainBudget)
+{
+  /* a flat message carrying inner AND outer options must stay within COAP_MAX_HEADER_SIZE */
+  static uint8_t buf[SCRATCH_BUFFER_SIZE];
+  coap_packet_t pkt;
+
+  memset(buf, 0, sizeof(buf));
+  fill_max_option_packet(&pkt, NULL, 0);
+
+  size_t len = coap_oscore_serialize_message(&pkt, buf, true, true, false);
+
+  EXPECT_GT(len, 0u) << "serializer rejected the maximal plain frame";
+  EXPECT_LE(len, (size_t)COAP_MAX_HEADER_SIZE)
+    << "measured plain overhead " << len << " exceeds COAP_MAX_HEADER_SIZE " << (size_t)COAP_MAX_HEADER_SIZE;
+}
+
+/* -------------------- RFC 7252 clause 4.6 message size -------------------- */
+
+TEST(CoapMessageSize, DefaultBlockKeepsDatagramWithinGuidance)
+{
+  /* outer header + inner header + one block + AEAD tag must stay within COAP_MAX_MESSAGE_SIZE */
+  size_t datagram = (size_t)COAP_HEADER_BUDGET + (size_t)g_default_block + OSCORE_AEAD_TAG_LEN;
+
+  EXPECT_LE(datagram, (size_t)COAP_MAX_MESSAGE_SIZE)
+    << "a default-sized block produces a " << datagram << " byte datagram, above the RFC 7252 clause 4.6 guidance";
+}
+
+TEST(CoapMessageSize, DerivedBlockNeverExceedsTheCeiling)
+{
+  /*
+    the largest accepted pdu must not push the block past the ceiling; this holds without a post-derivation
+    clamp because oc_set_pdu_size() rejects everything above COAP_MAX_MESSAGE_SIZE up front
+  */
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
+
+  EXPECT_LE(oc_get_block_size(), (uint16_t)ON_WIRE_BLOCK_CEILING);
+  EXPECT_LE((size_t)COAP_HEADER_BUDGET + (size_t)oc_get_block_size() + OSCORE_AEAD_TAG_LEN, (size_t)COAP_MAX_MESSAGE_SIZE);
+}
+
+TEST(CoapMessageSize, SetPduSizeRejectsBothOutOfRangeDirections)
+{
+  /* the guard validated only the lower bound before the budgets were split */
+  EXPECT_EQ(oc_set_pdu_size(MINIMUM_PDU_ARG - 1), -1) << "pdu below both budgets plus one block was accepted";
+  EXPECT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG + 1), -1) << "pdu above the RFC 7252 clause 4.6 guidance was accepted";
+  EXPECT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0) << "largest legal pdu was rejected";
+}
+
+/* ------------------- serialization mode wrappers --------------------------- */
+
+/*
+  The three public wrappers in messaging/coap/oscore.c each forward to
+  coap_oscore_serialize_message() with a fixed inner/outer/oscore combination, and that
+  combination is what selects the header budget. The budget tests above call the
+  underlying function directly, so a transposed argument in a wrapper would not be
+  noticed there. These tests pin each wrapper against its intended mode by requiring
+  byte-identical output.
+*/
+static void expect_wrapper_matches_mode(size_t (*wrapper)(void*, uint8_t*), bool inner, bool outer, bool oscore, const char* wrapper_name)
+{
+  static uint8_t via_wrapper[SCRATCH_BUFFER_SIZE];
+  static uint8_t via_direct[SCRATCH_BUFFER_SIZE];
+  coap_packet_t pkt_wrapper;
+  coap_packet_t pkt_direct;
+
+  memset(via_wrapper, 0, sizeof(via_wrapper));
+  memset(via_direct, 0, sizeof(via_direct));
+
+  /* a fresh packet per call, the serializer writes coap_pkt->buffer and may reorder nothing else */
+  fill_max_option_packet(&pkt_wrapper, NULL, 0);
+  fill_max_option_packet(&pkt_direct, NULL, 0);
+
+  const size_t len_wrapper = wrapper(&pkt_wrapper, via_wrapper);
+  const size_t len_direct = coap_oscore_serialize_message(&pkt_direct, via_direct, inner, outer, oscore);
+
+  ASSERT_GT(len_direct, 0u) << wrapper_name << ": the reference serialization failed";
+  EXPECT_EQ(len_wrapper, len_direct) << wrapper_name << ": length differs from the expected mode, check the inner/outer/oscore arguments";
+  EXPECT_EQ(memcmp(via_wrapper, via_direct, len_direct), 0) << wrapper_name << ": bytes differ from the expected mode";
+}
+
+TEST(CoapSerializationModes, PlaintextWrapperUsesInnerOnlyMode)
+{
+  /* oscore_serialize_plaintext() must select COAP_MAX_INNER_HEADER_SIZE (Class E options) */
+  expect_wrapper_matches_mode(oscore_serialize_plaintext, true, false, false, "oscore_serialize_plaintext");
+}
+
+TEST(CoapSerializationModes, OscoreWrapperUsesOuterOnlyMode)
+{
+  /* oscore_serialize_message() must select COAP_MAX_OUTER_HEADER_SIZE (Class U/I options + OSCORE) */
+  expect_wrapper_matches_mode(oscore_serialize_message, false, true, true, "oscore_serialize_message");
+}
+
+TEST(CoapSerializationModes, PlainCoapWrapperUsesBothOptionSets)
+{
+  /* coap_serialize_message() must select COAP_MAX_HEADER_SIZE (one flat message) */
+  expect_wrapper_matches_mode(coap_serialize_message, true, true, false, "coap_serialize_message");
+}
+
+TEST(CoapSerializationModes, TheThreeModesProduceDifferentFrames)
+{
+  /*
+    guards the tests above against a degenerate serializer: if every mode emitted the same
+    bytes, each wrapper test would pass while the mode selection was broken
+  */
+  static uint8_t inner_buf[SCRATCH_BUFFER_SIZE];
+  static uint8_t outer_buf[SCRATCH_BUFFER_SIZE];
+
+  const size_t inner_len = build_max_option_coap_frame(inner_buf, sizeof(inner_buf), true, NULL, 0);
+  const size_t outer_len = build_max_option_coap_frame(outer_buf, sizeof(outer_buf), false, NULL, 0);
+
+  ASSERT_GT(inner_len, 0u);
+  ASSERT_GT(outer_len, 0u);
+  EXPECT_NE(inner_len, outer_len) << "inner and outer serialization are indistinguishable";
 }
 
 /* ------------------- allocated message buffer honours the pdu -------------- */
@@ -486,7 +652,8 @@ protected:
 
 TEST_F(PduMessageBuffer, AllocatedMessageBufferMatchesConfiguredPduSize)
 {
-  ASSERT_EQ(oc_set_pdu_size(2048), 0);
+  /* the largest pdu the stack accepts, so the buffer is exercised at its ceiling */
+  ASSERT_EQ(oc_set_pdu_size(MAXIMUM_PDU_ARG), 0);
 
   oc_message_t* m = oc_allocate_message();
   ASSERT_NE(m, nullptr);

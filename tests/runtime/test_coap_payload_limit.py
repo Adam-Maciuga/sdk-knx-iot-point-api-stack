@@ -20,7 +20,7 @@ import pytest
 from coap_client import APPLICATION_CBOR
 
 # Must mirror KNX_PAYLOAD_SIZE from the root CMakeLists.txt
-MAX_APP_DATA_SIZE = 1024
+MAX_APP_DATA_SIZE = 768
 
 
 def _payload(size: int) -> bytes:

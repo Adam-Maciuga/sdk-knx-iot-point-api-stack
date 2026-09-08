@@ -1123,19 +1123,20 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     OC_DBG("composed AAD  : ");
     OC_LOGbytes_OSCORE(aad, aad_len);
 
-    uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+    // reserve room for the OSCORE protected (outer) header, the plaintext is serialized from here
+    uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
 
     if (coap_pkt->payload_len > 0)
     {
-      // make room for outer/inner CoAP options + payload in OSCORE packet, move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE
-      uint8_t* dst2 = dst1 + COAP_MAX_HEADER_SIZE;
+      // reserve room for the inner (Class E) header between the plaintext start and the application payload
+      uint8_t* dst2 = dst1 + COAP_MAX_INNER_HEADER_SIZE;
 
       // move payload and store/remind the new (moved) payload location in the CoAP packet
       memmove(dst2, coap_pkt->payload, coap_pkt->payload_len);
       coap_pkt->payload = dst2;
     }
 
-    // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, application payload) by using the 'moved' payload location ptr
+    // serialize OSCORE plain text 'at' offset COAP_MAX_OUTER_HEADER_SIZE (inner code, inner options, application payload) by using the 'moved' payload location ptr
     const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
     OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);
@@ -1612,12 +1613,13 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   // here requests and responses end up
 
-  uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+  // reserve room for the OSCORE protected (outer) header, the plaintext is serialized from here
+  uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
 
   if (coap_pkt->payload_len > 0)
   {
-    // make room for outer/inner CoAP options + payload in OSCORE packet, move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE
-    uint8_t* dst2 = dst1 + COAP_MAX_HEADER_SIZE;
+    // reserve room for the inner (Class E) header between the plaintext start and the application payload
+    uint8_t* dst2 = dst1 + COAP_MAX_INNER_HEADER_SIZE;
 
     // move payload and store/remind the new (moved) payload location in the CoAP packet
     memmove(dst2, coap_pkt->payload, coap_pkt->payload_len);
@@ -1642,7 +1644,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     OC_DBG("response is a notification; making inner 'Observe' option empty");
   }
 
-  // serialize OSCORE plaintext 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
+  // serialize OSCORE plaintext 'at' offset COAP_MAX_OUTER_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
   size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
   OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);

@@ -12,7 +12,7 @@ testing where packet loss doesn't occur.
 import os
 import socket
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 # CoAP message types
@@ -231,6 +231,39 @@ def _parse_options(data: bytes, offset: int) -> tuple[dict, int]:
     return options, offset
 
 
+# ---------------------------------------------------------------------------
+# Block-wise transfer (RFC 7959)
+# ---------------------------------------------------------------------------
+#
+# The DUT paginates any link-format body that does not fit its configured
+# payload buffer (KNX_PAYLOAD_SIZE).  It then answers with Block2 (option 23)
+# carrying the "more" bit and, on the first block, Size2 (option 28) with the
+# total body length.  A client that ignores Block2 silently sees only the
+# first block, which looks exactly like a truncated payload.  See F-016.
+
+BLOCK2_OPTION = 23
+SIZE2_OPTION = 28
+
+# RFC 7959 4.6: SZX is log2(block size) - 4, so SZX 0..6 == 16..1024 bytes.
+BLOCK_SZX_MAX = 6
+
+
+def _decode_block_option(value: bytes) -> tuple[int, bool, int]:
+    """Decode a Block1/Block2 option value into (num, more, size)."""
+    raw = int.from_bytes(value, "big") if value else 0
+    num = raw >> 4
+    more = bool(raw & 0x08)
+    szx = raw & 0x07
+    return num, more, 16 << szx
+
+
+def _encode_block_option(num: int, more: bool, size: int) -> bytes:
+    """Encode a Block1/Block2 option value from (num, more, size)."""
+    szx = max(0, min(BLOCK_SZX_MAX, (size.bit_length() - 1) - 4))
+    raw = (num << 4) | (0x08 if more else 0x00) | szx
+    return raw.to_bytes((raw.bit_length() + 7) // 8, "big") if raw else b""
+
+
 class CoapClient:
     """
     Minimal synchronous CoAP client over UDP/IPv6.
@@ -273,7 +306,8 @@ class CoapClient:
                        accept: Optional[int] = None,
                        content_format: Optional[int] = None,
                        observe: Optional[int] = None,
-                       token: Optional[bytes] = None) -> bytes:
+                       token: Optional[bytes] = None,
+                       block2: Optional[bytes] = None) -> bytes:
         """Build a CoAP CON request message.
 
         Args:
@@ -282,6 +316,9 @@ class CoapClient:
             token: If provided, use this exact token instead of generating
                    a fresh one (needed to deregister/refresh an existing
                    observe relationship, which is keyed by token).
+            block2: If not None, encode the CoAP Block2 option (23) to
+                    request a specific block of a paginated response
+                    (RFC 7959).
         """
         mid = self._next_mid()
         if token is None:
@@ -340,6 +377,12 @@ class CoapClient:
             prev_opt = 17
             options += _encode_option(delta, struct.pack("B", accept))
 
+        # Block2 (option 23) -- request a specific block of the response
+        if block2 is not None:
+            delta = BLOCK2_OPTION - prev_opt
+            prev_opt = BLOCK2_OPTION
+            options += _encode_option(delta, block2)
+
         msg = header + token + options
         if payload:
             msg += b"\xFF" + payload
@@ -370,14 +413,19 @@ class CoapClient:
                 payload: bytes = b"",
                 accept: Optional[int] = None,
                 content_format: Optional[int] = None,
-                timeout: Optional[float] = None) -> Optional[CoapResponse]:
+                timeout: Optional[float] = None,
+                block2: Optional[bytes] = None) -> Optional[CoapResponse]:
         """
         Send a CoAP request and wait for a response.
         Handles CoAP separate responses (empty ACK followed by CON).
         Returns CoapResponse or None on timeout.
+
+        Sends exactly one request and returns exactly one block. Callers that
+        want the whole body should use get()/oscore_get(), which reassemble
+        Block2 responses.
         """
         msg = self._build_request(method, path, payload, accept,
-                                  content_format)
+                                  content_format, block2=block2)
         # Extract expected token from built message
         tkl = msg[0] & 0x0F
         expected_token = msg[4:4 + tkl]
@@ -475,7 +523,61 @@ class CoapClient:
 
     def get(self, path: str, accept: Optional[int] = None,
             timeout: Optional[float] = None) -> Optional[CoapResponse]:
-        return self.request(GET, path, accept=accept, timeout=timeout)
+        """GET a resource, reassembling a Block2 response into one body.
+
+        RFC 7959: when the body does not fit one datagram the DUT answers
+        with Block2 (option 23) and the "more" bit set. Each further block
+        is fetched by echoing Block2 with the next block number and the
+        server's own SZX. The returned CoapResponse carries the complete
+        concatenated payload, and its Block2 option is rewritten so that
+        the "more" bit is clear, i.e. it describes the reassembled body.
+        """
+        resp = self.request(GET, path, accept=accept, timeout=timeout)
+        return self._reassemble_block2(
+            resp, lambda blk: self.request(GET, path, accept=accept,
+                                           timeout=timeout, block2=blk))
+
+    def _reassemble_block2(self, resp, fetch_block):
+        """Follow Block2 until the "more" bit clears, concatenating payloads.
+
+        fetch_block(block2_option_bytes) sends one follow-up request and
+        returns its CoapResponse. Shared by the plain and OSCORE paths.
+        """
+        if resp is None or not resp.options or BLOCK2_OPTION not in resp.options:
+            return resp
+
+        num, more, size = _decode_block_option(resp.options[BLOCK2_OPTION])
+        if not more:
+            return resp
+
+        body = bytearray(resp.payload)
+        expected = resp.options.get(SIZE2_OPTION)
+        total = int.from_bytes(expected, "big") if expected else None
+        max_blocks = 64  # safety limit against a server that never clears "more"
+
+        while more and num < max_blocks:
+            num = num + 1
+            nxt = fetch_block(_encode_block_option(num, False, size))
+            if nxt is None:
+                _dbg_coap(f"[coap] block2: timeout fetching block {num}")
+                return None
+            if not nxt.is_successful:
+                _dbg_coap(f"[coap] block2: block {num} failed {nxt.code}")
+                return nxt
+            body += nxt.payload
+            if nxt.options and BLOCK2_OPTION in nxt.options:
+                num, more, size = _decode_block_option(
+                    nxt.options[BLOCK2_OPTION])
+            else:
+                more = False
+            resp = nxt
+
+        _dbg_coap(f"[coap] block2: reassembled {len(body)} bytes"
+                  f" in {num + 1} block(s) size2={total}")
+
+        options = dict(resp.options or {})
+        options[BLOCK2_OPTION] = _encode_block_option(num, False, size)
+        return replace(resp, payload=bytes(body), options=options)
 
     def put(self, path: str, payload: bytes = b"",
             content_format: int = APPLICATION_CBOR,
@@ -541,7 +643,8 @@ class CoapClient:
                        uri_queries: list = None,
                        accept: Optional[int] = None,
                        content_format: Optional[int] = None,
-                       timeout: Optional[float] = None) -> Optional[
+                       timeout: Optional[float] = None,
+                       block2: Optional[bytes] = None) -> Optional[
                            CoapResponse]:
         """Send an OSCORE-protected CoAP request.
 
@@ -575,7 +678,8 @@ class CoapClient:
             oscore_opt, ciphertext, piv = oscore_ctx.protect_request(
                 method_code, inner_path, payload, all_queries,
                 echo=echo_value,
-                accept=accept, content_format=content_format)
+                accept=accept, content_format=content_format,
+                block2=block2)
 
             msg = self._build_oscore_request(oscore_opt, ciphertext)
             # Extract expected token from built message
@@ -697,6 +801,7 @@ class CoapClient:
                     msg_type=msg_type,
                     mid=mid,
                     token=token,
+                    options=inner_options,
                 ), inner_options)
             else:
                 # Unprotected response (e.g. 4.01 Unauthorized)
@@ -724,8 +829,17 @@ class CoapClient:
     def oscore_get(self, oscore_ctx, path: str,
                    accept: Optional[int] = None,
                    timeout: Optional[float] = None) -> Optional[CoapResponse]:
-        return self.oscore_request(oscore_ctx, 1, path, accept=accept,
-                                  timeout=timeout)
+        """OSCORE GET, reassembling a Block2 response into one body.
+
+        Block2 is a Class E option, so both the request option and the
+        response option are carried inside the encrypted inner message.
+        """
+        resp = self.oscore_request(oscore_ctx, 1, path, accept=accept,
+                                   timeout=timeout)
+        return self._reassemble_block2(
+            resp, lambda blk: self.oscore_request(
+                oscore_ctx, 1, path, accept=accept, timeout=timeout,
+                block2=blk))
 
     def oscore_put(self, oscore_ctx, path: str, payload: bytes = b"",
                    content_format: int = APPLICATION_CBOR,
@@ -1192,6 +1306,7 @@ class CoapClient:
                 mid=mid,
                 token=token,
                 source_addr=addr,
+                options=options,
             )
             _dbg_coap(f"[coap] multicast response from {addr[0]}: "
                       f"{resp.code} payload_len={len(payload_data)}")

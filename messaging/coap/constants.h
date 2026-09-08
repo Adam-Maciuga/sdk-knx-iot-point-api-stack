@@ -70,6 +70,23 @@ extern "C" {
 #define COAP_ETAG_LEN 8     /* Etag len (exactly, stack sends always this amount of etag bytes) */
 #define COAP_ECHO_LEN 40    /* The maximum size of the Echo option */
 
+/*
+  Upper bounds on the Uri-Path and Uri-Query the stack serializes into an outgoing message.
+
+  COAP_SERIALIZE_STRING_OPTION splits the string on '/' (Uri-Path) resp. '&' (Uri-Query) and emits one CoAP option
+  per part, so the on-wire cost of the option group is 'characters + one option header per part'. Therefore both a
+  character budget and a part-count budget are needed to bound the group (see COAP_MAX_INNER_HEADER_SIZE in conf.h).
+
+  The values cover the longest URIs this stack emits (KNX resource paths such as '/.well-known/knx/f/...' and
+  discovery filters such as 'd=urn:knx:ia.65535&if=urn:knx:if.pm') with headroom for application supplied URIs.
+  An application that exceeds them does not corrupt memory: coap_oscore_serialize_message() detects the overflow
+  and fails the send with an explicit error.
+*/
+#define KNX_MAX_URI_PATH_LEN 48       /* max number of characters in a Uri-Path handed to coap_set_header_uri_path()  */
+#define KNX_MAX_URI_PATH_SEGMENTS 8   /* max number of '/' separated segments in that Uri-Path                        */
+#define KNX_MAX_URI_QUERY_LEN 64      /* max number of characters in a Uri-Query handed to coap_set_header_uri_query() */
+#define KNX_MAX_URI_QUERY_PARAMS 4    /* max number of '&' separated parameters in that Uri-Query                     */
+
 #define COAP_VERSION 1      /* current CoAP version is '1' (see RFC7252), don't allow other values on own sending  */
 #define COAP_HEADER_VERSION_MASK 0xC0
 #define COAP_HEADER_VERSION_POSITION 6
@@ -82,6 +99,13 @@ extern "C" {
 #define COAP_HEADER_OPTION_SHORT_LENGTH_MASK 0x0F
 
 #define COAP_PAYLOAD_MARKER_LEN 1 /* 0xFF */
+
+/*
+  RFC 7252 clause 4.6: if the path MTU is not known, a CoAP message size of 1152 bytes and a payload size of
+  1024 bytes are the recommended upper bounds for IPv6. The stack uses this to clamp the block-wise block size so
+  that a serialized datagram (outer header + inner header + block + AEAD tag) stays below the guidance.
+*/
+#define COAP_MAX_MESSAGE_SIZE 1152
 
 /** CoAP message types */
 typedef enum {

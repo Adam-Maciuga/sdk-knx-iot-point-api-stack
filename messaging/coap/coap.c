@@ -33,6 +33,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "coap.h"
 #include "conf.h"
 #include "oc_ri.h"
@@ -931,7 +932,12 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  // wipe content, important thing
+  /* 
+    wipe entire coap packet
+    - wipes coap options bitfield, so never supported options by stack will not be 
+      serialized coincidentally
+    - assumes that all coap packets are initialized from this method 
+  */
   memset(coap_pkt, 0, sizeof(coap_packet_t));
 
   coap_pkt->type = type;
@@ -953,6 +959,15 @@ static void coap_udp_set_header_fields(void* packet)
   coap_pkt->buffer[3] = (uint8_t) coap_pkt->mid;
 }
 
+/*
+  the header budget that matches the serialization mode and its name for diagnostics, see the three mode table in conf.h
+  - inner && outer -> plain CoAP, both option branches are taken
+  - outer          -> OSCORE protected message, only Class U/I options
+  - inner          -> OSCORE plaintext, only Class E options
+*/
+#define COAP_MAX_HEADER_SIZE_FOR(inner, outer) ((inner) && (outer) ? COAP_MAX_HEADER_SIZE : ((outer) ? COAP_MAX_OUTER_HEADER_SIZE : COAP_MAX_INNER_HEADER_SIZE))
+#define COAP_MAX_HEADER_NAME_FOR(inner, outer) ((inner) && (outer) ? "COAP_MAX_HEADER_SIZE" : ((outer) ? "COAP_MAX_OUTER_HEADER_SIZE" : "COAP_MAX_INNER_HEADER_SIZE"))
+
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore) 
 {
   if (!packet || !buffer) 
@@ -963,6 +978,30 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet; 
   uint8_t* option;						// ptr to all options 
+
+  /*
+    select the header budget that matches the serialization mode, see the three mode table in conf.h
+    - inner && outer -> plain CoAP, both option branches are taken
+    - outer          -> OSCORE protected message, only Class U/I options
+    - inner          -> OSCORE plaintext, only Class E options
+  */
+  const size_t max_header_size = COAP_MAX_HEADER_SIZE_FOR(inner, outer);
+
+  /*
+    Uri-Host, Uri-Port and Proxy-Uri are parse-only in this stack and are therefore not part of any budget above.
+    
+    - new by stack created packets (calloc) wipe the options -> not present in the coap_pkt->options bitfield
+    - reused packets rejects these options in Debug, because they are not part of the budget and would be silently dropped in Release 
+  */
+
+  #ifdef OC_DEBUG
+
+  // normally debug only
+  assert(!IS_OPTION(coap_pkt, COAP_OPTION_URI_HOST));
+  assert(!IS_OPTION(coap_pkt, COAP_OPTION_URI_PORT));
+  assert(!IS_OPTION(coap_pkt, COAP_OPTION_PROXY_URI));
+
+  #endif
 
   // init 
   coap_pkt->buffer = buffer;  // is a ptr copy from org endpoint data
@@ -977,20 +1016,17 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   }
 
   if (outer) 
-  {
-    uint8_t token_location = 0;
-    // if outer is true serialize only outer options and possibly OSCORE options (if true)
+  { // if outer is true serialize only outer options and possibly OSCORE options (if true)
     
     // add size of token
     header_length_calculation += coap_pkt->token_len;
 
-    // add size of common header
-    token_location = COAP_HEADER_LEN;
-    header_length_calculation += token_location;
+    // add size of common header, the token starts right after it
+    header_length_calculation += COAP_HEADER_LEN;
 
-    if (header_length_calculation > COAP_MAX_HEADER_SIZE)
+    if (header_length_calculation > max_header_size)
     {
-      OC_ERR("Serialized header length %u exceeds COAP_MAX_HEADER_SIZE %u-UDP", (unsigned int) header_length_calculation, (unsigned int) COAP_MAX_HEADER_SIZE);
+      OC_ERR("serialized header length %u exceeds %s %u-UDP", (unsigned int) header_length_calculation, COAP_MAX_HEADER_NAME_FOR(inner, outer), (unsigned int) max_header_size);
       coap_pkt->buffer = NULL;
       return 0;
     }
@@ -1002,7 +1038,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
     if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0)
     {
       OC_DBG("done serializing coap empty ack/rst message");
-      return token_location;
+      return COAP_HEADER_LEN;
     }
 
     #ifdef OC_DEBUG
@@ -1012,7 +1048,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
     #endif
 
     // here the token starts
-    option = coap_pkt->buffer + token_location;
+    option = coap_pkt->buffer + COAP_HEADER_LEN;
 
     // depending on token size add 1...n token parts
     for (unsigned int current_number = 0; current_number < coap_pkt->token_len; current_number++) 
@@ -1042,9 +1078,9 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
     #endif
 
-    if (header_length_calculation > COAP_MAX_HEADER_SIZE) 
+    if (header_length_calculation > max_header_size) 
     {
-      OC_ERR("error, serialized header length %u exceeds COAP_MAX_HEADER_SIZE %i-UDP", (unsigned int) header_length_calculation, COAP_MAX_HEADER_SIZE);
+      OC_ERR("error, serialized header length %u exceeds %s %u-UDP", (unsigned int) header_length_calculation, COAP_MAX_HEADER_NAME_FOR(inner, outer), (unsigned int) max_header_size);
       coap_pkt->buffer = NULL;
       return 0;
     }
@@ -1053,7 +1089,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   // add options (not count ...)
   option += coap_serialize_options(packet, option, inner, outer, oscore);
 
-  if (option - coap_pkt->buffer <= COAP_MAX_HEADER_SIZE) 
+  if ((size_t) (option - coap_pkt->buffer) <= max_header_size) 
   {
     if (coap_pkt->payload_len > 0) 
     {
@@ -1067,7 +1103,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   else 
   {
     // an error occurred: caller must check for != 0
-    OC_WRN("serialized header length %u exceeds COAP_MAX_HEADER_SIZE %u", (unsigned int) (option - coap_pkt->buffer), (int) COAP_MAX_HEADER_SIZE);
+    OC_WRN("serialized header length %u exceeds %s %u", (unsigned int) (option - coap_pkt->buffer), COAP_MAX_HEADER_NAME_FOR(inner, outer), (unsigned int) max_header_size);
     coap_pkt->buffer = NULL;
     return 0;
   }

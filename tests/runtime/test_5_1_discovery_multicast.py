@@ -30,7 +30,7 @@ import re
 import cbor2
 import pytest
 
-from coap_client import LINK_FORMAT
+from coap_client import LINK_FORMAT, BLOCK2_OPTION, _decode_block_option
 from conftest import DUT_IA_HEX, DUT_IID_HEX, DUT_SERIAL_NUMBER, MC_SCOPE
 
 # Multicast tests need a real interface; skip if not configured
@@ -266,9 +266,22 @@ class TestMulticastInterfaceWildcard:
         resp = responses[0]
         assert resp.is_successful, f"Expected 2.05, got {resp.code}"
 
-        # EITT validation: all lines must have ;if= or rt="p.next"
+        # RFC 7959 2.8: a block-wise response to a multicast request only ever
+        # delivers the first block. The remaining blocks must be fetched by
+        # unicast, so a multicast responder legitimately returns a body cut at
+        # the block boundary and the final entry may be incomplete. Drop that
+        # trailing fragment before validating attributes -- the unicast twin of
+        # this case (test_5_1_1_4e_if_wildcard) checks the complete body.
         text = resp.payload.decode("utf-8", errors="replace")
         lines = [l.strip() for l in text.split(",") if l.strip()]
+        block2 = (resp.options or {}).get(BLOCK2_OPTION)
+        if block2 is not None:
+            _, more, _ = _decode_block_option(block2)
+            if more and lines:
+                lines = lines[:-1]
+        assert lines, "Multicast if=* returned no complete link-format entries"
+
+        # EITT validation: all lines must have ;if= or rt="p.next"
         for line in lines:
             assert re.search(r'(;if=)|(rt="p\.next")', line), (
                 f"All entries must have if= or be p.next, got: {line}")

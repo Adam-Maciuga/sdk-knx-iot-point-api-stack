@@ -858,6 +858,31 @@ TEST_F(CoapTest, Parse_TruncatedOptionValue)
   EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
 }
 
+/* ---- Parse-only critical options (must stay accepted on inbound) ---- */
+
+TEST_F(CoapTest, Parse_UriHostAndUriPortAreAccepted)
+{
+  /*
+    Uri-Host (3) and Uri-Port (7) are never serialized by this stack and are therefore not part of
+    COAP_MAX_OUTER_HEADER_SIZE, but both are odd and thus critical per RFC 7252 clause 5.4.1. Deleting their
+    parser arms would make the default branch answer BAD_OPTION_4_02 to every proxied request and to every
+    client that addresses this device by name. This test pins the inbound behaviour.
+  */
+  uint8_t data[] = {
+    0x40, 0x02, 0x12, 0x34,                            // CON, POST, mid 0x1234, no token
+    0x35, 'k', 'n', 'x', '.', 'x',                     // Uri-Host  (delta 3,  len 5)
+    0x42, 0x16, 0x33,                                  // Uri-Port  (delta 4,  len 2) -> 5683
+    0x41, 'p'                                          // Uri-Path  (delta 4,  len 1)
+  };
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), COAP_NO_ERROR);
+
+  EXPECT_TRUE(IS_OPTION(&parsed, COAP_OPTION_URI_HOST));
+  EXPECT_TRUE(IS_OPTION(&parsed, COAP_OPTION_URI_PORT));
+  EXPECT_EQ(parsed.uri_port, 5683);
+}
+
 /* ---- Truncated fixed header / token (must never read past the datagram) ---- */
 
 TEST_F(CoapTest, Parse_NullData)
@@ -1209,7 +1234,7 @@ TEST_F(CoapPayloadLimitTest, EmptyPayload_Accepted)
  *
  * A datagram of exactly OC_PDU_SIZE bytes fills the receive buffer completely
  * (the IP adapter receive limit is OC_PDU_SIZE).  When the options take more
- * than 2 * COAP_MAX_HEADER_SIZE bytes, the payload stays below
+ * than COAP_MAX_HEADER_SIZE bytes, the payload stays below
  * OC_MAX_APP_DATA_SIZE, so the 4.13 guard does not fire and the parser writes
  * the null-terminator at index OC_PDU_SIZE.  oc_allocate_message() therefore
  * reserves one byte more than OC_PDU_SIZE.
@@ -1267,7 +1292,7 @@ TEST_F(CoapFullPduTest, FullPduWithLargeOptions_TerminatorStaysInsideBuffer)
   data[2] = 0x12;      /* mid hi */
   data[3] = 0x34;      /* mid lo */
 
-  /* two long Uri-Path segments push the payload offset beyond 2 * COAP_MAX_HEADER_SIZE */
+  /* two long Uri-Path segments push the payload offset beyond COAP_MAX_HEADER_SIZE */
   size_t pos = append_uri_path_option(data, COAP_HEADER_LEN, 11, seg_len);
   pos = append_uri_path_option(data, pos, 0, seg_len);
 

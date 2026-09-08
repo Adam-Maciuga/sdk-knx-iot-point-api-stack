@@ -341,6 +341,94 @@ Bugs and issues discovered during unit test development.
 - **Pinned by:** `BufferSettings.GetPduSizeReturnsExactlyWhatWasSet` and
   `BufferSettings.SetPduSizeFromGetPduSizeIsIdempotent`, which would both fail if the
   setter ever resumed adjusting the stored value.
+- **Superseded in part by D-002:** the `2 * COAP_MAX_HEADER_SIZE` arithmetic quoted
+  above was replaced by the mode-specific budget sum `OC_COAP_HEADER_BUDGET`. The
+  contract itself (argument = total PDU, stored verbatim) is unchanged.
+
+## D-002: `COAP_MAX_HEADER_SIZE` split into three mode-specific budgets
+
+- **Files:** `messaging/coap/conf.h`, `messaging/coap/coap.c`,
+  `messaging/coap/oscore.c`, `api/oc_main.c`, `api/oc_client_api.c`
+- **Status:** Deliberate design change, not a defect.
+- **Problem with the single constant:** one 164-byte `COAP_MAX_HEADER_SIZE` was used
+  for three structurally different frames. It was simultaneously too generous for the
+  OSCORE outer message (which carries only Class U options) and derived from no
+  itemization at all for the inner plaintext, whose Uri-Path, Uri-Query and Echo
+  options scale with the KNX URI limits. `2 * COAP_MAX_HEADER_SIZE` was a coincidence
+  that happened to be large enough, not a bound.
+- **New model:** `coap_oscore_serialize_message(pkt, buf, inner, outer, oscore)` is
+  called in exactly three combinations, each with a thin wrapper in `oscore.c` and its
+  own budget:
+
+  | inner / outer / oscore | wrapper | budget | value |
+  |---|---|---|---|
+  | 1 / 0 / 0 | `oscore_serialize_plaintext()` | `COAP_MAX_INNER_HEADER_SIZE` | 219 |
+  | 0 / 1 / 1 | `oscore_serialize_message()` | `COAP_MAX_OUTER_HEADER_SIZE` | 54 |
+  | 1 / 1 / 0 | `coap_serialize_message()` | `COAP_MAX_HEADER_SIZE` | 273 |
+
+  Each budget is itemized option by option in `conf.h` against RFC 7252 clause 3.1
+  option-header costs, so a change to a KNX URI limit propagates automatically.
+- **Derived sizing:** `OC_COAP_HEADER_BUDGET = outer + inner = 273`,
+  `KNX_PAYLOAD_SIZE = 768`, default PDU 1041, `COAP_MAX_MESSAGE_SIZE = 1152`,
+  `OC_MAX_ON_WIRE_BLOCK_SIZE = 512` (RFC 7252 clause 4.6 - the block must leave room
+  for both headers and the AEAD tag inside one datagram).
+- **Latent bug fixed on the way:** `api/oc_client_api.c` offset the s-mode payload by
+  a budget that no longer matched the mode its packet was serialized in.
+- **Guards:** three `static_assert`s in `oc_main.c` bound the payload from above
+  (`+ budget <= COAP_MAX_MESSAGE_SIZE`), from below (must hold one 16-byte block) and
+  cap the derived block size. Each was proven live by deliberately breaking the
+  constant it protects and observing the named failure.
+- **Pinned by:** `CoapHeaderBudgets` (4), `CoapMessageSize` (3) and
+  `CoapSerializationModes` (4) in `test_oc_buffer_settings.cpp`, plus
+  `tests/runtime/test_coap_header_budget.py` (9), which drives real CoAP/OSCORE
+  exchanges with every KNX URI option at its maximum. An under-budgeted frame makes
+  `coap_oscore_serialize_message()` return 0 and null `coap_pkt->buffer`, i.e. the
+  message is dropped **silently** - which is why the runtime coverage exists.
+- **Known consequence - see F-017:** lowering `KNX_PAYLOAD_SIZE` to 768 pushed the
+  larger link-format bodies over one block, which exposed a gap in the *test client*
+  (no Block2 reassembly). The stack itself paginates correctly.
+
+## F-017: ~~`/dev` and `/.well-known/core` truncate link-format instead of paginating~~ - WITHDRAWN, NOT A DEFECT
+
+- **Files:** originally suspected `api/oc_knx_dev.c`, `api/oc_discovery.c`; the actual
+  gap was in `tests/runtime/coap_client.py`.
+- **Status:** WITHDRAWN. The stack behaves correctly. The finding as first written was
+  a misdiagnosis, corrected by measurement before any product code was touched.
+- **Original symptom:** after `KNX_PAYLOAD_SIZE` dropped from 1024 to 768 (see D-002),
+  four runtime tests began seeing link-format bodies cut mid-attribute, e.g.
+  `...,</p/p1>;rt="urn:knx:dpa.65500.201";i`. This looked like a truncated payload
+  returned as a successful 2.05.
+- **What the measurement actually showed:** decoding the response options revealed the
+  DUT was already doing the right thing. For `GET /.well-known/core?if=*`:
+
+  | Option | Value | Meaning |
+  |---|---|---|
+  | Block2 (23) | `0x0d` | NUM=0, **M=1 (more blocks follow)**, SZX=5 -> 512-byte blocks |
+  | Size2 (28) | `688` | total body length |
+
+  That is exactly RFC 7959. The `;i` at the end is a legitimate block boundary, not a
+  half-written buffer. The body was never truncated - only the first of two blocks was
+  ever delivered, because the client never asked for the second.
+- **Real root cause:** `tests/runtime/coap_client.py` had no Block1/Block2 support at
+  all. It read the first datagram's payload and returned it as the whole body, silently
+  discarding everything the Block2 "more" bit announced. `multicast_get()` additionally
+  never populated `CoapResponse.options`, so Block2 was invisible on that path too.
+- **Measured link-format sizes** (at `KNX_PAYLOAD_SIZE` 768, one 512-byte block):
+
+  | Request | First block | True body (Size2) |
+  |---|---|---|
+  | `GET /.well-known/core` | 396 | 396 (fits, no Block2) |
+  | `GET /.well-known/core?if=*` | 512 | **688** |
+  | `GET /.well-known/core?rt=*` | 512 | **688** |
+  | `GET /dev` (OSCORE) | 512 | **553** |
+
+- **Resolution:** the test client now reassembles Block2 (see the "Block-wise transfer"
+  section in `coap_client.py`). All four tests pass at `KNX_PAYLOAD_SIZE` 768 with no
+  product change. Raising the payload to 1024 would also have made them pass, but only
+  by keeping the bodies under one block - it would have hidden the client gap rather
+  than fixing it, and any future growth in the resource list would have re-broken them.
+- **Lesson:** a payload that ends mid-token is not evidence of truncation. Check the
+  Block2 "more" bit and Size2 before concluding the writer is at fault.
 
 ## F-014: ~~Inbound `block1_size` derived from the Block2 option's SZX~~ - RESOLVED
 

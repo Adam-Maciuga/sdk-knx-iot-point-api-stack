@@ -174,7 +174,8 @@ class OscoreContext:
                         echo: bytes | None = None,
                         accept: int | None = None,
                         content_format: int | None = None,
-                        observe: int | None = None) -> tuple[
+                        observe: int | None = None,
+                        block2: bytes | None = None) -> tuple[
                             bytes, bytes, bytes]:
         """Protect a CoAP request with OSCORE.
 
@@ -188,6 +189,9 @@ class OscoreContext:
                      set, the Observe option is encoded inside the encrypted
                      inner message (it must also be replicated as an outer
                      Class-U option by the caller).
+            block2: Block2 option value (RFC 7959). Block2 is a Class E
+                    option, so it travels inside the encrypted inner message
+                    and never appears as an outer option.
 
         Returns:
             (oscore_option_value, ciphertext, piv) where:
@@ -244,6 +248,12 @@ class OscoreContext:
             accept_bytes = accept.to_bytes(
                 (accept.bit_length() + 7) // 8 or 1, 'big')
             plaintext.extend(self._encode_option(delta, accept_bytes))
+
+        # Encode Block2 option (option 23) -- class E
+        if block2 is not None:
+            delta = 23 - prev_opt
+            prev_opt = 23
+            plaintext.extend(self._encode_option(delta, block2))
 
         # Encode Echo option (option 252) for freshness challenge
         if echo is not None:

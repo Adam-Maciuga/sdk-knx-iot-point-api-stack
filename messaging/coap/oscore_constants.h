@@ -20,6 +20,14 @@
 #define OSCORE_AEAD_TAG_LEN (8)         // Size in bytes of AES-CCM-16-64-128 authentication tag
 #define OSCORE_REPLAY_WINDOW_SIZE (8)
 
+/*
+  Worst case length of the OSCORE option VALUE as produced by coap_serialize_oscore_option() (RFC 8613, clause 6.1):
+    flags byte (1) + Partial IV (OSCORE_PIV_LEN) + kid context length byte 's' (1) + kid context (OSCORE_ID_CONTEXT_LEN)
+    + kid (OSCORE_SENDER_ID_LEN)
+  The option header is not included here, it is added where the option is budgeted (COAP_MAX_OUTER_HEADER_SIZE).
+*/
+#define OSCORE_MAX_OPTION_VALUE_LEN (1 + OSCORE_PIV_LEN + 1 + OSCORE_ID_CONTEXT_LEN + OSCORE_SENDER_ID_LEN)
+
 #define OSCORE_STORAGE_PREFIX "ssn_"
 #define OSCORE_STORAGE_PREFIX_LEN (4)
 #define OSCORE_STORAGE_DIVIDER_LEN (1)
@@ -50,4 +58,4 @@
 #define OSCORE_FLAGS_KIDCTX_BITMASK 0x10
 #define OSCORE_FLAGS_KID_BITMASK 0x08
 
-#endif /* OSCORE_CONSTANTS_H */
+#endif 
