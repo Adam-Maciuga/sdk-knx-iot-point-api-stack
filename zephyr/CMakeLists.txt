@@ -325,8 +325,14 @@ zephyr_compile_definitions(
     GPT_MAX_ENTRIES=${CONFIG_KNXIOT_GPT_MAX_ENTRIES}
     GRT_MAX_ENTRIES=${CONFIG_KNXIOT_GRT_MAX_ENTRIES}
     G_AT_MAX_ENTRIES=${CONFIG_KNXIOT_SEC_MAX_ENTRIES}
-    PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
     KNX_PAYLOAD_SIZE=1024
+)
+
+# PAGE_SIZE is referenced only by the paginated response handlers in api/, and
+# the name is generic enough to collide with unrelated Zephyr code.
+# Keep it scoped to this library.
+zephyr_library_compile_definitions(
+    PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
 )
 
 ## Network
