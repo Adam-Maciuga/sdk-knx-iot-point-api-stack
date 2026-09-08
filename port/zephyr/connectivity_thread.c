@@ -12,6 +12,7 @@
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
 #include "port/oc_network_interface.h"
+#include "port/zephyr/connectivity_thread.h"
 #include "util/oc_list.h"
 
 #include <zephyr/kernel.h>
@@ -72,6 +73,18 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
 int oc_connectivity_set_port(uint16_t port) {
     g_unicast_port = port;
     return 0;
+}
+
+uint16_t oc_connectivity_thread_get_port(void)
+{
+    /* After a successful bind OpenThread stores the effective port in the
+     * socket's local address; that is the value to advertise, also when the
+     * configured port was 0 and an ephemeral one was assigned. */
+    if ((sInstance != NULL) && otUdpIsOpen(sInstance, &mSocket) && (mSocket.mSockName.mPort != 0))
+    {
+        return mSocket.mSockName.mPort;
+    }
+    return g_unicast_port;
 }
 
 int oc_connectivity_init(void)
