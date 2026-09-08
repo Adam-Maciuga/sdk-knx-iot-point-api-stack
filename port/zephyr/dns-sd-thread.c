@@ -204,9 +204,12 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     (void)ia;
     (void)pm;
 
+    openthread_mutex_lock();
+
     if (!otIp6IsEnabled(thrInstancePtr) || device == NULL)
     {
         OC_WRN("Thread link is not yet up!\r\n");
+        openthread_mutex_unlock();
         return -1;
     }
 
@@ -254,6 +257,8 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     {
         isInitialized = true;
     }
+
+    openthread_mutex_unlock();
 
     return 0;
 }
