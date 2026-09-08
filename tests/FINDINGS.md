@@ -212,7 +212,8 @@ Bugs and issues discovered during unit test development.
 ## F-012: ~~DNS-SD service instance advertised without a TXT record (RFC 6763 clause 6 violation)~~ - RESOLVED
 
 - **File:** `port/dns-sd_mdns.c` (`send_announcement`, `send_query_response`, `send_srv_response`,
-  `mdns_query_callback`) and the vendored mDNS library patched by `port/mdns.patch`.
+  `mdns_query_callback`) and the vendored mDNS library, at the time patched by `port/mdns.patch`
+  (since folded into `port/mdns/mdns.h`, see `port/mdns/README.md`).
 - **Severity:** High - the device was undiscoverable by any RFC 6763 conformant client, including
   the standard `zeroconf` Python library and, by extension, the EITT-style discovery tests.
 - **Found by:** `test_5_1_discovery_mdns.py` - five deterministic failures
@@ -243,7 +244,7 @@ Bugs and issues discovered during unit test development.
   announcements, in solicited PTR query responses and as an additional record on SRV responses so a
   client can complete the SRV -> AAAA -> TXT chain from a single packet. `MDNS_RECORDTYPE_TXT` was
   added to the accepted query-type filter and a new `send_txt_response()` answers direct TXT and ANY
-  queries for the instance name. A third hunk in `port/mdns.patch` teaches
+  queries for the instance name. A third hunk in `port/mdns.patch` (now part of `port/mdns/mdns.h`) teaches
   `mdns_answer_add_txt_record()` to encode a zero-length string when both key and value are empty,
   instead of unconditionally writing `key` `=` `value`.
 - **Latent defect fixed along the way:** `sp_str` was declared *inside* the `if (knx.sp != 0)`
@@ -544,7 +545,8 @@ Bugs and issues discovered during unit test development.
   `mdns_answer_add_record()` ignores a TXT record and `mdns_answer_add_txt_record()` ignores every
   other type, so the extra call is a no-op for the other record types. The hardcoded
   `answer_rrs = htons(1)` needed no change - it was already correct once the record is written.
-  The note above `FetchContent_Declare(mdns)` in `port/CMakeLists.txt` records the reason.
+  The note above `FetchContent_Declare(mdns)` in `port/CMakeLists.txt` recorded the reason until the
+  library was vendored; the hunks now live in `port/mdns/mdns.h` and are listed in `port/mdns/README.md`.
 - **Verification:** the `GTEST_SKIP()` calls were removed from
   `ClearingTheSleepPeriodSendsATxtGoodbye` and `TxtQueryForTheInstanceGetsTheTxtAnswer`; both pass
   with their original assertions. `test_dns_sd_mdns.cpp` is 28 passed, 0 skipped; the full Linux
