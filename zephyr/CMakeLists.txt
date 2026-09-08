@@ -246,7 +246,7 @@ list(APPEND PORT_SOURCES
 # Note: connectivity_wifi.c provides Wi-Fi connectivity (Zephyr BSD sockets).
 #       The shared port/dns-sd_mdns.c provides DNS-SD and mDNS, the same implementation
 #       used on Linux and Windows.
-if(CONFIG_NET_L2_OPENTHREAD)
+if(CONFIG_NET_L2_OPENTHREAD OR CONFIG_OPENTHREAD)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
         ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
@@ -259,7 +259,7 @@ elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
 else()
     message(FATAL_ERROR
         "KNX-IoT stack: No supported network backend selected. "
-        "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
+        "Enable CONFIG_OPENTHREAD or CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
 endif()
 
 # Test-control endpoints (/test/*) for the Python runtime conformance suite.
