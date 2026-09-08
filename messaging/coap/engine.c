@@ -282,6 +282,7 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
 
         // RFC 7252 section 4.5: re-send cached response if available
         const bool resend = response_cache_lookup_and_resend(&his);
+        (void)resend; // only read by OC_DBG below, which compiles out
         
         OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
         return true;
