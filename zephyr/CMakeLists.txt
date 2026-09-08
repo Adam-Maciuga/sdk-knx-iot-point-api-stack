@@ -134,29 +134,6 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     zephyr_include_directories(${tinycbor_SOURCE_DIR}/src ${tinycbor_BINARY_DIR})
 endif()
 
-# mDNS header-only library
-# Note:
-# Always required by port/dns-sd_mdns.c.
-# This fetch only provides the mdns.h header used by dns-sd_mdns.c, which is
-# the stack provided DNS-SD responder based on mDNS (Wi-Fi/Ethernet).
-FetchContent_Declare(
-    mdns
-    GIT_REPOSITORY https://github.com/mjansson/mdns.git
-    GIT_TAG main
-    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${STACK_ROOT}/port/mdns.patch
-                  -P "${STACK_ROOT}/cmake/patch.cmake"
-)
-# Note:
-# Use FetchContent_Populate (not MakeAvailable) to download only — the mdns
-# library's own CMakeLists.txt builds POSIX example programs that do not
-# compile under the Zephyr cross-toolchain.
-# We only need the mdns.h header.
-FetchContent_GetProperties(mdns)
-if(NOT mdns_POPULATED)
-    FetchContent_Populate(mdns)
-endif()
-zephyr_include_directories(${mdns_SOURCE_DIR})
-
 # ── Source files ───────────────────────────────────────────────────────────────
 
 set(API_SOURCES
@@ -256,10 +233,34 @@ elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
         ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
         ${STACK_ROOT}/port/dns-sd_mdns.c
     )
+    set(KNX_NEEDS_MDNS TRUE)
 else()
     message(FATAL_ERROR
         "KNX-IoT stack: No supported network backend selected. "
         "Enable CONFIG_OPENTHREAD or CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
+endif()
+
+# mDNS header-only library, required by port/dns-sd_mdns.c only. The Thread
+# backend answers discovery through the OpenThread SRP client, so it needs
+# neither the source nor the fetch.
+if(KNX_NEEDS_MDNS)
+    FetchContent_Declare(
+        mdns
+        GIT_REPOSITORY https://github.com/mjansson/mdns.git
+        GIT_TAG main
+        PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${STACK_ROOT}/port/mdns.patch
+                      -P "${STACK_ROOT}/cmake/patch.cmake"
+    )
+    # Note:
+    # Use FetchContent_Populate (not MakeAvailable) to download only — the mdns
+    # library's own CMakeLists.txt builds POSIX example programs that do not
+    # compile under the Zephyr cross-toolchain.
+    # We only need the mdns.h header.
+    FetchContent_GetProperties(mdns)
+    if(NOT mdns_POPULATED)
+        FetchContent_Populate(mdns)
+    endif()
+    zephyr_include_directories(${mdns_SOURCE_DIR})
 endif()
 
 # Test-control endpoints (/test/*) for the Python runtime conformance suite.
