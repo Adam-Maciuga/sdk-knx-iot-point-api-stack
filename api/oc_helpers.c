@@ -325,6 +325,15 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, cha
   return 0;
 }
 
+// int for error return, -1 = error, 0..15 = hex value
+static int hex_digit_value(const char c)
+{
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
 int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, uint8_t* array, size_t* array_len)
 {
   if (hex_str_len < 1)
@@ -332,48 +341,69 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
     return -1;
   }
 
-  size_t a = (size_t)((double)hex_str_len / 2.0 + 0.5);
+  // calculate needed bytes to store the hex string, odd -> rounding up (8->9/2 = 4, 7->8/2 = 4)
+  size_t a = (hex_str_len + 1) / 2;
 
   if (*array_len < a)
   {
+    // not enough space in array
     return -1;
   }
 
+  // store the actual number of bytes written to the (inbound) array
   *array_len = a;
+  
+  // reset
   a = 0;
 
-  uint32_t tmp;
   size_t start;
 
   if (hex_str_len % 2 == 0)
   {
+    // even, loop does it all
     start = 0;
   }
   else
   {
+    // odd (see examples below) 
     start = 1;
-    int processed_fields = sscanf(&hex_str[0], "%1x", &tmp);
-    if (processed_fields != 1)
+
+    // save lone (low) digit
+    const int lo = hex_digit_value(hex_str[0]);
+
+    if (lo < 0)
     {
       return -1;
     }
 
-    array[a++] = (uint8_t)tmp;
+    // store lone (low) digit as low nibble in case of odd length hex string, the high nibble is assumed to be 0
+    array[a++] = (uint8_t)lo;
   }
 
-  if (hex_str_len >= 2)
-  {
-    // save guard against string lengths of 1
-    for (size_t i = start; i <= hex_str_len - 2; i += 2)
-    {
-      int processed_fields = sscanf(&hex_str[i], "%2x", &tmp);
-      if (processed_fields != 1)
-      {
-        return -1;
-      }
+  /* 
+     sscanf("%x", ...) is not used here
+     - it scans past hex_str_len looking for more hex digits or a NUL terminator 
+     - causing an out-of-bounds read on buffers that are exactly hex_str_len bytes long 
 
-      array[a++] = (uint8_t)tmp;
+     examples:
+     1    -> 1 byte   = 01    -> lone digit 1, high nibble is assumed to be 0
+     01   -> 1 byte   = 01
+     122  -> 2 bytes  = 01 22 -> lone digit 1, high nibble is assumed to be 0
+     0122 -> 2 bytes  = 01 22
+
+  */
+  for (size_t i = start; i + 1 < hex_str_len; i += 2)
+  {
+    const int hi = hex_digit_value(hex_str[i]);
+    const int lo = hex_digit_value(hex_str[i + 1]);
+
+    if (hi < 0 || lo < 0)
+    {
+      // conversion error
+      return -1;
     }
+
+    array[a++] = (uint8_t)((hi << 4) | lo);
   }
 
   return 0;
