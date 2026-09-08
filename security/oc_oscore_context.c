@@ -17,7 +17,9 @@
 
 OC_LIST(contexts);
 
+#ifdef OC_DEBUG
 static void oc_context_print_all(void);
+#endif
 
 void oc_oscore_free_lru_recipient_context(void) 
 {
@@ -264,7 +266,8 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   }
 }
 
-void oc_context_print_all(void)
+#ifdef OC_DEBUG
+static void oc_context_print_all(void)
 {
   // get list start
   const oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
@@ -302,6 +305,7 @@ void oc_context_print_all(void)
     ctx = ctx->next;
   }
 }
+#endif /* OC_DEBUG */
 
 oc_oscore_context_t* oc_oscore_add_recipient_context(oc_oscore_context_params_t* params)
 {
