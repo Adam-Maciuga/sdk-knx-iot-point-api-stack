@@ -1270,7 +1270,7 @@ static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, i
                                  &float_array_size);
       }
       for (size_t i = 0; i < float_array_size; i++) {
-        num_char_printed = snprintf(buf, buf_size, "%f", float_array[i]);
+        num_char_printed = snprintf(buf, buf_size, "%f", (double)float_array[i]);
         OC_JSON_UPDATE_BUFFER_AND_TOTAL;
         if (i < float_array_size - 1) {
           num_char_printed = (pretty_print) ? snprintf(buf, buf_size, ", ")
