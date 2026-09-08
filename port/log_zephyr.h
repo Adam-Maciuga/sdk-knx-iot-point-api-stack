@@ -26,9 +26,9 @@
  * Multiple threads can call LOG_* concurrently without their lines interleaving.
  * A plain printf/UART path has no such protection.
  */
-/* LOG_MODULE_REGISTER is called once in port/zephyr/log.c.
- * Every translation unit that includes this header declares itself as part of
- * the "knx_iot" module so all OC_* log calls carry the same module tag.
+/* LOG_MODULE_REGISTER is called once in port/oc_log.c.
+ * Every stack translation unit that includes this header declares itself as
+ * part of the "knx_iot" module so all OC_* log calls carry the same module tag.
  */
 /* Note: Always declare at CONFIG_KNXIOT_LOG_LEVEL, not LOG_LEVEL_DBG.
  * Defining CONFIG_KNXIOT_DEBUG / CONFIG_KNXIOT_DEBUG_OSCORE compiles in
@@ -36,7 +36,9 @@
  * output at runtime, use the Zephyr shell:
  *   > log enable dbg knx_iot
  */
+#ifdef KNX_LOG_MODULE_INTERNAL
 LOG_MODULE_DECLARE(knx_iot, CONFIG_KNXIOT_LOG_LEVEL);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
