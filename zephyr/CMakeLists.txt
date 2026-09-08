@@ -364,4 +364,6 @@ zephyr_library_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_LOG_CAST_64_BIT_INTS}>:KNX_LOG_CAST_64_BIT_INTS>
 )
 
+zephyr_library_compile_definitions(KNX_LOG_MODULE_INTERNAL)
+
 endif() # CONFIG_KNXIOT_LIB
