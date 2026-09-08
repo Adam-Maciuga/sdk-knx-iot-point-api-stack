@@ -15,7 +15,7 @@ if(MSVC)
   # Warning-level flags (such as /W4 /WX-) are intentionally NOT set here.
   #
   # - 'add_compile_options' is directory-scoped and would leak into the FetchContent
-  #   third-party dependencies (such as Mbed TLS,TinyCBOR, mDNS, googletest, ...)
+  #   third-party dependencies (such as Mbed TLS, TinyCBOR, googletest, ...)
   #
   # - Mbed TLS uses its own /W3 and /WX on its targets, the HERE leaked flags would cause 
   #   MSVC D9025 "overriding" warnings on every Mbed TLS source file

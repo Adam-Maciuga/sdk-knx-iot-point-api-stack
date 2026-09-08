@@ -137,29 +137,8 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
 endif()
 
 ### mDNS/DNS-SD library ###
-# Note:
-# Use git apply instead of patch for cross-platform compatibility (patch not available on Windows).
-FetchContent_Declare(
-    mdns
-    GIT_REPOSITORY https://github.com/mjansson/mdns.git
-    # Note:
-    # No working tag for all platforms yet, so stay with main for now.
-    GIT_TAG main
-    # Note:
-    # Issues #96 and #97 have not been fixed yet.
-    # The patch also adds the missing coalescing of a TXT record that is passed in the answer slot,
-    # without it such a packet carries a header that counts one answer and no record (see F-016).
-    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${PROJECT_SOURCE_DIR}/port/mdns.patch -P "${PROJECT_SOURCE_DIR}/cmake/patch.cmake"
-)
-
-# Note:
-# Use FetchContent_Populate (not MakeAvailable) to download only. The mdns
-# library's own CMakeLists.txt builds an example program (mdns.c) that we do
-# not need. We only require the mdns.h header.
-FetchContent_GetProperties(mdns)
-if(NOT mdns_POPULATED)
-    FetchContent_Populate(mdns)
-endif()
+# Header-only, vendored and maintained in port/mdns (see port/mdns/README.md).
+set(MDNS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mdns")
 
 target_sources(kis-port PRIVATE
     ${PORT_DIR}/abort.c
@@ -178,10 +157,10 @@ target_include_directories(kis-port
     PUBLIC "${PORT_DIR}"
 )
 target_include_directories(kis-port PRIVATE "${tinycbor_SOURCE_DIR}/src" PRIVATE "${tinycbor_BINARY_DIR}")
-# mDNS header-only library (mdns/mdns.h)
+# mDNS header-only library (port/mdns/mdns.h)
 # Note:
 # PUBLIC because dns-sd_mdns.c is a PUBLIC source that gets compiled by targets linking to kis-port.
-target_include_directories(kis-port PUBLIC "${mdns_SOURCE_DIR}")
+target_include_directories(kis-port PUBLIC "${MDNS_INCLUDE_DIR}")
 
 ## KNX-IoT Stack - Platform Port Options ##
 target_link_libraries(kis-port PUBLIC kis-common)

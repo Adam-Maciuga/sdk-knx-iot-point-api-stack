@@ -9,7 +9,7 @@
  * @file dns-sd_mdns.c
  *
  * Unified, lightweight, in-process mDNS/DNS-SD service announcement and query
- * response using the public-domain header-only mdns.h library (deps/mdns).
+ * response using the public-domain header-only mdns.h library (port/mdns).
  *
  * Replaces the former platform-specific implementations that shelled out to
  * external tools (Avahi on Linux, Bonjour dns-sd / dns-sd_sharp on Windows).

@@ -136,26 +136,9 @@ endif()
 
 # mDNS header-only library
 # Note:
-# Always required by port/dns-sd_mdns.c.
-# This fetch only provides the mdns.h header used by dns-sd_mdns.c, which is
-# the stack provided DNS-SD responder based on mDNS (Wi-Fi/Ethernet).
-FetchContent_Declare(
-    mdns
-    GIT_REPOSITORY https://github.com/mjansson/mdns.git
-    GIT_TAG main
-    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${STACK_ROOT}/port/mdns.patch
-                  -P "${STACK_ROOT}/cmake/patch.cmake"
-)
-# Note:
-# Use FetchContent_Populate (not MakeAvailable) to download only — the mdns
-# library's own CMakeLists.txt builds POSIX example programs that do not
-# compile under the Zephyr cross-toolchain.
-# We only need the mdns.h header.
-FetchContent_GetProperties(mdns)
-if(NOT mdns_POPULATED)
-    FetchContent_Populate(mdns)
-endif()
-zephyr_include_directories(${mdns_SOURCE_DIR})
+# Required by port/dns-sd_mdns.c, the DNS-SD responder of the socket backends
+# (Ethernet, Wi-Fi). Vendored and maintained in port/mdns, see its README.md.
+zephyr_include_directories(${STACK_ROOT}/port/mdns)
 
 # ── Source files ───────────────────────────────────────────────────────────────
 

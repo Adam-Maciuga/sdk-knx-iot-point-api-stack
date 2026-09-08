@@ -1,0 +1,47 @@
+# mdns.h — vendored mDNS/DNS-SD primitives
+
+Header-only mDNS responder primitives used by `port/dns-sd_mdns.c`, the KNX IoT
+DNS-SD implementation for the socket-based network ports (Linux, Windows,
+Zephyr Ethernet and Wi-Fi). The OpenThread port does not use it; it registers
+via the SRP client instead (`port/zephyr/dns-sd-thread.c`).
+
+## Origin
+
+Imported from <https://github.com/mjansson/mdns>, commit
+`a569c4759bd47e0f2a7bfc4d4c19620445782806` (2025-10-26), public domain. The
+file was previously fetched at build time (`FetchContent`, branch `main`) and
+patched (`port/mdns.patch`). It is now maintained here; upstream is not
+tracked any more. `LICENSE` in this directory carries the dedication.
+
+## Local changes relative to upstream
+
+Fixes that were previously carried in `port/mdns.patch`:
+
+- `mdns_answer_add_txt_record()`: an entry with empty key and empty value
+  encodes the RFC 6763 clause 6.1 empty TXT record, a single zero-length
+  string, instead of a bare `=` (upstream issues #96/#97).
+- Answer and announcement packets: a TXT record passed in the *answer* slot is
+  coalesced like the authority/additional ones, so the header's answer count of
+  one always has a record behind it (F-016).
+
+Cleanup done on import, none of it changes what goes on the wire:
+
+- Removed the client-side API: `mdns_discovery_send/recv`,
+  `mdns_query_send`, `mdns_multiquery_send`, `mdns_query_recv`, `mdns_query_t`.
+- Removed IPv4: `mdns_socket_open_ipv4/setup_ipv4`, the A record builder and
+  `mdns_record_a_t`; `mdns_multicast_send()` requires an IPv6 socket. The KNX
+  IoT specification mandates IPv6-only mDNS.
+- Removed the unicast answer path (`mdns_query_answer_unicast`,
+  `mdns_answer_add_question_unicast`, `mdns_unicast_send`). The responder
+  answers QU questions by multicast, which RFC 6762 section 5.4 permits.
+- Removed the record parsers (`mdns_record_parse_*`); the responder only needs
+  `mdns_string_extract()` for question names.
+- Removed the `__APPLE__` `sin_len` fields; no Apple port exists.
+- `MDNS_DEFAULT_TTL` (60 s) names the TTL that was a literal before.
+- Comment fixes and documentation of the remaining API.
+
+## Maintaining
+
+Change the header directly and cover the change in
+`tests/unit/test_dns_sd_mdns.cpp`. If an upstream fix is worth taking, port it
+by hand; the removed code makes a plain merge impractical.
