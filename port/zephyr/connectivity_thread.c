@@ -23,6 +23,13 @@
 #include <openthread/udp.h>
 #include <openthread/ip6.h>
 
+/* OpenThread API version 465 (openthread#10965) split OT_NETIF_THREAD into
+ * OT_NETIF_THREAD_HOST and OT_NETIF_THREAD_INTERNAL. On older versions the
+ * single OT_NETIF_THREAD carries the internal semantics, so alias it. */
+#if OPENTHREAD_API_VERSION < 465
+#define OT_NETIF_THREAD_INTERNAL OT_NETIF_THREAD
+#endif
+
 #define COAP_PORT_UNSECURED (5683)
 
 OC_LIST(oc_network_interface_cb_list);
