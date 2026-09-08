@@ -276,12 +276,12 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
         return -1;
     }
 
+    openthread_mutex_lock();
+
     pending.iid = iid;
     pending.ia = ia;
     pending.pm = pm;
     stopped = false;
-
-    openthread_mutex_lock();
 
     if (entry == NULL)
     {
@@ -339,15 +339,17 @@ void knx_dns_sd_stop(void)
 {
     otInstance *inst = openthread_get_default_instance();
 
+    openthread_mutex_lock();
+
     stopped = true;
     reapply = false;
 
     if ((inst == NULL) || (entry == NULL))
     {
+        openthread_mutex_unlock();
         return;
     }
 
-    openthread_mutex_lock();
     /* SRP goodbye: remove host and services at the server (key lease kept so
      * the name stays ours), a following update re-registers */
     otError err = otSrpClientRemoveHostAndServices(inst, false, true);

@@ -96,11 +96,16 @@ uint16_t oc_connectivity_thread_get_port(void)
     /* After a successful bind OpenThread stores the effective port in the
      * socket's local address; that is the value to advertise, also when the
      * configured port was 0 and an ephemeral one was assigned. */
+    uint16_t port = g_unicast_port;
+
+    openthread_mutex_lock();
     if ((sInstance != NULL) && otUdpIsOpen(sInstance, &mSocket) && (mSocket.mSockName.mPort != 0))
     {
-        return mSocket.mSockName.mPort;
+        port = mSocket.mSockName.mPort;
     }
-    return g_unicast_port;
+    openthread_mutex_unlock();
+
+    return port;
 }
 
 int oc_connectivity_init(void)
@@ -119,6 +124,8 @@ int oc_connectivity_init(void)
 	}
 
 	sockaddr.mPort = g_unicast_port;
+
+	openthread_mutex_lock();
 
 	if (!otUdpIsOpen(sInstance, &mSocket))
 	{
@@ -165,6 +172,8 @@ int oc_connectivity_init(void)
 		}
 	}
 
+	openthread_mutex_unlock();
+
 exit:
     return ret;
 }
@@ -176,6 +185,7 @@ int oc_send_buffer(oc_message_t *message)
     otMessageInfo     messageInfo;
     otMessageSettings messageSettings = {true, OT_MESSAGE_PRIORITY_NORMAL};
     int ret = -1;
+    bool locked = false;
 
 	if (message == NULL)
 	{
@@ -187,6 +197,9 @@ int oc_send_buffer(oc_message_t *message)
     OC_INF("Outgoing message of size %d bytes to ", message->length);
     PRINTipaddr(message->endpoint);
 #endif /* OC_DEBUG */
+
+    openthread_mutex_lock();
+    locked = true;
 
     if(!otUdpIsOpen(sInstance, &mSocket))
     {
@@ -235,6 +248,11 @@ exit:
         otMessageFree(otMessage);
     }
 
+    if (locked)
+    {
+        openthread_mutex_unlock();
+    }
+
     return ret;
 }
 
@@ -245,7 +263,8 @@ oc_send_discovery_request(oc_message_t *message)
     oc_send_buffer(message);
 }
 
-oc_endpoint_t *oc_connectivity_get_endpoints(void)
+/* Caller should hold the OpenThread mutex*/
+static oc_endpoint_t *find_unicast_endpoint(void)
 {
     const otNetifAddress *addr;
 
@@ -312,10 +331,21 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
     return NULL;
 }
 
+oc_endpoint_t *oc_connectivity_get_endpoints(void)
+{
+    openthread_mutex_lock();
+    oc_endpoint_t *endpoint = find_unicast_endpoint();
+    openthread_mutex_unlock();
+
+    return endpoint;
+}
+
 void
 oc_connectivity_shutdown()
 {
+    openthread_mutex_lock();
     otUdpClose(sInstance, &mSocket);
+    openthread_mutex_unlock();
 }
 
 void
@@ -347,7 +377,9 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        openthread_mutex_lock();
         otIp6SubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        openthread_mutex_unlock();
     }
 }
 
@@ -355,7 +387,9 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        openthread_mutex_lock();
         otIp6UnsubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        openthread_mutex_unlock();
     }
 }
 
