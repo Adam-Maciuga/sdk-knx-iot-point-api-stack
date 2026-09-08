@@ -101,6 +101,8 @@ int oc_connectivity_init(void)
 
 	sockaddr.mPort = g_unicast_port;
 
+	openthread_mutex_lock();
+
 	if (!otUdpIsOpen(sInstance, &mSocket))
 	{
 		error = otUdpOpen(sInstance, &mSocket, HandleUdpReceive, NULL);
@@ -127,6 +129,8 @@ int oc_connectivity_init(void)
 		OC_ERR("Socket already open!\r\n");
 	}
 
+	openthread_mutex_unlock();
+
 exit:
     return ret;
 }
@@ -138,6 +142,7 @@ int oc_send_buffer(oc_message_t *message)
     otMessageInfo     messageInfo;
     otMessageSettings messageSettings = {true, OT_MESSAGE_PRIORITY_NORMAL};
     int ret = -1;
+    bool locked = false;
 
 	if (message == NULL)
 	{
@@ -149,6 +154,9 @@ int oc_send_buffer(oc_message_t *message)
     OC_INF("Outgoing message of size %d bytes to ", message->length);
     PRINTipaddr(message->endpoint);
 #endif /* OC_DEBUG */
+
+    openthread_mutex_lock();
+    locked = true;
 
     if(!otUdpIsOpen(sInstance, &mSocket))
     {
@@ -197,6 +205,11 @@ exit:
         otMessageFree(otMessage);
     }
 
+    if (locked)
+    {
+        openthread_mutex_unlock();
+    }
+
     return ret;
 }
 
@@ -215,7 +228,9 @@ oc_endpoint_t *oc_connectivity_get_endpoints()
 void
 oc_connectivity_shutdown()
 {
+    openthread_mutex_lock();
     otUdpClose(sInstance, &mSocket);
+    openthread_mutex_unlock();
 }
 
 void
@@ -247,7 +262,9 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        openthread_mutex_lock();
         otIp6SubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        openthread_mutex_unlock();
     }
 }
 
@@ -255,7 +272,9 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        openthread_mutex_lock();
         otIp6UnsubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        openthread_mutex_unlock();
     }
 }
 
