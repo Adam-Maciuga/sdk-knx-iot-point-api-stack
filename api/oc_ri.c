@@ -980,7 +980,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   coap_method_t method = (coap_method_t)packet->code;
 
   // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
-  oc_request_t new_request = {0};              // partiality filled later on, hence init with '0'
+  oc_request_t new_request = {0};               // partiality filled later on, hence init with '0'
   oc_response_t response_obj;                   // filled completely later on, hence no init with '0'
   oc_response_buffer_t response_buffer = {0};   // partiality filled later on, hence init with '0'
 

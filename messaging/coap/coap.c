@@ -943,7 +943,7 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
   coap_pkt->type = type;
   coap_pkt->code = code;
   coap_pkt->mid = mid;
-  coap_pkt->version = 1;
+  coap_pkt->version = COAP_VERSION;
 }
 
 static void coap_udp_set_header_fields(void* packet) 
@@ -1157,7 +1157,7 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   coap_pkt->code      = data[1];
   coap_pkt->mid       = (uint16_t)(data[2] << 8 | data[3]);
 
-  if (coap_pkt->version != 1) 
+  if (coap_pkt->version != COAP_VERSION) 
   {
     OC_ERR("CoAP version must be 1");
     return BAD_REQUEST_4_00;

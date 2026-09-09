@@ -57,7 +57,7 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
 
   #endif
 
-  if (packet->version != 1)
+  if (packet->version != COAP_VERSION)
   {
     OC_WRN("CoAP version must be 1");
     return BAD_REQUEST_4_00;
