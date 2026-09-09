@@ -848,6 +848,16 @@ static int send_query_response(int sock, const char *ptr_name)
 {
   // socket is already open from inbound query listener, so we can just build the records and send them
   
+  /* 
+     Note that on an inbound request such as '_knx._udp.local.' the stack includes the srv records 
+     in the query response answer, the RFC allows this with additional records  
+     (KNX IoT specification demands this for an advertisement = announcement, clause 2.6.1.2.2, 
+      but here we are on a query response). 
+    
+     This is because the stack is designed to provide a complete response to the client, including all relevant 
+     information. The additional records (SRV, AAAA, TXT) are included to allow the client to resolve the service 
+     instance fully without needing to make additional queries.
+  */
   knx_service_records_t svc;
   build_service_records(&svc, &current_advertisement);
 
