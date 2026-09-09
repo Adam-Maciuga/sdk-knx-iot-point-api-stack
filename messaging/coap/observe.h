@@ -95,14 +95,15 @@ int coap_remove_observers_on_dos_change(bool reset);
  *
 
   @note  
-   - notifies /k observers on self-triggered outbound application s-mode POST 'w' request 
-   - does not notify /k observers for inbound POST s-mode 'w/r' requests 
-     - mc: 
-       - 'w' other linked (n) receivers gets this mc 'w' request as well, 
-             if linked (n) receivers would issue an own notification cycle -> one 'w' request 
-             would end up in (n) extra s-mode 'w' notifications (provided all (n) receivers are observed) 
-       - 'r' is not a CoV at receiver side 
-     - uc: 
+   - notifies /k observers on self-triggered outbound application s-mode POST 'w' request (mc/uc) - 't' flag must be set (clause 2.6.9.3)
+   - does not notify /k observers for inbound POST s-mode 'w/r/a' requests (mc/uc) 
+     - 'w/a' 
+      - w + a flag must be set (usually on if.p/if.i/if.g.s), t-flag is not set 
+      - other linked (n) receivers gets this mc 'w/a' request as well, 
+        if linked (n) receivers would issue an own notification cycle -> one 'w' request 
+        would end up in (n) extra s-mode 'w/a' notifications (provided all (n) receivers are observed) 
+     - 'r'   
+       - is not a CoV at receiver side (r/t-flag are usually set)
    - does not notify /k observers for inbound 'none' s-mode requests
 */
 void coap_notify_k_observers(const uint8_t* payload, size_t payload_len);

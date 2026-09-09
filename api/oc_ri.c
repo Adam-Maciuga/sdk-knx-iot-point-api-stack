@@ -1391,15 +1391,25 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       if (matching_resource && (method == COAP_PUT || method == COAP_POST) && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
         /*
-          If the recently handled inbound request was a PUT/POST, it MAY have altered the resource state, 
-          so attempt to notify all /p observers of that resource. 
-          NOTE: 
           
-          - Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
-          - Multicast POST on /k always calls 'oc_ignore_request' which sets OC_IGNORE, not caught here.
-          - must notify observers when their value changes via a unicast PUT/POST
-          - immediately, no delay (on unicast there are not other devices firing notifications, 
-            so no need to delay for batching)
+          1. /k and /p resources are observable, so if 'change' request was successfully handled, 
+             then the resource state may have changed
+
+          2. /k has a mandatory OBSERVE with if.g.s, it may be unicast or multicast, 
+             both with POST, the actual service type is part of the s-mode payload (st='r/w/a') 
+             
+             - multicast ->  calls 'oc_ignore_request' which sets OC_IGNORE, not processed here
+                             (consequently only on self-triggered request a notification is sent, 
+                              see 'coap_notify_k_observers')
+             
+             - unicast   ->  calls below 'oc_notify_observers' which sends a notification to all observers of the resource,
+                             no delay (it was a unicast, hence no other devices firing notifications based on this request) 
+          
+          3. /p has an optional (OBSERVE) with if.p (Table 6, IoT Specification), unicast and mandatory PUT
+          4. /p has a mandatory OBSERVE with if.o (Table 6, IoT Specification), unicast and optional POST 
+             (the POST is handled as an alias via /k above)            
+             
+         
         */
         oc_notify_observers(matching_resource);
       }
