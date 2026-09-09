@@ -334,7 +334,7 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, cha
 }
 
 // int for error return, -1 = error, 0..15 = hex value
-static int hex_digit_value(const char c)
+int oc_hex_digit_value(char c)
 {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -377,7 +377,7 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
     start = 1;
 
     // save lone (low) digit
-    const int lo = hex_digit_value(hex_str[0]);
+    const int lo = oc_hex_digit_value(hex_str[0]);
 
     if (lo < 0)
     {
@@ -402,8 +402,8 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
   */
   for (size_t i = start; i + 1 < hex_str_len; i += 2)
   {
-    const int hi = hex_digit_value(hex_str[i]);
-    const int lo = hex_digit_value(hex_str[i + 1]);
+    const int hi = oc_hex_digit_value(hex_str[i]);
+    const int lo = oc_hex_digit_value(hex_str[i + 1]);
 
     if (hi < 0 || lo < 0)
     {

@@ -303,6 +303,14 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size);
 /** Conversions between hex encoded strings and byte arrays */
 
 /**
+ * @brief value of a single hex digit character
+ *
+ * @param[in] c the character
+ * @return int 0..15 on success, -1 if `c` is not a hex digit
+ */
+int oc_hex_digit_value(char c);
+
+/**
  * @brief convert array to hex
  *
  * Note: hex_str is pre allocated with hex_str_len
