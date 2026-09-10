@@ -125,19 +125,38 @@ extern "C" {
     Payload marker                                          COAP_PAYLOAD_MARKER_LEN = 1
 
   Uri-Path and Uri-Query are emitted by COAP_SERIALIZE_STRING_OPTION as one option per '/' resp. '&' separated part,
-  so the group costs 'characters + one option header per part'. A part longer than 12 bytes needs a length extension
-  byte, hence two header bytes are budgeted per part. The separators themselves are not serialized, so
-  'KNX_MAX_URI_PATH_LEN + 2 * KNX_MAX_URI_PATH_SEGMENTS' is a strict upper bound for any split of that string.
+  so the group costs 'characters + one option header per part', see COAP_STRING_OPTION_GROUP_SIZE below.
 
   Block1 and Block2 are budgeted together on purpose: per RFC 7959 clause 2.7 the response to the last Block1 slice
   carries the first Block2 slice, so both options legally appear in one message, and Size1 and Size2 can likewise
   co-occur in a Block1 request.
 */
+
+/*
+  Worst-case cost of an option group that COAP_SERIALIZE_STRING_OPTION splits on a separator ('/' for Uri-Path,
+  '&' for Uri-Query), given a character budget 'len' and a part-count budget 'parts':
+
+    len                      the serialized characters; the separators are not emitted, so the length of the whole
+                             string is a strict upper bound for the sum of its parts
+    + parts                  one base option header byte per part (the delta is 0 for every part after the first)
+    + min(parts, len / 13)   one length extension byte per part longer than 12 bytes (RFC 7252 clause 3.1)
+
+  The extension bytes are bounded twice over: a part needs one only if it holds at least 13 characters, so at most
+  'len / 13' parts can require one, and obviously no more than 'parts' can. Charging two header bytes for every part
+  ignores the character bound and over-reserves whenever 'parts' exceeds 'len / 13'.
+
+  Parts never reach 269 characters here, so a two byte length extension cannot occur.
+*/
+#define COAP_STRING_OPTION_GROUP_SIZE(len, parts) \
+  ((len) + (parts) + (((len) / 13) < (parts) ? ((len) / 13) : (parts)))
+
 #ifndef COAP_MAX_INNER_HEADER_SIZE
-  #define COAP_MAX_INNER_HEADER_SIZE (1 + (1 + COAP_ETAG_LEN) + (1 + 3)                                            \
-                                        + (KNX_MAX_URI_PATH_LEN + 2 * KNX_MAX_URI_PATH_SEGMENTS) + (1 + 2)         \
-                                        + (KNX_MAX_URI_QUERY_LEN + 2 * KNX_MAX_URI_QUERY_PARAMS) + (1 + 2)         \
-                                        + (1 + 3) + (1 + 3) + (1 + 4) + (2 + 4) + (3 + COAP_ECHO_LEN)              \
+  #define COAP_MAX_INNER_HEADER_SIZE (1 + (1 + COAP_ETAG_LEN) + (1 + 3)                                                       \
+                                        + COAP_STRING_OPTION_GROUP_SIZE(KNX_MAX_URI_PATH_LEN, KNX_MAX_URI_PATH_SEGMENTS)      \
+                                        + (1 + 2)                                                                             \
+                                        + COAP_STRING_OPTION_GROUP_SIZE(KNX_MAX_URI_QUERY_LEN, KNX_MAX_URI_QUERY_PARAMS)      \
+                                        + (1 + 2)                                                                             \
+                                        + (1 + 3) + (1 + 3) + (1 + 4) + (2 + 4) + (3 + COAP_ECHO_LEN)                         \
                                         + COAP_PAYLOAD_MARKER_LEN)
 #endif
 

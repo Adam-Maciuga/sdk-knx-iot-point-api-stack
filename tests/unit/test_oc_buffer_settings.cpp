@@ -520,6 +520,60 @@ TEST(CoapHeaderBudgets, InnerCoversEchoAndTheUris)
   EXPECT_GE((size_t)COAP_MAX_INNER_HEADER_SIZE, (size_t)(KNX_MAX_URI_PATH_LEN + KNX_MAX_URI_QUERY_LEN));
 }
 
+TEST(CoapHeaderBudgets, StringOptionGroupChargesOneExtensionPerLongPartOnly)
+{
+  /*
+    COAP_SERIALIZE_STRING_OPTION emits one option per part: one base header byte always, plus one length
+    extension byte only for a part longer than 12 characters (RFC 7252 clause 3.1). A part needs at least
+    13 characters to earn that byte, so the character budget caps the extension bytes independently of the
+    part count - charging two bytes per part over-reserves whenever 'parts' exceeds 'len / 13'.
+  */
+  EXPECT_EQ((size_t)COAP_STRING_OPTION_GROUP_SIZE(48, 8), (size_t)(48 + 8 + 3));   // 3 = 48 / 13, the part count does not bind
+  EXPECT_EQ((size_t)COAP_STRING_OPTION_GROUP_SIZE(64, 4), (size_t)(64 + 4 + 4));   // the part count binds, every part may be long
+  EXPECT_EQ((size_t)COAP_STRING_OPTION_GROUP_SIZE(12, 1), (size_t)(12 + 1 + 0));   // a 12 character part still fits the short form
+
+  /* never below the naive 'one header byte per part' floor, never above the old 'two per part' bound */
+  EXPECT_GE((size_t)COAP_STRING_OPTION_GROUP_SIZE(KNX_MAX_URI_PATH_LEN, KNX_MAX_URI_PATH_SEGMENTS),
+            (size_t)(KNX_MAX_URI_PATH_LEN + KNX_MAX_URI_PATH_SEGMENTS));
+  EXPECT_LE((size_t)COAP_STRING_OPTION_GROUP_SIZE(KNX_MAX_URI_PATH_LEN, KNX_MAX_URI_PATH_SEGMENTS),
+            (size_t)(KNX_MAX_URI_PATH_LEN + 2 * KNX_MAX_URI_PATH_SEGMENTS));
+}
+
+TEST(CoapHeaderBudgets, SegmentHeavyUriPathFitsTheTightenedGroupBudget)
+{
+  /*
+    the split that maximizes header bytes: as many parts as the segment budget allows, with as many of them
+    longer than 12 characters as the character budget allows. MAX_URI_PATH exercises the character-heavy
+    split (few long parts); this is the count-heavy one, which is what the tightened bound now binds on.
+  */
+  static uint8_t buf[SCRATCH_BUFFER_SIZE];
+  coap_packet_t pkt;
+
+  /* 3 parts of 13 characters, then short parts, 48 characters including the separators */
+  const char* path = "aaaaaaaaaaaaa/bbbbbbbbbbbbb/ccccccccccccc/d/e/f";
+
+  ASSERT_LE(strlen(path), (size_t)KNX_MAX_URI_PATH_LEN);
+
+  memset(buf, 0, sizeof(buf));
+  coap_udp_init_message(&pkt, COAP_TYPE_CON, COAP_GET, 0xFFFF);
+  coap_set_header_uri_path(&pkt, path, strlen(path));
+
+  size_t len = coap_oscore_serialize_message(&pkt, buf, true, false, false);
+
+  EXPECT_GT(len, 0u) << "serializer rejected a Uri-Path inside the KNX limits";
+
+  /*
+    Uri-Path is the only option set, so the frame is the inner code byte plus the option group. Comparing the
+    measured group against the formula pins the tightened bound against the serializer rather than against the
+    much larger whole-budget ceiling, which any small path would satisfy.
+  */
+  const size_t measured_group = len - 1;
+  const size_t budgeted_group = (size_t)COAP_STRING_OPTION_GROUP_SIZE(KNX_MAX_URI_PATH_LEN, KNX_MAX_URI_PATH_SEGMENTS);
+
+  EXPECT_LE(measured_group, budgeted_group)
+    << "measured Uri-Path group " << measured_group << " exceeds the tightened budget " << budgeted_group;
+}
+
 TEST(CoapHeaderBudgets, PlainFrameFitsThePlainBudget)
 {
   /* a flat message carrying inner AND outer options must stay within COAP_MAX_HEADER_SIZE */

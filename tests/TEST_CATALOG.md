@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1433 unit tests** (53 files) + **385 runtime tests** (20 files) = **1818 total**
+> **1435 unit tests** (53 files) + **385 runtime tests** (20 files) = **1820 total**
 >
-> Branch: `work_in_progress` | Unit: 1405 registered and passed (windows-test-gcc, GCC/CTest, ~52s, 100% passed out of 1405). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run. On `linux-test-gcc` the full unit run is 1433 passed, 0 skipped.
+> Branch: `work_in_progress` | Unit: 1407 registered and passed (windows-test-gcc, GCC/CTest, ~39s, 100% passed out of 1407). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run. On `linux-test-gcc` the full unit run is 1435 passed, 0 skipped.
 > Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.32s) - fully green. This run verified the three-way CoAP header budget split (D-002) and the new Block2 reassembly in the test client (F-017). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -413,8 +413,8 @@ not a multiple of a single constant. The argument is stored verbatim, the payloa
 budget used to derive the block size is `pdu_size - OC_COAP_HEADER_BUDGET`, and the
 accepted range is `OC_COAP_HEADER_BUDGET + 16 .. COAP_MAX_MESSAGE_SIZE`.
 
-Current values: outer 54, inner 219, plain 273, `KNX_PAYLOAD_SIZE` 768,
-default PDU 1041, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
+Current values: outer 54, inner 214, plain 268, `KNX_PAYLOAD_SIZE` 768,
+default PDU 1036, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 
 **Defaults (`PduDefaults`, 5 tests)**
 
@@ -450,13 +450,13 @@ default PDU 1041, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 | `PayloadCarryingFrameStaysWithinMeasuredBudget` | A payload-carrying frame stays within the measured budget |
 | `SetPduSizeToDefaultEquivalentReproducesDefaultPduSize` | Setting the default-equivalent argument restores the default PDU |
 | `SetPduSizeToDefaultEquivalentReproducesDefaultBlockSize` | ...and restores the default block size |
-| `PduBelowTwoHeadersPlusMinBlockIsRejected` | Guard rejects anything below `OC_COAP_HEADER_BUDGET + 16` (289 bytes) |
+| `PduBelowTwoHeadersPlusMinBlockIsRejected` | Guard rejects anything below `OC_COAP_HEADER_BUDGET + 16` (284 bytes) |
 | `MinimumAcceptedPduYieldsMinimumBlockSize` | The smallest accepted PDU yields a 16-byte block |
 | `GuardAndBlockBudgetUseSameHeaderMultiple` | Guard and payload-budget subtraction use the same header budget |
 | `BlockSizeIsMonotonicInPduSize` | Block size never decreases as the PDU grows |
 | `LargePduAlwaysHoldsWorstCaseFrame` | Any accepted large PDU still holds the worst-case frame |
 
-**Header budgets (`CoapHeaderBudgets`, 4 tests)**
+**Header budgets (`CoapHeaderBudgets`, 7 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
@@ -464,6 +464,9 @@ default PDU 1041, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 | `OuterIsSmallerThanInner` | The Class U budget is the smaller of the two |
 | `OuterCoversTheOscoreOption` | The outer budget leaves room for a full OSCORE option value |
 | `InnerCoversEchoAndTheUris` | The inner budget covers Echo plus the KNX Uri-Path/Uri-Query maxima |
+| `StringOptionGroupChargesOneExtensionPerLongPartOnly` | `COAP_STRING_OPTION_GROUP_SIZE` charges a length extension byte only for parts of 13+ characters, capped by both the character and the part budget |
+| `SegmentHeavyUriPathFitsTheTightenedGroupBudget` | A measured count-heavy Uri-Path split (3 long + 3 short parts) stays inside the tightened group budget |
+| `PlainFrameFitsThePlainBudget` | A flat inner+outer frame stays within `COAP_MAX_HEADER_SIZE` |
 
 **Message size (`CoapMessageSize`, 3 tests)**
 
@@ -1595,6 +1598,12 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 run with `-IncludeUncommitted`):
 **380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 849.32s) - fully green.
+
+> **Stale since this run:** the Uri-Path over-reservation was fixed afterwards
+> (D-002 follow-up), moving inner 219 -> 214, plain 273 -> 268 and the default PDU
+> 1041 -> 1036. The unit suite was re-run green (1407/1407); the **runtime suite has
+> not been re-run** against the tightened budgets. Everything below describes the
+> earlier run and its numbers.
 
 The most recent run covered two changes. First, the CoAP header budget was split
 three ways (D-002 in `FINDINGS.md`): `COAP_MAX_OUTER_HEADER_SIZE` (54),

@@ -362,14 +362,14 @@ Bugs and issues discovered during unit test development.
 
   | inner / outer / oscore | wrapper | budget | value |
   |---|---|---|---|
-  | 1 / 0 / 0 | `oscore_serialize_plaintext()` | `COAP_MAX_INNER_HEADER_SIZE` | 219 |
+  | 1 / 0 / 0 | `oscore_serialize_plaintext()` | `COAP_MAX_INNER_HEADER_SIZE` | 214 |
   | 0 / 1 / 1 | `oscore_serialize_message()` | `COAP_MAX_OUTER_HEADER_SIZE` | 54 |
-  | 1 / 1 / 0 | `coap_serialize_message()` | `COAP_MAX_HEADER_SIZE` | 273 |
+  | 1 / 1 / 0 | `coap_serialize_message()` | `COAP_MAX_HEADER_SIZE` | 268 |
 
   Each budget is itemized option by option in `conf.h` against RFC 7252 clause 3.1
   option-header costs, so a change to a KNX URI limit propagates automatically.
-- **Derived sizing:** `OC_COAP_HEADER_BUDGET = outer + inner = 273`,
-  `KNX_PAYLOAD_SIZE = 768`, default PDU 1041, `COAP_MAX_MESSAGE_SIZE = 1152`,
+- **Derived sizing:** `OC_COAP_HEADER_BUDGET = outer + inner = 268`,
+  `KNX_PAYLOAD_SIZE = 768`, default PDU 1036, `COAP_MAX_MESSAGE_SIZE = 1152`,
   `OC_MAX_ON_WIRE_BLOCK_SIZE = 512` (RFC 7252 clause 4.6 - the block must leave room
   for both headers and the AEAD tag inside one datagram).
 - **Latent bug fixed on the way:** `api/oc_client_api.c` offset the s-mode payload by
@@ -387,6 +387,24 @@ Bugs and issues discovered during unit test development.
 - **Known consequence - see F-017:** lowering `KNX_PAYLOAD_SIZE` to 768 pushed the
   larger link-format bodies over one block, which exposed a gap in the *test client*
   (no Block2 reassembly). The stack itself paginates correctly.
+- **Follow-up, Uri-Path over-reservation (inner 219 -> 214):** the first itemization
+  charged two option-header bytes for every part of a string option group
+  (`len + 2 * parts`), i.e. it assumed every part needs a length extension byte. A part
+  only earns that byte at 13 characters or more, so the character budget caps the
+  extension bytes as well as the part count does. `COAP_STRING_OPTION_GROUP_SIZE(len,
+  parts) = len + parts + min(parts, len / 13)` in `conf.h` applies both caps. Uri-Path
+  drops 64 -> 59 (48 characters over at most 8 parts, of which at most 3 can be long);
+  Uri-Query is unchanged at 72, because 64 characters over 4 parts means every part
+  *can* be long, so there the part count was already the binding cap. Net: inner
+  219 -> 214, plain 273 -> 268, default PDU 1041 -> 1036.
+  - The bound stays safe when leading options are absent and the deltas grow: the
+    largest inner option number is Echo (252), so a delta from zero still needs only one
+    extension byte, while every absent option frees at least three. Sum-of-maxima
+    absorbs it.
+  - **Pinned by:** `CoapHeaderBudgets.StringOptionGroupChargesOneExtensionPerLongPartOnly`
+    (the formula) and `CoapHeaderBudgets.SegmentHeavyUriPathFitsTheTightenedGroupBudget`
+    (a measured count-heavy split; the pre-existing `MAX_URI_PATH` case only exercises
+    the character-heavy split, which the tightening does not bind on).
 
 ## F-017: ~~`/dev` and `/.well-known/core` truncate link-format instead of paginating~~ - WITHDRAWN, NOT A DEFECT
 
