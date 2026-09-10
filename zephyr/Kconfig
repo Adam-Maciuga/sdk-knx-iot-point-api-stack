@@ -99,6 +99,14 @@ config KNXIOT_PUBLISHER_TABLE
       receive group messages. Disable for plain senders that only transmit
       S-mode messages without table-based management.
 
+config KNXIOT_ECHO_RING_SIZE
+    int "OSCORE multicast echo ring size"
+    default 64
+    range 1 256
+    help
+      Number of retained OSCORE multicast messages and echo responder records.
+      The value must be a power of two.
+
 # ── Table sizes ────────────────────────────────────────────────────────────────
 
 config KNXIOT_GOT_MAX_ENTRIES

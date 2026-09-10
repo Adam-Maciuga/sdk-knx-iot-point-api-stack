@@ -196,6 +196,10 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 #define OC_ECHO_RING_SIZE (64)
 #endif
 
+#if (OC_ECHO_RING_SIZE < 1) || ((OC_ECHO_RING_SIZE & (OC_ECHO_RING_SIZE - 1)) != 0)
+#error "OC_ECHO_RING_SIZE must be a positive power of two"
+#endif
+
 /* 
   - outbound echo responses are strictly uses 10 byte but will never be stored in the echo ring
   - inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3), with != 10 byte
