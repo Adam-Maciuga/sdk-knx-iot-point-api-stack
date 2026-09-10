@@ -121,10 +121,10 @@ extern "C" {
 		oc_at_profile_t profile;		// (38) "coap_oscore", ... (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
     
 	  oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
-	  oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (defined, but not used)  
+	                            	// (8:4:1) OSCORE cnf:osc:version (not used)  
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
-		int8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value -10 (defined, but not used) 
-    int8_t osc_alg;							// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (defined, but not used) 
+		                        		// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value -10 (not used) 
+                    						// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (not used) 
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid -> 'kid_context' (in msg) / 'ID Context'  (OSC) / osc:contextid (OSC Profile) - max 16 byte string 
 		
