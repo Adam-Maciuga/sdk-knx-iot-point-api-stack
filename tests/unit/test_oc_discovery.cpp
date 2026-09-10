@@ -892,7 +892,7 @@ TEST_F(DiscoveryBase, AddPayloadNullResourceReturnsFalse)
 {
   // Verify that a null resource is rejected without changing the response length.
   size_t len = 0;
-  EXPECT_FALSE(oc_add_resource_to_response_payload(nullptr, &len, false));
+  EXPECT_FALSE(oc_add_resource_to_response_payload(nullptr, &len, false, true));
   EXPECT_EQ(len, 0u);
 }
 
@@ -902,7 +902,7 @@ TEST_F(DiscoveryBase, AddPayloadEmptyUriReturnsFalse)
   oc_resource_t r;
   memset(&r, 0, sizeof(r));
   size_t len = 0;
-  EXPECT_FALSE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_FALSE(oc_add_resource_to_response_payload(&r, &len, false, true));
   EXPECT_EQ(len, 0u);
 }
 
@@ -914,7 +914,7 @@ TEST_F(DiscoveryBase, AddPayloadUriOnlyFramesAngleBrackets)
   oc_new_string(&r.uri, "/p/0", strlen("/p/0"));
 
   size_t len = 0;
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
   EXPECT_GT(len, 0u);
   EXPECT_NE(framed(len).find("</p/0>;"), std::string::npos);
 
@@ -929,7 +929,7 @@ TEST_F(DiscoveryBase, AddPayloadInsertsLeadingCommaWhenBufferNonEmpty)
   oc_new_string(&r.uri, "/p/1", strlen("/p/1"));
 
   size_t len = 5; /* pretend a previous record was already written */
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
   /* the very first byte written in this call must be the separator comma */
   EXPECT_EQ(buf[0], ',');
 
@@ -946,7 +946,7 @@ TEST_F(DiscoveryBase, AddPayloadFramesResourceTypeUnTruncated)
   oc_string_array_add_item(r.types, "urn:knx:dpa.353");
 
   size_t len = 0;
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
   std::string s = framed(len);
   EXPECT_NE(s.find("rt=\"urn:knx:dpa.353\""), std::string::npos);
 
@@ -964,11 +964,66 @@ TEST_F(DiscoveryBase, AddPayloadTruncateStripsUrnKnxPrefix)
   oc_string_array_add_item(r.types, "urn:knx:dpa.353");
 
   size_t len = 0;
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, true));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, true, true));
   std::string s = framed(len);
   /* "urn:knx" (7 chars) stripped -> ":dpa.353" remains */
   EXPECT_NE(s.find("rt=\":dpa.353\""), std::string::npos);
   EXPECT_EQ(s.find("urn:knx"), std::string::npos);
+
+  oc_free_string(&r.uri);
+  oc_free_string_array(&r.types);
+}
+
+/* a resource only reports interfaces when at least one method handler is defined,
+   see oc_resource_get_all_interfaces_for_a_resource() in api/oc_server_api.c */
+static void discovery_dummy_get_handler(oc_request_t*, oc_interface_mask_t, void*) {}
+
+static void init_resource_with_interface(oc_resource_t* r)
+{
+  memset(r, 0, sizeof(*r));
+  oc_new_string(&r->uri, "/dev", strlen("/dev"));
+  oc_new_string_array(&r->types, 1);
+  oc_string_array_add_item(r->types, "urn:knx:fb.0");
+  r->get_handler.cb = discovery_dummy_get_handler;
+  r->get_handler.interface_mask = OC_IF_LI;   // if.ll
+  r->content_type[0] = APPLICATION_CBOR;
+  r->content_type[1] = CONTENT_NONE;
+}
+
+TEST_F(DiscoveryBase, AddPayloadEmitsInterfaceWhenIncludeIfIsTrue)
+{
+  // baseline for the include_if = false case below: the interface IS framed when asked for
+  oc_resource_t r;
+  init_resource_with_interface(&r);
+
+  size_t len = 0;
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
+  std::string s = framed(len);
+
+  EXPECT_NE(s.find("if=\""), std::string::npos) << "if= expected in: " << s;
+
+  oc_free_string(&r.uri);
+  oc_free_string_array(&r.types);
+}
+
+TEST_F(DiscoveryBase, AddPayloadOmitsInterfaceWhenIncludeIfIsFalse)
+{
+  /*
+    include_if = false drops the whole if= attribute (used for the mandatory core resources on
+    /.well-known/core). The link must stay well formed: the rt value already closes with ';',
+    so ct follows directly and no empty if="" or double ';' is left behind.
+  */
+  oc_resource_t r;
+  init_resource_with_interface(&r);
+
+  size_t len = 0;
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, false));
+  std::string s = framed(len);
+
+  EXPECT_EQ(s.find("if="), std::string::npos) << "if= must not be framed: " << s;
+  EXPECT_NE(s.find("rt=\"urn:knx:fb.0\";"), std::string::npos) << s;
+  EXPECT_NE(s.find("ct="), std::string::npos) << s;
+  EXPECT_EQ(s.find(";;"), std::string::npos) << "empty attribute slot left behind: " << s;
 
   oc_free_string(&r.uri);
   oc_free_string_array(&r.types);
@@ -984,7 +1039,7 @@ TEST_F(DiscoveryBase, AddPayloadFramesSingleContentType)
   r.content_type[1] = CONTENT_NONE;
 
   size_t len = 0;
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
   std::string s = framed(len);
   /* single content type is framed without quotes: ct=<n> */
   EXPECT_NE(s.find("ct="), std::string::npos);
@@ -1003,7 +1058,7 @@ TEST_F(DiscoveryBase, AddPayloadFramesDoubleContentType)
   r.content_type[1] = APPLICATION_LINK_FORMAT;
 
   size_t len = 0;
-  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false));
+  EXPECT_TRUE(oc_add_resource_to_response_payload(&r, &len, false, true));
   std::string s = framed(len);
   /* two content types are framed inside quotes: ct="<n> <m>" */
   EXPECT_NE(s.find("ct=\""), std::string::npos);
@@ -1027,7 +1082,7 @@ TEST_F(DiscoveryBase, CheckRequestNullResourceReturnsFalse)
   memset(&req, 0, sizeof(req));
   size_t len = 0;
   int skipped = 0;
-  EXPECT_FALSE(oc_check_request_from_resource(nullptr, &req, &len, &skipped, 0, false));
+  EXPECT_FALSE(oc_check_request_from_resource(nullptr, &req, &len, &skipped, 0, false, true));
 }
 
 TEST_F(DiscoveryBase, CheckRequestNonDiscoverableReturnsFalse)
@@ -1044,7 +1099,7 @@ TEST_F(DiscoveryBase, CheckRequestNonDiscoverableReturnsFalse)
 
   size_t len = 0;
   int skipped = 0;
-  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false));
+  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false, true));
 
   oc_free_string(&r.uri);
 }
@@ -1063,7 +1118,7 @@ TEST_F(DiscoveryBase, CheckRequestDiscoverableNoQueryFrames)
 
   size_t len = 0;
   int skipped = 0;
-  EXPECT_TRUE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false));
+  EXPECT_TRUE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false, true));
   EXPECT_GT(len, 0u);
   EXPECT_NE(framed(len).find("</p/7>;"), std::string::npos);
 
@@ -1086,7 +1141,7 @@ TEST_F(DiscoveryBase, CheckRequestRtMismatchReturnsFalse)
 
   size_t len = 0;
   int skipped = 0;
-  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false));
+  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false, true));
 
   oc_free_string(&r.uri);
   oc_free_string_array(&r.types);
@@ -1108,7 +1163,7 @@ TEST_F(DiscoveryBase, CheckRequestRtMatchReturnsTrue)
 
   size_t len = 0;
   int skipped = 0;
-  EXPECT_TRUE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false));
+  EXPECT_TRUE(oc_check_request_from_resource(&r, &req, &len, &skipped, 0, false, true));
   EXPECT_GT(len, 0u);
 
   oc_free_string(&r.uri);
@@ -1130,7 +1185,7 @@ TEST_F(DiscoveryBase, CheckRequestSkipsEntriesBelowFirstEntry)
   size_t len = 0;
   int skipped = 0;
   /* first_entry = 2: this match is below the page start, must be skipped */
-  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 2, false));
+  EXPECT_FALSE(oc_check_request_from_resource(&r, &req, &len, &skipped, 2, false, true));
   EXPECT_EQ(skipped, 1);
   EXPECT_EQ(len, 0u);
 
@@ -1150,5 +1205,5 @@ TEST_F(DiscoveryBase, CheckRequestFromIndexUninitializedCoreReturnsFalse)
   int skipped = 0;
   /* with no device bootstrapped the core table is empty, so the resolved
    * resource is NULL and the call must safely return false. */
-  EXPECT_FALSE(oc_check_request_from_index(9999, &req, &len, &skipped, 0, false));
+  EXPECT_FALSE(oc_check_request_from_index(9999, &req, &len, &skipped, 0, false, true));
 }

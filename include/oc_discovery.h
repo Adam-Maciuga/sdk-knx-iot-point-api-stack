@@ -30,16 +30,20 @@ extern "C" {
    * @param first_entry first entry to be included
    * @param truncate if true the response payload SHALL carry the short URN for the resource types,
    *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
+   * @param include_if if false the 'if' attribute is left out of the link entirely. Independent of
+   *                 truncate, which only selects the URN form of an 'if' that IS emitted.
    *
    * @note
    * - parameter truncate is always false when called from the well-known/core EP
+   * - parameter include_if is false only for the mandatory core resources on the well-known/core EP,
+   *   where the response is kept small; a query parameter request wants the 'if' in
    * - 'invisible' resources are skipped
    *
    * @return true individual resource added to the response payload (incl. rt's, types, ...)
    * @return false individual resource was not added to the response payload
    */
   bool oc_check_request_from_index(int index, oc_request_t* request, size_t* response_length,
-                                    int* skipped, int first_entry, bool truncate);
+                                    int* skipped, int first_entry, bool truncate, bool include_if);
 
   /**
  * @brief  filters on an individual resource for a match with the request query parameters, on 
@@ -54,32 +58,40 @@ extern "C" {
  * @param first_entry first entry to be included
  * @param truncate if true the response payload SHALL carry the short URN for the resource types,
  *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
+ * @param include_if if false the 'if' attribute is left out of the link entirely. Independent of
+ *                 truncate, which only selects the URN form of an 'if' that IS emitted.
  *
  * @note
  * - parameter truncate is always false when called from the well-known/core EP
+ * - parameter include_if is false only for the mandatory core resources on the well-known/core EP,
+ *   where the response is kept small; a query parameter request wants the 'if' in
  * - 'invisible' resources are skipped
  *
- * @return true individual resource added to the response payload (incl. rt's, types, ...) 
+ * @return true individual resource added to the response payload (incl. rt's, types, ...)
  * @return false individual resource was not added to the response payload
  */
 bool oc_check_request_from_resource(const oc_resource_t *resource, oc_request_t *request, size_t *response_length,
-                        int *skipped, int first_entry, bool truncate);
+                        int *skipped, int first_entry, bool truncate, bool include_if);
 /**
  * @brief add the resource (uri, if, rt, ct) to the response in application link format
  *
  * @param resource the resource
  * @param response_length the response length (to be increased)
  * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource and interface types
+ * @param include_if if false the 'if' attribute is left out of the link entirely
  *
  * @note truncate identifies if the method call is originated by a non knx (e.g; well-known) EP or any knx related EP,
  *       in case of knx EP the truncation is ALWAYS expected
+ * @note the two flags are independent: truncate selects the URN form of an 'if' that is emitted,
+ *       include_if decides whether it is emitted at all
  *
- * @return true 
- * @return false (if resource or resource uri are not present) 
+ * @return true
+ * @return false (if resource or resource uri are not present)
  */
 bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
                                          size_t *response_length,
-                                         bool truncate);
+                                         bool truncate,
+                                         bool include_if);
 
 /**
  * @brief well-known discovery handler

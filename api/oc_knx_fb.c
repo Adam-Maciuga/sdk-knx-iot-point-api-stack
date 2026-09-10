@@ -90,7 +90,7 @@ static void check_array_for_scanned_fbs_and_add_if_fresh(uint16_t number, uint8_
   g_array_of_different_fbs[g_array_current_amount_of_scanned_fbs].fb_instance = instance; // fb instance occurence
 
   // do not overflow the array
-  if (g_array_current_amount_of_scanned_fbs < 63)
+  if (g_array_current_amount_of_scanned_fbs < NUM_FBS - 1)
     g_array_current_amount_of_scanned_fbs++;
 }
 
@@ -203,8 +203,8 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
         else
         { // add
 
-          // called from GET /fb/x handler so always truncate resources URN's
-          oc_add_resource_to_response_payload(resource, &response_length, true);
+          // called from GET /fb/x handler so always truncate resources URN's, and keep the 'if' in
+          oc_add_resource_to_response_payload(resource, &response_length, true, true);
           query_parameter_key_value_pair_matches++;
 
           if (query_parameter_key_value_pair_matches >= query_ps)
@@ -344,7 +344,7 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
   return false;
 }
 
-bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request, bool short_urn_form, 
+bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request, bool short_urn_form, bool include_if,
                                                            size_t* response_length, int* matches,
                                                            int* skipped, int first_entry, int last_entry)
 {
@@ -368,8 +368,6 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
     }
     else
     {
-      
-
       if (*response_length > 0)
       {
         // close previous record to create a new without LF (not found in RFC 6690)
@@ -412,8 +410,20 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
       (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
       *response_length += oc_rep_add_line_to_buffer(fb_number_and_instance_text);
 
-      // FB if and ct (fix)
-      *response_length += oc_rep_add_line_to_buffer("\";if=\":if.ll\";ct=40");
+      // close the rt value
+      *response_length += oc_rep_add_line_to_buffer("\"");
+
+      // FB if, only when the caller wants it
+      if (include_if)
+      {
+        if (short_urn_form)
+          *response_length += oc_rep_add_line_to_buffer(";if=\":if.ll\"");
+        else
+          *response_length += oc_rep_add_line_to_buffer(";if=\"urn:knx:if.ll\"");
+      }
+
+      // ct (fix)
+      *response_length += oc_rep_add_line_to_buffer(";ct=40");
     }
   }
 
@@ -477,7 +487,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   const bool more_request_needed = total > first_entry + query_ps;
 
   // note that this function is reusing the number of counted FBs 
-  if (oc_add_functional_blocks_from_application_to_response(request, true, &response_length, &query_parameter_kvpair_matches,
+  if (oc_add_functional_blocks_from_application_to_response(request, true, true, &response_length, &query_parameter_kvpair_matches,
                                                 &skipped, first_entry, total))
   {
     if (more_request_needed)

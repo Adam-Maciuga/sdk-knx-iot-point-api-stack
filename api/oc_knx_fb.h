@@ -32,6 +32,9 @@ extern "C" {
  *
  * @param request the request
  * @param short_urn_form if the urn:knx needs to be added as part of response or not (/well-known vs /f)
+ * @param include_if if false the 'if' attribute is left out of the link entirely. Independent of
+ *                 short_urn_form, which only selects the URN form of an 'if' that IS emitted.
+ *                 False on /.well-known/core, where the response is kept small, true on /f.
  * @param response_length the current response length
  * @param matches number of matches (so far)
  * @param skipped number of entries already skipped (in case they fo not fit to the page number)
@@ -41,7 +44,7 @@ extern "C" {
  * @return false (no FB was added)
  *
  */
-bool oc_add_functional_blocks_from_application_to_response(oc_request_t *request, bool short_urn_form,
+bool oc_add_functional_blocks_from_application_to_response(oc_request_t *request, bool short_urn_form, bool include_if,
                                         size_t *response_length, int *matches,
                                         int *skipped, int first_entry,
                                         int last_entry);

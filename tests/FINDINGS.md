@@ -550,3 +550,33 @@ Bugs and issues discovered during unit test development.
   with their original assertions. `test_dns_sd_mdns.cpp` is 28 passed, 0 skipped; the full Linux
   suite is 1420 passed, 0 skipped. The runtime suite `-k 5_1` is 130 passed, and its capture of the
   cleared sleep period now shows two goodbye packets instead of an empty one.
+
+## F-018: `if=` of a functional block link ignores `short_urn_form` on `/.well-known/core` - RESOLVED
+
+- **File:** `api/oc_knx_fb.c` (`oc_add_functional_blocks_from_application_to_response`)
+- **Severity:** Low - a well-formed but abbreviated urn on one attribute of one link type. The
+  link is still parseable; a client that resolves `if=` against the full `urn:knx:` namespace
+  reads the wrong interface, and the same response carries both spellings.
+- **Found by:** inspection of a live unicast `GET /.well-known/core` response, which mixes the
+  two forms inside a single payload:
+
+  ```
+  </dev>;rt="urn:knx:fb.0";if="urn:knx:if.ll";ct=40      <- core resource, long form
+  </f/417_1>;rt="urn:knx:fb.417";if=":if.ll";ct=40       <- functional block, rt long / if short
+  ```
+
+- **Description:** the function takes a `short_urn_form` flag, documented at `oc_knx_fb.h:34` as
+  "if the urn:knx needs to be added as part of response or not (/well-known vs /f)". It has two
+  callers: `oc_discovery.c:710` passes `false` (`/.well-known/core`, long form) and
+  `oc_knx_fb.c:480` passes `true` (`/f`, short form). The `rt=` attribute honours the flag, but
+  `if=` did not - it was emitted from one hardcoded literal
+  `"\";if=\":if.ll\";ct=40"`, so `/.well-known/core` always got the short form. The core
+  resources on the same response come from their own resource definitions and use the long form,
+  hence the mismatch inside one payload.
+- **Status:** Resolved.
+- **Resolution:** the `if=` literal now branches on `short_urn_form` the same way the `rt=`
+  literal above it does: `:if.ll` when short, `urn:knx:if.ll` when long.
+- **Verification:** full unit suite 1407 passed, 0 failed (windows-test-gcc). No test asserted on
+  the emitted string before or after - the existing `if.ll` occurrences in `test_oc_discovery.cpp`
+  and `test_oc_knx_fb.cpp` are query *inputs*, not response assertions. The runtime discovery
+  regexes in `test_5_1_discovery.py` match on `rt=` and `ct=` only. **Runtime suite not re-run.**

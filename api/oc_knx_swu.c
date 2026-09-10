@@ -834,7 +834,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true, true))
     {
       query_parameter_kvpair_matches++;
     }

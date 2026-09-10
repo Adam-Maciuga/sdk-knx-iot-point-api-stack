@@ -20,17 +20,18 @@
 #include "oc_knx_dev.h"
 
 /*
- * - below resources must be in the uc/mc response for well-known/core,
- *   other resources may be added in real products, certification tests demands only the mandatory
- * - use int type to satisfy directly function call by using the array
- */
+  -  below first 4 resources (aka Functional Blocks) SHALL be in the uc/mc response for well-known/core (see clause 2.5.4),
+	   OC_APP as ap/ is fb.3 will be also included even though not mentioned directly in the clause
+	-  to reduce payload size and fit the response fit in a single message with CoAP PDU block size (512)
+     the 'rt' is included but 'if' is omitted (see clause 2.5.4), ct=40 defines it indirectly (linked list)
+*/
 static const int core_resources_for_well_known[] = 
-{
+{ // array int type -> satisfy directly the later function call by using the array index as resource index
   OC_DEV,					// mandatory
   OC_KNX_K,				// mandatory
   OC_KNX_SWU,			// mandatory
   OC_KNX_AUTH,		// mandatory
-  OC_APP					// optional
+  OC_APP				  // optional
 };
 
 // number of core resources to be considered for well-known requests  
@@ -89,7 +90,7 @@ static void oc_discovery_prepare_no_match_response(oc_request_t* request)
 	}
 }
 
-bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, bool truncate)
+bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, bool truncate, bool include_if)
 {
 
 	if (resource == NULL || oc_string_len(resource->uri) == 0)
@@ -161,10 +162,10 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 		*response_length += oc_rep_add_line_to_buffer("\";");
 	}
 
-	// if's, if present
+	// if's, if present and if the caller wants them (see include_if in oc_discovery.h)
 	oc_interface_mask_t interfaces = OC_IF_NONE;
 
-	if (oc_resource_get_all_interfaces_for_a_resource(resource, &interfaces))
+	if (include_if && oc_resource_get_all_interfaces_for_a_resource(resource, &interfaces))
 	{
 		// open if's
 	  *response_length += oc_rep_add_line_to_buffer("if=\"");
@@ -211,13 +212,13 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 	return true;
 }
 
-bool oc_check_request_from_index(int index, oc_request_t* request, size_t* response_length, int* skipped, int first_entry, bool truncate)
+bool oc_check_request_from_index(int index, oc_request_t* request, size_t* response_length, int* skipped, int first_entry, bool truncate, bool include_if)
 {
   const oc_resource_t* indexed_resource = oc_core_get_core_resource_by_index(index);
-  return oc_check_request_from_resource(indexed_resource, request,response_length, skipped, first_entry, truncate);
+  return oc_check_request_from_resource(indexed_resource, request,response_length, skipped, first_entry, truncate, include_if);
 }
 
-bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t* request,	size_t* response_length, int* skipped, int first_entry, bool truncate)
+bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t* request,	size_t* response_length, int* skipped, int first_entry, bool truncate, bool include_if)
 {
   if (!resource)
   {
@@ -269,7 +270,7 @@ bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t*
 		// result see above, last column
 	}
 
-	return oc_add_resource_to_response_payload(resource, response_length, truncate);
+	return oc_add_resource_to_response_payload(resource, response_length, truncate, include_if);
 }
 
 // filter for application resources (not all of them may be able to discover)
@@ -281,7 +282,8 @@ static bool oc_process_application_resources(oc_request_t* request,
 {
 	for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
 	{
-	    if (oc_check_request_from_resource(resource, request, response_length, skipped, first_entry, false))
+	    // application resources are only reached when a query parameter is present, there the 'if' is wanted
+	    if (oc_check_request_from_resource(resource, request, response_length, skipped, first_entry, false, true))
       {
         (*query_parameter_kvpair_matches)++;
         if (first_entry + *query_parameter_kvpair_matches >= last_entry)
@@ -296,17 +298,18 @@ static bool oc_process_application_resources(oc_request_t* request,
 
 // filter for core resources (all of them are able to discover)
 static bool oc_process_core_resources(oc_request_t* request,
-                                      size_t* response_length, int* query_parameter_kvpair_matches, 
+                                      size_t* response_length, int* query_parameter_kvpair_matches,
 																			int* skipped,
-																			int first_entry, 
-																			int last_entry)
+																			int first_entry,
+																			int last_entry,
+																			bool include_if)
 {
 
   for (int i = 0; i < RESOURCES_FOR_WELL_KNOWN; i++)
 	{
     const int index = core_resources_for_well_known[i];
 
-	  if (oc_check_request_from_index(index, request, response_length, skipped, first_entry, false))
+	  if (oc_check_request_from_index(index, request, response_length, skipped, first_entry, false, include_if))
 		{
 			(*query_parameter_kvpair_matches)++;
 			if (first_entry + *query_parameter_kvpair_matches >= last_entry)
@@ -428,13 +431,13 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
    * unicast
    *
    * without rt/if query parameter
-   * - (a0) core resources (/dev, /k, ...) -> mandatory/ optional defined ones  
-   * - (b0) application functional blocks (FB) -> at least one resource type must be defined (such 'fb.0')
+   * - (a0) count core resources (/dev, /k, ...)      -> mandatory/ optional defined ones  
+   * - (b0) count application functional blocks (FB)  -> at least one resource type must be defined (such 'fb.0')
    *
    * with rt/if query parameter
-   * - (a1) core resources (/dev, /k, ...) -> for those the rt/if filter fits 
+   * - (a1) count core resources (/dev, /k, ...)      -> for those the rt/if filter fits 
    * - (b0) see above
-   * - (c1) all 'visible' application resources -> at least one resource path must be defined (such '/p/1')
+   * - (c1) count all 'visible' application resources -> at least one resource path must be defined (such '/p/1')
    */
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
@@ -454,8 +457,16 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
   // (b0)
   total += oc_count_functional_blocks_from_application();
 
-  // (c1) 
-	if (rt_len > 0 || if_len > 0)
+  /*
+    a plain discovery request gets the small form without the 'if' attribute (the response MAY carry only the
+    Functional Block resources to reduce the message size). A request that filters on 'rt' or 'if' asked for
+    detail, so there the 'if' is framed. This drives the application resource count below as well as the core
+    resources, the application resources and the FBs further down.
+  */
+  const bool query_parameter_present = rt_len > 0 || if_len > 0;
+
+  // (c1)
+	if (query_parameter_present)
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
 		{
@@ -675,10 +686,10 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
   // core
   current_page_is_full = oc_process_core_resources(request, &response_length, &query_parameter_key_value_pair_matches,
-                                                    &skipped, first_entry, first_entry + query_ps);
+                                                    &skipped, first_entry, first_entry + query_ps, query_parameter_present);
 
   // add application resources only if query parameters are present
-	if (rt_len > 0 || if_len > 0)
+	if (query_parameter_present)
   {
     OC_DBG("oc_well_known_core_discovery_handler rt='%.*s' if='%.*s' ", rt_len, rt_request, if_len, if_request); // first (len) value defines precision for %.
 
@@ -695,15 +706,15 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	{ // unicast: page not full, things can still be added
 
 		// add FBs in case of well-known discovery request contains matching query parameters:
-		// - not present at all
-		// - rt=*, rt=*fb* -> urn:knx:fb.321
-		// - if=*, if=*ll* -> urn:knx:id.ll
+    // - not present at all -> /.well-known/core discovery request without query parameter
+		// - present with rt=* or rt=*fb* -> urn:knx:fb.321
+		// - present with if=* or if=*ll* -> urn:knx:id.ll
 		if (oc_check_if_functional_blocks_need_to_add(request))
 		{
 			OC_INF("oc_well_known_core_discovery_handler add functional block resources ...");
 
-			// note that this function is reusing the number of counted FBs
-		  oc_add_functional_blocks_from_application_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
+			// note that this function is reusing the number of counted FBs, the 'if' follows the same rule as the core resources above: only framed on a query parameter request
+		  oc_add_functional_blocks_from_application_to_response(request, false, query_parameter_present, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 		}
 	}
 

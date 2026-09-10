@@ -322,7 +322,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -1417,7 +1417,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true, true))
     {
       query_parameter_kvpair_matches++;
     }

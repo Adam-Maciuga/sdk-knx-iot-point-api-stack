@@ -2802,12 +2802,12 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
         // add the resource to response, note, it is not checked if the resource is already there...
         OC_INF("oc_add_points_from_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
 
-        // called from GET /p handler so always truncate resources URN's
+        // called from GET /p handler so always truncate resources URN's, and keep the 'if' in
         oc_add_resource_to_response_payload(
           oc_ri_get_app_resource_by_resource_path(
-          oc_string_checked(g_got[index].href), 
+          oc_string_checked(g_got[index].href),
           oc_string_len(g_got[index].href)),
-          response_length, true);
+          response_length, true, true);
         return_value = true;
       }
     }

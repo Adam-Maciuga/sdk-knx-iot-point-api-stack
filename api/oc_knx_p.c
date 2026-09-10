@@ -25,8 +25,8 @@ static bool oc_was_adding_data_points_to_response(oc_request_t* request, const o
   for (; resource && matches < page_size; resource = resource->next)
   {
 
-    // called from GET /p handler so always truncate resources URN's
-    oc_add_resource_to_response_payload(resource, response_length, true);
+    // called from GET /p handler so always truncate resources URN's, and keep the 'if' in
+    oc_add_resource_to_response_payload(resource, response_length, true, true);
     matches++;
   }
 

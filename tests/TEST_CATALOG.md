@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1435 unit tests** (53 files) + **385 runtime tests** (20 files) = **1820 total**
+> **1437 unit tests** (53 files) + **385 runtime tests** (20 files) = **1822 total**
 >
-> Branch: `work_in_progress` | Unit: 1407 registered and passed (windows-test-gcc, GCC/CTest, ~39s, 100% passed out of 1407). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run. On `linux-test-gcc` the full unit run is 1435 passed, 0 skipped.
-> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.32s) - fully green. This run verified the three-way CoAP header budget split (D-002) and the new Block2 reassembly in the test client (F-017). See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1409 registered and passed (windows-test-gcc, GCC/CTest, ~59s, 100% passed out of 1409). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1409 + 28 = 1437.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.00s) - fully green. This run verified the `include_if` discovery change and the tightened CoAP string-option group budget. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -401,7 +401,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_buffer_settings.cpp — Buffer/PDU Settings (39 tests)
+### test_oc_buffer_settings.cpp — Buffer/PDU Settings (43 tests)
 
 **Source:** `api/oc_main.c` (declared in `include/oc_buffer_settings.h`)
 
@@ -426,12 +426,13 @@ default PDU 1036, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 | `DefaultBlockSizeMatchesWhatSetPduSizeWouldDerive` | Static initializer agrees with the runtime setter |
 | `DefaultPduExceedsPayloadSize` | Default PDU strictly larger than the payload budget |
 
-**Accessors (`BufferSettings`, 9 tests)**
+**Accessors (`BufferSettings`, 10 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
 | `MaxAppDataSizeReturnsKnxPayloadSize` | `oc_get_max_app_data_size()` == `KNX_PAYLOAD_SIZE` |
 | `MaxAppDataSizeIsStable` | Repeated calls return the same value |
+| `SetPduSizeBelowMinimumReturnsError` | PDU below `OC_COAP_HEADER_BUDGET+16` returns -1 |
 | `SetPduSizeBelowMinimumDoesNotChangeState` | PDU below `OC_COAP_HEADER_BUDGET+16` is refused and leaves PDU and block size unchanged |
 | `SetPduSizeValidReturnsZero` | Valid PDU accepted |
 | `GetPduSizeReturnsExactlyWhatWasSet` | `oc_get_pdu_size()` returns the stored value verbatim |
@@ -770,13 +771,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (234 tests)
+### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (236 tests)
 
 **Source:** `api/oc_discovery.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `DiscoveryBase` (add-payload) | 8 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) |
+| `DiscoveryBase` (add-payload) | 10 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) and the `include_if` flag in both directions (`if=` framed / omitted, no empty attribute slot left behind) |
 | `DiscoveryBase` (check-request) | 7 | Discoverability + rt-query filtering, first-entry skipping, uninitialised core |
 | `WellKnownCoreHandler` | 43 | Accept handling; rt/if/ep/d/l/pn/ps queries; PM, IA, sector errors (including no-matching-points and outside-runtime cases), next-page links, combined filters, multicast suppression |
 | `WellKnownCorePmEndpoint` | 32 | Synchronized unicast/multicast PM on/off cases with exact, wildcard, prefix wildcard, internal-substring rejection, mismatching, empty, maximum-length, and overlong SN endpoints |
@@ -1597,15 +1598,47 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 run with `-IncludeUncommitted`):
-**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 849.32s) - fully green.
+**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.00s) - fully green.
+Unit suite alongside it: 1409 passed, 0 failed (windows-test-gcc).
 
-> **Stale since this run:** the Uri-Path over-reservation was fixed afterwards
-> (D-002 follow-up), moving inner 219 -> 214, plain 273 -> 268 and the default PDU
-> 1041 -> 1036. The unit suite was re-run green (1407/1407); the **runtime suite has
-> not been re-run** against the tightened budgets. Everything below describes the
-> earlier run and its numbers.
+All 5 skips are by design, not failures:
+`test_5_3_1_6d_unblocks_after_timeout` is behind a static `skipif` that needs
+`-RunSlowTests`, `test_5_4_1_9_init_flag_sends_read_on_restart` is conditional, and the
+three `test_5_4_1_15_bonus_*` malformed-length cases stand down under cumulative suite
+load exactly as `tests/runtime/README.md` describes. No stack C code was changed to
+make any test pass.
 
-The most recent run covered two changes. First, the CoAP header budget was split
+The most recent run covered two changes to the link-format discovery response.
+
+First, `/.well-known/core` now omits the `if` attribute when the request carries no
+query parameter, following the KNX IoT RAG clause that the response MAY carry only the
+Functional Block resources to reduce the message size. A new `include_if` flag -
+independent of the existing `truncate`, which only selects the URN form of an `if` that
+IS emitted - is threaded through `oc_add_resource_to_response_payload()`,
+`oc_check_request_from_resource()`, `oc_check_request_from_index()` and
+`oc_add_functional_blocks_from_application_to_response()`. On the well-known EP the core
+resources and the functional blocks pass `query_parameter_present`; the application
+resources are only reached when a filter is present and therefore always pass true.
+Every other caller (`/p`, `/f`, `/fb/x`, `/dev`, `/auth`, `/swu`) passes true, so those
+responses are byte-identical to before.
+
+The EITT discovery patterns survived unchanged because they anchor on `rt=` and `ct=`
+rather than `if=`: a plain `</dev>;rt="urn:knx:fb.0";ct=40` still satisfies
+`(?=.*;ct=40)(?=.*="urn:knx:)`. Extending the flag to the functional-block step was
+load-bearing rather than cosmetic - `test_5_1_1_4e_if_wildcard` and
+`test_5_1_1_3e_if_wildcard` assert that for `?if=*` every entry carries `;if=` or is
+`p.next`, and the `if` wildcard arm of `oc_check_if_functional_blocks_need_to_add()`
+pulls the `/f/*` links into exactly that response.
+
+Second, the Uri-Path over-reservation in the inner header budget was corrected (the
+D-002 follow-up in `FINDINGS.md`). `COAP_STRING_OPTION_GROUP_SIZE` now charges a
+length-extension byte only for parts of 13 characters or more, capped by the character
+budget as well as by the part count, moving `COAP_MAX_INNER_HEADER_SIZE` 219 -> 214,
+`COAP_MAX_HEADER_SIZE` 273 -> 268 and the default PDU 1041 -> 1036. All 9 cases of
+`test_coap_header_budget.py` pass against the tightened budgets, including the
+worst-case Uri-Path and Uri-Query frames and the paginated OSCORE discovery.
+
+The run before that covered two changes. First, the CoAP header budget was split
 three ways (D-002 in `FINDINGS.md`): `COAP_MAX_OUTER_HEADER_SIZE` (54),
 `COAP_MAX_INNER_HEADER_SIZE` (219) and their sum `COAP_MAX_HEADER_SIZE` (273),
 each selected by the serialization mode actually in use. `KNX_PAYLOAD_SIZE` dropped
@@ -1628,7 +1661,7 @@ paginating correctly all along, setting the Block2 "more" bit and Size2.
 The rest of the suite was unchanged, confirming no regression in block-wise transfer,
 discovery, group communication, observe or security.
 
-The preceding run verified the inbound length hardening of both parse entry
+An earlier run verified the inbound length hardening of both parse entry
 points. `coap_parse_udp_message()` in `messaging/coap/coap.c` now rejects a
 datagram shorter than the fixed CoAP header and one whose announced token
 exceeds the received bytes, so the token `memcpy` can no longer copy stale heap
