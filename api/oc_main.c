@@ -20,6 +20,7 @@
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
+#include "oc_knx_sec.h"
 #include "conf.h"
 #include "oc_main.h"
 #include <stdlib.h>
@@ -392,6 +393,16 @@ void oc_main_shutdown(void)
   oc_unregister_group_multicasts();
 
   oc_ri_shutdown();
+
+  /* 
+     - frees the SPAKE2+/PASE credential and any other AT table RAM content allocated
+       during this run (until next restart/ power up) 
+
+     - oc_delete_at_table_entry() would also erase the provisioned credential from storage, 
+       which must survive a restart
+
+  */
+  oc_free_at_table_ram();
 
   oc_shutdown_device();
 

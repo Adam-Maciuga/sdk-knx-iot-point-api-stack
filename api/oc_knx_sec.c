@@ -454,8 +454,52 @@ const oc_resource_t core_resource_a_sen = {
   &core_resource_a_sen_data};
 
 /*
+  resets the RAM content of an AT-table entry to its empty state (id, scope, profile, oscore object, ga array)
+  - does not touch the persisted storage file for this slot; 
+  - oc_delete_at_table_entry() does that separately before calling this method
+*/
+static void oc_free_at_table_entry_ram(oc_auth_at_t* entry)
+{
+  // id 
+  oc_free_string(&entry->id);
+  oc_new_string(&entry->id, "", 0);
+
+  entry->scope = OC_ACL_NONE;
+  entry->profile = OC_PROFILE_UNKNOWN;
+
+  // cnf:osc - oscore object
+  oc_free_string(&entry->osc_id);
+  oc_new_byte_string(&entry->osc_id, "", 0);
+
+  oc_free_string(&entry->osc_ms);
+  oc_new_byte_string(&entry->osc_ms, "", 0);
+
+  oc_free_string(&entry->osc_salt);
+  oc_new_byte_string(&entry->osc_salt, "", 0);
+
+  oc_free_string(&entry->osc_contextid);
+  oc_new_byte_string(&entry->osc_contextid, "", 0);
+
+  // release a possible ga array, free ignores NULL ptr
+  free(entry->ga);
+
+  entry->ga = NULL;
+  entry->ga_len = 0;
+}
+
+
+void oc_free_at_table_ram(void)
+{
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  {
+    oc_free_at_table_entry_ram(entry);
+  }
+}
+
+
+/*
   empty ... when 'id' string is an empty string ""
-  the returned entry wipes the at-table RAM content (but not the storage), a free RAM at-table slot 
+  the returned entry wipes the at-table RAM content (but not the storage), a free RAM at-table slot
   may still carry leftovers (salt, context id, ga) of a beforehand rejected entry
 */
 static oc_auth_at_t* find_empty_at_entry(void)
@@ -465,29 +509,8 @@ static oc_auth_at_t* find_empty_at_entry(void)
   {
     if (oc_string_len(entry->id) == 0)
     {
-      // found an empty 'id' string ... reset the remaining content before handing the slot out
-      entry->scope = OC_ACL_NONE;
-      entry->profile = OC_PROFILE_UNKNOWN;
-
-      // oscore object
-      oc_free_string(&entry->osc_ms);
-      oc_new_byte_string(&entry->osc_ms, "", 0);
-
-      oc_free_string(&entry->osc_salt);
-      oc_new_byte_string(&entry->osc_salt, "", 0);
-
-      oc_free_string(&entry->osc_contextid);
-      oc_new_byte_string(&entry->osc_contextid, "", 0);
-
-      oc_free_string(&entry->osc_id);
-      oc_new_byte_string(&entry->osc_id, "", 0);
-
-      // release a possible ga array, free ignores NULL ptr
-      free(entry->ga);
-
-      entry->ga = NULL;
-      entry->ga_len = 0;
-
+      // found an empty 'id' string ... reset the remaining content before handing the slot out (double free of id accepted)
+      oc_free_at_table_entry_ram(entry);
       return entry;
     }
   }
@@ -1508,30 +1531,7 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
     (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
     oc_storage_erase(filename);
 
-    // id, scope, profile
-    oc_free_string(&entry->id);
-    oc_new_string(&entry->id, "", 0);
-    entry->scope = OC_ACL_NONE;
-    entry->profile = OC_PROFILE_UNKNOWN;
-
-    // oscore object
-    oc_free_string(&entry->osc_ms);
-    oc_new_byte_string(&entry->osc_ms, "", 0);
-
-    oc_free_string(&entry->osc_salt);
-    oc_new_byte_string(&entry->osc_salt, "", 0);
-
-    oc_free_string(&entry->osc_contextid);
-    oc_new_byte_string(&entry->osc_contextid, "", 0);
-
-    oc_free_string(&entry->osc_id);
-    oc_new_byte_string(&entry->osc_id, "", 0);
-
-    // release a possible ga array, free ignores NULL ptr
-    free(entry->ga);
-
-    entry->ga = NULL;
-    entry->ga_len = 0;
+    oc_free_at_table_entry_ram(entry);
     return 0;
   }
 

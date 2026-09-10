@@ -218,6 +218,15 @@ extern "C" {
 	 */
   int oc_delete_at_table_entry(oc_auth_at_t* entry);
 
+ 	/**
+   * @brief frees the RAM-only allocations of every AT table entry, without
+   * touching persistent storage (SPAKE2+/PASE shared secret, kid, kid-context, ga array)
+   *
+   * @note oc_delete_at_table_entry() must not be used there since it also erases the 
+   *       provisioned credential from storage
+   */
+  void oc_free_at_table_ram(void);
+
 	/**
 	 * @brief Creation of the KNX security resources.
 	 *
