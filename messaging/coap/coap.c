@@ -1238,41 +1238,72 @@ int coap_set_token(void* packet, const uint8_t* token, size_t token_len) {
   return coap_pkt->token_len;
 }
 
-int coap_get_header_content_format(void* packet, oc_content_format_t* format) {
-  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
+int coap_get_header_content_format(void* packet, oc_content_format_t* format) 
+{
+  const coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT)) 
+  {
     return 0;
   }
 
-  *format = coap_pkt->content_format;
+  *format = (oc_content_format_t)coap_pkt->content_format;
   return 1;
 }
 
-int coap_set_header_content_format(void* packet, oc_content_format_t format) {
+int coap_set_header_content_format(void* packet, oc_content_format_t format) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  coap_pkt->content_format = format;
-  SET_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT);
+  coap_pkt->content_format = (uint16_t) format;
+
+  /*
+    CONTENT_NONE is the application level 'no content format' marker, it is not an IANA
+    CoAP Content-Format and must never reach the wire. 'No content format' is expressed by
+    omitting the option; KNX IoT clause 2.2.4 defines what a receiver assumes then.
+  */
+  if (format == CONTENT_NONE)
+  {
+    UNSET_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT);
+  }
+  else
+  {
+    SET_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT);
+  }
   return 1;
 }
 
-int coap_get_header_accept(void* packet, unsigned int* accept) {
-  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
+int coap_get_header_accept(void* packet, oc_content_format_t* accept) 
+{
+  const coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_ACCEPT)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_ACCEPT)) 
+  {
     return 0;
   }
 
-  *accept = coap_pkt->accept;
+  *accept = (oc_content_format_t) coap_pkt->accept;
   return 1;
 }
 
-int coap_set_header_accept(void* packet, unsigned int accept) {
+int coap_set_header_accept(void* packet, oc_content_format_t accept) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->accept = (uint16_t) accept;
-  SET_OPTION(coap_pkt, COAP_OPTION_ACCEPT);
+
+  /*
+    same rule as coap_set_header_content_format(): CONTENT_NONE is the application level marker,
+    here meaning 'no preference', and that is expressed on the wire by omitting the option
+  */
+  if (accept == CONTENT_NONE)
+  {
+    UNSET_OPTION(coap_pkt, COAP_OPTION_ACCEPT);
+  }
+  else
+  {
+    SET_OPTION(coap_pkt, COAP_OPTION_ACCEPT);
+  }
   return 1;
 }
 

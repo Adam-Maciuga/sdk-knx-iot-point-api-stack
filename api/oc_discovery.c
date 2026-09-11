@@ -181,7 +181,7 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 		if (resource->content_type[1] != CONTENT_NONE)
 		{// 2 types, ct="60 40"
 
-			// space for two types (max 5 digits up to number of CONTENT_NONE = 99999)
+			// space for two types (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
       #define MAX_CT_LEN_DOUBLE (3 + 1 + 5 + 1 + 5 + 1)
 
       char double_my_ct_value[MAX_CT_LEN_DOUBLE];
@@ -197,7 +197,7 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 		else
 		{// 1 type, ct=60
 
-			// space for one type (max 5 digits up to number of CONTENT_NONE = 99999)
+			// space for one type (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
 		  #define MAX_CT_LEN_SINGLE (3 + 5)
 
       char single_my_ct_value[MAX_CT_LEN_SINGLE];

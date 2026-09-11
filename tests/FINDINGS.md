@@ -581,4 +581,71 @@ Bugs and issues discovered during unit test development.
 - **Verification:** full unit suite 1407 passed, 0 failed (windows-test-gcc). No test asserted on
   the emitted string before or after - the existing `if.ll` occurrences in `test_oc_discovery.cpp`
   and `test_oc_knx_fb.cpp` are query *inputs*, not response assertions. The runtime discovery
-  regexes in `test_5_1_discovery.py` match on `rt=` and `ct=` only. **Runtime suite not re-run.**
+  regexes in `test_5_1_discovery.py` match on `rt=` and `ct=` only. The fix was subsequently carried
+  by the 380 passed / 5 skipped / 0 failed runtime run (848.00s, `-IncludeUncommitted`).
+
+## F-019: `CONTENT_NONE` marker serialized as a CoAP Content-Format option - RESOLVED
+
+- **Files:** `include/oc_ri.h` (`oc_content_format_t`), `messaging/coap/coap.c` /
+  `messaging/coap/coap.h` (`coap_set_header_content_format`, `coap_get_header_accept`,
+  `coap_set_header_accept`), `api/oc_ri.c`, `api/oc_client_api.c`
+- **Severity:** Low-Medium - no interop break, but the device emitted an option value that is not a
+  registered CoAP Content-Format, on both a request and a payload-carrying response.
+- **Found by:** inspection, while tracing what `coap_set_header_content_format(pkt, CONTENT_NONE)`
+  at `oc_client_api.c:182` actually produced on the wire.
+- **Root cause - an application level marker crossing into the packet layer.** `CONTENT_NONE` is an
+  invented member of `oc_content_format_t`, not an IANA CoAP Content-Format. The enum is int sized,
+  but `coap_packet_t` stores `content_format` and `accept` as `uint16_t` (`coap.h:133`, `coap.h:135`).
+  The old value `99999` lies outside the 0-65535 registry range and therefore truncated silently to
+  **34463**, which falls inside the 33000-64997 Expert Review block and so is indistinguishable from
+  a real assignment. `coap_set_header_content_format()` set the option bit unconditionally, and
+  `COAP_SERIALIZE_INT_OPTION` (`coap.h:165`) gates only on that bit, never on the value.
+- **Two symptoms:**
+  1. `api/oc_client_api.c:182` - the outbound well-known GET set Content-Format to the marker. The
+     request carries no payload (the comment two lines above says so), so the option described
+     nothing.
+  2. `api/oc_ri.c:1153` - `(*response_state)->return_content_type = accept`, where `accept` is left
+     at `CONTENT_NONE` whenever the request carried no Accept option (`oc_ri.c:1015`).
+     `messaging/coap/engine.c:982` then passed that straight to the setter, so **every Block2
+     continuation response to an Accept-less request carried the marker as its Content-Format** -
+     on a response that does carry a payload. The two neighbouring call sites are guarded
+     (`content_format > 0` at `oc_ri.c:1422`, an explicit LINK/CBOR test at `oc_ri.c:1431`);
+     this one was not.
+- **Why it went unnoticed:** the Python runtime client always sends an explicit Accept, so symptom 2
+  is never exercised by the suite. And Content-Format is option 12 - even, therefore *elective* - so
+  RFC 7252 clause 5.4.1 requires a conformant peer to ignore it silently rather than reject it. No
+  test failure, no error log, no interop break.
+- **Specification:** RFC 7252 clause 5.10.3 states "in the absence of this option, no default value
+  is assumed", i.e. base CoAP leaves the absent case undefined and provides no "none" value. KNX IoT
+  clause 2.2.4 supplies exactly that missing default: "In the absence of the CoAP Accept and
+  Content-Format options in a CoAP request or a successful CoAP response, devices SHALL assume the
+  default format specified for the corresponding device resource for each of those options."
+  So absence is the correct encoding for "no format", and inside a KNX network it is unambiguous.
+- **Status:** Resolved.
+- **Resolution:** five changes.
+  1. `CONTENT_NONE` moved from `99999` to **`64999`**, taken from the 64998-64999 block the IANA CoAP
+     Content-Formats registry reserves for documentation: it can never collide with an operationally
+     assigned format and it fits the `uint16_t` the packet layer uses, so the truncation is gone.
+     The enum carries the reasoning and the "application layer only" rule.
+  2. `coap_set_header_content_format()` maps `CONTENT_NONE` to `UNSET_OPTION` instead of setting the
+     option, so the marker cannot reach the wire from any caller.
+  3. `oc_ri.c:1153` resolves an absent Accept to `matching_resource->content_type[0]` per clause
+     2.2.4, instead of propagating the wildcard into a response Content-Format. A sweep confirmed
+     all 57 static resource definitions and the application bound ones carry a concrete format in
+     slot 0, so the marker is not simply relocated.
+  4. `api/oc_client_api.c:182` deleted - `coap_udp_init_message()` already wipes the packet
+     (`coap.c:941`), so the option was correctly absent until this call set it.
+  5. `coap_get_header_accept()` / `coap_set_header_accept()` retyped from `unsigned int` to
+     `oc_content_format_t`, symmetric with the content-format pair and with the same `CONTENT_NONE`
+     guard. This removes the cast and shadow variable at `oc_ri.c:1015-1017`.
+- **Pinned by:** `CoapTest.ContentFormat_NoneClearsTheOption` and
+  `CoapTest.ContentFormat_NoneIsNotSerialized` in `tests/unit/test_coap.cpp` - the second serializes
+  and re-parses, so it fails against the original code. Mirrored by `CoapTest.Accept_NoneClearsTheOption`,
+  and `CoapTest.Accept_NotSet` now also pins that a caller supplied default survives an absent option,
+  which is the contract `oc_ri.c:1015` depends on.
+- **Verification:** full unit suite 1412 passed, 0 failed (windows-test-gcc). Full runtime suite
+  380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.29s, `-IncludeUncommitted`) - fully
+  green, identical tally and identical skip set to the run before these changes. Note the runtime
+  suite confirms no regression but does not *prove* symptom 2: `coap_client.py` always sends an
+  explicit Accept, so the `CONTENT_NONE` branch at `oc_ri.c:1153` is never entered. The unit
+  round-trip test is what pins that.

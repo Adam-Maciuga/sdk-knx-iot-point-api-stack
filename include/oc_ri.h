@@ -143,7 +143,23 @@ typedef enum oc_content_format {
   APPLICATION_VND_OMA_LWM2M_TLV = 11542,       /**< application/vnd.oma.lwm2m+tlv */
   APPLICATION_VND_OMA_LWM2M_JSON = 11543,      /**< application/vnd.oma.lwm2m+json */
   APPLICATION_VND_OMA_LWM2M_CBOR = 11544,      /**< application/vnd.oma.lwm2m+cbor */
-  CONTENT_NONE = 99999                 /**< no content format */
+  /*
+    Internal 'no content format' marker, NOT an IANA CoAP Content-Format.
+
+    Taken from the 64998-64999 block that the IANA CoAP Content-Formats registry reserves for
+    documentation, so it can never collide with an operationally assigned format, and it fits the
+    uint16_t that coap_packet_t uses for content_format and accept. 
+    
+    The previous value 99999 was outside the 0-65535 registry range and silently truncated to 34463
+    when stored in those fields, which lands in the 33000-64997 Expert Review range and is therefore
+    indistinguishable from a real assignment.
+
+    - application layer only (oc_request_t)
+    - not passed by coap_set_header_content_format() on the wire by omitting the option
+    - clause 2.2.4 defines what a receiver assumes then, the default format of the corresponding 
+      device resource
+  */
+  CONTENT_NONE = 64999
 } oc_content_format_t;
 
 /**

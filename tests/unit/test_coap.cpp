@@ -140,6 +140,40 @@ TEST_F(CoapTest, ContentFormat_NotSet)
   EXPECT_EQ(rc, 0);
 }
 
+TEST_F(CoapTest, ContentFormat_NoneClearsTheOption)
+{
+  /*
+    CONTENT_NONE is the application level 'no content format' marker, not an IANA Content-Format.
+    Setting it must leave the option OFF, so the wire carries no Content-Format at all - that is
+    how 'no format' is expressed, see KNX IoT clause 2.2.4.
+  */
+  init_con_get();
+  coap_set_header_content_format(&pkt, APPLICATION_CBOR);
+
+  oc_content_format_t fmt = CONTENT_NONE;
+  ASSERT_EQ(coap_get_header_content_format(&pkt, &fmt), 1) << "precondition: option is set";
+
+  coap_set_header_content_format(&pkt, CONTENT_NONE);
+  EXPECT_EQ(coap_get_header_content_format(&pkt, &fmt), 0) << "CONTENT_NONE must clear the option";
+}
+
+TEST_F(CoapTest, ContentFormat_NoneIsNotSerialized)
+{
+  /* the marker must never reach the wire, not even as a well-formed option value */
+  coap_udp_init_message(&pkt, COAP_TYPE_ACK, CONTENT_2_05, 0x0001);
+  coap_set_header_content_format(&pkt, CONTENT_NONE);
+
+  size_t len = coap_serialize_message(&pkt, wire);
+  ASSERT_GT(len, 0u);
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
+
+  oc_content_format_t fmt = APPLICATION_CBOR;
+  EXPECT_EQ(coap_get_header_content_format(&parsed, &fmt), 0)
+    << "a Content-Format option reached the wire carrying the CONTENT_NONE marker";
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Accept
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -149,17 +183,31 @@ TEST_F(CoapTest, Accept_SetGet)
   init_con_get();
   coap_set_header_accept(&pkt, APPLICATION_JSON);
 
-  unsigned int accept = 0;
+  oc_content_format_t accept = CONTENT_NONE;
   int rc = coap_get_header_accept(&pkt, &accept);
   EXPECT_EQ(rc, 1);
-  EXPECT_EQ(accept, (unsigned)APPLICATION_JSON);
+  EXPECT_EQ(accept, APPLICATION_JSON);
 }
 
 TEST_F(CoapTest, Accept_NotSet)
 {
   init_con_get();
-  unsigned int accept = 0;
+  oc_content_format_t accept = APPLICATION_CBOR;
   EXPECT_EQ(coap_get_header_accept(&pkt, &accept), 0);
+  EXPECT_EQ(accept, APPLICATION_CBOR) << "the caller supplied default must survive an absent option";
+}
+
+TEST_F(CoapTest, Accept_NoneClearsTheOption)
+{
+  /* mirrors ContentFormat_NoneClearsTheOption: CONTENT_NONE means 'no preference', i.e. no option */
+  init_con_get();
+  coap_set_header_accept(&pkt, APPLICATION_JSON);
+
+  oc_content_format_t accept = CONTENT_NONE;
+  ASSERT_EQ(coap_get_header_accept(&pkt, &accept), 1) << "precondition: option is set";
+
+  coap_set_header_accept(&pkt, CONTENT_NONE);
+  EXPECT_EQ(coap_get_header_accept(&pkt, &accept), 0) << "CONTENT_NONE must clear the option";
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

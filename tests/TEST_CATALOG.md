@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1437 unit tests** (53 files) + **385 runtime tests** (20 files) = **1822 total**
+> **1440 unit tests** (53 files) + **385 runtime tests** (20 files) = **1825 total**
 >
-> Branch: `work_in_progress` | Unit: 1409 registered and passed (windows-test-gcc, GCC/CTest, ~59s, 100% passed out of 1409). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1409 + 28 = 1437.
-> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.00s) - fully green. This run verified the `include_if` discovery change and the tightened CoAP string-option group budget. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1412 registered and passed (windows-test-gcc, GCC/CTest, ~60s, 100% passed out of 1412). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1412 + 28 = 1440.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.29s) - fully green. This run verified the `CONTENT_NONE` Content-Format fixes (F-019). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -178,7 +178,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (91 tests)
+### test_coap.cpp — CoAP Parser/Serializer (95 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -186,8 +186,8 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 |-------|-------|----------------|
 | `InitMessage` | 4 | CON/NON/ACK/RST + ClearsFields |
 | `Token` | 3 | 4-byte, 8-byte, truncation at 8 |
-| `ContentFormat` | 2 | Set/get, not-set default |
-| `Accept` | 2 | Set/get, not-set default |
+| `ContentFormat` | 4 | Set/get, not-set default, and the `CONTENT_NONE` marker clearing the option instead of being stored - including a serialize/parse round trip proving it never reaches the wire (F-019) |
+| `Accept` | 3 | Set/get, not-set default (caller supplied default survives), `CONTENT_NONE` clears the option (F-019) |
 | `MaxAge` | 2 | Set/get, default value |
 | `ETag` | 2 | Set/get, not-set |
 | `Observe` | 2 | Set/get option 7 |
@@ -1598,8 +1598,20 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 run with `-IncludeUncommitted`):
-**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.00s) - fully green.
-Unit suite alongside it: 1409 passed, 0 failed (windows-test-gcc).
+**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.29s) - fully green.
+Unit suite alongside it: 1412 passed, 0 failed (windows-test-gcc).
+
+The most recent run covered the `CONTENT_NONE` Content-Format work (F-019 in `FINDINGS.md`): the
+marker moved from 99999 to 64999 (the IANA documentation-reserved block, and it fits the `uint16_t`
+the packet layer uses), both `coap_set_header_content_format()` and `coap_set_header_accept()` now
+clear the option instead of storing the marker, `oc_ri.c:1153` resolves an absent Accept to the
+resource default per KNX IoT clause 2.2.4, the stray setter call on the well-known GET was removed,
+and the accept accessors were retyped to `oc_content_format_t`. Tally and skip set are identical to
+the preceding run, so nothing regressed.
+
+Note the suite confirms no regression but does not *prove* the `oc_ri.c:1153` fix: `coap_client.py`
+always sends an explicit Accept, so the `CONTENT_NONE` branch is never entered at runtime. The unit
+round-trip test `CoapTest.ContentFormat_NoneIsNotSerialized` is what pins that behaviour.
 
 All 5 skips are by design, not failures:
 `test_5_3_1_6d_unblocks_after_timeout` is behind a static `skipif` that needs

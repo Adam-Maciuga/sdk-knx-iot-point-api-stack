@@ -1012,9 +1012,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   coap_get_header_content_format(request, &content_format);
 
   // read the accept CoAP option in the request, set default none
-  unsigned int accept_int = CONTENT_NONE;
-  coap_get_header_accept(request, &accept_int);
-  oc_content_format_t accept = (oc_content_format_t)accept_int;
+  oc_content_format_t accept = CONTENT_NONE;
+  coap_get_header_accept(request, &accept);
 
   if (uri_query_len)
   {
@@ -1149,8 +1148,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
           oc_new_string(&(*response_state)->uri_query, uri_query, uri_query_len);
         }
 
-        // should be the same type in response as in the request
-        (*response_state)->return_content_type = accept;
+        /*
+          - an absent (inbound) 'Accept option set as default the 'accept' to CONTENT_NONE  
+          - the response Content-Format resolves that case to the default format of the corresponding device resource
+            (clause 2.2.4) 
+        */
+        (*response_state)->return_content_type = accept == CONTENT_NONE ? matching_resource->content_type[0] : accept;
 
         // here the response buffer is assigned
         response_buffer.buffer = (*response_state)->buffer;
