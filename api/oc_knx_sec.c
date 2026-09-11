@@ -1508,6 +1508,22 @@ static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
   return entry ? entry->scope : OC_ACL_NONE;
 }
 
+/*
+  Erases the SSN entry and the AT table entry of one AT table slot from storage and clears the RAM.
+
+  NOTES:
+  (a) AT table entry manipulations ALWAYS need to be reflected in the SSNT entry handling! The AT
+      table entry (KNX_STORAGE_KEY_ATT_ENTRY) and its SSN entry (KNX_STORAGE_KEY_SSNT_ENTRY) share
+      the same AT table index and are ALWAYS manipulated together. Whoever creates, stores, moves
+      or deletes an AT table entry must do the same for its SSN entry.
+  (b) The SSN has a dedicated storage entry because it is the value written to flash by far the
+      most often (every OSCORE_SSN_WRITE_FREQ_K outgoing OSCORE messages). Keeping it apart from
+      the AT table entry reduces the amount of flash writes as much as possible. The AT table entry
+      itself is only written on commissioning or management events.
+  (c) Erase order: The SSN entry is erased FIRST. Even in the unlikely case of a crash between the
+      two erases the SSN entry is then already gone, so a future occupant of this slot can never
+      inherit the previous occupant's counter.
+*/
 int oc_delete_at_table_entry(oc_auth_at_t* entry)
 {
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
@@ -1515,18 +1531,19 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
 
   if (index != -1)
   {
+    // SSN entry of the AT table entry (same index), erased first, see NOTES (c) above, otherwise it
+    // stays in storage forever and a future occupant of this AT table slot would start from the
+    // previous occupant's counter
+    char ssn_storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+    (void)snprintf(ssn_storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_SSNT_ENTRY, index);
+    oc_storage_erase(ssn_storage_key);
+
     // AT table entry
     char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
     (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
                    KNX_STORAGE_KEY_ATT_ENTRY, index);
     oc_storage_erase(at_storage_key);
-
-    // SSN entry of the AT table entry (same index), otherwise it stays in storage forever and a
-    // future occupant of this AT table slot would start from the previous occupant's counter
-    char ssn_storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
-    (void)snprintf(ssn_storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
-                   KNX_STORAGE_KEY_SSNT_ENTRY, index);
-    oc_storage_erase(ssn_storage_key);
 
     oc_free_at_table_entry_ram(entry);
     return 0;
@@ -1539,6 +1556,19 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
   Store AT table data in CBOR (hex stream data).
   Storage of the fields is done via the cbor keys in their hierarchy.
   Example tag cnf:osc:ms = 8:4:2 = 842
+
+  NOTES:
+  (a) AT table entry manipulations ALWAYS need to be reflected in the SSNT entry handling! The AT
+      table entry (KNX_STORAGE_KEY_ATT_ENTRY) and its SSN entry (KNX_STORAGE_KEY_SSNT_ENTRY) share
+      the same AT table index and are ALWAYS manipulated together. Whoever creates, stores, moves
+      or deletes an AT table entry must do the same for its SSN entry.
+  (b) The SSN has a dedicated storage entry because it is the value written to flash by far the
+      most often (every OSCORE_SSN_WRITE_FREQ_K outgoing OSCORE messages). Keeping it apart from
+      the AT table entry reduces the amount of flash writes as much as possible. The AT table entry
+      itself is only written on commissioning or management events.
+  (c) Creating or overwriting an AT table entry here does not write its SSN entry on purpose: The
+      SSN entry is written by the OSCORE sender context (oc_write_ssn_to_storage()) and erased
+      together with the AT table entry in oc_delete_at_table_entry(), SSN entry first.
 */
 static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
