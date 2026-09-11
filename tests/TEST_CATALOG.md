@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1440 unit tests** (53 files) + **385 runtime tests** (20 files) = **1825 total**
+> **1443 unit tests** (53 files) + **385 runtime tests** (20 files) = **1828 total**
 >
-> Branch: `work_in_progress` | Unit: 1412 registered and passed (windows-test-gcc, GCC/CTest, ~60s, 100% passed out of 1412). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1412 + 28 = 1440.
-> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.29s) - fully green. This run verified the `CONTENT_NONE` Content-Format fixes (F-019). See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1415 registered and passed (windows-test-gcc, GCC/CTest, ~47s, 100% passed out of 1415). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1415 + 28 = 1443.
+> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.18s) - fully green. This run verified the F-020 page-full return-value fix and the array-free functional-block scan that enabled it. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -580,16 +580,16 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_fb.cpp — Functional Block Helpers (12 tests)
+### test_oc_knx_fb.cpp — Functional Block Helpers (15 tests)
 
 **Source:** `api/oc_knx_fb.c`
 
-**Functional-block discovery (12 tests)**
+**Functional-block discovery (15 tests)**
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `CheckIfFunctionalBlocksNeedToAdd` | 7 | rt/if query + wildcard matching against `urn:knx:fb`/`ll` |
-| `CountFunctionalBlocks` | 5 | Distinct FB counting (number/instance, duplicates, non-discoverable skipped) |
+| `CountFunctionalBlocks` | 8 | Distinct FB counting (number/instance, duplicates, non-discoverable skipped), the `is_first_occurrence_of_fb()` scan holding for 70 distinct FBs (no capacity ceiling since the array-backed counter was replaced with a resource-list scan), and both directions of the F-020 page-full return-value fix in `oc_add_functional_blocks_from_application_to_response()` |
 
 ---
 
@@ -1598,10 +1598,24 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
 run with `-IncludeUncommitted`):
-**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.29s) - fully green.
-Unit suite alongside it: 1412 passed, 0 failed (windows-test-gcc).
+**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.18s) - fully green.
+Unit suite alongside it: 1415 passed, 0 failed (windows-test-gcc).
 
-The most recent run covered the `CONTENT_NONE` Content-Format work (F-019 in `FINDINGS.md`): the
+The most recent run covered the F-020 page-full return-value fix in
+`oc_add_functional_blocks_from_application_to_response()` and the `is_first_occurrence_of_fb()`
+comment cleanup (see F-020 in `FINDINGS.md`). Tally and skip set are identical to every prior run
+in this series, confirming no regression - unsurprising, since neither change alters response
+bytes: the fix only corrects a return value on a code path no current caller can reach with a
+false result, and the comment change touches no code at all. As noted in F-020, this suite cannot
+exercise the corrected branch either (the one caller that checks the return value never enters the
+function with an already-full page); the unit tests added test-first are what pin the fix.
+
+The run before that confirmed the array-free functional-block scan (the `NUM_FBS`-capped static
+array backing FB counting/emission was replaced with `is_first_occurrence_of_fb()`, a predicate
+scan over the live resource list - the change that made F-020 unit-testable in the first place).
+Tally and skip set were likewise identical to the run before it (849.64s).
+
+Two runs earlier covered the `CONTENT_NONE` Content-Format work (F-019 in `FINDINGS.md`): the
 marker moved from 99999 to 64999 (the IANA documentation-reserved block, and it fits the `uint16_t`
 the packet layer uses), both `coap_set_header_content_format()` and `coap_set_header_accept()` now
 clear the option instead of storing the marker, `oc_ri.c:1153` resolves an absent Accept to the

@@ -38,60 +38,44 @@ static const char* bounded_strstr(const char* haystack, int haystack_len,
 }
 
 /*
- - first field = fb number
- - second field = fb instance
+  An FB is identified by (fb_number, fb_instance), not by resource: several datapoint resources
+  can carry the same pair in their fb_data (bits 8-31; bits 0-7 are the per-FB datapoint count and
+  irrelevant here, so shifting them out is the whole comparison). An FB with another instance is
+  a distinct FB, e.g. fb_number 417 / fb_instance 1 -> "417_1" is distinct from fb_number 417 /
+  fb_instance 3 -> "417_3".
 
- allows to scan for up to 64 different functional blocks,
- note that an FB with another instance is also a 'new' FB such as
- [0].fb_number = 417, [0].fb_instance= 1 -> 417_1
- [0].fb_number = 417, [0].fb_instance= 1 -> 417_3
- 
+  To list distinct FBs we need exactly one hit per (fb_number, fb_instance), so
+  is_first_occurrence_of_fb() below scans the resources BEFORE 'self' in application resource
+  order and answers "is self the first one carrying this label?".
 
- The option to count only the consecutive instances instead is risky, it would mean that
- all instances up a number are also present (see above, last number = 3 but only
- two instances present -> application error)
- 
+  Counting only the consecutive instances instead (i.e. trusting the highest instance number seen)
+  is risky: it would assume every instance up to that number is present, which need not hold - see
+  the duplicate case in the example below, an application error that the scan merely tolerates
+  rather than assuming away.
+
+  Example, application resources in list order:  R1 417_1 -> R2 417_2 -> R3 417_3 -> R4 417_1 -> R5 420_1
+  (R4 repeats R1's label - two datapoints of the same FB instance, or an application error, see
+  the note above)
+
+    self=R1: no earlier resources at all                           -> true  (first 417_1)
+    self=R2: earlier = {R1=417_1}, no match to 417_2               -> true  (first 417_2)
+    self=R3: earlier = {R1,R2}, no match to 417_3                  -> true  (first 417_3)
+    self=R4: earlier = {R1,R2,R3}; R1=417_1 matches self's 417_1   -> false (R1 already represents 417_1)
+    self=R5: earlier = {R1,R2,R3,R4}, no match to 420_1            -> true  (first 420_1)
+
+  So the distinct FBs are 417_1, 417_2, 417_3, 420_1 - four, with R4 absorbed as a duplicate of R1.
 */
-
-#define NUM_FBS (64)
-
-static struct functional_block_t
+static bool is_first_occurrence_of_fb(const oc_resource_t* self)
 {
-  uint16_t fb_number;
-  uint16_t fb_instance;
-  
-} g_array_of_different_fbs[NUM_FBS] = {0}; // nothing occupied
-
-
-// number of different application FBs 
-static int g_array_current_amount_of_scanned_fbs = 0; 
-
-// add an FB instance if it is fresh (NOT yet present)
-static void check_array_for_scanned_fbs_and_add_if_fresh(uint16_t number, uint8_t instance)
-{
-  for (int i = 0; i < g_array_current_amount_of_scanned_fbs; i++)
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource != self; resource = resource->next)
   {
-    if (number == g_array_of_different_fbs[i].fb_number && instance == g_array_of_different_fbs[i].fb_instance)
-      {
-        /*
-           leave if fb number + fb instance is already present,
-           it must be an application error when you would add the same FB number/instance
-           here again but already present
-         */
-        return;
-      }
-      
+    if (resource->properties & OC_DISCOVERABLE && resource->fb_data >> 8 == self->fb_data >> 8)
+    {
+      // an earlier resource in the list already carries this (fb_number, fb_instance)
+      return false;
     }
-
-  
-
-  // add FB, it is fresh on the next index
-  g_array_of_different_fbs[g_array_current_amount_of_scanned_fbs].fb_number = number; // fb number, never negative
-  g_array_of_different_fbs[g_array_current_amount_of_scanned_fbs].fb_instance = instance; // fb instance occurence
-
-  // do not overflow the array
-  if (g_array_current_amount_of_scanned_fbs < NUM_FBS - 1)
-    g_array_current_amount_of_scanned_fbs++;
+  }
+  return true;
 }
 
 // get number of datapoint(s) for an FB with number/instance
@@ -257,23 +241,19 @@ const oc_resource_t core_resource_knx_f_x = {&core_resource_knx_swu_protocol,
 
 int oc_count_functional_blocks_from_application(void)
 {
-  // on any new scan reset the global counter of different FBs
-  g_array_current_amount_of_scanned_fbs = 0; 
+  int total = 0;
 
   // scan all application resources, note they are not ordered
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
-    // skip non discoverable resources
-    if (resource->properties & OC_DISCOVERABLE)
+    // skip non-discoverable resources and already counted ones 
+    if (resource->properties & OC_DISCOVERABLE && is_first_occurrence_of_fb(resource))
     {
-      const uint16_t fb_number = resource->fb_data >> 16;
-      const uint8_t fb_instance = resource->fb_data >> 8 & 0xFF;
-
-      check_array_for_scanned_fbs_and_add_if_fresh(fb_number, fb_instance);
+      total++;
     }
   }
 
-  return g_array_current_amount_of_scanned_fbs;
+  return total;
 }
 
 // check if an FB may be added according to the request and its query parameters
@@ -350,21 +330,30 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
 {
   (void)request;
 
-  // input of - by caller - already found AND to the response already added matches 
+  // input of - by caller - already found AND to the response already added matches
   const int already_key_value_pair_matches_added_to_response = *matches;
 
-  // runs until last re-counted FB
-  for (int i = 0; i < g_array_current_amount_of_scanned_fbs; i++)
+  // runs over every distinct (discoverable) FB in application resource order
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
+    if (!(resource->properties & OC_DISCOVERABLE) || !is_first_occurrence_of_fb(resource))
+    {
+      // not a discoverable resource, or not the first resource carrying this FB - not a new FB entry
+      continue;
+    }
+
     if (*skipped < first_entry)
     {
-      // less than what is expected for the page, so skipp resource 
+      // less than what is expected for the page, so skipp resource
       (*skipped)++;
     }
     else if (first_entry + *matches >= last_entry)
     {
-      // page is full, leave 
-      return matches;
+      /*
+        page is full, leave. Report whether THIS call actually appended anything, the same
+        predicate the function uses at its own end - not 'matches' 
+      */
+      return *matches > already_key_value_pair_matches_added_to_response;
     }
     else
     {
@@ -377,15 +366,15 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
       // FB URI (fix)
       *response_length += oc_rep_add_line_to_buffer("</f/");
 
-      const uint16_t tmp_fb_n = g_array_of_different_fbs[i].fb_number;
-      const uint16_t tmp_fb_i = g_array_of_different_fbs[i].fb_instance;
+      const uint16_t tmp_fb_n = resource->fb_data >> 16;
+      const uint16_t tmp_fb_i = resource->fb_data >> 8 & 0xFF;
 
       // the FB number with possible instance as 12345_xyz (9 chars)
       char fb_number_and_instance_text[9];
 
       if (tmp_fb_i > 0)
       {
-        // FB instance > 0, adding instance (array allows only 64 instances), e.g. <fb>_<instance> -> example: 417_1
+        // FB instance > 0, adding instance, e.g. <fb>_<instance> -> example: 417_1
         (void)snprintf(fb_number_and_instance_text, 9, "%d_%d", tmp_fb_n, tmp_fb_i);
       }
       else
@@ -406,7 +395,7 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
       else
         *response_length += oc_rep_add_line_to_buffer(">;rt=\"urn:knx:fb.");
 
-      // FB number 
+      // FB number
       (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
       *response_length += oc_rep_add_line_to_buffer(fb_number_and_instance_text);
 
@@ -427,13 +416,8 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
     }
   }
 
-  if (*matches > already_key_value_pair_matches_added_to_response)
-  {
-    // at least one ADDITIONAL resource was added to the response payload 
-    return true;
-  }
-
-  return false;
+  // true if at least one additional resource was added to the response payload during this call
+  return *matches > already_key_value_pair_matches_added_to_response;
 }
 
 /*
@@ -486,7 +470,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
   const bool more_request_needed = total > first_entry + query_ps;
 
-  // note that this function is reusing the number of counted FBs 
   if (oc_add_functional_blocks_from_application_to_response(request, true, true, &response_length, &query_parameter_kvpair_matches,
                                                 &skipped, first_entry, total))
   {

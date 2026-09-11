@@ -77,12 +77,12 @@ TEST(CheckIfFunctionalBlocksNeedToAdd, IfWithoutLlNoWildcardReturnsFalse)
 
 /*
  * oc_count_functional_blocks_from_application — public driver that exercises
- * the file-static check_array_for_scanned_fbs_and_add_if_fresh() (static, no
- * external linkage, and oc_knx_fb.c cannot be #include'd because it carries
- * const oc_resource_t aggregate initializers that do not compile under g++).
- * The dedup/add/skip logic of the static helper is fully observable through
- * the returned count, so it is covered behaviorally here by registering real
- * application resources with crafted fb_data / OC_DISCOVERABLE bits.
+ * the file-static is_first_occurrence_of_fb() (static, no external linkage,
+ * and oc_knx_fb.c cannot be #include'd because it carries const oc_resource_t
+ * aggregate initializers that do not compile under g++). The dedup logic of
+ * the static helper is fully observable through the returned count, so it is
+ * covered behaviorally here by registering real application resources with
+ * crafted fb_data / OC_DISCOVERABLE bits.
  *
  * fb_data layout (see oc_count_functional_blocks_from_application):
  *   fb_number   = fb_data >> 16
@@ -150,4 +150,92 @@ TEST_F(CountFunctionalBlocks, NonDiscoverableResourceSkipped)
   add_fb(417, 1, true);
   add_fb(500, 1, false); /* not discoverable -> not counted */
   EXPECT_EQ(oc_count_functional_blocks_from_application(), 1);
+}
+
+TEST_F(CountFunctionalBlocks, AddToResponseReturnsFalseWhenPageWasAlreadyFullBeforeThisCall)
+{
+  /*
+    oc_knx_fb.h documents the contract explicitly: "@return false (no FB was added)". The
+    early-exit branch for a full page reads:
+
+        else if (first_entry + *matches >= last_entry)
+        {
+          // page is full, leave
+          return matches;      // BUG: returns the int* pointer's truthiness, not a real answer
+        }
+
+    'matches' is never NULL at either call site, so this always evaluates to true - regardless
+    of whether this call actually appended anything. Forcing the "page full" condition to be
+    true on the very first eligible resource (first_entry + initial *matches >= last_entry)
+    means no entry is ever emitted, yet the buggy code reports success anyway.
+
+    This matters for real behavior at the one caller that checks the return value
+    (oc_core_fb_get_handler, the /f handler): a true here sends 2.05 with an empty body
+    instead of the documented 4.04 Not Found for a page that turned out to hold nothing.
+  */
+  add_fb(417, 1, true);
+
+  size_t response_length = 0;
+  int matches = 0;   // nothing added by an earlier step
+  int skipped = 0;
+  const int first_entry = 0;
+  const int last_entry = 0;   // page already exhausted: first_entry + matches (0) >= last_entry (0)
+
+  const bool added_something = oc_add_functional_blocks_from_application_to_response(
+    nullptr, /*short_urn_form=*/true, /*include_if=*/true,
+    &response_length, &matches, &skipped, first_entry, last_entry);
+
+  EXPECT_FALSE(added_something)
+    << "no FB entry was emitted (response_length and matches both stayed 0), "
+       "so the function must report false per its own documented contract";
+  EXPECT_EQ(response_length, 0u);
+  EXPECT_EQ(matches, 0);
+}
+
+TEST_F(CountFunctionalBlocks, AddToResponseReturnsTrueWhenThisCallFillsThePageBeforeStopping)
+{
+  /*
+    The opposite direction of the fix above: when this call DOES append entries before the page
+    fills up (the ordinary paginated case, e.g. /f with a page size smaller than the FB count),
+    the function must still report true - it must not regress into always returning false either.
+
+    This path calls oc_rep_add_line_to_buffer(), which writes through the global rep encoder
+    (see test_oc_discovery.cpp), hence the oc_rep_new() setup below.
+  */
+  add_fb(417, 1, true);
+  add_fb(418, 1, true);
+  add_fb(419, 1, true);
+
+  uint8_t buf[256];
+  oc_rep_new(buf, sizeof(buf));
+
+  size_t response_length = 0;
+  int matches = 0;
+  int skipped = 0;
+  const int first_entry = 0;
+  const int last_entry = 2;   // page holds 2 of the 3 distinct FBs
+
+  const bool added_something = oc_add_functional_blocks_from_application_to_response(
+    nullptr, /*short_urn_form=*/true, /*include_if=*/true,
+    &response_length, &matches, &skipped, first_entry, last_entry);
+
+  EXPECT_TRUE(added_something);
+  EXPECT_EQ(matches, 2);
+  EXPECT_GT(response_length, 0u);
+}
+
+TEST_F(CountFunctionalBlocks, MoreThanSixtyFourDistinctFbsAreAllCounted)
+{
+  /*
+    the count used to be backed by a fixed 64-slot static array (NUM_FBS) whose fill guard
+    (i < NUM_FBS - 1) stopped incrementing at 63, silently dropping every FB beyond that from
+    both the count and the /.well-known/core and /f page-total math. The counter is now a
+    predicate over the live resource list with no capacity ceiling, so 70 distinct FBs must
+    all be counted.
+  */
+  for (uint16_t i = 0; i < 70; i++)
+  {
+    add_fb(1000 + i, 0, true);
+  }
+  EXPECT_EQ(oc_count_functional_blocks_from_application(), 70);
 }

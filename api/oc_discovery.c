@@ -713,7 +713,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		{
 			OC_INF("oc_well_known_core_discovery_handler add functional block resources ...");
 
-			// note that this function is reusing the number of counted FBs, the 'if' follows the same rule as the core resources above: only framed on a query parameter request
+			// the 'if' follows the same rule as the core resources above - only framed on a query parameter request
 		  oc_add_functional_blocks_from_application_to_response(request, false, query_parameter_present, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 		}
 	}

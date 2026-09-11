@@ -649,3 +649,71 @@ Bugs and issues discovered during unit test development.
   suite confirms no regression but does not *prove* symptom 2: `coap_client.py` always sends an
   explicit Accept, so the `CONTENT_NONE` branch at `oc_ri.c:1153` is never entered. The unit
   round-trip test is what pins that.
+
+## F-020: `oc_add_functional_blocks_from_application_to_response()` misreports success on a full-before-entry page - RESOLVED
+
+- **File:** `api/oc_knx_fb.c`, `oc_add_functional_blocks_from_application_to_response()`
+- **Severity:** Low - reachable only through a caller that both checks the return value and can
+  enter the function with the page already exhausted; the one such caller in this codebase never
+  hits that state today, so there was no observed behavioral defect, only a latent one.
+- **Found by:** inspection while reviewing the function's early-exit branch for the "page is full"
+  case:
+
+  ```c
+  else if (first_entry + *matches >= last_entry)
+  {
+    // page is full, leave
+    return matches;   // BUG: returns the int* pointer's truthiness, not a real answer
+  }
+  ```
+
+  `matches` is never NULL at either call site (both pass the address of a local stack `int`), so
+  this always evaluates to `true` in C's pointer-to-`_Bool` conversion - regardless of whether
+  this call actually appended anything to the response. `oc_knx_fb.h:43-44` documents the contract
+  explicitly: "@return true (at least one FB was added)" / "@return false (no FB was added)".
+- **Why it was never observed:** the function has two callers.
+  `oc_discovery.c:717` (`/.well-known/core`) discards the return value entirely (a bare statement,
+  not an `if`), so the bug has zero effect there. `oc_knx_fb.c` (`/f`, the only caller that checks
+  the return value) always passes `last_entry = total` rather than a real page-size bound, so the
+  "page full" branch can only trigger once all remaining FBs have actually been emitted - meaning
+  `*matches` has necessarily increased by the time it is hit, and `true` happens to be the correct
+  answer there today. (That `last_entry = total` convention is itself a separate, pre-existing gap:
+  `/f`'s `query_ps` currently does not cap its page size through this path. Not fixed here - logged
+  as a follow-up, not folded into this fix.)
+- **Resolution:** the branch now uses the same predicate the function already applies at its own
+  end (`*matches > already_key_value_pair_matches_added_to_response`), so the false-success case is
+  no longer reachable at all, independent of any caller's paging convention:
+
+  ```c
+  else if (first_entry + *matches >= last_entry)
+  {
+    // page is full, leave. Report whether THIS call actually appended anything.
+    return *matches > already_key_value_pair_matches_added_to_response;
+  }
+  ```
+
+  The function's own closing `if (*matches > already...) return true; return false;` was then
+  collapsed to `return *matches > already_key_value_pair_matches_added_to_response;` - the same
+  expression now appears at both return points, unchanged behavior, less code.
+- **Pinned by:** two new `CountFunctionalBlocks` cases in `tests/unit/test_oc_knx_fb.cpp`, added
+  test-first against the original code: `AddToResponseReturnsFalseWhenPageWasAlreadyFullBeforeThisCall`
+  drives `first_entry=0, last_entry=0` with one discoverable FB so the "full" branch is hit on the
+  very first eligible resource before anything is emitted - this failed (`true` instead of `false`)
+  against the original `return matches;` and passes against the fix. Its companion
+  `AddToResponseReturnsTrueWhenThisCallFillsThePageBeforeStopping` drives a real multi-entry
+  page (3 distinct FBs, `last_entry=2`) to confirm the fix did not overcorrect into always
+  returning `false` for the ordinary paginated case.
+- **Enabled by:** an earlier optimization in the same session replaced the fixed 64-slot static
+  array backing FB counting/emission (see the removed `g_array_of_different_fbs`,
+  `NUM_FBS`) with a predicate scan (`is_first_occurrence_of_fb()`) over the live resource list.
+  That also made `oc_add_functional_blocks_from_application_to_response()` unit-testable for the
+  first time (it previously only indexed a global array populated by a prior call to
+  `oc_count_functional_blocks_from_application()`, with no independent resource traversal of its
+  own) - without that change, this finding would have remained integration-only and undetectable
+  by the exact repro used here.
+- **Verification:** full unit suite 1415 passed, 0 failed (windows-test-gcc). Full runtime suite
+  380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.18s, `-IncludeUncommitted`) - fully
+  green, identical tally and identical skip set to every prior run in this session. As expected,
+  the runtime suite does not exercise the corrected branch: the one caller that checks the return
+  value (`/f`) always passes `last_entry = total`, so it never enters this function with an
+  already-full page. The test-first unit repro is what actually pins the fix.
