@@ -399,19 +399,19 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			rt_len = (int) value_len;
 			query_parameter_key_match = true;
 		}
-		if (strncmp(key, "ep", key_len) == 0)
+		else if (strncmp(key, "ep", key_len) == 0)
 		{
 			ep_request = value;
 			ep_len = (int) value_len;
 			query_parameter_key_match = true;
 		}
-		if (strncmp(key, "if", key_len) == 0)
+		else if (strncmp(key, "if", key_len) == 0)
 		{
 			if_request = value;
 			if_len = (int) value_len;
 			query_parameter_key_match = true;
 		}
-		if (strncmp(key, "d", key_len) == 0)
+		else if (strncmp(key, "d", key_len) == 0)
 		{
 			d_request = value;
 			d_len = (int) value_len;
