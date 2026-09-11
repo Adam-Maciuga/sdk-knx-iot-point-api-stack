@@ -575,9 +575,9 @@ TEST_F(BelongsHref, NonDiscoverableSkippedWhenDiscoverableRequested)
  * had no boolean case, so 'non' was silently dropped on reload.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Must match GRT_STORE / GPT_STORE in api/oc_knx_fp.c. */
-static const char *kRcpStore = "dev_knx_rcv_entry";
-static const char *kPubStore = "dev_knx_pub_entry";
+/* The table base keys from api/oc_knx_fp.h, the production writer and loader use the same. */
+static const char *kRcpStore = KNX_STORAGE_KEY_GRT_ENTRY;
+static const char *kPubStore = KNX_STORAGE_KEY_GPT_ENTRY;
 static const char *kFpStoreDir = "knx_storage_fp_unit_test";
 
 class GroupTableStorage : public ::testing::Test {

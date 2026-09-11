@@ -19,7 +19,10 @@
 
 /* NVS settings prefix for KNX keys */
 #define KNX_KEY_PREFIX "knx"
-#define KNX_SETTINGS_MAX_NAME_LEN 32
+/* Characters of the longest settings name without the string end '\0': 4 for "knx/" plus 15 for
+   the longest storage key (NVS key limit shared by all platforms). The buffers and checks below
+   add 1 for the '\0'. */
+#define KNX_SETTINGS_MAX_NAME_LEN 19
 
 #define KNX_NVS_FLASH_AREA	storage_partition
 #define KNX_SETTINGS_PARTITION FIXED_PARTITION_ID(KNX_NVS_FLASH_AREA)

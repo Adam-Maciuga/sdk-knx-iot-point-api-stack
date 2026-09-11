@@ -35,8 +35,8 @@ static oc_device_info_t oc_device_info =
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
 	oc_device_info.fwv = *version;
-  oc_storage_write(KNX_STORAGE_FW_VER, (uint8_t*)version, sizeof(oc_knx_version_info_t));
-	
+  oc_storage_write(KNX_STORAGE_KEY_FW_VERSION, (uint8_t*)version, sizeof(oc_knx_version_info_t));
+
 	return 0;
 }
 
@@ -66,7 +66,7 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
   if (ia >= 0 && ia <= MAX_IA)
   {
     oc_device_info.ia = (uint16_t)ia;
-    oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&oc_device_info.ia, sizeof(oc_device_info.ia));
+    oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&oc_device_info.ia, sizeof(oc_device_info.ia));
 
     return true;
   }
@@ -111,12 +111,13 @@ int oc_core_read_and_set_device_hostname(void)
   const oc_device_info_t* const device = oc_core_get_device_info();
   
   // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
-  char hname[HNAME_MAX_SIZE +1] = ""; 
-  (void)snprintf(hname, sizeof(hname), HNAME_TYPE, device->serialnumber);
+  char hostname[HNAME_MAX_SIZE +1] = "";
+  (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
 
-  // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, HNAME_MAX_SIZE);
-  oc_core_set_device_hostname(hname);
+  // read host name from storage (on error = the default host name from above is used,
+  // otherwise stored host name)
+  oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)&hostname, HNAME_MAX_SIZE);
+  oc_core_set_device_hostname(hostname);
 
   return 0;
 }
@@ -130,11 +131,11 @@ bool oc_core_set_and_store_device_iid(int64_t iid)
 {
   // max IID number as 40 bit, 0 = allowed (specification does not limit it)
   #define MAX_IID (0xFFFFFFFFFF)
-  
+
   if (iid >= 0 && iid <= MAX_IID)
   {
     oc_device_info.iid = iid;
-    oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
+    oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid));
     return true;
   }
   return false;
@@ -143,7 +144,7 @@ bool oc_core_set_and_store_device_iid(int64_t iid)
 int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version)
 {
 	oc_device_info.apv = *version;
-  oc_storage_write(KNX_STORAGE_AP_VER, (uint8_t*)version, sizeof(oc_knx_version_info_t));
+  oc_storage_write(KNX_STORAGE_KEY_APP_VERSION, (uint8_t*)version, sizeof(oc_knx_version_info_t));
   return 0;
 }
 
@@ -155,7 +156,7 @@ bool oc_core_set_and_store_device_fid(int64_t fid)
   if (fid >= 0 && fid <= MAX_FID)
   {
     oc_device_info.fid = fid;
-    oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
+    oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid));
     return true;
   }
   return false;

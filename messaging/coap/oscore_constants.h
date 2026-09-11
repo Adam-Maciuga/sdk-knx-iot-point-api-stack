@@ -28,15 +28,6 @@
 */
 #define OSCORE_MAX_OPTION_VALUE_LEN (1 + OSCORE_PIV_LEN + 1 + OSCORE_ID_CONTEXT_LEN + OSCORE_SENDER_ID_LEN)
 
-#define OSCORE_STORAGE_PREFIX "ssn_"
-#define OSCORE_STORAGE_PREFIX_LEN (4)
-#define OSCORE_STORAGE_DIVIDER_LEN (1)
-#define OSCORE_STORAGE_KEY_LEN       \
-        (OSCORE_STORAGE_PREFIX_LEN + \
-         OSCORE_SENDER_ID_LEN  *2 +  \
-         OSCORE_STORAGE_DIVIDER_LEN +\
-         OSCORE_ID_CONTEXT_LEN *2 + 1)  // Save ssn per (byte to hex = * 2) sender id and (byte to hex = * 2) id context as 'ssn_sender_context'   
-
 #define OSCORE_INFO_MAX_LEN (128)
 #define OSCORE_AAD_MAX_LEN (128)
 

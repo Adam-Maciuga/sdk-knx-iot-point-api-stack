@@ -30,14 +30,13 @@ extern const oc_resource_t core_resource_knx_auth_at_x;
 extern const oc_resource_t core_resource_knx_auth;
 extern const oc_resource_t core_resource_well_known_core;
 
-// AT storage data
-#define AT_STORE "at_store"
-#define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
+// AT and SSN storage data
+// See the KNX_STORAGE_KEY_ATT_ENTRY and KNX_STORAGE_KEY_SSNT_ENTRY keys in oc_knx_sec.h
 
 // static const, maybe changed in a later stack version
 static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
 
-// static RAM variables 
+// static RAM variables
 static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
 static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
 
@@ -57,83 +56,73 @@ int32_t get_at_index(const oc_auth_at_t* entry)
 }
 
 /*
-  Builds the storage key for an SSN entry as 'ssn_<osc_id_hex>_<contextid_hex>'.
-  The caller must pre-initialize storage_name[OSCORE_STORAGE_KEY_LEN] with OSCORE_STORAGE_PREFIX.
-  Example: sender id 0x0001, id context 0x200105b7fd8e -> "ssn_0001_200105b7fd8e"
+  Builds the storage key for the SSN entry of an AT table entry as 'ssnt_e_<index>', reusing the
+  AT table index of the entry. Returns false when the entry is NULL or not part of the AT table
+  (index -1, e.g. a unit test mock entry), then no key is built and storage must not be accessed.
+  Example: AT table index 3 -> "ssnt_e_3"
 */
-static void oc_build_ssn_storage_name(const oc_auth_at_t* entry, char* storage_name)
+static bool oc_build_ssn_storage_key(const oc_auth_at_t* entry, char* storage_key)
 {
-  const uint8_t* sender_id = (const uint8_t*)oc_string(entry->osc_id);
-  const size_t sender_id_len = oc_byte_string_len(entry->osc_id);
-  const uint8_t* id_context = (const uint8_t*)oc_string(entry->osc_contextid);
-  const size_t id_context_len = oc_byte_string_len(entry->osc_contextid);
-  size_t storage_name_len;
+  const int index = get_at_index(entry);
 
-  // add 'Sender ID' in hex behind prefix that is something like 'ssn_'
-  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN;
-  oc_conv_byte_array_to_hex_string(sender_id, sender_id_len,
-                                   storage_name + OSCORE_STORAGE_PREFIX_LEN,
-                                   &storage_name_len);
+  if (index == -1)
+  {
+    return false;
+  }
 
-  // append divider ( -1 to overwrite the '\0')
-  storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
-
-  // add 'ID Context' behind the 'Sender ID' (+1 to include the foreseen string end '\0' placeholder)
-  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
-  oc_conv_byte_array_to_hex_string(id_context, id_context_len,
-                                   storage_name + (OSCORE_STORAGE_PREFIX_LEN + sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN),
-                                   &storage_name_len);
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
+                 KNX_STORAGE_KEY_SSNT_ENTRY, index);
+  return true;
 }
 
 /**
  * @brief Read SSN from storage for a given access token entry
  *
- * Constructs storage key as 'ssn_<osc_id_hex>_<contextid_hex>' and reads
- * the stored SSN value. Returns 0 if not found or entry is NULL.
+ * Constructs the storage key as 'ssnt_e_<index>' from the AT table index of the entry and
+ * reads the stored SSN value. Returns 0 if not found, or if the entry is NULL or not part of
+ * the AT table.
  *
  * @param entry Pointer to the AT table entry
  * @return uint64_t Stored SSN value, or 0 if not found
  */
 static uint64_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
 {
-  if (!entry)
+  char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+
+  if (!oc_build_ssn_storage_key(entry, storage_key))
   {
     return 0;
   }
 
-  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
-  oc_build_ssn_storage_name(entry, storage_name);
-
   uint64_t ssn = 0;
-  const long bytes_read = oc_storage_read(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  const long bytes_read = oc_storage_read(storage_key, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_read == sizeof(ssn))
   {
-    OC_DBG("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
+    OC_DBG("Read SSN from storage '%s': %" PRIu64, storage_key, ssn);
     return ssn;
   }
-  OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_name);
+  OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_key);
   return 0;
 }
 
 void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn)
 {
-  if (!entry)
+  char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+
+  if (!oc_build_ssn_storage_key(entry, storage_key))
   {
     return;
   }
 
-  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
-  oc_build_ssn_storage_name(entry, storage_name);
-
-  const long bytes_written = oc_storage_write(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  const long bytes_written = oc_storage_write(storage_key, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_written == sizeof(ssn))
   {
-    OC_DBG("Wrote SSN to storage '%s': %" PRIu64, storage_name, ssn);
+    OC_DBG("Wrote SSN to storage '%s': %" PRIu64, storage_key, ssn);
     return;
   }
-  OC_WRN("Wrote NO SSN to storage '%s'", storage_name);
+  OC_WRN("Wrote NO SSN to storage '%s'", storage_key);
 }
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
@@ -1526,10 +1515,18 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
 
   if (index != -1)
   {
-    // AT file entry
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
-    oc_storage_erase(filename);
+    // AT table entry
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
+    oc_storage_erase(at_storage_key);
+
+    // SSN entry of the AT table entry (same index), otherwise it stays in storage forever and a
+    // future occupant of this AT table slot would start from the previous occupant's counter
+    char ssn_storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+    (void)snprintf(ssn_storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_SSNT_ENTRY, index);
+    oc_storage_erase(ssn_storage_key);
 
     oc_free_at_table_entry_ram(entry);
     return 0;
@@ -1547,11 +1544,12 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
   const int index = get_at_index(entry);
-  
+
   if (index != -1)
   {
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
 
     uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     if (!buf)
@@ -1592,12 +1590,12 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
     const int size = oc_rep_get_encoded_payload_size();
     if (size > 0)
     {
-      OC_DBG("stored current state [%s] [%d]: size %d", filename, index, size);
+      OC_DBG("stored current state [%s] [%d]: size %d", at_storage_key, index, size);
 
-      const long written_size = oc_storage_write(filename, buf, size);
+      const long written_size = oc_storage_write(at_storage_key, buf, size);
       if (written_size != (long)size)
       {
-        OC_WRN("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
+        OC_WRN("entry: [%s] written %d != %d (to write)", at_storage_key, (int)written_size, size);
       }
     }
 
@@ -1609,11 +1607,12 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
 {
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
   const int index = get_at_index(entry);
-  
+
   if (index !=-1)
   {
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
 
     oc_rep_t* rep;
 
@@ -1623,10 +1622,10 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
       return;
     }
 
-    const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+    const long bytes_to_read = oc_storage_read(at_storage_key, buf, OC_MAX_APP_DATA_SIZE);
     if (bytes_to_read > 0)
     {
-      OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+      OC_INF("Reading from %s , bytes : %ld", at_storage_key, bytes_to_read);
 
       // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
       const int err = oc_parse_rep(buf, bytes_to_read, &rep);

@@ -15,8 +15,9 @@
 #include "oc_core_res.h"
 
 // below data can be set (PUT) and will be re-read on startup
-#define KNX_STORAGE_QUERY_URL       "swu_knx_query_url"
-#define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
+// Storage keys, max 15 characters (ESP-IDF NVS limit, NVS_KEY_NAME_MAX_SIZE 16 including NUL)
+#define KNX_STORAGE_KEY_SWU_QUERY_URL   "swu_query_url"
+#define KNX_STORAGE_KEY_SWU_LAST_UPDATE "swu_last_update"
 
 #ifdef __cplusplus
 extern "C" {

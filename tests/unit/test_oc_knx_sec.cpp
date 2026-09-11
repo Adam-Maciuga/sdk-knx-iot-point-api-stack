@@ -5,6 +5,8 @@
  *
  * These are the only functions in oc_knx_sec.c testable without
  * full stack initialization (no oc_main_init, no storage, no device).
+ * The AtSsnStorage tests at the end are the exception, they use the
+ * file-based storage port in a local test directory.
  */
 
 #include <gtest/gtest.h>
@@ -14,6 +16,7 @@ extern "C" {
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/coap.h"
 #include "oc_helpers.h"
+#include "port/oc_storage.h"
 #include "util/oc_mmem.h"
 #include <string.h>
 }
@@ -214,4 +217,86 @@ TEST_F(AtTable, FindAndRemovePaseTokenClearsOnlyPaseEntries)
   EXPECT_EQ(pase->profile, OC_PROFILE_UNKNOWN);
   EXPECT_GT(oc_string_len(osc->id), 0u);           /* OSCORE retained */
   EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SSN storage entry per AT-table slot (KNX_STORAGE_KEY_SSNT_ENTRY '_<index>',
+ * same index as the AT entry) — driven against the file-based storage port in
+ * a local directory.
+ *
+ * Regression focus: deleting an AT entry must also erase the SSN entry of its
+ * slot, so a new token placed into the same slot does not inherit the old
+ * sender sequence number. An entry outside the table (index -1) must be
+ * skipped without touching storage.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+static const char *kSecStoreDir = "knx_storage_sec_unit_test";
+static const int kSsnSlot = 6;
+
+/* Helper: build the SSN storage key of an AT-table slot the way the production code does. */
+static void ssn_storage_key(int index, char *key)
+{
+  (void)snprintf(key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d", KNX_STORAGE_KEY_SSNT_ENTRY, index);
+}
+
+class AtSsnStorage : public AtTable {
+protected:
+  char key_[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+
+  static void SetUpTestSuite()
+  {
+    /* mkdir returns 0 on create, -1 if it already exists - both fine. */
+    oc_storage_config(kSecStoreDir);
+  }
+
+  void SetUp() override
+  {
+    AtTable::SetUp();
+    ssn_storage_key(kSsnSlot, key_);
+    oc_storage_erase(key_);
+  }
+
+  void TearDown() override
+  {
+    oc_storage_erase(key_);
+    AtTable::TearDown();
+  }
+};
+
+TEST_F(AtSsnStorage, DeleteEntryErasesSsnEntryOfItsSlot)
+{
+  oc_auth_at_t *e = oc_get_auth_at_entry(kSsnSlot);
+  oc_new_string(&e->id, "tok", 3);
+  e->profile = OC_PROFILE_COAP_OSCORE;
+
+  /* the persisted SSN of the slot */
+  oc_write_ssn_to_storage(e, 1234u);
+  uint64_t ssn = 0;
+  ASSERT_EQ(oc_storage_read(key_, (uint8_t *)&ssn, sizeof(ssn)), (long)sizeof(ssn));
+  EXPECT_EQ(ssn, 1234u);
+
+  /* deleting the AT entry erases the SSN entry of its slot too */
+  ASSERT_EQ(oc_delete_at_table_entry(e), 0);
+  ssn = 0;
+  EXPECT_LE(oc_storage_read(key_, (uint8_t *)&ssn, sizeof(ssn)), 0L);
+  EXPECT_EQ(ssn, 0u);
+
+  /* a new token in the same slot finds no persisted SSN to inherit */
+  oc_free_string(&e->id);
+  oc_new_string(&e->id, "tok2", 4);
+  e->profile = OC_PROFILE_COAP_OSCORE;
+  EXPECT_LE(oc_storage_read(key_, (uint8_t *)&ssn, sizeof(ssn)), 0L);
+}
+
+TEST_F(AtSsnStorage, EntryOutsideTableIsSkipped)
+{
+  oc_auth_at_t mock;
+  memset(&mock, 0, sizeof(mock));
+
+  /* index -1: no key is built and storage stays untouched */
+  oc_write_ssn_to_storage(&mock, 99u);
+  char key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+  ssn_storage_key(-1, key);
+  uint64_t ssn = 0;
+  EXPECT_LE(oc_storage_read(key, (uint8_t *)&ssn, sizeof(ssn)), 0L);
 }

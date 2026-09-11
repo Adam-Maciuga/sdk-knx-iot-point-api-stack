@@ -17,6 +17,14 @@ extern "C" {
 
   #define DEFAULT_OSN_DELAY (1000)	// default (ms) defined by iot specification -> able to be modified by PUT
 
+  // AT and SSN storage keys, max 15 characters (ESP-IDF NVS limit, NVS_KEY_NAME_MAX_SIZE 16
+  // including NUL). The SSN entry of an AT entry uses the same AT table index, '_99999' is the
+  // index budget.
+  #define KNX_STORAGE_KEY_ATT_ENTRY "att_e"
+  #define KNX_STORAGE_KEY_ATT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_ATT_ENTRY) + 6)
+  #define KNX_STORAGE_KEY_SSNT_ENTRY "ssnt_e"
+  #define KNX_STORAGE_KEY_SSNT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_SSNT_ENTRY) + 6)
+
 	/**
 	 * @brief The token profiles
 	 * see section 3.5.4.2 Access Token Resource Object

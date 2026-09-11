@@ -263,12 +263,12 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
       {
         OC_INF("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));	
 
-        char* hname = oc_string_checked(rep->value.string);
-        const uint8_t hname_size = oc_string_len(rep->value.string);
-        
+        char* hostname = oc_string_checked(rep->value.string);
+        const uint8_t hostname_size = oc_string_len(rep->value.string);
+
         // set hostname for the device and update storage
-        oc_core_set_device_hostname(hname);
-        oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)hname, hname_size);
+        oc_core_set_device_hostname(hostname);
+        oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)hostname, hostname_size);
 
         // call host name application callback handler
         const oc_hostname_t* my_hostname = oc_get_hostname_cb();
@@ -1166,48 +1166,55 @@ void oc_knx_load_device(void)
 
   // read IA from storage (on error = 0xFFFF)
   uint16_t ia;
-  device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
+  device->ia = oc_storage_read(KNX_STORAGE_KEY_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
   OC_INF("ia (storage) %04X", ia);
 
   // read iid name from storage (on error = 0)
   uint64_t iid;
-  device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
-  OC_INF("iid (storage) %" PRIu64, device->iid); 
+  device->iid = oc_storage_read(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
+  OC_INF("iid (storage) %" PRIu64, device->iid);
 
   // read fid name from storage (on error = 0)
   uint64_t fid;
-  device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
-  OC_INF("fid (storage) %" PRIu64, device->fid); 
+  device->fid = oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
+  OC_INF("fid (storage) %" PRIu64, device->fid);
 
   // read host name from storage (on error = the default host name is used, otherwise stored host name)
   oc_core_read_and_set_device_hostname();
-  OC_INF("hostname (storage) %s", oc_string(device->iot_hostname)); 
+  OC_INF("hostname (storage) %s", oc_string(device->iot_hostname));
 
   oc_knx_version_info_t version;
-  
+
   // read application version from storage (on error = '0.0.0')
-  device->apv = oc_storage_read(KNX_STORAGE_AP_VER, (uint8_t*)&version, sizeof(version)) > 0 
-    ? version 
+  device->apv = oc_storage_read(KNX_STORAGE_KEY_APP_VERSION,
+                                (uint8_t*)&version, sizeof(version)) > 0
+    ? version
     : (oc_knx_version_info_t){0, 0, 0};
-  OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch); 
+  OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
 
   // read firmware version from storage (on error = '0.0.0')
-  device->fwv = oc_storage_read(KNX_STORAGE_FW_VER, (uint8_t*)&version, sizeof(version)) > 0 
-    ? version 
+  device->fwv = oc_storage_read(KNX_STORAGE_KEY_FW_VERSION,
+                                (uint8_t*)&version, sizeof(version)) > 0
+    ? version
     : (oc_knx_version_info_t){0, 0, 0};
   OC_INF("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
 
   // read lsm mode from storage (on error = unloaded)
   oc_lsm_state_t lsm;
-  device->lsm_s = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0 ? lsm : LSM_S_UNLOADED;
+  device->lsm_s = oc_storage_read(KNX_STORAGE_KEY_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0
+    ? lsm
+    : LSM_S_UNLOADED;
   OC_INF("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
 
   // load security related variables
   uint16_t osc;
-  const uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
+  const uint16_t d_size = oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY,
+                                          (uint8_t*)&osc, sizeof(osc)) > 0
+    ? osc
+    : DEFAULT_OSN_DELAY;
 
   set_oscore_osn_delay_ms(d_size);
-  OC_INF("oscore (storage) osn delay (%u) ms ", d_size);
+  OC_INF("oscore osn delay (storage) %u ms", d_size);
 
   /* NOTE:
      - The used uc port will be advertised with each mDNS such as on every 
@@ -1238,9 +1245,9 @@ void oc_knx_device_reset(int reset_mode)
     device->fid = 0;
 
     // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
-    char hname[HNAME_MAX_SIZE + 1];
-    (void)snprintf(hname, sizeof(hname), HNAME_TYPE, device->serialnumber);
-    oc_core_set_device_hostname(hname);
+    char hostname[HNAME_MAX_SIZE + 1];
+    (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
+    oc_core_set_device_hostname(hostname);
 
     // delete iot device tables
     oc_delete_group_object_table();
@@ -1260,14 +1267,15 @@ void oc_knx_device_reset(int reset_mode)
     // Note:
     // - The used uc port will be advertised with each mDNS such as on every startup, so no need to store
     // - The used mc port for discovery is fixed, so no need to store
-    oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&device->ia, sizeof(device->ia));
-    oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
-    oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
-    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
+    oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia));
+    oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid));
+    oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid));
+    oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname),
+                     oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
-    oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
+    oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
      // reannounce mDNS advertisement with new data
     knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);

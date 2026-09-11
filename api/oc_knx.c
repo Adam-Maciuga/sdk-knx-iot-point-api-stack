@@ -422,7 +422,7 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state)
 {
   // set state for device (RAM) and file storage (tests on LSM uses device property) 
   oc_core_get_device_info()->lsm_s = new_state;
-  oc_storage_write(KNX_STORAGE_LSM, (uint8_t*)&new_state, sizeof(new_state));
+  oc_storage_write(KNX_STORAGE_KEY_LSM, (uint8_t*)&new_state, sizeof(new_state));
 }
 
 const char* oc_core_get_lsm_state_as_string(oc_lsm_state_t lsm)
@@ -2042,13 +2042,13 @@ void oc_knx_set_ldevid(char* ldevid, int len)
 void oc_knx_load_fingerprint(void)
 {
   g_fingerprint = 0; // set to zero for reading error cases
-  oc_storage_read(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
+  oc_storage_read(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
 void oc_knx_increase_fingerprint(void)
 {
   g_fingerprint++; // must be only different
-  oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
+  oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
 bool oc_is_device_in_runtime(void)

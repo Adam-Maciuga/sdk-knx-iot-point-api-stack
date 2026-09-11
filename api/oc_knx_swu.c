@@ -909,16 +909,18 @@ void oc_swu_set_last_update(const char* time)
   oc_new_string(&swu_device.last_update, time, strlen(time));
   
   // persist to storage so timestamp survives reboot
-  oc_storage_write(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update), oc_string_len(swu_device.last_update));
+  oc_storage_write(KNX_STORAGE_KEY_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update),
+                   oc_string_len(swu_device.last_update));
 }
 
 void oc_swu_read_last_update(void)
 {
   // free by default
   oc_free_string(&swu_device.last_update);
-  
+
   char last_update_buf[64] = "";
-  const long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
+  const long ret = oc_storage_read(KNX_STORAGE_KEY_SWU_LAST_UPDATE, (uint8_t*)last_update_buf,
+                                   sizeof(last_update_buf) - 1);
   if (ret > 0)
   { // try to load last_update from storage (persists across reboots)
     oc_new_string(&swu_device.last_update, last_update_buf, ret);

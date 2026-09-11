@@ -26,11 +26,7 @@ extern const oc_resource_t core_resource_knx_fp_r;
 extern const oc_resource_t core_resource_knx_fp_r_x;
 extern const oc_resource_t core_resource_knx_p;
 
-// PUB/RCV/GOT storage data
-#define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
-#define GRT_STORE "dev_knx_rcv_entry"       // RCV table base file name
-#define GOT_STORE "dev_knx_got_entry"       // GO table base file name
-#define TAB_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' GO/PUB/RCP FILE entries
+// PUB/RCV/GOT storage data: see the KNX_STORAGE_KEY_*_ENTRY keys in oc_knx_fp.h
 
 #define GO_HREF (1 << 0)        // identifier for go table href ref property
 #define TABLE_AT_REF (GO_HREF)  // identifier for pub/rcp table access token ref property
@@ -1202,7 +1198,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
       }
       else
       {
@@ -1246,10 +1242,10 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         g_gpt[index] = tmp_gpt_entry;
 
         // debugging
-        oc_print_group_table_entry(index, GPT_STORE, g_gpt);
+        oc_print_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
 
         // store (includes here an overwrite)
-        oc_store_group_table_entry(index, GPT_STORE, g_gpt);
+        oc_store_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
       }
 
       break;
@@ -1395,7 +1391,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
@@ -1808,7 +1804,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
       }
       else
       {
@@ -1852,10 +1848,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         g_grt[index] = tmp_grt_entry;
 
         // debugging
-        oc_print_group_table_entry(index, GRT_STORE, g_grt);
+        oc_print_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
 
         // store (includes here an overwrite)
-        oc_store_group_table_entry(index, GRT_STORE, g_grt);
+        oc_store_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
       }
 
       break;
@@ -2002,7 +1998,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
@@ -2131,8 +2127,9 @@ void oc_store_group_object_table_entry(int entry)
   if (entry < 0 || entry >= GOT_MAX_ENTRIES)
     return;
 
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", GOT_STORE, entry);
+  char storage_key[KNX_STORAGE_KEY_GOT_ENTRY_SIZE];
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_GOT_ENTRY_SIZE, "%s_%d",
+                 KNX_STORAGE_KEY_GOT_ENTRY, entry);
 
   uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
@@ -2157,8 +2154,8 @@ void oc_store_group_object_table_entry(int entry)
   const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_GO_table_entry: [%s] [%d]: size %d", filename, entry, size);
-    const long written_size = oc_storage_write(filename, buf, size);
+    OC_DBG("oc_dump_GO_table_entry: [%s] [%d]: size %d", storage_key, entry, size);
+    const long written_size = oc_storage_write(storage_key, buf, size);
     if (written_size != (long)size)
     {
       OC_ERR("written %d != %d (to be written)", (int)written_size, size);
@@ -2172,8 +2169,9 @@ void oc_load_group_object_table_entry(int entry)
   if (entry < 0 || entry >= GOT_MAX_ENTRIES)
     return;
   
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", GOT_STORE, entry);
+  char storage_key[KNX_STORAGE_KEY_GOT_ENTRY_SIZE];
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_GOT_ENTRY_SIZE, "%s_%d",
+                 KNX_STORAGE_KEY_GOT_ENTRY, entry);
 
   oc_rep_t* rep;
 
@@ -2181,10 +2179,10 @@ void oc_load_group_object_table_entry(int entry)
   if (!buf)
     return;
 
-  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  const long bytes_to_read = oc_storage_read(storage_key, buf, OC_MAX_APP_DATA_SIZE);
   if (bytes_to_read > 0)
   {
-    OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+    OC_INF("Reading from %s , bytes : %ld", storage_key, bytes_to_read);
     
     // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     const int err = oc_parse_rep(buf, bytes_to_read, &rep);
@@ -2338,9 +2336,10 @@ int oc_delete_group_object_table_entry(int entry)
     return -1;
 
   // delete GO entry (note, one file per entry)
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", GOT_STORE, entry);
-  oc_storage_erase(filename);
+  char storage_key[KNX_STORAGE_KEY_GOT_ENTRY_SIZE];
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_GOT_ENTRY_SIZE, "%s_%d",
+                 KNX_STORAGE_KEY_GOT_ENTRY, entry);
+  oc_storage_erase(storage_key);
 
   oc_free_group_object_table_entry(entry);
 
@@ -2408,8 +2407,8 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
 // store RCP/PUB table data in CBOR (hex stream data)
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
+  char storage_key[KNX_STORAGE_KEY_GPT_ENTRY_SIZE];
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_GPT_ENTRY_SIZE, "%s_%d", store, entry);
 
   uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf) {
@@ -2443,8 +2442,8 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_PUB/RCV_table_entry: [%s] [%s] [%d]: size %d", filename, store, entry, size);
-    const long written_size = oc_storage_write(filename, buf, size);
+    OC_DBG("oc_dump_PUB/RCV_table_entry: [%s] [%s] [%d]: size %d", storage_key, store, entry, size);
+    const long written_size = oc_storage_write(storage_key, buf, size);
     if (written_size != (long)size)
     {
       OC_ERR("written %d != %d (to be written)", (int)written_size, size);
@@ -2462,8 +2461,8 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
     return -1;
   }
   
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
+  char storage_key[KNX_STORAGE_KEY_GPT_ENTRY_SIZE];
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_GPT_ENTRY_SIZE, "%s_%d", store, entry);
 
   oc_rep_t* rep;
 
@@ -2472,10 +2471,10 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
     return -1;
   }
 
-  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  const long bytes_to_read = oc_storage_read(storage_key, buf, OC_MAX_APP_DATA_SIZE);
   if (bytes_to_read > 0)
   {
-    OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+    OC_INF("Reading from %s , bytes : %ld", storage_key, bytes_to_read);
     
     // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     const int err = oc_parse_rep(buf, bytes_to_read, &rep);
@@ -2591,16 +2590,16 @@ static void oc_load_object_tables(void)
   OC_INF("Loading Recipient table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GRT_STORE, g_grt);
+    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   OC_INF("Loading Publisher table from persistent storage");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt);
+    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
   }
   #endif
 }
@@ -2643,9 +2642,9 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
   if (entry >= 0 && entry < max_size)
   {
     // delete GPT/GRT entry (note, one file per entry)
-    char filename[TAB_SIZE];
-    (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
-    oc_storage_erase(filename);
+    char storage_key[KNX_STORAGE_KEY_GPT_ENTRY_SIZE];
+    (void)snprintf(storage_key, KNX_STORAGE_KEY_GPT_ENTRY_SIZE, "%s_%d", store, entry);
+    oc_storage_erase(storage_key);
 
     oc_free_group_table_entry(entry, table);
     return 0;
@@ -2658,16 +2657,16 @@ void oc_delete_group_tables(void)
   OC_INF("Deleting Recipient table from RAM and storage (file system)");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GRT_STORE, g_grt);
+    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   OC_INF("Deleting Publisher table from RAM and storage (file system)");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt);
+    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
   }
   #endif
 }

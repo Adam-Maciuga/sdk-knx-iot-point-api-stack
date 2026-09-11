@@ -20,6 +20,16 @@ extern "C"
 {
 #endif
 
+  // PUB/RCV/GOT storage keys, max 15 characters (ESP-IDF NVS limit, NVS_KEY_NAME_MAX_SIZE 16
+  // including NUL). '_99999' is the table index budget. GPT and GRT share the generic table
+  // entry helpers, their base keys have the same length, so the helpers use the GPT size for both.
+  #define KNX_STORAGE_KEY_GPT_ENTRY "gpt_e"  // PUB table base key
+  #define KNX_STORAGE_KEY_GPT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_GPT_ENTRY) + 6)
+  #define KNX_STORAGE_KEY_GRT_ENTRY "grt_e"  // RCV table base key
+  #define KNX_STORAGE_KEY_GRT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_GRT_ENTRY) + 6)
+  #define KNX_STORAGE_KEY_GOT_ENTRY "got_e"  // GO table base key
+  #define KNX_STORAGE_KEY_GOT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_GOT_ENTRY) + 6)
+
   /**
    * @brief cflag masks
    *

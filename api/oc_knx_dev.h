@@ -14,16 +14,17 @@
 extern "C" {
 #endif
 
-#define KNX_STORAGE_IA        "dev_knx_ia"
-#define KNX_STORAGE_IID       "dev_knx_iid"
-#define KNX_STORAGE_FID       "dev_knx_fid"
-#define KNX_STORAGE_HOSTNAME  "dev_knx_hostname"
-#define FINGERPRINT_STORE     "dev_knx_fingerprint"
-#define KNX_STORAGE_LSM       "dev_knx_lsm"
-#define KNX_STORAGE_AP_VER    "knx_ap_version"
-#define KNX_STORAGE_FW_VER    "knx_fw_version"
+// Storage keys, max 15 characters (ESP-IDF NVS limit, NVS_KEY_NAME_MAX_SIZE 16 including NUL)
+#define KNX_STORAGE_KEY_IA          "ia"
+#define KNX_STORAGE_KEY_IID         "iid"
+#define KNX_STORAGE_KEY_FID         "fid"
+#define KNX_STORAGE_KEY_HOSTNAME    "hostname"
+#define KNX_STORAGE_KEY_FINGERPRINT "fingerprint"
+#define KNX_STORAGE_KEY_LSM         "lsm"
+#define KNX_STORAGE_KEY_APP_VERSION "app_ver"
+#define KNX_STORAGE_KEY_FW_VERSION  "fw_ver"
 
-#define OSC_STORAGE_OSN_DELAY "oscore_osn_delay"
+#define KNX_STORAGE_KEY_OSN_DELAY   "osn_delay"
 
 /**
 @brief load the device from storage (file system)
