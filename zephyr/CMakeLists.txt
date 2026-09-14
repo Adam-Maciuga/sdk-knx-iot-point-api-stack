@@ -209,10 +209,11 @@ list(APPEND PORT_SOURCES
 )
 
 # Platform port - Zephyr-specific - Optional
-# TODO FIXME add Kconfig switch
-list(APPEND PORT_SOURCES
-    ${STACK_ROOT}/port/zephyr/knx_shell.c
-)
+if(CONFIG_SHELL)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/zephyr/knx_shell.c
+    )
+endif()
 
 # Network backend selection:
 #   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (DNS-SD and OT_SRP)
