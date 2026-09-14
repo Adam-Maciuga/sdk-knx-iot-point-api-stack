@@ -65,6 +65,7 @@ size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
     bytes_allocated += size * sizeof(float);
     m->ptr = malloc(size * sizeof(float));
     m->size = size;
+    break;
   case DOUBLE_POOL:
     bytes_allocated += size * sizeof(double);
     m->ptr = malloc(size * sizeof(double));
