@@ -1219,7 +1219,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     }
   }
 
-  oc_blockwise_scrub_buffers(false);
+  /*
+     caller (coap_receive) still reads/dereferences request_buffer and response_buffer after this function returns
+     - so scrubbing here (with any ref_count==0 buffer) would free-and-use them
+     - coap_receive performs its own scrub pass once it is done with them -> coap_receive(), at the end
+
+     oc_blockwise_scrub_buffers(false);
+  */
 
   if (new_request.request_payload)
   {

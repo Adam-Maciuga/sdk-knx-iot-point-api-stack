@@ -27,10 +27,18 @@ extern "C" {
 #include "oc_helpers.h"
 #include "oc_rep.h"
 #include "oc_client_state.h"
+#include "oc_blockwise.h"
 #include "port/oc_random.h"
 #include "messaging/coap/oc_coap.h"
+#include "messaging/coap/coap.h"
 #include "util/oc_mmem.h"
 
+/* Not declared in any public header - engine.c forward-declares it the same
+ * way for the same reason (it has external linkage but no prototype). */
+extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
+                                             oc_blockwise_state_t** request_state,
+                                             oc_blockwise_state_t** response_state,
+                                             uint16_t block2_size, oc_endpoint_t* endpoint);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -792,5 +800,109 @@ TEST_F(RiClientCb, GetClientCbReturnsNullForWrongMethod)
   oc_client_cb_t *cb = make_cb("/d", COAP_PUT);
   ASSERT_NE(cb, nullptr);
   EXPECT_EQ(oc_ri_get_client_cb("/d", &ep, COAP_GET), nullptr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_ri_invoke_coap_entity_handler — blockwise buffer lifetime around the
+ * function's own internal oc_blockwise_scrub_buffers(false) call
+ *
+ * A completed block-wise request has its ref_count set to 0 by the caller
+ * (coap_receive, messaging/coap/engine.c) right before dispatch, precisely so
+ * it can be reclaimed once no longer needed. But oc_ri_invoke_coap_entity_handler
+ * itself sweeps every ref_count==0 buffer (regardless of whose request it is)
+ * near the end of the function, then returns - and the caller goes on to
+ * dereference *request_state/*response_state afterward (see engine.c, right
+ * after the call). If the internal sweep already freed the very buffer that
+ * belongs to *this* request, that dereference is a use-after-free.
+ *
+ * These tests target that lifetime question directly, without needing a
+ * running coap_receive(): they call oc_ri_invoke_coap_entity_handler with a
+ * request buffer whose ref_count is pre-set to 0 (mimicking a just-completed
+ * block-wise transfer) against an unregistered URI, which is the simplest
+ * way to make the function return false while still running its internal
+ * scrub - matching_resource stays NULL, so the whole method-dispatch block is
+ * skipped and the flow goes straight to the scrub call.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class RiEntityHandlerBlockwiseLifetime : public ::testing::Test {
+protected:
+  oc_endpoint_t ep{};
+  static constexpr const char *kHref = "unregistered/path";
+
+  void SetUp() override
+  {
+    oc_mmem_init();
+    memset(&ep, 0, sizeof(ep));
+    ep.flags = IPV6;
+    ep.addr.ipv6.port = 5683;
+    ep.addr.ipv6.address[15] = 1; /* ::1 */
+  }
+
+  void TearDown() override
+  {
+    /* free anything left over regardless of ref_count, so state never leaks
+     * into another test */
+    oc_blockwise_scrub_buffers(true);
+  }
+
+  /* Allocates a request buffer for kHref and pre-sets its ref_count to 0,
+   * exactly as coap_receive does once the last block of a request has been
+   * received (messaging/coap/engine.c: request_buffer->ref_count = 0;
+   * before "goto request_handler"). */
+  oc_blockwise_state_t *make_completed_request_buffer()
+  {
+    oc_blockwise_state_t *buf = oc_blockwise_alloc_request_buffer(
+      kHref, strlen(kHref), &ep, COAP_GET, OC_BLOCKWISE_SERVER);
+    if (buf) {
+      buf->ref_count = 0;
+    }
+    return buf;
+  }
+
+  /* Builds a GET request for kHref and invokes the handler exactly the way
+   * coap_receive does: by reference, so the caller keeps its own copy of the
+   * (possibly now-dangling) pointer afterward. */
+  bool invoke(oc_blockwise_state_t **request_state,
+              oc_blockwise_state_t **response_state)
+  {
+    coap_packet_t request{}, response{};
+    coap_udp_init_message(&request, COAP_TYPE_CON, COAP_GET, 0x0001);
+    coap_set_header_uri_path(&request, kHref, strlen(kHref));
+
+    return oc_ri_invoke_coap_entity_handler(&request, &response, request_state,
+                                            response_state, 64, &ep);
+  }
+};
+
+TEST_F(RiEntityHandlerBlockwiseLifetime, UnregisteredUriReturnsFalse)
+{
+  /* sanity check on the scenario itself, independent of the blockwise
+   * question: an unregistered URI must be reported as not handled */
+  oc_blockwise_state_t *req_state = nullptr;
+  oc_blockwise_state_t *resp_state = nullptr;
+  EXPECT_FALSE(invoke(&req_state, &resp_state));
+}
+
+TEST_F(RiEntityHandlerBlockwiseLifetime,
+       CompletedRequestBufferSurvivesWhenResourceNotFound)
+{
+  oc_blockwise_state_t *req_state = make_completed_request_buffer();
+  ASSERT_NE(req_state, nullptr);
+  ASSERT_EQ(req_state->ref_count, 0);
+
+  oc_blockwise_state_t *resp_state = nullptr;
+  EXPECT_FALSE(invoke(&req_state, &resp_state));
+
+  /* Acceptable result once the function no longer scrubs internally: the
+   * buffer this very request owns must still be findable/valid immediately
+   * after the call returns - the caller (coap_receive) is the one who
+   * decides when it is safe to reclaim it, via its own scrub pass at the end
+   * of coap_receive() (engine.c). Today (bug present) the internal scrub
+   * frees it here, so this lookup comes back NULL. */
+  oc_blockwise_state_t *found = oc_blockwise_find_request_buffer(
+    kHref, strlen(kHref), &ep, COAP_GET, "", 0, OC_BLOCKWISE_SERVER);
+  EXPECT_EQ(found, req_state)
+    << "request buffer for the current request was freed by the handler's "
+       "own internal scrub before the caller was done with it";
 }
 
