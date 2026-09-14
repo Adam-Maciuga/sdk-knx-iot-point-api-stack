@@ -544,9 +544,8 @@ int coap_receive(oc_message_t* incoming_message)
   */
   if (oc_coap_check_if_loopback_message(incoming_message))
   {
-    // ignore 
+    // ignore - caller (process_thread_coap_engine) unrefs incoming_message exactly once regardless of return path
     OC_DBG("drop loopback message, counter is %d", incoming_message->ref_count);
-    oc_message_unref(incoming_message);
     return -1;
   }
 
@@ -620,7 +619,7 @@ int coap_receive(oc_message_t* incoming_message)
     {
       if (oc_coap_check_if_duplicate_and_if_not_add_to_history(inbound_coap_pkt, &incoming_message->endpoint))
       {
-        oc_message_unref(incoming_message);
+        // caller (process_thread_coap_engine) unrefs incoming_message exactly once regardless of return path
         OC_DBG("drop duplicate message, counter is %d", incoming_message->ref_count);
         return -1;
       }
@@ -1672,7 +1671,7 @@ OC_PROCESS_THREAD(coap_engine, ev, data)
       if (ev == oc_events[INBOUND_RI_EVENT])
       {
         coap_receive(message);
-        oc_message_unref(message);
+        oc_message_unref(message); // unrefs the message once regardless of (error) return path
       }
       else if (ev == OC_PROCESS_EVENT_TIMER)
       {
