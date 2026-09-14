@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 #include <cstdlib>
+#include <string>
 
 extern "C" {
 #include "oc_rep.h"
@@ -353,6 +354,156 @@ TEST_F(OcRepTest, DoubleArray)
   ASSERT_EQ(arr_size, 2u);
   EXPECT_DOUBLE_EQ(arr[0], 1.1);
   EXPECT_DOUBLE_EQ(arr[1], 2.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * String array — item length clamping (F-021 regression)
+ *
+ * oc_parse_rep_value_array() stores each text-string array item in a fixed
+ * STRING_ARRAY_ITEM_MAX_LEN (32) byte slot and clamps oversized items to fit.
+ * A fuzz run (fuzz_oc_rep, linux-fuzz-explore, clang/ASan) found a
+ * heap-buffer-overflow WRITE here: a >32 byte item made
+ * cbor_value_copy_text_string() overwrite its length out-parameter with the
+ * string's real, untruncated length (its documented behavior whenever the
+ * supplied buffer is too small), and that corrupted length was then reused
+ * to index the terminating '\0' write, landing far past the 32-byte slot.
+ * Minimized reproducer: a 1-element array containing one 100-byte text
+ * string.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, StringArray_ItemAtMaxLen_RoundTripsExactly)
+{
+  /* STRING_ARRAY_ITEM_MAX_LEN - 1 chars: the largest item that still fits
+   * together with its terminator, so it must NOT be truncated. */
+  std::string item(STRING_ARRAY_ITEM_MAX_LEN - 1, 'A');
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 30);
+  oc_rep_begin_array(&root_map, sarr);
+  oc_rep_add_text_string(sarr, item.c_str());
+  oc_rep_end_array(&root_map, sarr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_string_array_t arr;
+  size_t arr_size = 0;
+  ASSERT_TRUE(oc_rep_i_get_string_array(rep, 30, &arr, &arr_size));
+  ASSERT_EQ(arr_size, 1u);
+  EXPECT_EQ(oc_string_array_get_item_size(arr, 0), item.size());
+  EXPECT_STREQ(oc_string_array_get_item(arr, 0), item.c_str());
+}
+
+TEST_F(OcRepTest, StringArray_OversizedItem_DoesNotCorruptHeap)
+{
+  /* Matches the fuzzer's minimized reproducer: one array item well past
+   * STRING_ARRAY_ITEM_MAX_LEN. Before the fix this triggered a heap-buffer-
+   * overflow write ~70 bytes past the 32-byte item slot; here, simply
+   * completing the parse and freeing the result without the allocator
+   * aborting is already a meaningful regression check. */
+  std::string item(100, 'A');
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 31);
+  oc_rep_begin_array(&root_map, sarr);
+  oc_rep_add_text_string(sarr, item.c_str());
+  oc_rep_end_array(&root_map, sarr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_string_array_t arr;
+  size_t arr_size = 0;
+  ASSERT_TRUE(oc_rep_i_get_string_array(rep, 31, &arr, &arr_size));
+  ASSERT_EQ(arr_size, 1u);
+
+  /* The item slot is STRING_ARRAY_ITEM_MAX_LEN bytes; whatever ended up in
+   * it, reading it back must never run past that slot. */
+  EXPECT_LE(oc_string_array_get_item_size(arr, 0),
+            (size_t)(STRING_ARRAY_ITEM_MAX_LEN - 1));
+}
+
+TEST_F(OcRepTest, StringArray_OversizedItem_TruncatesToMaxLen)
+{
+  /* An oversized item is expected to be clamped to the first
+   * STRING_ARRAY_ITEM_MAX_LEN - 1 bytes of the original string, not replaced
+   * with unrelated (e.g. uninitialized-heap) content. */
+  std::string item(100, 'A');
+  std::string expected = item.substr(0, STRING_ARRAY_ITEM_MAX_LEN - 1);
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 32);
+  oc_rep_begin_array(&root_map, sarr);
+  oc_rep_add_text_string(sarr, item.c_str());
+  oc_rep_end_array(&root_map, sarr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_string_array_t arr;
+  size_t arr_size = 0;
+  ASSERT_TRUE(oc_rep_i_get_string_array(rep, 32, &arr, &arr_size));
+  ASSERT_EQ(arr_size, 1u);
+  EXPECT_EQ(oc_string_array_get_item_size(arr, 0), expected.size());
+  EXPECT_STREQ(oc_string_array_get_item(arr, 0), expected.c_str());
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Byte string array — item length clamping (same defect class as F-021)
+ *
+ * oc_parse_rep_value_array()'s OC_REP_BYTE_STRING case clamped `len` and
+ * called cbor_value_copy_byte_string(&array, item, &len, NULL) the same way
+ * the text-string case did. It never reused the clobbered len as a write
+ * index (byte strings aren't NUL-terminated), so it never overflowed - but
+ * cbor_value_copy_byte_string() is exactly as all-or-nothing as its text
+ * counterpart: for any item over 31 bytes, the clamped capacity made it copy
+ * nothing at all, leaving the slot's uninitialized/leftover content behind
+ * instead of a truncated prefix.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, ByteStringArray_ItemAtMaxLen_RoundTripsExactly)
+{
+  std::string item(STRING_ARRAY_ITEM_MAX_LEN - 1, '\x42');
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 33);
+  oc_rep_begin_array(&root_map, barr);
+  oc_rep_add_byte_string(barr, (const uint8_t *)item.data(), item.size());
+  oc_rep_end_array(&root_map, barr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_string_array_t arr;
+  size_t arr_size = 0;
+  ASSERT_TRUE(oc_rep_i_get_byte_string_array(rep, 33, &arr, &arr_size));
+  ASSERT_EQ(arr_size, 1u);
+  ASSERT_EQ(oc_byte_string_array_get_item_size(arr, 0), item.size());
+  EXPECT_EQ(0, memcmp(oc_byte_string_array_get_item(arr, 0), item.data(),
+                       item.size()));
+}
+
+TEST_F(OcRepTest, ByteStringArray_OversizedItem_TruncatesToMaxLen)
+{
+  std::string item(100, '\x42');
+  std::string expected = item.substr(0, STRING_ARRAY_ITEM_MAX_LEN - 1);
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 34);
+  oc_rep_begin_array(&root_map, barr);
+  oc_rep_add_byte_string(barr, (const uint8_t *)item.data(), item.size());
+  oc_rep_end_array(&root_map, barr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_string_array_t arr;
+  size_t arr_size = 0;
+  ASSERT_TRUE(oc_rep_i_get_byte_string_array(rep, 34, &arr, &arr_size));
+  ASSERT_EQ(arr_size, 1u);
+  ASSERT_EQ(oc_byte_string_array_get_item_size(arr, 0), expected.size());
+  EXPECT_EQ(0, memcmp(oc_byte_string_array_get_item(arr, 0), expected.data(),
+                       expected.size()));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

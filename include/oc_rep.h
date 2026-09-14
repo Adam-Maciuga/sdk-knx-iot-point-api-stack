@@ -23,7 +23,12 @@ extern "C" {
 #endif
 
 extern CborEncoder g_encoder, root_map, links_array;
-extern CborError g_err;
+/* int, not CborError: the g_err |= cbor_encode_*(...) macros below rely on the
+   enum operands promoting to int for the bitwise OR. Assigning that int result
+   back to an enum-typed g_err needs an implicit int->enum conversion, which C++
+   forbids in an assignment; Clang rejects it even under -fpermissive. Kept as
+   CborError only at the oc_rep_get_cbor_errno() boundary. */
+extern int g_err;
 
 /*
   The macros are based on stringizing operator (also known as Stringify)

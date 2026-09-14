@@ -15,7 +15,7 @@
 
 static uint8_t *g_buf;
 CborEncoder g_encoder, root_map, links_array;
-CborError g_err;
+int g_err;
 
 void
 oc_rep_new(uint8_t *out_payload, int size)
@@ -271,6 +271,11 @@ oc_parse_rep_value(CborValue *value, oc_rep_t **rep, CborError *err)
 
 get_tagged_value:
   *err |= cbor_value_advance(value);
+  /* A failed advance leaves the iterator at an undefined position; reading
+     value->type after it parses past in_payload_size. */
+  if (*err != CborNoError)
+    return;
+
   /* value */
   switch (value->type) {
   case CborTagType: {
@@ -309,7 +314,15 @@ oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep, CborError *err)
   cur->value.object_array = 0;
 
   oc_rep_t **obj = &cur->value.object;
+
+  /* Set before parsing the children: oc_free_rep() only follows value.object for
+     OC_REP_OBJECT, so an error return inside the loop would strand the subtree. */
+  cur->type = OC_REP_OBJECT;
+
   *err |= cbor_value_enter_container(value, &map);
+  if (*err != CborNoError)
+    return;
+
   while (!cbor_value_at_end(&map)) {
     oc_parse_rep_value(&map, obj, err);
     if (*err != CborNoError)
@@ -319,8 +332,79 @@ oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep, CborError *err)
       obj = &(*obj)->next;
     }
     *err |= cbor_value_advance(&map);
+    if (*err != CborNoError)
+      return;
   }
-  cur->type = OC_REP_OBJECT;
+}
+
+/* Copies at most `cap` bytes of a (possibly chunked) CBOR text string into
+ * `dst`, truncating silently instead of failing, without allocating memory.
+ * `it` is iterated in place and must be a throwaway copy of the value's
+ * iterator: cbor_value_copy_text_string() cannot be used here because it is
+ * all-or-nothing, refusing to copy anything at all whenever `cap` is smaller
+ * than the string - exactly the case for an over-long fixed-size array item
+ * that is meant to be truncated to fit its slot. Returns the number of bytes
+ * copied (<= cap). */
+static size_t
+copy_text_chunks_truncated(CborValue *it, uint8_t *dst, size_t cap, CborError *err)
+{
+  size_t copied = 0;
+  CborError begin_err = cbor_value_begin_string_iteration(it);
+  if (begin_err != CborNoError) {
+    *err |= begin_err;
+    return 0;
+  }
+  for (;;) {
+    const char *ptr;
+    size_t chunk_len;
+    CborError chunk_err = cbor_value_get_text_string_chunk(it, &ptr, &chunk_len, it);
+    if (chunk_err != CborNoError) {
+      *err |= chunk_err;
+      break;
+    }
+    if (ptr == NULL) {
+      break;
+    }
+    size_t space = cap - copied;
+    size_t take = chunk_len < space ? chunk_len : space;
+    if (take > 0) {
+      memcpy(dst + copied, ptr, take);
+      copied += take;
+    }
+  }
+  return copied;
+}
+
+/* Byte-string counterpart of copy_text_chunks_truncated(); see there for why
+ * a chunk-wise copy is used instead of cbor_value_copy_byte_string(). */
+static size_t
+copy_byte_chunks_truncated(CborValue *it, uint8_t *dst, size_t cap, CborError *err)
+{
+  size_t copied = 0;
+  CborError begin_err = cbor_value_begin_string_iteration(it);
+  if (begin_err != CborNoError) {
+    *err |= begin_err;
+    return 0;
+  }
+  for (;;) {
+    const uint8_t *ptr;
+    size_t chunk_len;
+    CborError chunk_err = cbor_value_get_byte_string_chunk(it, &ptr, &chunk_len, it);
+    if (chunk_err != CborNoError) {
+      *err |= chunk_err;
+      break;
+    }
+    if (ptr == NULL) {
+      break;
+    }
+    size_t space = cap - copied;
+    size_t take = chunk_len < space ? chunk_len : space;
+    if (take > 0) {
+      memcpy(dst + copied, ptr, take);
+      copied += take;
+    }
+  }
+  return copied;
 }
 
 static void
@@ -341,6 +425,9 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
 
   oc_rep_value_type_t type = OC_REP_NIL;
   *err |= cbor_value_enter_container(value, &array);
+  if (*err != CborNoError)
+    return;
+
   len = 0;
   // we need to iterate through anyway to check the types
   // cbor_value_get_array_length(value, &len);
@@ -462,14 +549,14 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
         *err |= CborErrorIllegalType;
         return;
       }
-      *err |= cbor_value_calculate_string_length(&array, &len);
-      if (len >= STRING_ARRAY_ITEM_MAX_LEN) {
-        len = STRING_ARRAY_ITEM_MAX_LEN - 1;
+      {
+        CborValue it = array;
+        uint8_t *dst =
+          (uint8_t *)oc_byte_string_array_get_item(cur->value.array, k);
+        size_t copied = copy_byte_chunks_truncated(
+          &it, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
+        oc_byte_string_array_get_item_size(cur->value.array, k) = copied;
       }
-      oc_byte_string_array_get_item_size(cur->value.array, k) = len;
-      *err |= cbor_value_copy_byte_string(
-        &array, (uint8_t *)oc_byte_string_array_get_item(cur->value.array, k),
-        &len, NULL);
     } break;
     case OC_REP_STRING: {
       if (k == 0) {
@@ -480,16 +567,13 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
         *err |= CborErrorIllegalType;
         return;
       }
-      *err |= cbor_value_calculate_string_length(&array, &len);
-      len++;
-      if (len >= STRING_ARRAY_ITEM_MAX_LEN) {
-        len = STRING_ARRAY_ITEM_MAX_LEN - 1;
+      {
+        CborValue it = array;
+        uint8_t *dst = (uint8_t *)oc_string_array_get_item(cur->value.array, k);
+        size_t copied = copy_text_chunks_truncated(
+          &it, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
+        dst[copied] = 0;
       }
-      // uint8_t *size = (uint8_t *)oc_string_array_get_item(cur->value.array, k); -> not used at all
-      *err |= cbor_value_copy_text_string(
-        &array, (uint8_t *)oc_string_array_get_item(cur->value.array, k), &len,
-        NULL);
-      oc_string_array_get_item(cur->value.array, k)[len] = 0;
     } break;
     case OC_REP_OBJECT: {
       if (k == 0) {
@@ -541,10 +625,17 @@ int oc_parse_rep(const uint8_t *in_payload, int in_payload_size, oc_rep_t **out_
   CborParser parser;
   CborValue root_value;
   CborError err = CborNoError;
-  err |= cbor_parser_init(in_payload, in_payload_size, 0, &parser, &root_value);
 
   // default out pointer
   *out_rep = 0;
+
+  /* On a reserved additional-info value (e.g. the single byte 0x9d) TinyCBOR
+     fails but has already assigned the major type, so cbor_value_is_valid()
+     still reports true and the parse would read past in_payload_size. */
+  err = cbor_parser_init(in_payload, in_payload_size, 0, &parser, &root_value);
+  if (err != CborNoError)
+    return err;
+
   if (cbor_value_is_valid(&root_value)) 
   {
     // returns an object/array at top level for out_rep on no error
