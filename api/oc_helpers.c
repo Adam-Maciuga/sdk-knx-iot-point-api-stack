@@ -318,9 +318,17 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, cha
     *hex_str_len += 2;
   }
 
-  // set to next char after string and add string termination
-  *hex_str_len += 1;
+  /*
+     snprintf already wrote the terminator at hex_str[*hex_str_len]
+     - for an empty array, the loop above never ran, and it still needs writing the \0 terminator
+     - write it in place instead of one byte further, then include it in the reported length 
+
+     0100 -> 0100\0 len 4
+     1    -> 01\0   len 2
+
+  */
   hex_str[*hex_str_len] = '\0';
+  *hex_str_len += 1;
 
   return 0;
 }

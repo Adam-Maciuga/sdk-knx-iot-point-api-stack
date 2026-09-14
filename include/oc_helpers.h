@@ -310,7 +310,7 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size);
  * @param[in] array the array of bytes
  * @param[in] array_len length of the array
  * @param hex_str data as hex
- * @param hex_str_len length of the hex string
+ * @param hex_str_len length of the hex string (including the terminator)
  * @return int 0 success
  */
 int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
