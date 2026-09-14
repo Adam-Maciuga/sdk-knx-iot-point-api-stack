@@ -39,7 +39,7 @@ static const int core_resources_for_well_known[] =
 
 #define EP_STR_LEN_DOT_SN (9) // knx://sn.
 
-static bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber)
+bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber)
 {
 	/*
 	 * SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)

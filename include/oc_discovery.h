@@ -103,9 +103,22 @@ bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
  * @note only used in linked list, added here to skip compiler warnings
  *
  */
-void oc_well_known_core_discovery_handler(oc_request_t* request,
-                                          oc_interface_mask_t iface_mask, 
-                                          void* data);
+void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data);
+
+
+  /**
+ * @brief checks the 'ep=knx://sn.<serial-number>' filter of a well-known/core
+ *        query against a device serial number, including the '*' wildcard forms.
+ *
+ * Exposed (non-static) for fuzzing/unit testing; not part of the public API surface.
+ *
+ * @param ep_request the raw ep query value ("knx://sn...."), not NUL terminated
+ * @param ep_len length of ep_request
+ * @param serialnumber the device serial number to compare against
+ * @return true when ep_request matches serialnumber (full, partial or wildcard)
+ */
+bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber);
+
 
 #ifdef __cplusplus
 }
