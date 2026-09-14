@@ -1659,7 +1659,8 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
 
       // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
       const int err = oc_parse_rep(buf, bytes_to_read, &rep);
-      oc_rep_t* head = rep;
+      // tmp copy for later release, rep is iterated...  
+      const oc_rep_t* head = rep;
 
       if (err == 0)
       {
