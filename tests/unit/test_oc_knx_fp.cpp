@@ -578,18 +578,30 @@ TEST_F(BelongsHref, NonDiscoverableSkippedWhenDiscoverableRequested)
 /* The table base keys from api/oc_knx_fp.h, the production writer and loader use the same. */
 static const char *kRcpStore = KNX_STORAGE_KEY_GRT_ENTRY;
 static const char *kPubStore = KNX_STORAGE_KEY_GPT_ENTRY;
-static const char *kFpStoreDir = "knx_storage_fp_unit_test";
+static const char *kFpStoreDirPrefix = "fpt_";
 
 class GroupTableStorage : public ::testing::Test {
 protected:
-  static void SetUpTestSuite()
-  {
-    /* mkdir returns 0 on create, -1 if it already exists - both fine. */
-    oc_storage_config(kFpStoreDir);
-  }
-
   void SetUp() override
   {
+    /* gtest_discover_tests registers each TEST_F as its own ctest test, so
+     * `ctest -j` can run several of these as separate OS processes at the
+     * same time. oc_storage_config() only tracks one directory per process,
+     * but the directory itself is a plain path on the shared filesystem: a
+     * directory reused across tests lets one process's TearDown() (which
+     * deletes every per-entry file) race a concurrently running process's
+     * SetUp()/test body. Keying the directory by the test's own name gives
+     * every test - and thus every concurrent process - its own storage
+     * directory, and no OS/filesystem race is left. Total path (this
+     * directory + the longest per-entry filename) must still stay under
+     * STORE_PATH_SIZE (64, see port storage.c). */
+    const ::testing::TestInfo *info =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "%s%s", kFpStoreDirPrefix, info->name());
+    /* mkdir returns 0 on create, -1 if it already exists - both fine. */
+    oc_storage_config(dir);
+
     /* erase any stale per-entry files and reset the RAM tables */
     oc_delete_group_tables();
   }
