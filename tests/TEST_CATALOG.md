@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1443 unit tests** (53 files) + **385 runtime tests** (20 files) = **1828 total**
+> **1460 unit tests** (53 files) + **385 runtime tests** (20 files) = **1845 total**
 >
-> Branch: `work_in_progress` | Unit: 1415 registered and passed (windows-test-gcc, GCC/CTest, ~47s, 100% passed out of 1415). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1415 + 28 = 1443.
-> Runtime (Docker `linux-test-gcc`, full suite, working tree with `-IncludeUncommitted`): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 848.18s) - fully green. This run verified the F-020 page-full return-value fix and the array-free functional-block scan that enabled it. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit: 1432 registered and passed (windows-test-gcc, GCC/CTest, ~47s, 100% passed out of 1432). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1432 + 28 = 1460 (the mdns count itself was not re-verified in this run).
+> Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -37,7 +37,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_uuid.cpp — UUID Handling (13 tests)
+### test_oc_uuid.cpp — UUID Handling (19 tests)
 
 **Source:** `api/oc_uuid.c`
 
@@ -46,11 +46,17 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `UuidStrToUuid.KnownUuid` | Standard UUID string parses correctly |
 | `UuidStrToUuid.UppercaseHex` | Uppercase hex digits accepted |
 | `UuidStrToUuid.WildcardStar` | `*` produces all-zeros UUID |
+| `UuidStrToUuid.ShorterThanUuidLenDoesNotOverread` | String shorter than 36 bytes leaves `id` zeroed, no OOB read |
+| `UuidStrToUuid.HighBitByteDoesNotMisbehave` | High-bit byte with no canonical dashes is rejected, `id` zeroed |
+| `UuidStrToUuid.TooFewDashesDoesNotOverwrite` | Non-canonical dash placement rejected before any byte write; stack canary intact |
+| `UuidStrToUuid.InvalidHexDigitIsRejected` | Canonical dashes but a non-hex character → `id` zeroed |
 | `UuidToStr.KnownUuid` | Known UUID → correct string with hyphens |
 | `UuidToStr.AllZeros` | All-zero UUID → "00000000-..." |
 | `UuidToStr.AllOnes` | All-0xFF UUID → "ffffffff-..." |
 | `UuidToStr.BufferTooSmall` | Short buffer handled safely |
 | `UuidToStr.WildcardStar` | All-zeros → "*" |
+| `UuidToStr.NullUuidDoesNotCrash` | `NULL` uuid pointer leaves the buffer untouched |
+| `UuidToStr.IdZeroButNotAllZeroRemainderFormatsNormally` | `id[0]==0x2a` with a non-zero remainder formats as normal hex, not "*" |
 | `UuidRoundTrip.StringToBinaryToString` | str→uuid→str round-trip |
 | `UuidGenerate.ProducesValidFormat` | `oc_gen_uuid` output is canonical 8-4-4-4-12 hex |
 | `UuidGenerate.ProducesVersion4` | Generated UUID has version nibble set to 4 |
@@ -95,7 +101,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_mmem.cpp — Managed Memory (9 tests)
+### test_oc_mmem.cpp — Managed Memory (11 tests)
 
 **Source:** `util/oc_mmem.c`
 
@@ -104,6 +110,8 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `AllocByte_ReturnsNonNull` | Byte allocation succeeds |
 | `AllocByte_MemoryIsWritable` | Allocated memory can be written/read |
 | `AllocInt_ReturnsNonNull` | Int allocation succeeds |
+| `AllocFloat_ReturnsNonNull` | Float allocation succeeds; regression for missing `break` falling through to `DOUBLE_POOL` |
+| `AllocFloat_MemoryIsWritable` | Allocated float memory can be written/read |
 | `AllocDouble_ReturnsNonNull` | Double allocation succeeds |
 | `AllocNull_ReturnsZero` | NULL/zero input returns 0 |
 | `Free_ClearsSize` | Free sets size to 0 |
@@ -152,7 +160,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_rep.cpp — CBOR Representation (46 tests)
+### test_oc_rep.cpp — CBOR Representation (51 tests)
 
 **Source:** `api/oc_rep.c`
 
@@ -166,6 +174,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `SetByteString` | 1 | Binary data |
 | `MultipleValues` | 1 | Mixed types in single map |
 | `Arrays` | 3 | Int/bool/double arrays |
+| `StringArray/ByteStringArray truncation` | 5 | Text/byte string array items at exactly the 32-byte slot limit round-trip unmodified; oversized items are truncated (not left as heap-uninitialized garbage) and never overflow the fixed-size slot (F-021 follow-up) |
 | `ToJson` | 3 | JSON serialization (compact, pretty, size query) |
 | `AddLineToBuffer` | 3 | Buffer append helpers |
 | `EncodeRaw` | 1 | Raw CBOR append |
@@ -685,7 +694,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (82 tests)
+### test_oc_ri.cpp — Resource Interface (89 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -698,7 +707,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `LsmStateString` | 6 | State enum → string |
 | `LsmEventString` | 5 | Event enum → string |
 | `StatusFromCoap` | 5 | CoAP code → oc_status_t (round-trips with StatusCode) |
-| `ScopeMask` | 5 | Interface scope bit positions (if.i, if.a, if.swu, unknown, length mismatch) |
+| `ScopeMask` | 10 | Interface scope bit positions (if.i, if.a, if.swu, unknown, length mismatch, empty name, non-scope interfaces, internal `<ga>` unreachable by name, all known names round-trip) |
 | `RiMask` | 7 | Scope/interface name framing (single/multiple bits, truncated URNs) |
 | `PrintAclScopes` | 1 | ACL scope printer runs without crashing |
 | `NewRequestFromInbound` | 1 | Inbound request rewires response and copies buffer |
@@ -711,6 +720,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `RiAddResource` | 5 | Add-resource validation (NULL, const, no handler, zero period, valid) |
 | `RiDeleteResource` | 3 | Delete-resource (NULL, const, removes+frees) |
 | `RiClientCb` | 8 | Client-callback find-by-mid/token, validity, get-by-uri/endpoint/method |
+| `RiEntityHandlerBlockwiseLifetime` | 2 | `oc_ri_invoke_coap_entity_handler`'s own internal blockwise scrub must not free the current request's buffer before the caller (`coap_receive`) is done with it |
 
 ---
 
@@ -1596,12 +1606,17 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 ## Last runtime run status
 
-Full runtime suite (Docker `linux-test-gcc`, working tree of `work_in_progress`
-run with `-IncludeUncommitted`):
-**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 848.18s) - fully green.
-Unit suite alongside it: 1415 passed, 0 failed (windows-test-gcc).
+Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`,
+no `-IncludeUncommitted`):
+**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 849.06s) - fully green.
+Unit suite alongside it: 1432 passed, 0 failed (windows-test-gcc).
 
-The most recent run covered the F-020 page-full return-value fix in
+This run was a plain re-verification (Docker Desktop had not been running; no
+stack or test code changed since the previous entry below) - tally, timing and
+skip set (`test_5_3_1_6d_unblocks_after_timeout`, `test_5_4_1_9_init_flag_sends_read_on_restart`,
+and 3 `malformed-discovery` timing-artifact skips) are identical to the prior run.
+
+The run before that covered the F-020 page-full return-value fix in
 `oc_add_functional_blocks_from_application_to_response()` and the `is_first_occurrence_of_fb()`
 comment cleanup (see F-020 in `FINDINGS.md`). Tally and skip set are identical to every prior run
 in this series, confirming no regression - unsurprising, since neither change alters response
