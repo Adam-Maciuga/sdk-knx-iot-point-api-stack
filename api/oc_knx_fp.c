@@ -72,7 +72,7 @@ int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_
           const int32_t id = (int32_t)object->value.integer;
           const bool id_out_of_range = id < 0 || id > 65535; // see KNX specification
           
-          OC_INF("find id from request: %d ", id);
+          OC_INF("find id from request: %" PRId32 " ", id);
           return id_out_of_range ? -2 : id;
         }
       }
@@ -341,7 +341,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
       // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
       #define MAX_ID_LEN (10 + 1)
       char id[MAX_ID_LEN];
-      (void)snprintf(id, MAX_ID_LEN, "%d>", g_got[i].id);
+      (void)snprintf(id, MAX_ID_LEN, "%" PRId32 ">", g_got[i].id);
       response_length += oc_rep_add_line_to_buffer(id);
 
       response_length += oc_rep_add_line_to_buffer(";ct=60");
@@ -924,7 +924,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
       // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
       #define MAX_ID_LEN (10 + 1)
       char id[MAX_ID_LEN];
-      (void)snprintf(id, MAX_ID_LEN, "%d>", g_gpt[i].id);
+      (void)snprintf(id, MAX_ID_LEN, "%" PRId32 ">", g_gpt[i].id);
       response_length += oc_rep_add_line_to_buffer(id);
 
       response_length += oc_rep_add_line_to_buffer(";ct=60");
@@ -1488,7 +1488,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
       // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
       #define MAX_ID_LEN (10 + 1) 
       char id[MAX_ID_LEN];
-      (void)snprintf(id, MAX_ID_LEN, "%d>", g_grt[i].id);
+      (void)snprintf(id, MAX_ID_LEN, "%" PRId32 ">", g_grt[i].id);
       response_length += oc_rep_add_line_to_buffer(id);
 
       response_length += oc_rep_add_line_to_buffer(";ct=60");
@@ -2106,7 +2106,7 @@ void oc_print_group_object_table_entry(int entry)
     return;
   }
 
-  OC_INF("id (0)     : %d", g_got[entry].id);
+  OC_INF("id (0)     : %" PRId32, g_got[entry].id);
   OC_INF("href (11)  : %s", oc_string_checked(g_got[entry].href));
   OC_INF("cflags (8) : %d string: ", g_got[entry].cflags);
   oc_print_cflags(g_got[entry].cflags);
@@ -2115,7 +2115,7 @@ void oc_print_group_object_table_entry(int entry)
   OC_INF("ga (7)     : [");
   for (int i = 0; i < g_got[entry].ga_len; i++)
   {
-    PRINTF(" %u ", g_got[entry].ga[i]);
+    PRINTF(" %" PRIu32 " ", g_got[entry].ga[i]);
   }
   PRINTF("]");
 
@@ -2386,18 +2386,18 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
     return;
   }
   OC_INF("%s [%d] --> [%d]", store, entry, table[entry].ga_len);
-  OC_INF("id (0)     : %d", table[entry].id);
-  OC_INF("ia (12)    : %d", table[entry].ia);
+  OC_INF("id (0)     : %" PRId32, table[entry].id);
+  OC_INF("ia (12)    : %" PRId32, table[entry].ia);
   OC_INF("iid (26)   : %" PRIi64 "", table[entry].iid);
   OC_INF("fid (25)   : %" PRIi64 "", table[entry].fid);
-  OC_INF("grpid (13) : %u", table[entry].grpid);
+  OC_INF("grpid (13) : %" PRIu32, table[entry].grpid);
   OC_INF("at (14)    : %s", oc_string_checked(table[entry].at));
 
   // print an array in one line 
   OC_INF("ga (7)     : [");
   for (int i = 0; i < table[entry].ga_len; i++)
   {
-    PRINTF("%04X ", table[entry].ga[i]);
+    PRINTF("%04" PRIX32 " ", table[entry].ga[i]);
   }
   PRINTF("]");
 
@@ -2790,7 +2790,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 {
   bool return_value = false;
 
-  OC_INF("oc_add_points_from_group_object_table_to_response %04X", group_address);
+  OC_INF("oc_add_points_from_group_object_table_to_response %04" PRIX32, group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2855,7 +2855,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // uses all interfaces --> cleared above to '0'
   
   // debug
-  OC_INF("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
+  OC_INF("scope=%d iid=%" PRIu64 " group id=%" PRIu32 " B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast_endpoint);
 
   // copy all from local data to (return) pointer
@@ -3065,7 +3065,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         const uint32_t sending_ga = go_entry->ga[0];
         const oc_device_info_t* const device = oc_core_get_device_info();
 
-        OC_INF("Init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
+        OC_INF("Init datapoint : ga=%04" PRIX32 " ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
 
         // find recipient entry for sending ga, contains both grpid and non flag
         oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);

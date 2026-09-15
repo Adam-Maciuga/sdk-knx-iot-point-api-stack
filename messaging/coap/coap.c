@@ -31,6 +31,7 @@
  * SUCH DAMAGE.
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -619,7 +620,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       // calculate application payload size = total packet len - (coap header + token + options + payload marker)
       coap_pkt->payload_len = data_len - (uint32_t)(coap_pkt->payload - data);
 
-      OC_DBG("calculated payload len from coap options = %u", coap_pkt->payload_len);
+      OC_DBG("calculated payload len from coap options = %" PRIu32, coap_pkt->payload_len);
 
       if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
       {
@@ -628,7 +629,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
           - reject the message, the peer is expected to use CoAP block-wise transfer (RFC 7959) instead
           - see KNX IoT Point API spec 2.6.3.3.2 (similar case here) and RFC 7252 clause 12.1.2
         */
-        OC_ERR("payload len %u exceeds max app data size %u", coap_pkt->payload_len, OC_MAX_APP_DATA_SIZE);
+        OC_ERR("payload len %" PRIu32 " exceeds max app data size %" PRIu32, coap_pkt->payload_len, OC_MAX_APP_DATA_SIZE);
         return REQUEST_ENTITY_TOO_LARGE_4_13;
       }
 
@@ -811,7 +812,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
       case COAP_OPTION_OBSERVE:
         coap_pkt->observe = coap_parse_int_option(current_options, option_length);
-        OC_DBG("  Observe [%u]", coap_pkt->observe);
+        OC_DBG("  Observe [%" PRIu32 "]", coap_pkt->observe);
         break;
       
       case COAP_OPTION_BLOCK2:
@@ -1108,7 +1109,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
     return 0;
   }
 
-  OC_DBG("serialize CBOR message (len %u, header %u, payload %u)",
+  OC_DBG("serialize CBOR message (len %u, header %u, payload %" PRIu32 ")",
             (unsigned int) (coap_pkt->payload_len + option - buffer),
             (unsigned int) (option - buffer), coap_pkt->payload_len);
 

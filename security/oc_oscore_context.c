@@ -167,13 +167,13 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
           // Recipient contexts have empty sender_id and should not be used for sending
           if (ctx->sender_id_len > 0) 
           {
-            OC_DBG("found access token for given GA %04X", group_address); 
+            OC_DBG("found access token for given GA %04" PRIX32, group_address); 
 
             // refresh time of last use
             ctx->last_used = oc_clock_time();
             return ctx;
           } 
-          OC_DBG("found GA %04X but context has empty sender_id (recipient context), continuing search", group_address);
+          OC_DBG("found GA %04" PRIX32 " but context has empty sender_id (recipient context), continuing search", group_address);
         }
       }
     }
@@ -289,7 +289,7 @@ void oc_context_print_all(void)
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    OC_INF("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",  
+    OC_INF("%-9.02" PRId32 " | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %" PRIx32,  
             get_at_index(ctx->auth_at), 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 

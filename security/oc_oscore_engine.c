@@ -988,7 +988,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     return -1;
   }
 
-  OC_DBG("parsing inner message : ok, payload len  = %u", coap_pkt->payload_len);
+  OC_DBG("parsing inner message : ok, payload len  = %" PRIu32, coap_pkt->payload_len);
 
   /*
     fill new transaction with prepared coap data and payload data from former transaction,
@@ -1088,7 +1088,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
   if (oscore_ctx)
   {
-    OC_DBG_OSCORE("found group OSCORE context for GA %04X", group_address);
+    OC_DBG_OSCORE("found group OSCORE context for GA %04" PRIX32, group_address);
 
     uint8_t piv[OSCORE_PIV_LEN], piv_len = 0; 
     uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
@@ -1194,7 +1194,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   }
   else
   {
-    OC_ERR("found NO group OSCORE context for GA %04X", group_address);
+    OC_ERR("found NO group OSCORE context for GA %04" PRIX32, group_address);
     oc_message_unref(msg);
     oc_message_unref(from_org_msg_cloned_outgoing_msg);
     return -1;

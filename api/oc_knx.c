@@ -828,7 +828,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  OC_DBG("/k : sia: %u ga: %04x st: %c origin: %s", 
+  OC_DBG("/k : sia: %" PRIu32 " ga: %04" PRIx32 " st: %c origin: %s", 
         received_notification.sia, 
         received_notification.ga,
         received_notification.st, 
@@ -1087,7 +1087,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           }
           if (service_r && application_resource_with_href_match->get_handler.cb)
           {
-            OC_DBG("/k : read with GO table index %d handled due to read flags enabled 0x%x", go_table_index_where_ga_is_used, (uint32_t)cflags);
+            OC_DBG("/k : read with GO table index %d handled due to read flags enabled 0x%" PRIx32, go_table_index_where_ga_is_used, (uint32_t)cflags);
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
@@ -1807,7 +1807,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase_session.params.rnd, sizeof(g_pase_session.params.rnd));
     OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase_session.params.salt, sizeof(g_pase_session.params.salt));
-    OC_DBG_SPAKE("Iterations: %u", g_pase_session.params.it);
+    OC_DBG_SPAKE("Iterations: %" PRIu32, g_pase_session.params.it);
 
     oc_rep_begin_root_object();
 

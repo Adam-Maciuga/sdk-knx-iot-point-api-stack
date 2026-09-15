@@ -63,7 +63,11 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
       recipient->ipv6_res.group_object = group_object;
       recipient->ipv6_res.service_type = service_type;
 
-    // fall through intended ...
+    /* Note: The wording of the comment below is what suppresses -Wimplicit-fallthrough.
+     * GCC only accepts a fixed set of phrasings in the comment directly above the next
+     * case label, and everything after a dash is free text.
+     */
+    // intentional fall through - TIMED_OUT continues with the DATA_ERROR handling below
     case OC_IP_STATUS_DATA_ERROR:  // NOLINT(clang-diagnostic-implicit-fallthrough)
       // DATA_ERROR: keep the original GO + service - the response was invalid, retry for the same target
 
@@ -162,13 +166,13 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   if (recipient->ia == -1)
   {
-    OC_ERR("Cannot send unicast: invalid IA in recipient table for GA %u", group_address);
+    OC_ERR("Cannot send unicast: invalid IA in recipient table for GA %" PRIu32, group_address);
     return;
   }
 
   if (!ipv6_for_ia_is_resolved(service_type, recipient, group_object))
   {
-    OC_WRN("Cannot send unicast: IPv6 address resolver still in progress for GA %u", group_address);
+    OC_WRN("Cannot send unicast: IPv6 address resolver still in progress for GA %" PRIu32, group_address);
     return; 
   }
 

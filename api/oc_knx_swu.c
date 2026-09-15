@@ -624,7 +624,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       oc_swu_set_package_name("");
       oc_swu_set_package_version(0, 0, 0);
 
-      OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %u", swu_device.expected_pkg_size);
+      OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared) with expected package size ; %" PRIu32, swu_device.expected_pkg_size);
     }
     
     // (B) - process only DOWNLOADING state (incl. coming directly from IDLE), prevent misbehaving application that sets wrong states
@@ -635,7 +635,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       
       // (B-0), counts only payload len > 0 (ignore misbehaving MaC)
       swu_device.received_pkg_bytes += request->_payload_len;
-      OC_DBG("Received bytes: %u / %u", swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
+      OC_DBG("Received bytes: %" PRIu32 " / %" PRIu32, swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
 
       // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
       const oc_swu_t* application_swu_cb = oc_get_swu_cb();
@@ -665,7 +665,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     the block could not be processed, either because it carries no payload or because the state machine
     is not in IDLE/DOWNLOADING, so the MaC sent a block that cannot be accepted at this point in time
   */
-  OC_ERR("block not processed (payload length %u, state %d)", (uint32_t)request->_payload_len, swu_device.state);
+  OC_ERR("block not processed (payload length %" PRIu32 ", state %d)", (uint32_t)request->_payload_len, swu_device.state);
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 
   OC_DBG("oc_knx_swu_a_put_handler - end");
