@@ -357,24 +357,34 @@ TEST_F(OcRepTest, DoubleArray)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * String array — item length clamping (F-021 regression)
+ * String array — item length limit (F-021 regression, then all-or-nothing)
  *
  * oc_parse_rep_value_array() stores each text-string array item in a fixed
- * STRING_ARRAY_ITEM_MAX_LEN (32) byte slot and clamps oversized items to fit.
- * A fuzz run (fuzz_oc_rep, linux-fuzz-explore, clang/ASan) found a
- * heap-buffer-overflow WRITE here: a >32 byte item made
- * cbor_value_copy_text_string() overwrite its length out-parameter with the
- * string's real, untruncated length (its documented behavior whenever the
- * supplied buffer is too small), and that corrupted length was then reused
- * to index the terminating '\0' write, landing far past the 32-byte slot.
- * Minimized reproducer: a 1-element array containing one 100-byte text
- * string.
+ * STRING_ARRAY_ITEM_MAX_LEN (32) byte slot. A fuzz run (fuzz_oc_rep,
+ * linux-fuzz-explore, clang/ASan) found a heap-buffer-overflow WRITE here: an
+ * earlier version clamped an oversized item's length before calling
+ * cbor_value_copy_text_string(), which overwrote that same length variable
+ * with the string's real, untruncated length (its documented behavior
+ * whenever the supplied buffer is too small) - and that corrupted length was
+ * then reused to index the terminating '\0' write, landing far past the
+ * 32-byte slot. Minimized reproducer: a 1-element array containing one
+ * 100-byte text string.
+ *
+ * The fix went through a truncating-copy intermediate step before settling
+ * here on all-or-nothing: silently keeping a truncated prefix is only as
+ * safe as its one real consumer (ACL scope names, api/oc_knx_sec.c), which
+ * happens to fail closed on any string that doesn't exactly match a known
+ * short name. A future consumer without that property could turn a quietly
+ * truncated value into a logic or security bug - e.g. two different
+ * oversized values colliding on the same stored (truncated) prefix. An
+ * oversized item is therefore rejected outright (left empty) rather than
+ * truncated, and the rejection is logged via OC_WRN so it stays visible.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 TEST_F(OcRepTest, StringArray_ItemAtMaxLen_RoundTripsExactly)
 {
   /* STRING_ARRAY_ITEM_MAX_LEN - 1 chars: the largest item that still fits
-   * together with its terminator, so it must NOT be truncated. */
+   * together with its terminator, so it must be kept, not rejected. */
   std::string item(STRING_ARRAY_ITEM_MAX_LEN - 1, 'A');
 
   oc_rep_new(buf, sizeof(buf));
@@ -423,13 +433,11 @@ TEST_F(OcRepTest, StringArray_OversizedItem_DoesNotCorruptHeap)
             (size_t)(STRING_ARRAY_ITEM_MAX_LEN - 1));
 }
 
-TEST_F(OcRepTest, StringArray_OversizedItem_TruncatesToMaxLen)
+TEST_F(OcRepTest, StringArray_OversizedItem_IsRejectedNotTruncated)
 {
-  /* An oversized item is expected to be clamped to the first
-   * STRING_ARRAY_ITEM_MAX_LEN - 1 bytes of the original string, not replaced
-   * with unrelated (e.g. uninitialized-heap) content. */
+  /* An oversized item must be left empty, not silently filled with a
+   * truncated prefix of the original string. */
   std::string item(100, 'A');
-  std::string expected = item.substr(0, STRING_ARRAY_ITEM_MAX_LEN - 1);
 
   oc_rep_new(buf, sizeof(buf));
   oc_rep_begin_root_object();
@@ -444,21 +452,19 @@ TEST_F(OcRepTest, StringArray_OversizedItem_TruncatesToMaxLen)
   size_t arr_size = 0;
   ASSERT_TRUE(oc_rep_i_get_string_array(rep, 32, &arr, &arr_size));
   ASSERT_EQ(arr_size, 1u);
-  EXPECT_EQ(oc_string_array_get_item_size(arr, 0), expected.size());
-  EXPECT_STREQ(oc_string_array_get_item(arr, 0), expected.c_str());
+  EXPECT_EQ(oc_string_array_get_item_size(arr, 0), 0u);
+  EXPECT_STREQ(oc_string_array_get_item(arr, 0), "");
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Byte string array — item length clamping (same defect class as F-021)
+ * Byte string array — item length limit (same defect class as F-021)
  *
  * oc_parse_rep_value_array()'s OC_REP_BYTE_STRING case clamped `len` and
  * called cbor_value_copy_byte_string(&array, item, &len, NULL) the same way
  * the text-string case did. It never reused the clobbered len as a write
  * index (byte strings aren't NUL-terminated), so it never overflowed - but
- * cbor_value_copy_byte_string() is exactly as all-or-nothing as its text
- * counterpart: for any item over 31 bytes, the clamped capacity made it copy
- * nothing at all, leaving the slot's uninitialized/leftover content behind
- * instead of a truncated prefix.
+ * see the string-array block above for why oversized items are rejected
+ * rather than truncated here too.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 TEST_F(OcRepTest, ByteStringArray_ItemAtMaxLen_RoundTripsExactly)
@@ -483,10 +489,9 @@ TEST_F(OcRepTest, ByteStringArray_ItemAtMaxLen_RoundTripsExactly)
                        item.size()));
 }
 
-TEST_F(OcRepTest, ByteStringArray_OversizedItem_TruncatesToMaxLen)
+TEST_F(OcRepTest, ByteStringArray_OversizedItem_IsRejectedNotTruncated)
 {
   std::string item(100, '\x42');
-  std::string expected = item.substr(0, STRING_ARRAY_ITEM_MAX_LEN - 1);
 
   oc_rep_new(buf, sizeof(buf));
   oc_rep_begin_root_object();
@@ -501,9 +506,7 @@ TEST_F(OcRepTest, ByteStringArray_OversizedItem_TruncatesToMaxLen)
   size_t arr_size = 0;
   ASSERT_TRUE(oc_rep_i_get_byte_string_array(rep, 34, &arr, &arr_size));
   ASSERT_EQ(arr_size, 1u);
-  ASSERT_EQ(oc_byte_string_array_get_item_size(arr, 0), expected.size());
-  EXPECT_EQ(0, memcmp(oc_byte_string_array_get_item(arr, 0), expected.data(),
-                       expected.size()));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), 0u);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

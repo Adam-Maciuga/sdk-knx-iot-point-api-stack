@@ -337,85 +337,90 @@ oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep, CborError *err)
   }
 }
 
-/* Copies at most `cap` bytes of a (possibly chunked) CBOR text string into
- * `dst`, truncating silently instead of failing, without allocating memory.
- * `it` is iterated in place and must be a throwaway copy of the value's
- * iterator: cbor_value_copy_text_string() cannot be used here because it is
- * all-or-nothing, refusing to copy anything at all whenever `cap` is smaller
- * than the string - exactly the case for an over-long fixed-size array item
- * that is meant to be truncated to fit its slot. Returns the number of bytes
- * copied (<= cap). */
-static size_t
-copy_text_chunks_truncated(CborValue *it, uint8_t *dst, size_t cap, CborError *err)
+/* 
+   All-or-nothing text-string array item
+   
+   - stored only if it fits the fixed
+     STRING_ARRAY_ITEM_MAX_LEN slot, otherwise rejected (left empty) and
+     logged - never truncated, since a silently shortened value is only as
+     safe as the one consumer (ACL scope names) that happens to fail closed on
+     a mismatch
+  
+   - a future consumer without that property could turn a quietly
+     truncated value into a logic or security bug (e.g. two different values
+     colliding on the same stored prefix).
+  
+   - `len` is a single, decoupled variable: it goes in as capacity and, per
+     cbor_value_copy_text_string()'s own contract, comes back out as either
+     "bytes actually copied" (CborNoError, so <= cap and safe to index) or "the
+     string's real, untruncated length" (CborErrorOutOfMemory, used only for
+     the log message below, never as an index). Each branch only relies on the
+     meaning it is guaranteed to have - unlike the F-021 bug, no second,
+     earlier-computed length is reused after the call. 
+  
+*/
+static void copy_text_string_item(CborValue *value, uint8_t *dst, size_t cap, CborError *err)
 {
-  size_t copied = 0;
-  CborError begin_err = cbor_value_begin_string_iteration(it);
-  if (begin_err != CborNoError) {
-    *err |= begin_err;
-    return 0;
+  size_t len = cap;
+
+  const CborError copy_err = cbor_value_copy_text_string(value, (char *)dst, &len, NULL);
+  
+  // don't add a CBOR error code only on out of memory , since the caller may want to continue parsing the rest of the payload
+  if (copy_err == CborErrorOutOfMemory) 
+  {
+    OC_WRN("text string array item rejected: %zu bytes received, slot is %zu", len, cap);
+    dst[0] = 0;       // reset destination to empty string
+    return;
   }
-  for (;;) {
-    const char *ptr;
-    size_t chunk_len;
-    CborError chunk_err = cbor_value_get_text_string_chunk(it, &ptr, &chunk_len, it);
-    if (chunk_err != CborNoError) {
-      *err |= chunk_err;
-      break;
-    }
-    if (ptr == NULL) {
-      break;
-    }
-    size_t space = cap - copied;
-    size_t take = chunk_len < space ? chunk_len : space;
-    if (take > 0) {
-      memcpy(dst + copied, ptr, take);
-      copied += take;
-    }
+  
+  if (copy_err != CborNoError) 
+  {
+    *err |= copy_err; // assign error
+    dst[0] = 0;       // reset destination to empty string
+    return;
   }
-  return copied;
+
+  // NUL-terminate the copied string
+  dst[len] = 0;
 }
 
-/* Byte-string counterpart of copy_text_chunks_truncated(); see there for why
- * a chunk-wise copy is used instead of cbor_value_copy_byte_string(). */
-static size_t
-copy_byte_chunks_truncated(CborValue *it, uint8_t *dst, size_t cap, CborError *err)
+/* 
+   Byte-string counterpart of copy_text_string_item()
+   - all-or-nothing rationale and the decoupled-length reasoning
+   
+   - returns the number of bytes stored (0 if rejected), since byte-string array items
+     report their size out-of-band via oc_byte_string_array_get_item_size()
+     rather than a NUL terminator
+*/
+static size_t copy_byte_string_item(CborValue *value, uint8_t *dst, size_t cap, CborError *err)
 {
-  size_t copied = 0;
-  CborError begin_err = cbor_value_begin_string_iteration(it);
-  if (begin_err != CborNoError) {
-    *err |= begin_err;
+  size_t len = cap;
+  const CborError copy_err = cbor_value_copy_byte_string(value, dst, &len, NULL);
+  
+  // don't add a CBOR error code only on out of memory , since the caller may want to continue parsing the rest of the payload
+  if (copy_err == CborErrorOutOfMemory) 
+  {
+    OC_WRN("byte string array item rejected: %zu bytes received, slot is %zu", len, cap);
     return 0;
   }
-  for (;;) {
-    const uint8_t *ptr;
-    size_t chunk_len;
-    CborError chunk_err = cbor_value_get_byte_string_chunk(it, &ptr, &chunk_len, it);
-    if (chunk_err != CborNoError) {
-      *err |= chunk_err;
-      break;
-    }
-    if (ptr == NULL) {
-      break;
-    }
-    size_t space = cap - copied;
-    size_t take = chunk_len < space ? chunk_len : space;
-    if (take > 0) {
-      memcpy(dst + copied, ptr, take);
-      copied += take;
-    }
+  
+  if (copy_err != CborNoError) 
+  {
+    *err |= copy_err; // assign error
+    return 0;
   }
-  return copied;
+
+  return len;
 }
 
-static void
-oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
+static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
 {
 
-  size_t k, len;
   CborValue array;
   if (*rep == NULL)
     *rep = _alloc_rep();
-  if (*rep == NULL) {
+  if (*rep == NULL) 
+  {
     *err = CborErrorOutOfMemory;
     return;
   }
@@ -428,16 +433,21 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
   if (*err != CborNoError)
     return;
 
-  len = 0;
-  // we need to iterate through anyway to check the types
-  // cbor_value_get_array_length(value, &len);
-  if (len == 0) {
+  size_t len = 0;
+  
+  // we need to iterate through anyway to check the types cbor_value_get_array_length(value, &len);
+  if (len == 0) 
+  {
     CborValue t = array;
-    while (!cbor_value_at_end(&t)) {
+    while (!cbor_value_at_end(&t)) 
+    {
       len++;
+
       if (*err != CborNoError)
         return;
-      switch (t.type) {
+      
+      switch (t.type) 
+      {
       case CborIntegerType:
         if (type == OC_REP_NIL || type == OC_REP_INT)
           type = OC_REP_INT;
@@ -490,132 +500,151 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
       *err = cbor_value_advance(&t);
     }
   }
-  k = 0;
-  while (!cbor_value_at_end(&array)) {
-    switch (type) {
-    case OC_REP_INT: {
-      if (k == 0) {
-        oc_new_int_array(&cur->value.array, len);
-        cur->type = OC_REP_INT_ARRAY;
-      }
-      if (array.type != CborIntegerType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      *err |= cbor_value_get_int64(&array, oc_int_array(cur->value.array) + k);
-    } break;
-    case OC_REP_BOOL: {
-      if (k == 0) {
-        oc_new_bool_array(&cur->value.array, len);
-        cur->type = OC_REP_BOOL_ARRAY;
-      }
-      if (array.type != CborBooleanType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      *err |=
-        cbor_value_get_boolean(&array, oc_bool_array(cur->value.array) + k);
-    } break;
-    case OC_REP_FLOAT: {
-      if (k == 0) {
-        oc_new_float_array(&cur->value.array, len);
-        cur->type = OC_REP_FLOAT_ARRAY;
-      }
-      if (array.type != CborFloatType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      *err |=
-        cbor_value_get_float(&array, oc_float_array(cur->value.array) + k);
-    } break;
-    case OC_REP_DOUBLE: {
-      if (k == 0) {
-        oc_new_double_array(&cur->value.array, len);
-        cur->type = OC_REP_DOUBLE_ARRAY;
-      }
-      if (array.type != CborDoubleType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      *err |=
-        cbor_value_get_double(&array, oc_double_array(cur->value.array) + k);
-    } break;
-    case OC_REP_BYTE_STRING: {
-      if (k == 0) {
-        oc_new_byte_string_array(&cur->value.array, len);
-        cur->type = OC_REP_BYTE_STRING_ARRAY;
-      }
-      if (array.type != CborByteStringType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
+
+  size_t k = 0; // on 0 allocate the array, later than fill in the items
+
+  while (!cbor_value_at_end(&array)) 
+  {
+    switch (type) 
+    {
+      case OC_REP_INT: 
       {
-        CborValue it = array;
-        uint8_t *dst =
-          (uint8_t *)oc_byte_string_array_get_item(cur->value.array, k);
-        size_t copied = copy_byte_chunks_truncated(
-          &it, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
-        oc_byte_string_array_get_item_size(cur->value.array, k) = copied;
-      }
-    } break;
-    case OC_REP_STRING: {
-      if (k == 0) {
-        oc_new_string_array(&cur->value.array, len);
-        cur->type = OC_REP_STRING_ARRAY;
-      }
-      if (array.type != CborTextStringType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      {
-        CborValue it = array;
-        uint8_t *dst = (uint8_t *)oc_string_array_get_item(cur->value.array, k);
-        size_t copied = copy_text_chunks_truncated(
-          &it, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
-        dst[copied] = 0;
-      }
-    } break;
-    case OC_REP_OBJECT: {
-      if (k == 0) {
-        cur->type = OC_REP_OBJECT_ARRAY;
-        cur->value.object_array = _alloc_rep();
-        if (cur->value.object_array == NULL) {
-          *err = CborErrorOutOfMemory;
+        if (k == 0) {
+          oc_new_int_array(&cur->value.array, len);
+          cur->type = OC_REP_INT_ARRAY;
+        }
+        if (array.type != CborIntegerType) {
+          *err |= CborErrorIllegalType;
           return;
         }
-        prev = &cur->value.object_array;
-      }
-
-      if (array.type != CborMapType) {
-        *err |= CborErrorIllegalType;
-        return;
-      }
-      oc_parse_rep_value_object(&array, prev, err);
-      (*prev)->next = 0;
-      prev = &(*prev)->next;
-    } break;
-    case OC_REP_ARRAY: {
-    }          // fallthrough to default case
-    default: { // TUPLE ARRAY
-      if (k == 0) {
-        cur->type = OC_REP_MIXED_ARRAY;
-        cur->value.mixed_array = _alloc_rep();
-        if (cur->value.mixed_array == NULL) {
-          *err = CborErrorOutOfMemory;
+        *err |= cbor_value_get_int64(&array, oc_int_array(cur->value.array) + k);
+      } break;
+      case OC_REP_BOOL: {
+        if (k == 0) {
+          oc_new_bool_array(&cur->value.array, len);
+          cur->type = OC_REP_BOOL_ARRAY;
+        }
+        if (array.type != CborBooleanType) {
+          *err |= CborErrorIllegalType;
           return;
         }
-        prev = &cur->value.mixed_array;
-      }
+        *err |=
+          cbor_value_get_boolean(&array, oc_bool_array(cur->value.array) + k);
+      } break;
+      case OC_REP_FLOAT: {
+        if (k == 0) {
+          oc_new_float_array(&cur->value.array, len);
+          cur->type = OC_REP_FLOAT_ARRAY;
+        }
+        if (array.type != CborFloatType) {
+          *err |= CborErrorIllegalType;
+          return;
+        }
+        *err |=
+          cbor_value_get_float(&array, oc_float_array(cur->value.array) + k);
+      } break;
+      case OC_REP_DOUBLE: {
+        if (k == 0) {
+          oc_new_double_array(&cur->value.array, len);
+          cur->type = OC_REP_DOUBLE_ARRAY;
+        }
+        if (array.type != CborDoubleType) {
+          *err |= CborErrorIllegalType;
+          return;
+        }
+        *err |=
+          cbor_value_get_double(&array, oc_double_array(cur->value.array) + k);
+      } break;
+      case OC_REP_BYTE_STRING: 
+      {
+        if (k == 0) 
+        {
+          oc_new_byte_string_array(&cur->value.array, len);
+          cur->type = OC_REP_BYTE_STRING_ARRAY;
+        }
 
-      oc_parse_single_entity(&array, prev, err);
-      (*prev)->next = 0;
-      prev = &(*prev)->next;
+        if (array.type != CborByteStringType) 
+        {
+          *err |= CborErrorIllegalType;
+          return;
+        }
+        {
+          // data starts at array + 1
+          uint8_t *dst = (uint8_t *)oc_byte_string_array_get_item(cur->value.array, k);
+          
+          size_t copied = copy_byte_string_item(&array, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
 
-    } break;
+          // the first data byte holds the actual size of the byte string item, note there is NO NUL terminator
+          oc_byte_string_array_get_item_size(cur->value.array, k) = copied; 
+        }
+      } break;
+      case OC_REP_STRING: 
+      {
+        if (k == 0) 
+        {
+          oc_new_string_array(&cur->value.array, len);
+          cur->type = OC_REP_STRING_ARRAY;
+        }
+        if (array.type != CborTextStringType) 
+        {
+          *err |= CborErrorIllegalType;
+          return;
+        }
+        {
+          uint8_t *dst = (uint8_t *)oc_string_array_get_item(cur->value.array, k);
+          copy_text_string_item(&array, dst, STRING_ARRAY_ITEM_MAX_LEN - 1, err);
+        }
+      } break;
+      case OC_REP_OBJECT: 
+      {
+        if (k == 0) 
+        {
+          cur->type = OC_REP_OBJECT_ARRAY;
+          cur->value.object_array = _alloc_rep();
+          if (cur->value.object_array == NULL) {
+            *err = CborErrorOutOfMemory;
+            return;
+          }
+          prev = &cur->value.object_array;
+        }
+
+        if (array.type != CborMapType) {
+          *err |= CborErrorIllegalType;
+          return;
+        }
+        oc_parse_rep_value_object(&array, prev, err);
+        (*prev)->next = 0;
+        prev = &(*prev)->next;
+      } break;
+      case OC_REP_ARRAY: 
+      {
+      }  // fallthrough to default case
+      default: 
+      { // TUPLE ARRAY
+        if (k == 0) 
+        {
+          cur->type = OC_REP_MIXED_ARRAY;
+          cur->value.mixed_array = _alloc_rep();
+          if (cur->value.mixed_array == NULL) {
+            *err = CborErrorOutOfMemory;
+            return;
+          }
+          prev = &cur->value.mixed_array;
+        }
+
+        oc_parse_single_entity(&array, prev, err);
+        (*prev)->next = 0;
+        prev = &(*prev)->next;
+
+      } break;
     }
+
     *err = cbor_value_advance(&array);
+    
     if (*err != CborNoError)
       return;
+    
+    // 
     k++;
   }
 }
