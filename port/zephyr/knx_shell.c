@@ -35,16 +35,6 @@ extern const char* knx_iot_get_application_name(void);
  * so all port files can include it instead of duplicating the extern. */
 extern const char *app_get_password(void);
 
-/* Upper-case a NUL-terminated string in-place.
- * TODO FIXME: move to a shared utility header once util_str2upper is in the stack repo. */
-static void str_toupper_inplace(char *s)
-{
-  while (*s) {
-    *s = (char)toupper((unsigned char)*s);
-    s++;
-  }
-}
-
 /* Format a KNX group address as ETS 3-level string (main/middle/sub).
  * main   = bits 15-11, range 0..31
  * middle = bits 10-8,  range 0..7
