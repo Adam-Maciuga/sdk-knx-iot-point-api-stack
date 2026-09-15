@@ -28,9 +28,13 @@
  * if OC_DEBUG is enabled.
  * - KNX_LOG_TO_FILE
  * logs the OC_INF, OC_WRN, OC_ERR, and OC_DBG statements to file
+ * - KNX_LOG_ESP_IDF_NATIVE
+ * routes the log statements through the ESP-IDF log component (ESP_LOGx, see
+ * log_esp-idf.h) instead of the stack's own OC_LOG format. Set by the ESP-IDF
+ * component from the platform-neutral stack Kconfig option KNXIOT_LOG_PLATFORM_NATIVE.
+ * Zephyr always logs natively (log_zephyr.h).
  */
-#ifndef OC_LOG_H
-#define OC_LOG_H
+#pragma once
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -42,12 +46,22 @@
 
 #ifdef __ZEPHYR__
 #include "log_zephyr.h"
+#elif defined(KNX_LOG_ESP_IDF_NATIVE)
+#include "log_esp-idf.h"
 #endif
 
+/* KNX_SOURCE_FILE_BASENAME
+ * The base name of the current C source file (__FILE__ without its directory part).
+ *
+ * Used by OC_LOG for the file:line prefix. A name of our own, __FILENAME__ is defined by
+ * the ESP-IDF assert.h as well and names starting with two underscores are reserved.
+ */
 #ifdef _WIN32
-  #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+  #define KNX_SOURCE_FILE_BASENAME \
+    (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #else
-  #define __FILENAME__ (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)
+  #define KNX_SOURCE_FILE_BASENAME \
+    (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)
 #endif
 
 #ifdef __cplusplus
@@ -167,6 +181,10 @@ extern "C" {
     // logging via Zephyr logging subsystem (thread-safe ring buffer)
     #define PRINT(...)  LOG_INF(__VA_ARGS__)
     #define PRINTF(...) LOG_INF(__VA_ARGS__)
+  #elif defined(KNX_LOG_ESP_IDF_NATIVE)
+    // logging via the ESP-IDF log component (thread-safe, one line per call, tag KNX_LOG_TAG)
+    #define PRINT(...)  ESP_LOGI(KNX_LOG_TAG, __VA_ARGS__)
+    #define PRINTF(...) ESP_LOGI(KNX_LOG_TAG, __VA_ARGS__)
   #elif defined(KNX_LOG_TO_FILE)
     // print to file
     void oc_file_print(char* format, ...);
@@ -188,18 +206,26 @@ extern "C" {
 /* OC_LOG
  * Prepends timestamp, file:line and function name, then the message.
  *
- * Only used on non-Zephyr platforms. On Zephyr, OC_ERR/WRN/INF/DBG map directly
- * to LOG_ERR/WRN/INF/DBG and Zephyr adds its own standard metadata.
+ * Only used when the platform does not log natively. On Zephyr, OC_ERR/WRN/INF/DBG map
+ * directly to LOG_ERR/WRN/INF/DBG and Zephyr adds its own standard metadata. On ESP-IDF
+ * with KNX_LOG_ESP_IDF_NATIVE they map directly to ESP_LOGE/W/I/D (log_esp-idf.h) and the
+ * ESP-IDF log component adds its own standard metadata.
+ *
+ * The file and function names are shortened to a fixed width with snprintf and a
+ * precision, so the shortened copies are always terminated: 15 characters plus "..."
+ * for the file (printed as %-20.18s), 24 plus "..." for the function (%-30.27s).
+ * The buffers are sized for exactly that: Characters, the three dots, the terminator.
  */ // TODO 17 Do we want a switch for this in the config?
-#ifndef __ZEPHYR__
+#if !defined(__ZEPHYR__) && !defined(KNX_LOG_ESP_IDF_NATIVE)
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
   \
-  char fileShort[20] = "...................";                   \
-  strncpy(fileShort, __FILENAME__, 15);                         \
+  char fileShort[15 + 3 + 1];                                   \
+  snprintf(fileShort, sizeof(fileShort), "%.15s...",            \
+           KNX_SOURCE_FILE_BASENAME);                           \
   \
-  char funcShort[30] = ".............................";         \
-  strncpy(funcShort, __func__, 24);                             \
+  char funcShort[24 + 3 + 1];                                   \
+  snprintf(funcShort, sizeof(funcShort), "%.24s...", __func__); \
   PRINTF("\n"                                                   \
          "%-14" PRIu64 ": "                                     \
          "%-4s: "                                               \
@@ -208,7 +234,8 @@ extern "C" {
          "%-30.27s> ",                                          \
          oc_clock_time(),                                       \
          level,                                                 \
-         strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
+         strlen(KNX_SOURCE_FILE_BASENAME) > 18                  \
+           ? fileShort : KNX_SOURCE_FILE_BASENAME,              \
          __LINE__,                                              \
          strlen(__func__) > 27 ? funcShort : __func__);         \
   \
@@ -263,5 +290,3 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

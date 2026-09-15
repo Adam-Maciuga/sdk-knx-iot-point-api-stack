@@ -1361,6 +1361,20 @@ static void start_listener(void)
                                 KNX_MDNS_LISTENER_PRIORITY, 0, K_NO_WAIT);
   if (tid == NULL)
   {
+  #elif defined(ESP_PLATFORM)
+  /* ESP-IDF pthreads get CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT (3 KB) unless an attribute says
+   * otherwise. The listener needs the same 8 KB as on Zephyr (see the note above). The size comes
+   * from the ESP-IDF component build (KNXIOT_MDNS_LISTENER_STACK_SIZE in
+   * esp-idf/knx_iot/Kconfig).
+   */
+  pthread_attr_t listener_attr;
+  pthread_attr_init(&listener_attr);
+  pthread_attr_setstacksize(&listener_attr, KNX_MDNS_LISTENER_STACK_SIZE);
+  const int create_rc = pthread_create(&listener_thread, &listener_attr, mdns_listener_thread,
+                                       NULL);
+  pthread_attr_destroy(&listener_attr);
+  if (create_rc != 0)
+  {
   #else
   if (pthread_create(&listener_thread, NULL, mdns_listener_thread, NULL) != 0)
   {
