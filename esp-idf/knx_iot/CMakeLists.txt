@@ -1,0 +1,205 @@
+# KNX-IoT Point API Stack - ESP-IDF component build.
+# Registered as an ESP-IDF component named knx_iot (ESP-IDF names a component after
+# its directory). Mirrors the source-file and compile-definition logic of the Zephyr
+# module (zephyr/CMakeLists.txt) for the FreeRTOS/ESP-IDF port.
+#
+# The stack sources live two levels up (this component dir is esp-idf/knx_iot/).
+# The port (port/freertos_esp32) is complete for the Wi-Fi and Ethernet backends:
+# storage.c (NVS), connectivity_lwip.c (lwIP BSD sockets) and ipadapter.c (endpoint
+# accessor for the shared DNS-SD responder). The connectivity backend needs the
+# esp-lwip patch port/freertos_esp32/patches/0001 applied to the ESP-IDF lwIP tree,
+# it refuses to compile without it.
+
+get_filename_component(STACK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+
+set(API_SOURCES
+    ${STACK_ROOT}/api/oc_base64.c
+    ${STACK_ROOT}/api/oc_blockwise.c
+    ${STACK_ROOT}/api/oc_buffer.c
+    ${STACK_ROOT}/api/oc_client_api.c
+    ${STACK_ROOT}/api/oc_clock.c
+    ${STACK_ROOT}/api/oc_core_res.c
+    ${STACK_ROOT}/api/oc_discovery.c
+    ${STACK_ROOT}/api/oc_endpoint.c
+    ${STACK_ROOT}/api/oc_helpers.c
+    ${STACK_ROOT}/api/oc_main.c
+    ${STACK_ROOT}/api/oc_network_events.c
+    ${STACK_ROOT}/api/oc_rep.c
+    ${STACK_ROOT}/api/oc_replay.c
+    ${STACK_ROOT}/api/oc_ri.c
+    ${STACK_ROOT}/api/oc_server_api.c
+    ${STACK_ROOT}/api/oc_uuid.c
+    ${STACK_ROOT}/api/oc_knx.c
+    ${STACK_ROOT}/api/oc_knx_client.c
+    ${STACK_ROOT}/api/oc_knx_dev.c
+    ${STACK_ROOT}/api/oc_knx_fb.c
+    ${STACK_ROOT}/api/oc_knx_fp.c
+    ${STACK_ROOT}/api/oc_knx_helpers.c
+    ${STACK_ROOT}/api/oc_knx_p.c
+    ${STACK_ROOT}/api/oc_knx_sec.c
+    ${STACK_ROOT}/api/oc_knx_swu.c
+    ${STACK_ROOT}/api/oc_knx_sub.c
+    ${STACK_ROOT}/api/c-timestamp/timestamp_compare.c
+    ${STACK_ROOT}/api/c-timestamp/timestamp_format.c
+    ${STACK_ROOT}/api/c-timestamp/timestamp_parse.c
+    ${STACK_ROOT}/api/c-timestamp/timestamp_tm.c
+    ${STACK_ROOT}/api/c-timestamp/timestamp_valid.c
+)
+
+set(CORE_SOURCES
+    ${STACK_ROOT}/util/oc_etimer.c
+    ${STACK_ROOT}/util/oc_list.c
+    ${STACK_ROOT}/util/oc_mmem.c
+    ${STACK_ROOT}/util/oc_process.c
+    ${STACK_ROOT}/util/oc_timer.c
+    ${STACK_ROOT}/security/oc_oscore_context.c
+    ${STACK_ROOT}/security/oc_oscore_crypto.c
+    ${STACK_ROOT}/security/oc_oscore_engine.c
+    ${STACK_ROOT}/security/spake2plus.c
+)
+
+set(COAP_SOURCES
+    ${STACK_ROOT}/messaging/coap/coap.c
+    ${STACK_ROOT}/messaging/coap/engine.c
+    ${STACK_ROOT}/messaging/coap/observe.c
+    ${STACK_ROOT}/messaging/coap/oscore.c
+    ${STACK_ROOT}/messaging/coap/separate.c
+    ${STACK_ROOT}/messaging/coap/transactions.c
+)
+
+# Platform port: Common shared files plus the FreeRTOS/ESP-IDF specific files.
+# Network backend: Wi-Fi and Ethernet share the lwIP BSD-socket backend
+# (connectivity_lwip.c) plus the shared DNS-SD responder (port/dns-sd_mdns.c, which
+# reaches the endpoint list through ipadapter.c). The OpenThread backend is a later
+# phase.
+set(PORT_SOURCES
+    ${STACK_ROOT}/port/oc_log.c
+    ${STACK_ROOT}/port/random_psa.c
+    ${STACK_ROOT}/port/dns-sd_mdns.c
+    ${STACK_ROOT}/port/freertos_esp32/abort.c
+    ${STACK_ROOT}/port/freertos_esp32/clock.c
+    ${STACK_ROOT}/port/freertos_esp32/oc_network_interface.c
+    ${STACK_ROOT}/port/freertos_esp32/storage.c
+    ${STACK_ROOT}/port/freertos_esp32/connectivity_lwip.c
+    ${STACK_ROOT}/port/freertos_esp32/ipadapter.c
+)
+
+# Test-control endpoints (/test/*) for the Python runtime conformance suite.
+if(CONFIG_KNXIOT_TEST_CONTROL)
+    list(APPEND API_SOURCES ${STACK_ROOT}/api/oc_test_control.c)
+endif()
+
+idf_component_register(
+    SRCS
+        ${API_SOURCES}
+        ${CORE_SOURCES}
+        ${COAP_SOURCES}
+        ${PORT_SOURCES}
+    INCLUDE_DIRS
+        "${STACK_ROOT}"
+        "${STACK_ROOT}/include"
+        "${STACK_ROOT}/port/freertos_esp32"
+        "${STACK_ROOT}/security"
+        "${STACK_ROOT}/messaging/coap"
+        "${STACK_ROOT}/api"
+        "${STACK_ROOT}/api/c-timestamp"
+    REQUIRES
+        mbedtls
+    PRIV_REQUIRES
+        lwip esp_netif esp_event esp_wifi esp_timer nvs_flash esp_hw_support pthread
+)
+
+# -- External libraries (mirrors zephyr/CMakeLists.txt) --
+# ESP-IDF's bundled Mbed TLS 4.1.0 is used via REQUIRES above. PSA crypto is
+# configured explicitly, not left to the ESP-IDF defaults: The KNXIOT_LIB config in
+# esp-idf/knx_iot/Kconfig selects the CONFIG_MBEDTLS_* options that gate the
+# PSA_WANT_* primitives the stack needs (mirrors the Zephyr KNXIOT_LIB select block).
+# See the note at the top of esp-idf/knx_iot/Kconfig for the full mechanism.
+
+include(FetchContent)
+
+# TinyCBOR: ESP-IDF has no TinyCBOR component, so fetch v7.0 (same as the Zephyr
+# build). This is a temporary approach, to be replaced by a managed component.
+# Linked PUBLIC because the public stack header include/oc_rep.h includes cbor.h, so
+# application sources need the TinyCBOR include directories as well.
+# TinyCBOR's CMakeLists installs and exports its target. ESP-IDF links the common
+# component libraries into every target created in a component directory
+# (link_libraries() in tools/cmake/component.cmake), the fetched TinyCBOR target
+# included, and those libraries are in no export set, which fails the generate step.
+# An ESP-IDF application installs nothing, so the install rules of the fetched project
+# are switched off.
+if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(CMAKE_SKIP_INSTALL_RULES ON)
+    FetchContent_Declare(
+        tinycbor
+        GIT_REPOSITORY https://github.com/intel/tinycbor.git
+        GIT_TAG v7.0
+    )
+    FetchContent_MakeAvailable(tinycbor)
+    target_link_libraries(${COMPONENT_LIB} PUBLIC tinycbor)
+    target_include_directories(${COMPONENT_LIB} PUBLIC
+        "${tinycbor_SOURCE_DIR}/src" "${tinycbor_BINARY_DIR}")
+endif()
+
+# mDNS header-only library
+# Required by port/dns-sd_mdns.c, the DNS-SD responder. Vendored and maintained
+# in port/mdns, see its README.md.
+target_include_directories(${COMPONENT_LIB} PRIVATE "${STACK_ROOT}/port/mdns")
+
+# -- Compile definitions (KNXIOT_* Kconfig -> internal OC_* / KNX_* names) --
+# PUBLIC so they propagate to application sources, which include stack headers
+# whose API is gated on these defines (mirrors Zephyr's zephyr_compile_definitions).
+# The platform-neutral Kconfig option KNXIOT_LOG_PLATFORM_NATIVE maps to the ESP-IDF
+# specific define KNX_LOG_ESP_IDF_NATIVE (port/oc_log.h, port/log_esp-idf.h).
+# Note: TODO AB FREERTOS
+# KNX_PAYLOAD_SIZE is hardcoded here to mirror the FORCE behaviour in the root
+# CMakeLists.txt, as in the Zephyr module. It is intentionally not exposed via Kconfig.
+# 768 keeps the total CoAP PDU (payload + outer header + inner header = 1041) below
+# COAP_MAX_MESSAGE_SIZE (1152), which api/oc_main.c asserts at compile time.
+target_compile_definitions(${COMPONENT_LIB} PUBLIC
+    $<$<BOOL:${CONFIG_KNXIOT_CLIENT}>:OC_CLIENT>
+    $<$<BOOL:${CONFIG_KNXIOT_SERVER}>:OC_SERVER>
+    $<$<BOOL:${CONFIG_KNXIOT_PUBLISHER_TABLE}>:OC_PUBLISHER_TABLE>
+    $<$<BOOL:${CONFIG_KNXIOT_TEST_CONTROL}>:KNX_TEST_CONTROL>
+    $<$<BOOL:${CONFIG_KNXIOT_LOG_PLATFORM_NATIVE}>:KNX_LOG_ESP_IDF_NATIVE>
+    GOT_MAX_ENTRIES=${CONFIG_KNXIOT_GOT_MAX_ENTRIES}
+    GPT_MAX_ENTRIES=${CONFIG_KNXIOT_GPT_MAX_ENTRIES}
+    GRT_MAX_ENTRIES=${CONFIG_KNXIOT_GRT_MAX_ENTRIES}
+    G_AT_MAX_ENTRIES=${CONFIG_KNXIOT_SEC_MAX_ENTRIES}
+    PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
+    KNX_PAYLOAD_SIZE=768
+    KNX_UNICAST_PORT=${CONFIG_KNX_UNICAST_PORT}
+    KNX_MULTICAST_SCOPE=${CONFIG_KNX_MULTICAST_SCOPE}
+    KNX_READ_ON_INIT_DELAY_MILLISECONDS=${CONFIG_KNX_READ_ON_INIT_DELAY_MS}
+    KNX_RESPONSE_TIME_SECONDS=${CONFIG_KNX_RESET_PROCESS_TIME_S}
+)
+
+# OC_PRINT is enabled whenever the log level is above 0 (mirrors the Zephyr build).
+if(CONFIG_KNXIOT_LOG_LEVEL GREATER 0)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC OC_PRINT)
+endif()
+
+# Debug code paths are library-internal.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    $<$<BOOL:${CONFIG_KNXIOT_DEBUG}>:OC_DEBUG>
+    $<$<BOOL:${CONFIG_KNXIOT_DEBUG_OSCORE}>:OC_DEBUG_OSCORE>
+    $<$<BOOL:${CONFIG_KNXIOT_LOG_CAST_64_BIT_INTS}>:KNX_LOG_CAST_64_BIT_INTS>
+)
+
+# FreeRTOS task parameters of the port (library-internal). The CoAP receive task is
+# in connectivity_lwip.c, the mDNS listener thread in the shared port/dns-sd_mdns.c.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    KNX_RX_TASK_STACK_SIZE=${CONFIG_KNXIOT_RX_TASK_STACK_SIZE}
+    KNX_RX_TASK_PRIORITY=${CONFIG_KNXIOT_RX_TASK_PRIORITY}
+    KNX_MDNS_LISTENER_STACK_SIZE=${CONFIG_KNXIOT_MDNS_LISTENER_STACK_SIZE}
+)
+
+# lwIP IPv6 multicast group memberships: lwIP defaults MEMP_NUM_MLD6_GROUP to 4 and ESP-IDF
+# exposes no Kconfig option for it, so the group joins of the connectivity backend would fail
+# at once. The lwIP option is #ifndef guarded and ESP-IDF applies this build property to every
+# component (lwIP included), so the pool is sized here for the whole build from the stack
+# Kconfig (KNXIOT_LWIP_MLD6_GROUPS).
+idf_build_set_property(COMPILE_DEFINITIONS
+    "MEMP_NUM_MLD6_GROUP=${CONFIG_KNXIOT_LWIP_MLD6_GROUPS}" APPEND)
