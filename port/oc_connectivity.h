@@ -34,10 +34,9 @@ struct oc_message_s
   struct oc_message_s *next;
   oc_endpoint_t endpoint;
   oc_ipv6_addr_t mcast_dest;
-  size_t length;            // total message length (includes header, options and payload from message->data 'stream')
-  uint8_t ref_count;        // check how many times a msg is referenced (tracked) by a caller (one=1, two=2)
-  uint8_t* data;            // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)
-  uint8_t encrypted;        // used to mark if a message was received via a 'secured' IP adapter socket (this does not mean OSCORE security)
+  size_t length;                              // total message length (includes header, options and payload from message->data 'stream')
+  uint8_t ref_count;                          // check how many times a msg is referenced (tracked) by a caller (one=1, two=2)
+  uint8_t* data;                              // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)
   void (*soft_ref_cb)(struct oc_message_s *); // used to define the 'to be used de allocator method' for a message in case it needs to be (auto) released by the OS
 };
 
