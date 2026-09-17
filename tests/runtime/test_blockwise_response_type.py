@@ -15,8 +15,10 @@ against a lost ACK - with an extra round trip and a retransmission timer. An
 EITT row planned as "NON 2.05" / "ACK 2.05" for that block sees a type
 mismatch.
 
-The body used here is /.well-known/core, whose link-format list exceeds one
-512-byte block on the test device (see FINDINGS.md F-021 for the numbers).
+The body used here is /.well-known/core. The first request carries Block2
+num=0 with a 64-byte block size (early negotiation, RFC 7959 2.4), which the
+stack honours, so the link-format list is guaranteed to span several blocks
+whatever the device's default block size is.
 """
 import pytest
 
@@ -27,6 +29,8 @@ from transport.coap_client import (ACK, BLOCK2_OPTION, CON, GET, LINK_FORMAT,
 COAP_TIMEOUT = 5.0
 INNER_GET = 1
 PATH = "/.well-known/core"
+BLOCK_SIZE = 64
+FIRST_BLOCK = _encode_block_option(0, False, BLOCK_SIZE)
 
 
 def _blocks_of(resp):
@@ -40,13 +44,14 @@ class TestBlockwiseResponseType:
 
     def test_plain_con_request_gets_every_block_as_piggybacked_ack(self, coap):
         """CON request: block 0 and the last block both arrive as ACK 2.05."""
-        first = coap.request(GET, PATH, accept=LINK_FORMAT, timeout=COAP_TIMEOUT)
+        first = coap.request(GET, PATH, accept=LINK_FORMAT, timeout=COAP_TIMEOUT,
+                             block2=FIRST_BLOCK)
         assert first is not None and first.is_successful, (
             f"GET {PATH} failed: {first.code if first else 'timeout'}")
         blk = _blocks_of(first)
         assert blk is not None and blk[1], (
-            "the discovery body must span more than one block for this test; "
-            "got a single-block response - add resources or lower the block size")
+            f"the discovery body must span more than one {BLOCK_SIZE}-byte block "
+            f"for this test; got {blk} with {len(first.payload or b'')} payload bytes")
         assert first.msg_type == ACK, (
             f"block 0 of a CON request must be a piggybacked ACK, got type {first.msg_type}")
 
@@ -74,12 +79,14 @@ class TestBlockwiseResponseType:
         """NON request (OSCORE, as EITT sends its NON rows): every block,
         the last one included, comes back NON per RFC 7252 5.2.3."""
         first = coap.oscore_request(oscore_ctx, INNER_GET, PATH, accept=LINK_FORMAT,
-                                    timeout=COAP_TIMEOUT, msg_type=NON)
+                                    timeout=COAP_TIMEOUT, msg_type=NON,
+                                    block2=FIRST_BLOCK)
         assert first is not None and first.is_successful, (
             f"OSCORE NON GET {PATH} failed: {first.code if first else 'timeout'}")
         blk = _blocks_of(first)
         assert blk is not None and blk[1], (
-            "the discovery body must span more than one block for this test")
+            f"the discovery body must span more than one {BLOCK_SIZE}-byte block "
+            f"for this test; got {blk} with {len(first.payload or b'')} payload bytes")
         assert first.msg_type == NON, (
             f"block 0 of a NON request must be NON, got type {first.msg_type}")
 
