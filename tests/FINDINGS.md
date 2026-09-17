@@ -717,3 +717,55 @@ Bugs and issues discovered during unit test development.
   the runtime suite does not exercise the corrected branch: the one caller that checks the return
   value (`/f`) always passes `last_entry = total`, so it never enters this function with an
   already-full page. The test-first unit repro is what actually pins the fix.
+
+## F-021: Discovery responses split into two Block2 blocks, which a multicast query cannot reassemble - OPEN
+
+- **Files:** `CMakeLists.txt` (`KNX_PAYLOAD_SIZE`), and by consequence
+  `api/oc_discovery.c` (`/.well-known/core`) and `api/oc_knx_dev.c` (`/dev`).
+- **Severity:** Medium - no memory-safety or correctness defect in the stack; the
+  blockwise responses are RFC 7959-correct. The risk is a **certification failure**
+  on resource-rich devices, where the discovery body crosses one block.
+- **Found by:** runtime EITT tier, template TestCase **5.1.1.3e "Multicast Discovery
+  Query with If Wildcard"**, while diagnosing interpreter finding T12
+  (`tests/docs/eitt-interpreter-findings.md`).
+- **Description:** `ff269ddc` ("Split CoAP header budget into OUTER and INNER") lowered
+  `KNX_PAYLOAD_SIZE` from 1024 to 768, which floors `OC_BLOCK_SIZE` at 512. The
+  link-format discovery bodies are just over that on the Linux test server:
+
+  | Request | Body | Blocks at SZX=5 (512 B) |
+  |---|---|---|
+  | `GET /.well-known/core?if=*` (multicast) | 547 | 2 (num=0 more=1, then num=1) |
+  | `GET /dev` (OSCORE unicast) | 553 | 2 |
+
+  For **unicast** this is entirely correct and the test client reassembles it (see
+  F-017, which withdrew exactly this symptom as a client gap, and T12 for the OSCORE
+  path). For a **multicast discovery query** it is a different situation: RFC 7959 5.1
+  says a multicast response cannot be continued over multicast, so a client would have
+  to open a unicast follow-up to every responder, and a responder cannot reliably serve
+  block 1 of a NON multicast response it did not keep state for. The practical effect
+  is that a multicast discovery query returns a body cut mid link-format, e.g. ending
+  `...;if="urn:knx:if.p urn:kn`, and an `if=` wildcard assertion over the full list
+  fails.
+- **What the certified reference does:** `tests/runtime/data/traces/5_1.xml` **TelNo 28**
+  is the reference device's answer to the same multicast query - a single `NON` 2.05
+  `application/link-format` datagram carrying the whole **547-byte** body, with **no
+  Block2 and no Size2 option**. So the certified behaviour is one datagram, not two
+  blocks.
+- **Note:** `ff269ddc` also deleted the comment that had documented this constraint:
+  `# (stack needs a minimum of 1k for discovery responses + extra buffer, ...)`.
+- **Options for the maintainer** (not decided here - this is a product trade-off
+  between PDU size, RFC 7252's 1152-byte guidance for unknown path MTU, and discovery):
+  1. Raise `KNX_PAYLOAD_SIZE` back to at least 1024 on platforms whose MTU allows it,
+     keeping the smaller budget only where it is actually needed.
+  2. Decouple the block size from the payload budget, so `OC_BLOCK_SIZE` can stay at
+     1024 for discovery while the per-message buffer stays at 768.
+  3. Trim the discovery body (shorter `rt=`/`if=` forms, fewer attributes) so it fits
+     one block with headroom.
+- **Deliberately NOT masked in the test suite.** A unicast-continuation reassembly was
+  written for `CoapClient.multicast_get` and then reverted: the real EITT tool evaluates
+  whatever arrives on the multicast query, so a certification run sees the same
+  truncated first block. Hiding it client-side would have turned a certification risk
+  into a green test. 5.1.1.3 step 2 still passes, but only because its pattern is
+  lenient enough to match inside the first block - 5.1.1.3e is the honest signal.
+- **Status:** OPEN. Runtime EITT tier re-run 2026-09-11: **5.1.1.3e FAILED for this
+  reason.**

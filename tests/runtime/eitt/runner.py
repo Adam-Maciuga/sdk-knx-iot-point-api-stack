@@ -1807,6 +1807,38 @@ class SequenceRunner:
                 expect_echo_challenge=self._expect_echo_challenge,
                 msg_type=_coap_msg_type(msg.type),
                 crit_option=_resolve_crit_option(msg))
+            # RFC 7959: a body larger than one block comes back as Block2
+            # with "more" set, and the rest must be asked for. The device
+            # is RFC-correct here — ff269ddc took KNX_PAYLOAD_SIZE from
+            # 1024 to 768, which floors OC_BLOCK_SIZE at 512, so the
+            # 547-553 byte link-format bodies of /.well-known/core and
+            # /dev now split. Keeping only block 0 truncated them
+            # mid-attribute (5.2.5.1, 5.3.20.1 failed; 5.1.1.3 step 02 and
+            # 5.10.5.1 passed only because their patterns are lenient).
+            #
+            # NOT attempted for an adversarial send: each follow-up spends
+            # another sender sequence number, and 5.3.17.x asserts on
+            # exact SSN arithmetic — a deliberately-malformed one-shot
+            # telegram must stay exactly one telegram. `oscore_request`
+            # disables its own Echo-retry loop on the same condition.
+            # complete_oscore_block2 is itself a no-op unless more=1, so a
+            # body that fits one block still costs exactly one message.
+            #
+            # Telemetry records one TX/RX pair per OUT row, with the
+            # reassembled body on the RX: the continuation GETs are
+            # transport-level and have no row in the XML to attach to.
+            # `_dbg_coap` ("[coap] block2: ...") shows them on the wire.
+            adversarial = (seq_no_override is not None
+                           or seq_no_offset is not None
+                           or invalid_tag is not None
+                           or kid_override is not None
+                           or self._expect_echo_challenge)
+            if not adversarial:
+                resp = self.coap.complete_oscore_block2(
+                    resp, oscore_ctx, method_code, path, payload=body,
+                    accept=_content_format_code(msg.accepted_cf),
+                    content_format=_content_format_code(msg.cf),
+                    timeout=timeout, msg_type=_coap_msg_type(msg.type))
         else:
             scope = _plain_multicast_scope(msg.ip)
             if scope is not None:

@@ -1199,6 +1199,43 @@ class CoapClient:
                 oscore_ctx, 1, path, accept=accept, timeout=timeout,
                 block2=blk))
 
+    def complete_oscore_block2(self, resp, oscore_ctx, method_code: int,
+                               path: str, payload: bytes = b"",
+                               accept: Optional[int] = None,
+                               content_format: Optional[int] = None,
+                               timeout: Optional[float] = None,
+                               msg_type: int = CON):
+        """Finish a Block2 body for a response `oscore_request` already got.
+
+        For callers that must drive `oscore_request` themselves (the EITT
+        runner, which forwards the XML's adversarial knobs) and so cannot
+        use `oscore_get`. Reuses `_reassemble_block2` — this is only the
+        entry condition plus the follow-up request shape.
+
+        Sends NOTHING unless the response actually carries Block2 with the
+        "more" bit set. That matters beyond efficiency: every follow-up
+        burns an OSCORE sender sequence number, and the 5.3.17.x
+        replay-window cases assert on exact SSN arithmetic, so a body that
+        fits one block must still cost exactly one message. The caller is
+        responsible for not calling this after an adversarial send
+        (seq_no_override / seq_no_offset / invalid_auth_tag / kid_override
+        / expect_echo_challenge) — those are one-shot by design.
+
+        The follow-up repeats the SAME method, path (queries included, they
+        are part of `path` here), accept, content-format and security
+        context, per RFC 7959 2.4.
+        """
+        if resp is None or not resp.options or BLOCK2_OPTION not in resp.options:
+            return resp
+        _num, more, _size = _decode_block_option(resp.options[BLOCK2_OPTION])
+        if not more:
+            return resp
+        return self._reassemble_block2(
+            resp, lambda blk: self.oscore_request(
+                oscore_ctx, method_code, path, payload=payload,
+                accept=accept, content_format=content_format,
+                timeout=timeout, msg_type=msg_type, block2=blk))
+
     def oscore_put(self, oscore_ctx, path: str, payload: bytes = b"",
                    content_format: int = APPLICATION_CBOR,
                    timeout: Optional[float] = None) -> Optional[CoapResponse]:

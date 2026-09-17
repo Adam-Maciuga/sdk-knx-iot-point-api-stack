@@ -68,6 +68,19 @@ variables:
   # (CBOR {1: 1}) with EvalResult "OK (json pointer check)".
   5_2_9_1_UPDATE_METHOD: 1
 
+  # 5.2.6.1 GETs /dev/hname and matches '#5_2_6_1_HOSTNAME'. The template
+  # default is the bare label `knx-00fa10020800`, but the device now
+  # answers the fully-qualified `knx-{serial}.local` — commit 94803394
+  # (include/oc_endpoint.h, HNAME_TYPE) made that change citing KNX spec
+  # 2.6.1.2.3, which specifies the host name as an mDNS/DNS-SD name.
+  # The FQDN form is certifiable, not a deviation: the variable-values
+  # JSON (tests/runtime/data/2026-02-25_09-36_EittConformanceTestVariable
+  # Values.json) carries `knx-02c912345678.local` for this very variable
+  # — another certified device answered the same way and the operator
+  # filled the `.local` suffix in. Only the serial differs, so keep this
+  # device's own serial and add the suffix.
+  5_2_6_1_HOSTNAME: knx-00fa10020800.local
+
 "5.3. Security::5.3.14 PUT /{base-path}/auth/o/replwdo (Optional)::5.3.14.1. Set the replay window size":
   action: skip
   reason: "Optional feature (suite title '(Optional)', template Hitem V34 'marked as optional') not implemented by the stack (no PUT handler, oc_knx_sec.c:258, g_oscore_replay_window_size hardcoded 32); the reference certification run never executed it either (traces/5_3.xml contains GETs to auth/o/replwdo but no PUT)"

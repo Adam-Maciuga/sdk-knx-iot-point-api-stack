@@ -64,8 +64,30 @@ same requirement, and the drop records the EITT case id so it is traceable.
     skips, 2 xfailed, 12m18s. Failures: 5.1.1.3e (if= wildcard), 5.2.5.1 and
     5.3.20.1 (/dev/mid rt pattern), 5.2.6.1 (hostname now `…local`). All four
     line up with upstream device commits `80d3cd77` (include_if) and `94803394`
-    (hostname `knx-{serial}.local`); diagnosis pending, NOT yet fixed — do not
-    paper over them with overrides before the template + trace check.
+    (hostname `knx-{serial}.local`).
+  - **Diagnosed 2026-09-11. Expected EITT tier now: 176 passed / 1 FAILED
+    (5.1.1.3e) / 8 skips / 2 xfailed.** Root cause of three of the four
+    original failures was one bug: `ff269ddc` lowered `KNX_PAYLOAD_SIZE`
+    1024 -> 768, flooring `OC_BLOCK_SIZE` at 512, so the 547-553 byte
+    link-format bodies of `/.well-known/core` and `/dev` now split into two
+    Block2 blocks and the interpreter kept only block 0. The device is
+    RFC 7959-correct on **unicast**, and the interpreter now reassembles
+    there (finding **T12**): `CoapClient.complete_oscore_block2` plus its
+    call from `runner.py::_send_request_inner`. That fixed 5.2.5.1 and
+    5.3.20.1. The fourth, 5.2.6.1, is a variable override: `94803394`'s FQDN
+    `knx-{serial}.local` is certifiable (the variable-values JSON has another
+    certified device answering `knx-02c912345678.local`), so
+    `overrides.yaml` sets `5_2_6_1_HOSTNAME: knx-00fa10020800.local`.
+  - **5.1.1.3e stays FAILED on purpose — device finding `tests/FINDINGS.md`
+    F-021, deliberately not masked.** The same reassembly was written for
+    `multicast_get` (unicast continuation to each responder) and reverted: it
+    did not fix 5.1.1.3e and regressed 5.1.1.3, but the real reason is that
+    the actual EITT tool evaluates whatever arrives on a multicast discovery
+    query, so a certification run sees the truncated first block and fails
+    5.1.1.3e too. Masking it client-side would hide a certification risk. The
+    certified reference trace (`data/traces/5_1.xml` TelNo 28) shows the whole
+    547-byte body in one datagram. Fix is the maintainer's call (payload
+    budget, block size, or discovery body) — do not "repair" this test.
 - Running the Docker script from Git Bash: `-PytestArgs "a","b"` arrives as one
   string and `-IncludeUncommitted` breaks because Git Bash's `tar` shadows
   Windows `tar.exe`. Run it from PowerShell (or `powershell -Command "& ..."`),

@@ -1117,6 +1117,85 @@ the run. Now caught and logged.
 
 ---
 
+## T12 — Block2 is reassembled only on `get`/`oscore_get`, not on the runner's own paths · **FIXED for the OSCORE path (2026-09-11); multicast: deliberately not reassembled, see FINDINGS.md F-021**
+
+`_reassemble_block2` existed and was correct, but only two of the four ways a
+body reaches the interpreter went through it. The runner does **not** call
+`oscore_get`: it drives `CoapClient.oscore_request` directly
+(`runner.py::_send_request_inner`) because it has to forward the XML's
+adversarial knobs, and `oscore_request` accepts `block2=` without ever
+following it. The multicast discovery path is the same story one level down —
+`multicast_get` → `send_multicast` returned raw first blocks. Both silently
+kept **block 0 and discarded the rest**.
+
+Latent until now, and T9 said as much ("max observed payload ≈ 829 bytes").
+What exposed it is a device change, not a test change: upstream `ff269ddc`
+lowered `KNX_PAYLOAD_SIZE` 1024 → 768 (`CMakeLists.txt:71`), which floors
+`OC_BLOCK_SIZE` at 512. The link-format bodies of `/.well-known/core` and
+`/dev` are 547–553 bytes, so they crossed from one datagram into two
+(`messaging/coap/engine.c` ~1107–1116 emits Block2 num=0 more=1 size=512 plus
+Size2). **The device is RFC 7959-correct**; the truncation was entirely
+ours.
+
+Affected TestCases — the failures:
+
+| case | path | symptom |
+| --- | --- | --- |
+| 5.1.1.3e | multicast `/.well-known/core` | `if=` wildcard unmatched — **still failing by design, F-021** |
+| 5.2.5.1 | OSCORE `/dev` | `rt` pattern unmatched |
+| 5.3.20.1 | OSCORE `/dev` | `rt` pattern unmatched |
+
+And the **silent** ones, which passed on a truncated body only because their
+patterns happen to match inside the first 512 bytes — exactly the "passes for
+the wrong reason" class this tracker exists for: **5.1.1.3 step 02** and
+**5.10.5.1**. 5.1.1.3 step 02 is multicast, so after the revert below it still
+passes on a truncated body; that leniency is the template's, and the honest
+signal for the same device behaviour is 5.1.1.3e's failure.
+
+**Fix**, three parts, no duplicated reassembly loop:
+
+1. `CoapClient.complete_oscore_block2` — entry condition plus follow-up shape,
+   delegating to `_reassemble_block2`. The follow-up repeats the same method,
+   path (queries included), accept, content-format and security context.
+2. `runner.py::_send_request_inner` calls it after `oscore_request` returns.
+3. ~~`CoapClient.multicast_get` completes each response over unicast.~~
+   **REVERTED — the multicast path is deliberately NOT reassembled.** It was
+   implemented (unicast continuation to each response's own `source_addr`, per
+   RFC 7959 5.1), it did not make 5.1.1.3e pass, and it regressed 5.1.1.3 from
+   passing to failing. More importantly it was the wrong thing to build: the
+   real EITT tool evaluates whatever arrives on the multicast query, so a
+   certification run sees the truncated first block and fails 5.1.1.3e exactly
+   as we do. Reassembling in our client would have hidden a real certification
+   risk behind a green test. **5.1.1.3e stays red as an honest device-side
+   finding — `tests/FINDINGS.md` F-021**, which is the maintainer's call to
+   make (payload budget, block size, or discovery body).
+
+**The SSN constraint, which shaped the design.** Every follow-up request
+spends another OSCORE sender sequence number, and 5.3.17.x asserts on exact
+replay-window arithmetic. So reassembly is attempted **only** when the
+response actually carries `more=1` — a body that fits one block still costs
+exactly one message — and **never** after an adversarial send
+(`seq_no_override`, `seq_no_offset`, `invalid_auth_tag`, `kid_override`,
+`expect_echo_challenge`), which are one-shot by design. That is the same
+condition on which `oscore_request` already disables its Echo-retry loop.
+
+Plumbing was already in place: the OSCORE response path puts the decrypted
+**inner** options into `CoapResponse.options` (`_recv_oscore_response`), and
+Block2 is a Class E option, so `_reassemble_block2` reads it unchanged.
+
+**Telemetry limitation, accepted:** the runner still emits one TX/RX pair per
+OUT row, with the reassembled body on the RX. The continuation GETs are a
+transport concern with no XML row to attach to; they are visible in the
+`[coap] block2:` debug lines.
+
+Filed alongside, not a finding: 5.2.6.1 needed a variable override, not code.
+`94803394` changed `/dev/hname` to the FQDN `knx-{serial}.local` per KNX spec
+2.6.1.2.3, and the variable-values JSON shows another certified device
+answering `knx-02c912345678.local`, so the form is certifiable —
+`overrides.yaml` now sets `5_2_6_1_HOSTNAME: knx-00fa10020800.local`.
+
+---
+
 # OSCORE (`tests/runtime/transport/knx_oscore.py`)
 
 Audited 2026-07-26 against the device's own C implementation in `security/`
