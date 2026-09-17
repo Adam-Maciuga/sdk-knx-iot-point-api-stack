@@ -131,6 +131,20 @@ target_link_options(test_smode_loopback_recursion PRIVATE
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(test_smode_loopback_recursion PRIVATE -fpermissive)
 endif()
+kis_add_test(test_smode_read_answer_payload test_smode_read_answer_payload.cpp)
+# Regression test for the multicast s-mode read answer payload length (finding
+# F-023). Drives the REAL /k POST handler over two read-flagged GOs on one GA.
+# --wrap=oc_init_s_mode_message_update neutralises the transmission while
+# reproducing its oc_rep_new() side effect (that side effect IS the defect), and
+# --wrap=oc_send_s_mode_multicast_message records the payload length computed for
+# each answer.
+target_link_options(test_smode_read_answer_payload PRIVATE
+    -Wl,--wrap=oc_init_s_mode_message_update
+    -Wl,--wrap=oc_send_s_mode_multicast_message
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_read_answer_payload PRIVATE -fpermissive)
+endif()
 kis_add_test(test_oc_knx_helpers     test_oc_knx_helpers.cpp)
 kis_add_test(test_oc_knx             test_oc_knx.cpp)
 kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)

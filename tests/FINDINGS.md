@@ -849,3 +849,95 @@ Bugs and issues discovered during unit test development.
   O6), not this change — `-Tier eitt -Section 5.2` alone is **109 passed / 5 skipped on both HEAD and
   the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
 - **Status:** RESOLVED.
+
+## F-023: Trailing garbage on the second s-mode read answer for a GA with two read-flagged GOs - RESOLVED
+
+- **File:** `api/oc_knx.c`, `oc_core_knx_k_post_handler()` - the `service_r` branch
+  ("read with GO table index").
+- **Severity:** Medium-High - the device serialises stale heap/stack content onto a multicast
+  datagram. It is an information leak of adjacent buffer memory to every listener on the group, and
+  the malformed answer is a certification risk. No memory *corruption* occurs (the read stays inside
+  the message buffer), but the content is undefined.
+- **Found by:** debugging EITT TestCase **5.4.2.2a**; observed twice on the wire
+  (Wireshark/EITT), and only after the second GO on GA 2 existed.
+- **Reproduction config.** The same two-GO configuration as F-022, both with the r-cflag set:
+
+  | GO id | href   | GA | cflags     |
+  |-------|--------|----|------------|
+  | 13    | `/p/1` | 2  | 88 (`rwt`) |
+  | 14    | `/p/2` | 2  | 88 (`rwt`) |
+
+- **Wire evidence.** An inbound s-mode read (`st=r`, GA 2) was answered correctly with 16 bytes:
+
+  ```
+  BF 04 19 11 01 05 BF 07 02 06 61 61 01 F4 FF FF
+  ```
+
+  A SECOND multicast `st=a` answer then arrived ~200 ms later, 31 bytes - the same body with 15
+  bytes spliced in before the closing `FF FF`:
+
+  ```
+  BF 04 19 11 01 05 BF 07 02 06 61 61 01 F4 FF <15 junk bytes> FF FF
+  ```
+
+  The 15 junk bytes differed between runs, which is what identified them as uninitialised/stale
+  memory rather than a deterministic encoding error:
+
+  ```
+  run 1:  CB 01 00 00 A0 E9 1F 33 CB 01 00 00 00 00 00
+  run 2:  AB 02 00 00 C0 EF CD 9F AB 02 00 00 A8 33 CF
+  ```
+
+- **Root cause - CONFIRMED (not hypothesis): the single global CBOR encoder is re-armed by the act
+  of sending, between the two GET handlers.** The encoder is one global
+  (`g_encoder` / `g_buf`, `api/oc_rep.c:15-25`). The sequence is:
+
+  1. `oc_ri_invoke_coap_entity_handler()` calls `oc_rep_new(response_buffer.buffer, ...)`
+     **exactly once** (`api/oc_ri.c:1175`) before dispatching into the `/k` POST handler.
+  2. Loop iteration 1 (GO 13, `/p/1`): the GET handler encodes into the response buffer,
+     `oc_prepare_cbor_response()` sets `response_length`, and the answer is transmitted correctly.
+  3. **Transmitting calls `oc_send_s_mode_multicast_message()` -> `oc_issue_s_mode_message()` ->
+     `oc_init_s_mode_message_update()`, which calls `oc_rep_new(udp_message_update->data +
+     COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE)`** (`api/oc_client_api.c:125`) - re-pointing the global
+     encoder at the OUTGOING UDP message buffer - and then writes the whole s-mode envelope
+     `{ 4: sia, 5: { 6: st, 7: ga, 1: value } }` into it.
+  4. Loop iteration 2 (GO 14, `/p/2`): the GET handler runs with the global encoder **still pointing
+     into that already-transmitted message buffer, with a non-empty write cursor**. It appends its
+     value after the envelope, and `oc_prepare_cbor_response()` measures the payload from the START
+     of the message buffer - so the reported length covers the envelope bytes too. Those bytes are
+     then read back out of the previous message and sent as part of the answer.
+
+  A second, independent contributor: `oc_ri_new_request_from_inbound_request()`
+  (`api/oc_ri.c:315-332`) copies only `buffer` and `buffer_size` into the per-iteration
+  `oc_response_buffer_t`; it never resets `response_length`. Since `response_buffer` is declared once
+  outside the loop (`api/oc_knx.c:846`), a GET handler that answers without setting a length inherits
+  the previous GO's value.
+- **Resolution:** the `service_r` branch re-arms the encoder onto its own response buffer
+  immediately before invoking the GET handler, and clears the stale length:
+
+  ```c
+  oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
+  response_buffer.response_length = 0;
+  ```
+
+  This is the same idiom already used elsewhere in the file (`api/oc_knx.c:599`). It is placed in the
+  read branch rather than in `oc_init_s_mode_message_update()` because re-arming the encoder is that
+  function's legitimate job - the defect is the `/k` loop's assumption that the encoder it was handed
+  survives a send.
+- **Pinned by:** `SmodeReadAnswer.SecondReadAnswerOnSameGaHasNoTrailingGarbage` in
+  `tests/unit/test_smode_read_answer_payload.cpp`, which drives the real `/k` POST handler over two
+  read-flagged GOs on one GA and records the payload length handed to the send path for each answer.
+  The test stub deliberately reproduces the real send path's encoder re-arm *and* its envelope write,
+  because that side effect IS the defect - without it the test would pass vacuously (it did, on the
+  first attempt, until the stub was corrected). Verified against the unfixed code: answer 1 measured
+  **4 bytes** and answer 2 measured **18 bytes** - the 4-byte value plus 14 bytes of stale envelope,
+  the same shape as the 16-vs-31 seen on the wire - and the second body's final byte was `0xCD`, the
+  response buffer's fill pattern, instead of the CBOR break `0xFF`. With the fix both answers measure
+  4 bytes and both end on `0xFF`.
+- **Verification:** full unit suite **1435 passed, 0 failed** (`windows-test-gcc`, 42.26 s). Docker
+  device tiers on the working tree (2026-09-15, `linux-test-gcc`): runtime tier **214 passed, 0 failed,
+  5 skipped**; EITT tier **171 passed**, the only failures being the known F-021 (5.1.1.3e) and the
+  5.2.6.1→5.2.10.1b cluster, which is the `-Tier all` fwv-ordering hazard (eitt-interpreter-findings.md
+  O6), not this change — `-Tier eitt -Section 5.2` alone is **109 passed / 5 skipped on both HEAD and
+  the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
+- **Status:** RESOLVED.

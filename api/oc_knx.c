@@ -1098,11 +1098,34 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             oc_ri_new_request_from_inbound_request(&new_request, request, &response_buffer, &response_obj);
 
             /*
+              Re-arm the (single, global) CBOR encoder onto THIS response buffer before calling the
+              GET handler.
+
+              oc_ri_invoke_coap_entity_handler() calls oc_rep_new(response_buffer.buffer, ...) exactly
+              once, before dispatching to this POST handler. That is enough for a single answer, but
+              a GA may be linked to several read enabled GOs, and each of them sends its own read
+              response from inside this loop. Sending goes through
+              oc_init_s_mode_message_update(), which calls oc_rep_new() again - re-pointing the
+              global encoder at the OUTGOING UDP message buffer. Without the call below, the GET
+              handler of the SECOND (and any later) GO would encode into that already sent message
+              buffer instead of the response buffer, and oc_prepare_cbor_response() would measure the
+              payload length against it - emitting the answer followed by whatever stale bytes that
+              buffer still held.
+
+              oc_ri_new_request_from_inbound_request() also leaves response_length untouched (it is a
+              separate struct from the inbound one, carrying the previous iteration's value), so it is
+              cleared here as well: a GET handler that answers without a payload must not inherit the
+              previous GO's length.
+            */
+            oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
+            response_buffer.response_length = 0;
+
+            /*
               call callback GET handler from inbound POST to uri path with 'k' and len = 1,
               details for this see above for 'w'
             */
             application_resource_with_href_match->get_handler.cb(
-              &new_request, 
+              &new_request,
               application_resource_with_href_match->get_handler.interface_mask,
               application_resource_with_href_match->get_handler.user_data);
 
