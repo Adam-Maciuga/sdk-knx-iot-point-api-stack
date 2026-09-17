@@ -623,6 +623,20 @@ class CoapClient:
                 data, addr = self._sock.recvfrom(_RECV_BUF)
             except socket.timeout:
                 return None
+            except ConnectionResetError as exc:
+                # Windows queues an ICMP port/host-unreachable against the
+                # SOCKET and delivers it on the next recv, as WinError
+                # 10054 — even though the datagram that provoked it was a
+                # different, earlier send. A multicast sweep to a scope
+                # with no listener is the usual source, and the error then
+                # lands on an unrelated unicast request and aborts it.
+                #
+                # It says nothing about the request in flight (UDP has no
+                # connection to reset), so drain it and keep waiting for
+                # the real answer rather than failing a good exchange.
+                self._last_discards.append(f"ICMP unreachable ({exc})")
+                _dbg_coap(f"[coap] discarding queued ICMP error: {exc}")
+                continue
 
             if len(data) < 4:
                 self._last_discards.append(
@@ -685,7 +699,17 @@ class CoapClient:
             # shared socket during a LATER exchange.
             if msg_type == CON:
                 ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
-                self._sock.sendto(ack, addr)
+                try:
+                    self._sock.sendto(ack, addr)
+                except OSError as exc:
+                    # Windows rejects some source addresses as DESTINATIONS
+                    # (WinError 10049): a datagram that arrived via a
+                    # multicast group, or one whose scope id names no route
+                    # out. Failing to ACK only makes the peer retransmit —
+                    # dropping the run over it turns a cosmetic problem
+                    # into a dead sequence.
+                    _dbg_coap(f"[coap] could not ACK CON mid={mid} to "
+                              f"{addr}: {exc}")
 
             offset = 4 + tkl
             try:
@@ -1011,6 +1035,20 @@ class CoapClient:
                 data, addr = self._sock.recvfrom(_RECV_BUF)
             except socket.timeout:
                 return None
+            except ConnectionResetError as exc:
+                # Windows queues an ICMP port/host-unreachable against the
+                # SOCKET and delivers it on the next recv, as WinError
+                # 10054 — even though the datagram that provoked it was a
+                # different, earlier send. A multicast sweep to a scope
+                # with no listener is the usual source, and the error then
+                # lands on an unrelated unicast request and aborts it.
+                #
+                # It says nothing about the request in flight (UDP has no
+                # connection to reset), so drain it and keep waiting for
+                # the real answer rather than failing a good exchange.
+                self._last_discards.append(f"ICMP unreachable ({exc})")
+                _dbg_coap(f"[coap] discarding queued ICMP error: {exc}")
+                continue
 
             if len(data) < 4:
                 continue
@@ -1066,7 +1104,17 @@ class CoapClient:
             # replying to (self.host, self.port) can miss it entirely).
             if msg_type == CON:
                 ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
-                self._sock.sendto(ack, addr)
+                try:
+                    self._sock.sendto(ack, addr)
+                except OSError as exc:
+                    # Windows rejects some source addresses as DESTINATIONS
+                    # (WinError 10049): a datagram that arrived via a
+                    # multicast group, or one whose scope id names no route
+                    # out. Failing to ACK only makes the peer retransmit —
+                    # dropping the run over it turns a cosmetic problem
+                    # into a dead sequence.
+                    _dbg_coap(f"[coap] could not ACK CON mid={mid} to "
+                              f"{addr}: {exc}")
 
             offset = 4 + tkl
             try:

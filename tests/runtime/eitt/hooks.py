@@ -47,6 +47,7 @@ from __future__ import annotations
 import binascii
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -246,10 +247,38 @@ def eval_5_10_1_1_IPv6_adresses(ctx: HookContext, planned: str,
 
 def _swu_load_file(ctx: HookContext) -> bytes:
     file_name = ctx.variables.require("PREP_UPDATE_FILE_PATH")
-    with open(file_name, "rb") as f:
+    with open(_resolve_data_path(file_name), "rb") as f:
         data = f.read()
     ctx.state["swu_bytes"] = data
     return data
+
+
+def _resolve_data_path(file_name: str) -> str:
+    """Find a data file whatever the working directory is.
+
+    `PREP_UPDATE_FILE_PATH` is `tests/runtime/data/FWUUploadDummySmall.bin`
+    — relative to the REPO ROOT, which is where the Docker harness runs
+    pytest from. The GUI runs from `tests/runtime/`, so the same path
+    resolves to nothing and the SWU hooks died with a FileNotFoundError
+    (and then a confusing `KeyError: 'swu_cursor'`, because the first hook
+    aborted before setting the state the next one reads).
+
+    Try the path as given, then the same name relative to this package's
+    parent — which IS `tests/runtime`. Absolute paths are untouched.
+    """
+    if os.path.isabs(file_name) or os.path.exists(file_name):
+        return file_name
+
+    runtime_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Strip a leading `tests/runtime/` if the value carries one, so the
+    # repo-root-relative form and a bare `data/...` both work.
+    trimmed = file_name.replace("\\", "/")
+    for prefix in ("tests/runtime/", "./"):
+        if trimmed.startswith(prefix):
+            trimmed = trimmed[len(prefix):]
+            break
+    candidate = os.path.join(runtime_dir, trimmed)
+    return candidate if os.path.exists(candidate) else file_name
 
 
 def _swu_loop_count(ctx: HookContext, loop_name: str) -> int:

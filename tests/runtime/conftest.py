@@ -216,6 +216,18 @@ def _try_discover(client, path: str, scope: int,
             port = resp.source_addr[1]
             if "%" in host:
                 host = host.split("%")[0]
+            # `::` is the UNSPECIFIED address, not an address — a device
+            # bound to the wildcard answers from it, and using it as a
+            # destination sends every later request nowhere. The reply DID
+            # arrive though, so the device is on this host: substitute
+            # loopback, which reaches a wildcard-bound listener on the same
+            # machine. (A virtual/simulated device is the usual case; real
+            # hardware answers from a real address and never lands here.)
+            if host in ("::", "0.0.0.0", ""):
+                print(f"[conftest] discovery reply came from the "
+                      f"unspecified address — the device is bound to the "
+                      f"wildcard on this host; using [::1]:{port}")
+                return ("::1", port)
             return (host, port)
     return None
 
@@ -251,19 +263,32 @@ def discover_dut(serial_number: str,
     try:
         path = f".well-known/core?ep=knx://sn.{serial_number}"
 
-        # If a specific interface was given, just try that
+        # If a specific interface was given, try that — but across BOTH
+        # scopes, not just the configured one.
+        #
+        # Naming an interface used to pin the scope as well, so a site-local
+        # (5) attempt that failed took the whole discovery with it. On
+        # Windows scope 5 routinely fails with WinError 10049 while the
+        # device answers perfectly on link-local (2) — the sweep below has
+        # always tried both, and there is no reason the explicit-interface
+        # path should be less capable than the automatic one.
         if interface or os.environ.get("DEVICE_IFACE"):
-            result = _try_discover(client, path, scope,
-                                   interface=interface, timeout=timeout)
-            if result:
-                print(f"[conftest] Discovered DUT at [{result[0]}]:{result[1]} "
-                      f"(serial={serial_number})")
-                return (result[0], result[1], 0)
             iface = interface or os.environ.get("DEVICE_IFACE")
+            scopes_to_try = [scope] + ([2] if scope != 2 else [])
+            per_scope = max(1.0, timeout / len(scopes_to_try))
+            for try_scope in scopes_to_try:
+                result = _try_discover(client, path, try_scope,
+                                       interface=interface,
+                                       timeout=per_scope)
+                if result:
+                    print(f"[conftest] Discovered DUT at [{result[0]}]:"
+                          f"{result[1]} (serial={serial_number}, "
+                          f"iface={iface}, scope={try_scope})")
+                    return (result[0], result[1], 0)
             raise RuntimeError(
                 f"No KNX device with serial '{serial_number}' responded "
-                f"to multicast discovery within {timeout}s on scope {scope}. "
-                f"Interface: {iface}")
+                f"to multicast discovery within {timeout}s on scopes "
+                f"{scopes_to_try}. Interface: {iface}")
 
         # No interface specified — try OS default first (fast path for Linux)
         result = _try_discover(client, path, scope, timeout=min(timeout, 2.0))

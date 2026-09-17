@@ -1,4 +1,4 @@
-l# EITT interpreter — audit findings tracker
+# EITT interpreter — audit findings tracker
 
 Living record of known correctness gaps in the EITT XML interpreter
 (`tests/runtime/eitt/`, `tests/runtime/transport/`). **Update the status of an
@@ -26,6 +26,26 @@ simply real now where they previously were not.
 
 **No known false passes remain.** M3 was the last one; M5, the other candidate,
 was investigated and disproved.
+
+### Added 2026-07-28, while building the GUI runner — NOT yet Docker-verified
+
+Three findings came out of running real sequences against a live device
+rather than the Docker DUT. **F15 changes what the interpreter puts on the
+wire** (nine TestCases that previously emitted no discovery traffic now do),
+so the suite must be re-run before these are trusted:
+
+- **F15** `@@[pahdiscover` was a silent no-op — `on_discover` was never
+  assigned by anyone. FIXED.
+- **F16** every OUT row falls back to a hardcoded 5 s timeout; the template
+  declares `AckChkTimeOut` on none of its 1457. OPEN.
+- **T11** Windows delivers a queued ICMP error on an unrelated request and
+  aborted it. FIXED.
+
+Also fixed in the GUI's own runner (not interpreter findings, but the same
+class of mistake): it passed an EMPTY `OverrideTable`, discarding the four
+variable corrections and the manual-action map that `test_eitt.py` loads;
+and it exported `DEVICE_HOST` for a live profile, which makes `conftest`
+skip discovery entirely.
 
 Two fixes needed a second attempt, both caught only by the full suite:
 
@@ -756,10 +776,60 @@ correctness-enforcing library actively prevents.
 
 # Transport layer (`tests/runtime/transport/coap_client.py`)
 
-Audited separately on 2026-07-26 at the user's request — *"missing coap response
-code doesnt make me trust anything to be honest. basic transport must be
-flawless"*. That was the right call: the layer had two defects that can corrupt
-a result today, plus a crash path.
+## F15 — `@@[pahdiscover` is a silent no-op · **FIXED (2026-07-28)**
+
+`ProvisioningEngine._apply_pahdiscover` calls `self.on_discover()` — a
+callback **nothing ever assigned**. Neither the GUI nor `test_eitt.py` set
+it, so the command did nothing at all: 10 uses across 9 TestCases (5.2.1.1,
+5.2.2.1, 5.2.2.3, 5.3.1.1/.2/.3, 5.3.17.8, 5.4.2.1) emitting no traffic
+whatsoever.
+
+Found by the user asking why an exported trace showed no discovery output.
+The recorded certification run answers what it should look like: **33
+discovery telegrams**, six per invocation — `GET /.well-known/core` to
+`ff02::fd`, `ff03::fd` and `ff05::fd` with a reply each, bracketed by
+`pahdiscover, suspend plan evaluation` / `resume plan evaluation`
+(traces/5_2.xml, elements 10-17).
+
+**Fix.** `SequenceRunner.__init__` now sets
+`provisioning.on_discover = self._run_pahdiscover`, which sweeps the three
+scopes and emits the telegrams.
+
+Two properties taken from the recorded run rather than invented:
+
+- **A failing scope is not an error.** EITT brackets the sweep with
+  "suspend plan evaluation" — the telegrams are logged but not judged, and
+  the TestCase that follows addresses the device by its configured alias
+  regardless. On Windows one of the three scopes routinely has no route
+  out; that must not fail a run.
+- **Replies are emitted UNNUMBERED.** They were captured, not awaited, so
+  numbering them would shift every later telegram out of step with the
+  recorded trace.
+
+**Verified** against a live device: 5 telegrams, real replies from
+`[fe80::4aec:a409:2973:2a2c]:49887`, where the count was previously 0.
+
+## F16 — Timeouts are hardcoded, and no OUT row overrides them · **OPEN**
+
+`AckChkTimeOut` is declared on **0 of the template's 1457 active OUT rows**,
+so every one falls back to the CoAP client's default (5 s, 3 retries). That
+is fine over a loopback and against the Docker DUT, but it is not something
+the template chose — it is the value that happened to be in the client.
+
+For real hardware the risk is one-directional and bad: a device that
+answers in 6 s is recorded as **NOT RECEIVED**, i.e. a conformance failure
+that did not happen. The GUI now exposes the timeout in its connection
+dialog (default 5 s, raise for slow hardware), but the headless harness
+still has only `COAP_TIMEOUT`.
+
+**Not** to be confused with `TimeToNext`, which resolves to 0.5 s on 1348
+OUT rows via `GENERAL_TIME_TO_NEXT=500`. That looks like a loopback
+speed-up and is not: 500 is the value in the V40 variable-values JSON the
+traces were recorded against, so it is certification-accurate pacing and
+must stay.
+
+Open question for a real-hardware run: whether 5 s is the right default, or
+whether the harness should derive it from the DUT's observed response time.
 
 ## T1 — Malformed datagram crashes the run · **FIXED**
 
@@ -1021,6 +1091,29 @@ stay: retransmitting would actively break the adversarial replay tests in
 5.3.17.x, where a resend is a *different* telegram.
 
 ---
+
+## T11 — Windows ICMP errors abort an unrelated request · **FIXED (2026-07-28)**
+
+Windows queues an ICMP port/host-unreachable **against the socket** and
+delivers it on the next `recvfrom()` as `ConnectionResetError` (WinError
+10054) — even though the datagram that provoked it was a different, earlier
+send. Because this client deliberately shares ONE socket for every exchange
+(see the class docstring: it avoids server-side resource exhaustion), the
+error lands on whatever request happens to be in flight and aborts it.
+
+Surfaced by F15: a multicast sweep to a scope with no listener is the
+classic source, so implementing `pahdiscover` immediately started killing
+the unicast request that followed it. UDP has no connection to reset, so
+the error says nothing whatsoever about the exchange it interrupts.
+
+**Fix.** Both `_recv_response` loops drain the queued error, record it in
+`_last_discards` and keep waiting for the real answer.
+
+Also fixed alongside: `_recv_response` ACKed an incoming CON by sending to
+`addr` unconditionally, and Windows rejects some source addresses AS
+destinations (WinError 10049 — a multicast source, or a scope id naming no
+route out). Failing to ACK only makes the peer retransmit; raising killed
+the run. Now caught and logged.
 
 ---
 

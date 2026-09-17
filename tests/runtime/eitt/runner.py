@@ -39,6 +39,7 @@ from typing import Callable, Optional
 
 from transport.coap_client import ACK, CON, NON, RST
 from .content_match import match_content
+from .events import RX, TX, CaseEvent, NullBus, StepEvent, Telegram
 from .hooks import HookContext, get_hook
 from .model import CoAPMessage, Comment, DnsMessage, EittProject, TestCase
 from .provisioning import ProvisioningEngine, parse_comment_command
@@ -98,6 +99,21 @@ _UNICAST_TELEGRAM_TIMEOUT = 20.0
 # _run_dns_message for why one shot is not enough).
 _MDNS_RETRY_INTERVAL = 0.75
 
+# The multicast scopes `@@[pahdiscover` sweeps: link-local (ff02::fd),
+# admin-local (ff03::fd) and site-local (ff05::fd). All three, in this
+# order, exactly as the recorded certification run shows.
+_DISCOVERY_SCOPES = (2, 3, 5)
+
+# Per-scope collection window. Short on purpose: this is a probe whose
+# result nothing asserts, and three scopes x a long timeout would add
+# minutes to a run for information the next step does not depend on.
+_DISCOVERY_TIMEOUT = 1.0
+
+# Scopes that have already proved unroutable on this host. Process-wide
+# because the routing table is a property of the machine, not of a run —
+# and `pahdiscover` is invoked 10 times per full template.
+_DISCOVERY_DEAD_SCOPES: set = set()
+
 
 def _safe_int(value) -> int:
     try:
@@ -133,6 +149,23 @@ _MANUAL_PROMPT_RE = re.compile(r'^@@(?!\[)!?\s*(.+)$', re.S)
 _DISPLAY_ONLY_RE = re.compile(r'^(@\[[a-zA-Z]|@!)', re.S)
 
 
+def _step_summary(item) -> str:
+    """One-line human-readable description of a sequence item, for the
+    telemetry stream (and thus the GUI's step list). Kept here rather than
+    as __str__ on the model classes so the parser stays a pure data layer
+    with no presentation concerns."""
+    if isinstance(item, Comment):
+        text = " ".join(item.text.split())
+        return text[:120]
+    if isinstance(item, CoAPMessage):
+        direction = "OUT" if item.is_response else "IN"
+        secure = f" [{item.sec_context}]" if item.sec_context else ""
+        return f"{direction} {item.code} {item.path}{secure}".strip()
+    if isinstance(item, DnsMessage):
+        return f"DNS {item.record_type} {item.service}".strip()
+    return type(item).__name__
+
+
 class UnsupportedFeature(Exception):
     """Raised when a sequence item uses XML semantics this interpreter
     doesn't implement yet — deliberately loud, never a silent no-op."""
@@ -150,6 +183,11 @@ class SequenceRunResult:
     ok: bool
     steps: list[StepResult] = field(default_factory=list)
     failure: Optional[StepResult] = None
+    #: True when a cooperative stop ended the run early (see
+    #: SequenceRunner.should_stop). NOT a failure — the operator asked for
+    #: it — but the sequence did not complete, so a caller must not read
+    #: `ok` as "the TestCase passed".
+    stopped: bool = False
 
 
 def _response_as_json_text(payload: bytes, path: str,
@@ -324,16 +362,23 @@ def _resolve_crit_option(msg) -> Optional[tuple]:
     return num, val
 
 
-def _decode_body(payload: bytes, content_format: Optional[str], path: str):
+def _decode_body(payload: bytes, content_format, path: str):
     """Best-effort decode of a response payload into a Python value for
-    Content matching, given the message's declared/expected CF."""
+    Content matching, given the message's declared/expected CF.
+
+    `content_format` may be a NAME ("application/cbor", from the XML) or the
+    numeric CoAP code (60, from a parsed response) — CoapResponse carries
+    the latter as an int. Both are normalised to the string forms in
+    CBOR_CONTENT_FORMATS / LINK_FORMAT_CONTENT_FORMATS, which already list
+    "60" and "40" for exactly this reason.
+    """
     if not payload:
         return None
     # Imported up here, not inside the branch, so CBORDecodeError is bound
     # for the except clause on every path through this function.
     import cbor2
 
-    cf = (content_format or "").lower()
+    cf = "" if content_format is None else str(content_format).lower()
     try:
         if cf in LINK_FORMAT_CONTENT_FORMATS:
             return payload.decode("utf-8", errors="replace")
@@ -404,11 +449,28 @@ class SequenceRunner:
                 hook_ctx: Optional[HookContext] = None,
                 sleep: Callable[[float], None] = time.sleep,
                 time_scale: Optional[float] = None,
-                overrides=None):
+                overrides=None, sink=None):
         self.coap = coap
+        # Structured telemetry (GUI plan phase 0). Defaults to NullBus, whose
+        # emits are no-ops and whose `active` is False — so pytest runs are
+        # bit-for-bit unchanged and no record is ever built when nobody is
+        # listening. A sink can never fail a test: EventBus swallows sink
+        # exceptions by design (see events.py).
+        if sink is None:
+            self.events = NullBus()
+        else:
+            from .events import EventBus
+            self.events = sink if isinstance(sink, EventBus) else EventBus(sink)
         self.project = project
         self.variables = variables
         self.provisioning = provisioning
+        # `@@[pahdiscover` performs a real CoAP device discovery. The engine
+        # only knows the command exists; the sweep needs a client, so the
+        # runner supplies it. Previously nothing set this and the command
+        # was a SILENT NO-OP — 10 uses across 9 TestCases that emitted no
+        # traffic at all, where the recorded certification run shows 33
+        # discovery telegrams. See _run_pahdiscover.
+        provisioning.on_discover = self._run_pahdiscover
         self.preparations = preparations
         # Needed for `@@!` operator prompts, which are mapped to DUT control
         # endpoints by TEXT (see _run_manual_prompt). An empty table means
@@ -502,6 +564,25 @@ class SequenceRunner:
         # the datapoint /test/trigger must poke to make the DUT originate
         # a group telegram (see _trigger_sensor).
         self._transmit_href: Optional[str] = None
+        # Cooperative stop for an interactive front-end: a zero-argument
+        # callable polled after each completed step. None (the default)
+        # means "never stop", so pytest behaviour is unchanged.
+        # The most recently emitted RX Telegram, so the OUT step that
+        # judges it can stamp its verdict on (see _run_coap_message).
+        self._last_emitted = None
+        # Callback an interactive front-end sets to take `@@!` prompts to a
+        # human: `(prompt) -> True (done) | False (declined) | None (fall
+        # back to the overrides.yaml endpoint mapping)`. None here means
+        # headless, which is what pytest wants.
+        self.operator_prompt: Optional[Callable[[str], Optional[bool]]] = None
+        self.should_stop: Optional[Callable[[], bool]] = None
+        # Where a stop happened, so a GUI can resume from that row.
+        self.stopped_at: Optional[int] = None
+        # Index to begin the OUTERMOST sequence at — the GUI's "play from
+        # the selected row". Applies once, to the top-level TestCase only:
+        # an @#"..." preparation must always run in full, or it would not
+        # establish the state the remaining steps assume.
+        self.start_index: int = 0
 
     # -- top-level entry point -------------------------------------------
 
@@ -544,16 +625,36 @@ class SequenceRunner:
 
         self._sequence = test_case.sequence
         self._unicast_capture = None
+        # Emitted for the inner @#"..." preparation call too, deliberately:
+        # a preparation IS a TestCase and its steps are real traffic, so a
+        # tracebuffer that hid it would show telegrams belonging to no case.
+        # The start/end pair nests, which is what tells a consumer apart.
+        self.events.case(CaseEvent(name=test_case.name, phase="start"))
+        result = None
         try:
-            return self._run_sequence(test_case)
+            result = self._run_sequence(test_case)
+            return result
         finally:
             self._sequence = outer_sequence
             self._unicast_capture = outer_unicast
+            self.events.case(CaseEvent(
+                name=test_case.name, phase="end",
+                # `result` stays None when _run_sequence raised, which is a
+                # genuine third outcome (an UnsupportedFeature, a crash) and
+                # is not the same as a clean failure.
+                ok=None if result is None else result.ok,
+                reason=("" if result is None or result.failure is None
+                        else result.failure.reason)))
 
     def _run_sequence(self, test_case: TestCase) -> SequenceRunResult:
         steps: list[StepResult] = []
         sequence = test_case.sequence
-        i = 0
+        # "Play from the selected row". CONSUMED here, so it applies only
+        # to the outermost sequence: an @#"..." preparation called further
+        # down must run in full, or it would not establish the state the
+        # remaining steps assume.
+        i = self.start_index if 0 < self.start_index < len(sequence) else 0
+        self.start_index = 0
         while i < len(sequence):
             item = sequence[i]
 
@@ -610,10 +711,37 @@ class SequenceRunner:
                     break
 
             steps.append(result)
+            self._emit_step(i, item, result)
             if not result.ok:
                 return SequenceRunResult(ok=False, steps=steps, failure=result)
             i += 1
+
+            # Cooperative stop, for a GUI's Stop button. Checked AFTER the
+            # step completes so a telegram in flight is never abandoned
+            # half-sent, and `stopped_at` records where to resume from.
+            # Default is None, so pytest never pays for this.
+            if self.should_stop is not None and self.should_stop():
+                self.stopped_at = i
+                return SequenceRunResult(ok=True, steps=steps, stopped=True)
         return SequenceRunResult(ok=True, steps=steps)
+
+    def _emit_step(self, index: int, item, result: StepResult) -> None:
+        """Publish one finished sequence item.
+
+        `index` is the position in THIS sequence, which for an @#"..."
+        inline preparation is the preparation's own numbering, not the
+        enclosing TestCase's. A consumer that needs absolute position
+        should track the enclosing CaseEvent pair rather than assume the
+        indices form one run.
+        """
+        if not self.events.active:
+            return
+        self.events.step(StepEvent(
+            index=index, kind=type(item).__name__, ok=result.ok,
+            reason=result.reason,
+            item_id=getattr(item, "id", "") or "",
+            activate=getattr(item, "activate", True),
+            summary=_step_summary(item)))
 
     def _is_real_spake_exchange(self, sequence: list, start: int) -> bool:
         """True when the spake POST at `sequence[start]` is genuinely the
@@ -774,9 +902,12 @@ class SequenceRunner:
         if isinstance(spake_result, SpakeStepFailure):
             resp = spake_result.response
             step_idx = spake_result.step - 1
+            # Set BEFORE _remember_response, which labels the emitted
+            # telemetry record with the path being answered — see the same
+            # ordering note in _send_request_inner.
+            self._last_request_path = SPAKE_PATH
             self._remember_response(resp)
             self._last_planned = requests[step_idx].content
-            self._last_request_path = SPAKE_PATH
             expect_result = self._expect_response(responses[step_idx])
             if not expect_result.ok:
                 return i - start, expect_result
@@ -909,6 +1040,24 @@ class SequenceRunner:
         previous state and the two hardest reset types went untested.
         """
         prompt = prompt.strip()
+
+        # An interactive front-end can take the prompt to a HUMAN instead.
+        # That is what `@@!` actually means, and it is the only option for a
+        # device with buttons but no /test endpoints — a virtual device with
+        # its own GUI, or real certification hardware. Returning True means
+        # "the operator did it"; None means "you handle it" and falls
+        # through to the endpoint mapping below. Default is None, so pytest
+        # keeps running headless exactly as before.
+        if self.operator_prompt is not None:
+            answered = self.operator_prompt(prompt)
+            if answered is True:
+                self._apply_wait(comment)
+                return StepResult(ok=True, item=comment)
+            if answered is False:
+                return StepResult(
+                    ok=False, item=comment,
+                    reason=f"operator declined the prompt {prompt!r}")
+
         action = self.overrides.manual_action(prompt)
         if action is None:
             return StepResult(
@@ -983,6 +1132,66 @@ class SequenceRunner:
         if seconds > 0:
             self.sleep(seconds)
         return StepResult(ok=True, item=comment)
+
+    def _run_pahdiscover(self) -> None:
+        """`@@[pahdiscover` — Point API device discovery.
+
+        EITT sweeps `GET /.well-known/core` across the three KNX multicast
+        scopes (link-, admin- and site-local) and notes who answers. The
+        recorded run shows the pattern plainly: six telegrams per
+        invocation, bracketed by "pahdiscover, suspend/resume plan
+        evaluation".
+
+        Two properties worth stating:
+
+        - **A silent failure here is fine.** Discovery is a probe, not an
+          assertion; the TestCase that follows addresses the device by its
+          configured alias regardless. EITT brackets it with "suspend plan
+          evaluation" for exactly that reason — the telegrams are logged
+          but not judged, which is why they carry no expectation.
+        - **The replies are emitted UNNUMBERED.** They were captured, not
+          awaited, so numbering them would shift every subsequent telegram
+          out of step with the recorded trace.
+        """
+        _dbg_group("[discover] pahdiscover: sweeping multicast scopes")
+        for scope in _DISCOVERY_SCOPES:
+            if scope in _DISCOVERY_DEAD_SCOPES:
+                continue
+            if self.events.active:
+                self.events.telegram(Telegram(
+                    direction=TX, code="GET", path=".well-known/core",
+                    msg_type=_coap_msg_type("NON"),
+                    peer=(f"ff{scope:02x}::fd", 5683)))
+            try:
+                responses = self.coap.multicast_get(
+                    ".well-known/core", scope=scope,
+                    collect_timeout=_DISCOVERY_TIMEOUT)
+            except OSError as exc:
+                # A scope with no route out (common on Windows, where
+                # site-local routinely fails with WinError 10049) is not an
+                # error: the other scopes still answer.
+                #
+                # Remember it. The routing table does not change mid-run, so
+                # a scope that failed once will fail identically every time
+                # — and `pahdiscover` is invoked 10 times, which would mean
+                # 10 pointless retries and 10 identical log lines.
+                _DISCOVERY_DEAD_SCOPES.add(scope)
+                _dbg_group(f"[discover] scope {scope} unavailable: {exc}")
+                continue
+            for resp in responses:
+                self._last_discovered_addr = resp.source_addr or \
+                    self._last_discovered_addr
+                if self.events.active:
+                    self.events.telegram(Telegram(
+                        direction=RX,
+                        code=f"{resp.code_class}.{resp.code_detail:02d}",
+                        msg_type=resp.msg_type, mid=resp.mid,
+                        token=resp.token, path=".well-known/core",
+                        raw=resp.payload,
+                        body=(resp.payload.decode("utf-8", "replace")
+                              if resp.payload else None),
+                        peer=resp.source_addr))
+            _dbg_group(f"[discover] scope {scope}: {len(responses)} responder(s)")
 
     def _run_inline_reference(self, comment: Comment, name: str) -> StepResult:
         target = self.preparations.resolve(name)
@@ -1259,7 +1468,16 @@ class SequenceRunner:
             if msg.use_last_rx_token:
                 return self._answer_last_rx_request(msg)
             return self._send_request(msg)
-        return self._expect_response(msg)
+
+        result = self._expect_response(msg)
+        # Stamp the verdict onto the telegram this OUT step judged, so a
+        # consumer can colour the failing row and count failures. Without
+        # it every telegram looks unevaluated and a tracebuffer reports
+        # "0 telegrams failed" over a screenful of 4.03s.
+        if self._last_emitted is not None:
+            self._last_emitted.eval_ok = result.ok
+            self._last_emitted.eval_reason = result.reason
+        return result
 
     def _remember_response(self, resp) -> None:
         """Record the last response's payload, its code AND its message type.
@@ -1276,6 +1494,50 @@ class SequenceRunner:
             (resp.code_class, resp.code_detail) if resp is not None else None)
         self._last_response_type = (
             resp.msg_type if resp is not None else None)
+        self._emit_response(resp)
+
+    def _emit_response(self, resp, *, secured: Optional[bool] = None) -> None:
+        """Publish a received response to the telemetry bus.
+
+        A timeout (`resp is None`) is emitted too, as an RX record with no
+        code: "nothing arrived" is a first-class observation here, exactly
+        as it is for `_last_response_code`, and a tracebuffer that simply
+        omitted it would show a request with no answer and no explanation.
+        """
+        if not self.events.active:
+            self._last_emitted = None
+            return
+        if resp is None:
+            timeout = Telegram(
+                direction=RX, path=self._last_request_path,
+                eval_reason="no response (timeout)")
+            self._last_emitted = timeout
+            self.events.telegram(timeout)
+            return
+        payload = resp.payload
+        # The response's OWN Content-Format decides how to decode it — a
+        # link-format body must not be run through the CBOR decoder just
+        # because most bodies are CBOR. `_decode_body` falls back to CBOR
+        # when the format is absent, which is the right default here.
+        # May be an int (the numeric CoAP code) on a parsed response, or a
+        # name on a scripted one. Normalise, or a consumer comparing it to
+        # "application/cbor" silently never matches.
+        raw_cf = getattr(resp, "content_format", None)
+        content_format = "" if raw_cf is None else str(raw_cf)
+        received = Telegram(
+            direction=RX,
+            code=f"{resp.code_class}.{resp.code_detail:02d}",
+            msg_type=resp.msg_type, mid=resp.mid, token=resp.token,
+            path=self._last_request_path,
+            raw=payload,
+            body=_decode_body(payload, content_format,
+                              self._last_request_path),
+            content_format=content_format,
+            secured=(self._last_request_secured if secured is None
+                     else secured),
+            peer=resp.source_addr)
+        self._last_emitted = received
+        self.events.telegram(received)
 
 
     def _resolve_path_and_query(self, msg: CoAPMessage) -> str:
@@ -1506,6 +1768,22 @@ class SequenceRunner:
         # Which path this REQUEST took. See F6 — not the same thing as the
         # OUT row's `Secure`, which describes the response.
         self._last_request_secured = oscore_ctx is not None
+
+        if self.events.active:
+            # Emitted BEFORE the send, so a live tracebuffer shows the
+            # request while the tool is still waiting for the answer —
+            # which is the whole value of a live view when a step is about
+            # to time out. `body` is the pre-encryption application
+            # payload; the OSCORE wrapper is a transport concern the client
+            # applies after this point.
+            self.events.telegram(Telegram(
+                direction=TX, code=msg.code, path=path,
+                msg_type=_coap_msg_type(msg.type),
+                raw=body, body=_decode_body(body, msg.cf or "", path),
+                content_format=msg.cf or "",
+                secured=oscore_ctx is not None,
+                sec_context=msg.sec_context or "",
+                peer=(self.coap.host, self.coap.port)))
         if oscore_ctx is not None:
             seq_no_override, seq_no_offset, invalid_tag, kid_override = \
                 self._resolve_oscore_overrides(msg, oscore_ctx)
@@ -1557,9 +1835,12 @@ class SequenceRunner:
                 else:
                     resp = method(path, **kwargs)
 
+        # Set BEFORE _remember_response: the telemetry record built there
+        # labels the response with the path it answers, and reading the
+        # previous request's path would mislabel every telegram by one.
+        self._last_request_path = path
         self._remember_response(resp)
         self._last_planned = msg.content
-        self._last_request_path = path
         if resp is not None and getattr(resp, "echo_value", None):
             self._last_echo = resp.echo_value
         self._remember_transmit_href(path, msg)
