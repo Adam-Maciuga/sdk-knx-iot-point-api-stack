@@ -139,7 +139,7 @@ cd build/linux-fuzz-clang/tests/fuzz
 ./fuzz_coap_parse corpus/coap_parse -max_total_time=300
 ```
 
-New crashes land in `artifacts/`. In CI, `linux-fuzz-coverage` gates on the seed replay and reports source coverage; `linux-fuzz-explore` is a manual longer mutation run.
+New crashes land in `artifacts/`. In CI, `fuzz-seed-replay` gates on the seed replay and reports source coverage; `fuzz-explore` is a manual longer mutation run.
 
 ## Project Structure
 

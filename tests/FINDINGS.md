@@ -967,3 +967,30 @@ Bugs and issues discovered during unit test development.
   itself when it does not observe the DUT's unicast-resolution discovery GET within its window (three of
   its siblings skip the same way in every run). It exercises CoAP unicast discovery, not the mDNS parser.
 - **Status:** RESOLVED.
+
+## F-025: `memcpy` / `memcmp` / `memchr` called with a NULL pointer and length 0 (UBSan nonnull-attribute) - OPEN
+
+- **Found by:** the first local run of the new `eitt-asan-memcheck` CI job script (EITT tier against the
+  `linux-test-asan` DUT, `UBSAN_OPTIONS=print_stacktrace=1`). The conformance tally was identical to
+  gcc (176 passed / 1 failed / 8 skipped / 2 xfailed); the DUT's stderr carried UBSan reports.
+- **Severity:** Low - undefined behaviour per C11 7.24.1p2 (the pointer arguments of the `mem*`
+  functions must be valid even when the length is 0), no observed misbehaviour. Modern compilers do
+  exploit the `nonnull` attribute for optimisation, so a NULL that "works" today is not guaranteed to.
+- **Call sites reported:**
+  - `api/oc_blockwise.c:262` `oc_blockwise_find_buffer()`: `memcmp(query, oc_string(buffer->uri_query),
+    query_len)` with `query == NULL` (no query in the request) and/or an unset `uri_query` string, length 0.
+    Both argument positions were reported.
+  - `messaging/coap/transactions.c:75` `coap_new_transaction()`: `memcpy(t->token, token, token_len)` with
+    `token == NULL`, `token_len == 0` (the comment there says "memcpy can handle 0 bytes", which is the
+    misconception).
+  - `api/oc_ri.c:430`, `:431`, `:464` query parsing: `memchr(start, ..., end - start)` with `start == NULL`
+    and an empty range.
+  - `_deps/tinycbor-src/src/cborencoder.c:290` `append_to_buffer()` via `cbor_encode_byte_string(&a, id,
+    id_len)` in `security/oc_oscore_context.c:520` `oc_oscore_context_derive_param()`: the empty Sender ID
+    is passed as `(NULL, 0)`. Third-party call site; fix on our side by passing a non-NULL pointer to an
+    empty buffer.
+- **Fix sketch:** guard each `mem*` call with `if (len > 0)` or pass a valid pointer for the empty case;
+  the tinycbor one by passing `(const uint8_t*)""` when `id_len == 0`. Then re-run the memcheck job
+  script; UBSan must be silent for it to turn green.
+- **Status:** OPEN. The `*-memcheck` jobs in `.gitlab-ci.yml` are red on this until fixed (they are
+  nightly and `allow_failure`, so the push pipeline is not affected).

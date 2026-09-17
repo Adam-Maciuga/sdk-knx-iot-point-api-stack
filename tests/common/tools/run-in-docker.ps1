@@ -1,7 +1,7 @@
 ﻿<#
 .SYNOPSIS
     Run runtime conformance tests inside a Docker container with veth pairs.
-    Replicates the GitLab CI linux-runtime-test job locally.
+    Replicates the GitLab CI device-test jobs (runtime-gcc, eitt-gcc) locally.
 
 .DESCRIPTION
     By default the current git HEAD is exported with `git archive` and unpacked

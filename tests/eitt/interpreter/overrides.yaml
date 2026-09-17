@@ -112,33 +112,36 @@ accepted_response_codes:
 
 # --- 5.4.2: out of scope, whole suite ----------------------------------------
 # "5.4.2. GET & OBSERVE /.knx" is labelled "(Preliminary - Not for Certification)"
-# in the template's own suite name, and the /.knx Observe feature it exercises is
-# not properly implemented in the stack yet. 6 of its 7 TestCases fail with
-# "response body could not be decoded"; they are NOT a regression — they only
-# became visible when the suite was first run unfiltered.
+# in the template's own suite name. The device's /k Observe path is correct
+# (tests/runtime/test_observe.py covers it); the section is skipped because the
+# template and the EITT tool are not: 5.4.2.2 provokes a read where the expected
+# notification needs a write (tests/docs/eitt-template-5422-step2-read-vs-write.md),
+# and EITT itself cancels the observation after the first notification
+# (tests/docs/eitt-bug-observe-cancel-5422.md), so the section cannot pass on any
+# conforming device until KNX fixes both.
 #
 # 'skip' rather than 'xfail' on purpose: xfail would run them anyway (~2 min of
 # Observe timeouts) and 5.4.2.2d actually PASSES, so it would report XPASS and
 # reintroduce exactly the clutter this is meant to remove. Skip states the real
 # situation — the section is out of scope — and covers all 7 uniformly.
 #
-# REMOVE these once /.knx Observe is implemented; the section then wants a real run.
+# REMOVE these once KNX has fixed the template and the tool; the section then wants a real run.
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.1. Read the last sent S-Mode Message":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2. Observe all outgoing S-Mode Messages":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2b. Deregister observation to S-Mode communication":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2c. Delete observation to S-Mode communication":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2d. Ensure that Notifications are confirmable per default":
   action: skip
@@ -146,11 +149,11 @@ accepted_response_codes:
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2e. Non-Confirmable Notifications can be requested":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.3. Invalid Observe for S-Mode without setting the lifetime parameter":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', /.knx Observe not implemented in the stack yet"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
 
 # --- 5.10: two failures that are properties of the TEST SETUP, not the DUT ---
 # Both are xfail (run, report, don't fail the suite) rather than skip, so if

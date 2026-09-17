@@ -53,7 +53,7 @@ No mocks, no in-process calls. Real UDP network I/O.
 - **Dependencies**: `tests/common/requirements.txt` (cbor2>=5.0, cryptography>=41.0, pytest>=7.0)
 - **Test server**: `tests/common/runtime_test_server.c` — headless C binary linked against full `kisClientServer`
 - **Spec reference**: "08_10_5 KNX IoT Point API Tests v01_01_01_AS"
-- **CI**: GitLab CI `linux-runtime-test` job in `.gitlab-ci.yml`
+- **CI**: GitLab CI `runtime-gcc` job in `.gitlab-ci.yml` (memory-safety variant: `runtime-asan-memcheck`)
 - **Docker image**: `luftd/knx-ci:latest` (GCC 15.2, Python 3.13, IPv6 enabled)
 - **Branch**: `unit_tests_claude`
 
@@ -239,7 +239,7 @@ Repeat until all tests pass, then report summary.
 
 ### Step 6: Update CI
 
-Add the new test file to the explicit file list in `.gitlab-ci.yml` under the `linux-runtime-test` job. The CI uses an explicit file list — files not listed won't run.
+Nothing to do: the `runtime-gcc` job in `.gitlab-ci.yml` runs the whole `tests/runtime/` directory, so a new `test_*.py` file is collected automatically. Only check that `tests/common/fixtures.py::pytest_collection_modifyitems` orders it where its device-state side effects need it.
 
 ---
 
@@ -700,15 +700,21 @@ resp.content_format # int or None
 
 ### CI Job Structure (`.gitlab-ci.yml`)
 
-The `linux-runtime-test` job:
-1. Creates a `veth` pair (`veth-dut` ↔ `veth-test`) for multicast-capable IPv6 networking
-2. Discovers the DUT's link-local address on `veth-dut`
-3. Builds only the `runtime_test_server` target
-4. Installs Python dependencies from `requirements.txt`
-5. Runs pytest with JUnit XML output against an **explicit file list**
-6. Environment: `DUT_IFACE=veth-dut`, `DEVICE_HOST=$DUT_ADDR`, `DEVICE_IFACE=veth-test`, `RUNTIME_TEST_QUIET=1`
+Jobs are named `<tier>-<toolchain or variant>`. The runtime tier runs as `runtime-gcc` (every push,
+`allow_failure`) and as `runtime-asan-memcheck` (nightly, pass = no sanitizer report). Both:
+1. Put the DUT in its own network namespace (`ip netns add dut`), linked to the test tool by a
+   `veth-dut` / `veth-test` pair, each end with a unique local address (`fd11:9988:7766::1` / `::2`).
+   Same setup as `tests/common/tools/run-in-docker.ps1`; see the comment on `.device-network` in the
+   CI file for why a single namespace does not work.
+2. Build only the `runtime_test_server` target.
+3. Install Python dependencies from `tests/common/requirements.txt`.
+4. Run pytest on `tests/runtime/` with JUnit XML output.
+5. Environment: `RUNTIME_TEST_SERVER_PREFIX="ip netns exec dut"`, `DUT_IFACE=veth-dut`,
+   `DEVICE_HOST=fd11:9988:7766::1`, `DEVICE_IFACE=veth-test`, `RUNTIME_TEST_QUIET=1`,
+   `COAP_TIMEOUT=5`, `SERVER_STARTUP_TIMEOUT=30`, `RUNTIME_TEST_TIME_SCALE=0.05`.
 
-**IMPORTANT**: The CI job uses an explicit list of test files. When adding a new test file, you MUST add it to the file list in `.gitlab-ci.yml` or it won't run in CI.
+The EITT tier has the parallel jobs `eitt-gcc` and `eitt-asan-memcheck`; the no-DUT interpreter tests
+run in `harness`.
 
 ### Running Locally (Windows)
 

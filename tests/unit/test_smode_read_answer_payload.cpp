@@ -235,7 +235,8 @@ protected:
       e->ga = nullptr;
       e->ga_len = 0;
       e->cflags = OC_CFLAG_NONE;
-      memset(&e->href, 0, sizeof(e->href));
+      oc_free_string(&e->href); /* release the href set_go() allocated (LeakSanitizer) */
+      e->href = (oc_string_t){ 0 };
     }
   }
 

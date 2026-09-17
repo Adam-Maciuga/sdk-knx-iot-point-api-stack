@@ -88,7 +88,7 @@ endif()
 # ── Seed-corpus regression runs ────────────────────────────────────────────────
 # -runs=0 replays every seed exactly once instead of mutating: libFuzzer draws a
 # random mutation seed per run, which would make a gating job non-deterministic.
-# Mutation is the job of the manual linux-fuzz-explore pipeline.
+# Mutation is the job of the manual fuzz-explore CI job.
 set(KIS_FUZZ_ARTIFACT_DIR ${CMAKE_CURRENT_BINARY_DIR}/artifacts)
 file(MAKE_DIRECTORY ${KIS_FUZZ_ARTIFACT_DIR})
 

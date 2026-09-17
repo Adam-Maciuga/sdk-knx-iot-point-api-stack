@@ -64,6 +64,6 @@ Every test file follows this pattern:
 - **Echo challenges**: `coap_client.py` handles auto-retry (max 3). No special test code needed.
 - **Replay window states**: SYNCED (accept), REPLAY (4.01 no echo), ECHO (4.01 with echo)
 - **Provisioning flow**: conftest does SPAKE2+ → PASE context → provision "RuntimeTest" AT → full OSCORE context → set IID/IA
-- **CI uses veth pairs**: `veth-dut` (server) ↔ `veth-test` (client), NOT just `::1` loopback
-- **CI uses explicit file list**: new test files must be added to `.gitlab-ci.yml`
+- **CI and the Docker runner put the DUT in its own network namespace**: `veth-dut` (DUT, netns `dut`, `fd11:9988:7766::1`) ↔ `veth-test` (client, `::2`), never `::1` loopback and never one shared namespace (the DUT would learn its own address as the client's)
+- **CI jobs are named by tier**: the runtime tier runs as `runtime-gcc` (every push) and `runtime-asan-memcheck` (nightly); both collect the whole `tests/runtime/` directory, so a new file needs no CI change
 - **Test ordering**: `conftest.py` moves reset tests to end (they destroy OSCORE context)
