@@ -1719,11 +1719,88 @@ class CoapClient:
                       collect_timeout: float = 2.0,
                       stop_after_first: bool = False,
                       ) -> list[CoapResponse]:
-        """Send a multicast GET and collect responses."""
-        return self.send_multicast(GET, path, accept=accept, scope=scope,
-                                  interface=interface,
-                                  collect_timeout=collect_timeout,
-                                  stop_after_first=stop_after_first)
+        """Send a multicast GET and collect responses, reassembling Block2.
+
+        A multicast response cannot be continued over multicast: RFC 7959
+        section 5.1 has the client fetch the remaining blocks by UNICAST GET
+        from each responder. With OC_BLOCK_SIZE at 512 the 547-byte
+        `/.well-known/core` body arrives as two blocks, and a client that
+        keeps block 0 only sees a link-format list cut mid-attribute
+        (FINDINGS.md F-021, tracker T12). This client is blockwise-capable
+        on the unicast paths, so it is here as well.
+        """
+        responses = self.send_multicast(GET, path, accept=accept, scope=scope,
+                                        interface=interface,
+                                        collect_timeout=collect_timeout,
+                                        stop_after_first=stop_after_first)
+        return [self._reassemble_multicast_block2(r, path, accept)
+                for r in responses]
+
+    def _reassemble_multicast_block2(self, resp, path: str,
+                                     accept: Optional[int]):
+        """Complete one multicast response's body over unicast.
+
+        The follow-up blocks go to the address the FIRST block came from
+        (`resp.source_addr`): with several responders on the group each
+        needs its own continuation, and the group address would fan the
+        request back out to all of them. `path` carries the query string
+        (`?if=*`, `?rt=...`) exactly as the multicast request did, so the
+        responder filters the follow-up blocks the same way. The returned
+        response keeps the first block's source_addr and content-format;
+        only the payload and the now "more"-cleared Block2 option change.
+        """
+        if (resp is None or not resp.options
+                or BLOCK2_OPTION not in resp.options
+                or not resp.source_addr):
+            return resp
+        _num, more, _size = _decode_block_option(resp.options[BLOCK2_OPTION])
+        if not more:
+            return resp
+
+        host, port = resp.source_addr[0], resp.source_addr[1]
+        # request() sends to (host, port, 0, 0), so a scope id in the
+        # 4-tuple's fourth element would be lost; fold it into the host
+        # string ("fe80::1%3"), which getaddrinfo resolves back to the same
+        # scope. Irrelevant for the ULA the Docker harness uses, it matters
+        # on real hardware answering from a link-local address.
+        if len(resp.source_addr) > 3 and resp.source_addr[3] and "%" not in host:
+            host = f"{host}%{resp.source_addr[3]}"
+        # The transfer is RESTARTED over unicast, not continued: the device
+        # (messaging/coap/engine.c, "processing block2 option") serves a
+        # Block2 request only from the response buffer it stored when it
+        # served block 0 of a unicast request, and a NON multicast answer
+        # leaves no such buffer, so a bare "Block2 num=1" follow-up is
+        # answered with a Reset (seen as `block 1 failed 0.00`). A fresh
+        # unicast GET creates that state; _reassemble_block2 then follows
+        # the remaining blocks as on every other unicast path.
+        _dbg_coap(f"[coap] multicast block2: more=1 from [{host}]:{port}, "
+                  f"restarting the transfer over unicast ({path})")
+        old_host, old_port = self.host, self.port
+        self.host, self.port = host, port
+        try:
+            first = self.request(GET, path, accept=accept)
+            full = (self._reassemble_block2(
+                        first, lambda blk: self.request(GET, path, accept=accept,
+                                                        block2=blk))
+                    if first is not None and first.is_successful else None)
+        finally:
+            self.host, self.port = old_host, old_port
+        if full is None:
+            _dbg_coap(f"[coap] multicast block2: unicast restart to "
+                      f"[{host}]:{port} failed, keeping block 0 only")
+            return resp
+        # _reassemble_block2 builds its result from the LAST block's
+        # response, which arrived over unicast (a CON separate response with
+        # that exchange's mid and token). What the caller evaluates is still
+        # the answer to the MULTICAST query, so keep that message's identity
+        # (NON, its mid/token, its source_addr) and take only the complete
+        # body from the unicast transfer. The template plans "NON 2.05" for
+        # these rows and the runner compares the type.
+        return replace(full, source_addr=resp.source_addr,
+                       msg_type=resp.msg_type, mid=resp.mid, token=resp.token,
+                       content_format=(full.content_format
+                                       if full.content_format is not None
+                                       else resp.content_format))
 
     def multicast_post(self, path: str, payload: bytes = b"",
                        content_format: int = APPLICATION_CBOR,

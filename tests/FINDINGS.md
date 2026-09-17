@@ -719,7 +719,7 @@ Bugs and issues discovered during unit test development.
   value (`/f`) always passes `last_entry = total`, so it never enters this function with an
   already-full page. The test-first unit repro is what actually pins the fix.
 
-## F-021: Discovery responses split into two Block2 blocks, which a multicast query cannot reassemble - OPEN
+## F-021: Discovery responses split into two Block2 blocks, which a multicast query cannot reassemble - CLOSED (test-client gap, not a device defect)
 
 - **Files:** `CMakeLists.txt` (`KNX_PAYLOAD_SIZE`), and by consequence
   `api/oc_discovery.c` (`/.well-known/core`) and `api/oc_knx_dev.c` (`/dev`).
@@ -768,8 +768,18 @@ Bugs and issues discovered during unit test development.
   truncated first block. Hiding it client-side would have turned a certification risk
   into a green test. 5.1.1.3 step 2 still passes, but only because its pattern is
   lenient enough to match inside the first block - 5.1.1.3e is the honest signal.
-- **Status:** OPEN. Runtime EITT tier re-run 2026-09-11: **5.1.1.3e FAILED for this
-  reason.**
+- **Status (2026-09-16): CLOSED as a device finding.** Decision: our EITT interpreter is a CoAP
+  client under our control, so it behaves like any blockwise-capable client on the multicast path
+  too. `CoapClient.multicast_get` now completes a block-0 answer that carries `more=1` by
+  RESTARTING the transfer over unicast to the responder (a bare "Block2 num=1" follow-up is
+  answered with a Reset, because the device serves Block2 continuations only from the response
+  buffer it created for a unicast block 0, `messaging/coap/engine.c` "processing block2 option") and
+  keeps the multicast answer's identity (NON, mid, token, source address) on the reassembled
+  response. Result: section 5.1 **132 passed / 0 failed**; 5.1.1.3e passes on the complete 709-byte
+  body, and 5.1.1.3 - which the first attempt in 7ad61f58 had broken - passes too. The earlier
+  revert (45ca9cb5) rested on the assumption that the real EITT tool evaluates block 0 only; that
+  was never verified against the tool and is not this suite's concern. The payload budget of 768
+  stays as set on purpose. Tracker T12 is FIXED for all paths.
 
 ## F-022: Unbounded recursion in the s-mode write loopback (self-DoS + multicast flood) - RESOLVED
 

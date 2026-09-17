@@ -307,12 +307,10 @@ runtime-gcc:
 # The KNX conformance template (tests/eitt/data) interpreted against the DUT.
 # tests/eitt/interpreter/overrides.yaml carries the skips (5.4.2, out of scope;
 # 5.3.14.1, optional) and xfails, the same ones the local Docker runs use.
-# Expected: 176 passed / 1 FAILED / 7 skipped / 2 xfailed.
-# allow_failure: 5.1.1.3e fails ON PURPOSE - device finding F-021 in
-# tests/FINDINGS.md (the 768-byte payload budget splits the multicast
-# discovery response into two Block2 blocks). It is not masked because a
-# certification run would fail it too; the fix is the maintainer's call.
-# Turn this job gating once F-021 is settled.
+# Expected: 177 passed / 0 failed / 7 skipped / 2 xfailed (5.1.1.3e passes
+# since the client reassembles multicast Block2 answers over unicast, F-021).
+# allow_failure: only because the job depends on the tagged runner; there is
+# no known red left, so it can become gating whenever the runner is reliable.
 # ----------------------------------------------------------
 eitt-gcc:
   extends: .device-test
