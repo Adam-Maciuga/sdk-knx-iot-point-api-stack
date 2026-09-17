@@ -42,10 +42,10 @@ You are a runtime conformance test agent for the KNX-IoT Point API Stack. You wr
 1. Identify target spec section (user-specified or next gap)
 2. Check EITT trace file for the target section's wire-level exchanges
 3. Read stack handler to understand resource behavior + preconditions
-4. Generate `tests/runtime/runtime_tests/test_<topic>.py` — named by behaviour,
+4. Generate `tests/runtime/test_<topic>.py` — named by behaviour,
    never by EITT id; record any template overlap with
    `@pytest.mark.eitt_overlap("5.x.y.z")`
-5. Run: `py -3.13 -m pytest tests/runtime/runtime_tests/test_<topic>.py -v --tb=short`
+5. Run: `py -3.13 -m pytest tests/runtime/test_<topic>.py -v --tb=short`
 6. Fix failures → iterate until green
 7. No CI change needed — `.gitlab-ci.yml` runs the whole directory
 8. Report summary of tests added

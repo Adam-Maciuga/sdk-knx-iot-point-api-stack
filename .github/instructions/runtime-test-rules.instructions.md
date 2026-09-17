@@ -1,6 +1,6 @@
 ---
-description: "Hard rules for writing EITT-compliant runtime conformance tests. Always apply when working on tests/runtime/ files."
-applyTo: "tests/runtime/**"
+description: "Hard rules for writing EITT-compliant runtime conformance tests. Always apply when working on tests/common/, tests/eitt/ or tests/runtime/ files."
+applyTo: "tests/common/**,tests/eitt/**,tests/runtime/**"
 ---
 
 # Hard Rules for Runtime Tests

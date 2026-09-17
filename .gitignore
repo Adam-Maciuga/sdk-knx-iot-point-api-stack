@@ -53,7 +53,7 @@ test_*.log
 test_*.txt
 
 # Generated temp scripts
-tests/runtime/.docker-run.sh
+tests/common/tools/.docker-run.sh
 
 # EITT reference traces (large, not tracked)
 EITT_REFERENCE_PROJECT/

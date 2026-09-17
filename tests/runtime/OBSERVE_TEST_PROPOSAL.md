@@ -2,7 +2,7 @@
 
 > **Status:** IMPLEMENTED. This document originated as the scope/design
 > proposal; the tests it describes now ship in
-> `tests/runtime/runtime_tests/test_observe.py` (19 tests, all passing in Docker CI).
+> `tests/runtime/test_observe.py` (19 tests, all passing in Docker CI).
 > Each `OBS-x` scenario below is annotated with the concrete
 > `test_observe_*` function that implements it. The text is retained as the
 > design rationale and spec-anchor reference.
@@ -13,7 +13,7 @@
 ## 1. Why this document
 
 This document defines the **runtime (wire-behaviour) layer** for CoAP Observe.
-The tests are implemented in `tests/runtime/runtime_tests/test_observe.py`. The stack
+The tests are implemented in `tests/runtime/test_observe.py`. The stack
 gained / reworked the observe path:
 
 - `coap_notify_k_observers()` ΓÇö S-Mode `/k` notification fan-out
@@ -62,7 +62,7 @@ This infrastructure is in place; all scenarios below run against it.
 
 ## 4. Test file
 
-`tests/runtime/runtime_tests/test_observe.py` (sibling of `test_group_comm.py`), with an
+`tests/runtime/test_observe.py` (sibling of `test_group_comm.py`), with an
 EITT-style docstring header listing each scenario and its spec clause.
 
 ---

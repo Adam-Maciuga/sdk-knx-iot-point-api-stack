@@ -31,7 +31,7 @@ Verified by stubbing a `PySide6` that raises `ImportError`: was
 **2. Never hardcode a cwd-relative data path in a test.**
 
 `TEMPLATE = "data/KnxConformanceTestTemplate-PointAPI.xml"` works locally
-(pytest run from `tests/runtime/`) and fails in Docker, which invokes pytest
+(pytest run from the tier's own directory) and fails in Docker, which invokes pytest
 from the **repo root**. Resolve against the test file instead:
 
 ```python
@@ -43,6 +43,7 @@ This cost a full 9-minute Docker run that reported 5 ERRORs — which look
 alarming next to a green suite but were pure path breakage.
 
 **How to apply:** after adding any test file, run it BOTH ways before
-trusting it — `pytest tests/runtime/<tier>/test_x.py` from the repo root, and via
+trusting it — `pytest tests/<tier>/test_x.py` from the repo root (and, for a
+no-DUT tier, from a directory OUTSIDE the repo), and via
 [[feedback-eitt-always-run-in-docker]]. A local-only pass proves nothing
 about the harness. Related: [[project-eitt-gui-plan]].

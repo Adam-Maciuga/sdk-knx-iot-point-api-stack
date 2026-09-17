@@ -5,7 +5,7 @@ Session: May 2026 · Branch: `unit_tests_claude`
 ## Architecture Overview
 
 ### Test Infrastructure
-- **Location**: `tests/runtime/` — Python-based integration tests using pytest
+- **Location**: `tests/runtime/` (hand-written tier) and `tests/eitt/` (template-driven tier), sharing `tests/common/` — Python-based integration tests using pytest
 - **Server binary**: `build/linux-test-gcc/tests/runtime_test_server` (built via `cmake --preset linux-test-gcc`)
 - **CI**: GitLab CI on `itgesellschaft/knxiot-knx-ci:latest` (Python 3.13.5, GCC 15.2.0, IPv6 available)
 - **Server password**: `"2X4W3TE0DFLLS19Y1FCH"` (from `app_get_password()` in the test server)

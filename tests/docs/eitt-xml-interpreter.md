@@ -4,9 +4,9 @@ Session: July 2026 · Branch: TBD
 
 ## Why this exists
 
-The original approach was a hand-written suite (`tests/runtime/runtime_tests/`,
+The original approach was a hand-written suite (`tests/runtime/`,
 176/179 EITT test IDs) built by porting each EITT conformance test from
-`tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml` into Python
+`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml` into Python
 by hand. Every time that XML got a new revision (it is already at
 Version 40 / 2025-12-04) those tests needed re-porting.
 
@@ -14,7 +14,7 @@ Version 40 / 2025-12-04) those tests needed re-porting.
 is the only runtime conformance suite. Its behaviour is derived from the
 XML at collection time, so an XML revision costs nothing to adopt.
 
-`tests/runtime/eitt/` is a from-scratch interpreter that reads the
+`tests/eitt/interpreter/` is a from-scratch interpreter that reads the
 XML directly and, via `pytest_generate_tests`
 (`test_eitt.py`), generates one real pytest test item per
 `TestCase` **at collection time** — nothing is written to disk, nothing
@@ -39,21 +39,21 @@ tests/runtime/
 
 | File | Purpose |
 |------|---------|
-| `tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml` | The EITT conformance-test-tool project file (source of truth for test content) |
-| `tests/runtime/data/KnxConformanceTestTemplate-PointAPI.py` | The original EITT Python hook script (source of truth for `EvalFn`/`PatchXxxFn` behavior — ported, not executed directly) |
-| `tests/runtime/eitt/model.py` | XML parser → dataclasses mirroring the document hierarchy |
-| `tests/runtime/eitt/variables.py` | `#VAR` substitution + the Fields-scoped shared variable table |
-| `tests/runtime/eitt/content_match.py` | The `<Content>` matching mini-language |
-| `tests/runtime/eitt/hooks.py` | Ported `EvalFn`/`EvalResponseFn`/`PatchXxxFn` callbacks |
-| `tests/runtime/eitt/provisioning.py` | The `"@@[pah..."` comment-command engine |
-| `tests/runtime/eitt/resource_schema.py` | Per-resource-path JSON↔CBOR key mapping (see below — this is the piece EITT itself carries internally that nothing in either repo documents centrally) |
-| `tests/runtime/eitt/spake_flow.py` | Real SPAKE2+ handshake (bypasses the XML's own placeholder text) |
-| `tests/runtime/eitt/overrides.py` | Maintainer exceptions (manual-interaction / not-yet-reliable TestCases) |
-| `tests/runtime/eitt/runner.py` | The sequence player tying all of the above together |
-| `tests/runtime/eitt/overrides.yaml` | The actual override entries (see "Overrides" below) |
-| `tests/runtime/eitt_tests/test_eitt.py` | `pytest_generate_tests` hook + the single `test_eitt(eitt_case, ...)` test function |
-| `tests/runtime/data/traces/5_1.xml` … `5_10.xml` | Real EITT-tool-produced trace logs from actual runs against this v40 XML, one per major section — ground truth for cross-checking any inferred behavior (see "Trace-log validation" below) |
-| `tests/runtime/data/2026-02-25_09-36_EittConformanceTestVariableValues.json` | Every `Fields` default value EITT has actually used, across every collection/XML-version it has ever loaded — useful if a `Fields` `DefaultValue` in the XML ever looks stale or wrong |
+| `tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml` | The EITT conformance-test-tool project file (source of truth for test content) |
+| `tests/eitt/data/KnxConformanceTestTemplate-PointAPI.py` | The original EITT Python hook script (source of truth for `EvalFn`/`PatchXxxFn` behavior — ported, not executed directly) |
+| `tests/eitt/interpreter/model.py` | XML parser → dataclasses mirroring the document hierarchy |
+| `tests/eitt/interpreter/variables.py` | `#VAR` substitution + the Fields-scoped shared variable table |
+| `tests/eitt/interpreter/content_match.py` | The `<Content>` matching mini-language |
+| `tests/eitt/interpreter/hooks.py` | Ported `EvalFn`/`EvalResponseFn`/`PatchXxxFn` callbacks |
+| `tests/eitt/interpreter/provisioning.py` | The `"@@[pah..."` comment-command engine |
+| `tests/eitt/interpreter/resource_schema.py` | Per-resource-path JSON↔CBOR key mapping (see below — this is the piece EITT itself carries internally that nothing in either repo documents centrally) |
+| `tests/eitt/interpreter/spake_flow.py` | Real SPAKE2+ handshake (bypasses the XML's own placeholder text) |
+| `tests/eitt/interpreter/overrides.py` | Maintainer exceptions (manual-interaction / not-yet-reliable TestCases) |
+| `tests/eitt/interpreter/runner.py` | The sequence player tying all of the above together |
+| `tests/eitt/interpreter/overrides.yaml` | The actual override entries (see "Overrides" below) |
+| `tests/eitt/test_eitt.py` | `pytest_generate_tests` hook + the single `test_eitt(eitt_case, ...)` test function |
+| `tests/eitt/data/traces/5_1.xml` … `5_10.xml` | Real EITT-tool-produced trace logs from actual runs against this v40 XML, one per major section — ground truth for cross-checking any inferred behavior (see "Trace-log validation" below) |
+| `tests/eitt/data/2026-02-25_09-36_EittConformanceTestVariableValues.json` | Every `Fields` default value EITT has actually used, across every collection/XML-version it has ever loaded — useful if a `Fields` `DefaultValue` in the XML ever looks stale or wrong |
 
 ## Document hierarchy (model.py)
 
@@ -139,7 +139,7 @@ happens to share the same `.py` file).
 a future XML revision introducing a new hook must fail collection
 loudly, not silently skip the step.
 
-## EITT reference files (tests/runtime/data/) — consult these FIRST
+## EITT reference files (tests/eitt/data/) — consult these FIRST
 
 Copied from a real EITT 4.4 installation (`C:\Users\Public\Documents\
 Eitt44\CfgFiles`) 2026-07-24. These are authoritative: they are the
@@ -271,7 +271,7 @@ before the shared key exists.
 ## JSON↔CBOR key mapping (resource_schema.py)
 
 **EITT's own key table is now in the repo** — see "EITT reference files"
-above. `tests/runtime/data/EITT_KnxPointAPIResourceKeyMaps.xml` (copied from the
+above. `tests/eitt/data/EITT_KnxPointAPIResourceKeyMaps.xml` (copied from the
 EITT installation at `CfgFiles/PointAPIResourceKeyMap.xml`, byte-
 identical) is the authoritative source: EITT resolves a telegram's
 human-readable JSON `<Content>` to wire CBOR using exactly these tables.
@@ -303,7 +303,7 @@ actually used rather than trusting a reverse lookup.
 
 Historical note: every key originally derived here by hand — from
 `knx-iot-docs`, the traces, and `cbor2.dumps(...)` calls in
-`tests/runtime/runtime_tests/`/`conftest.py` — was later confirmed to match
+`tests/runtime/`/`conftest.py` — was later confirmed to match
 EITT's file exactly (27/27 default, 15/15 spake, zero mismatches). The
 inference method was sound, but it was slow and left gaps for keys we
 had not yet had reason to hit (`secFlags`, `pkgq`, `fault`, `g`,
@@ -346,13 +346,13 @@ incorrect `{0: entry}`-for-single-entry assumption).
 
 The user has access to the real EITT tool and provided 9 real,
 EITT-produced trace logs from actual runs against this v40 XML —
-`tests/runtime/data/traces/5_1.xml` through `5_10.xml` (one per
+`tests/eitt/data/traces/5_1.xml` through `5_10.xml` (one per
 major section), each an XML `<TraceBuffer>` of every `<Comment>`/
 `<CoAPMessage>`/`<DnsMessage>` EITT actually sent/received, with real
 resolved attribute values (`RawContent` = actual wire hex bytes,
 `EvalResult` = what EITT itself concluded, real `SeqNum`/`Mid`/`Token`)
 where the template XML only ever has placeholders. Also provided:
-`tests/runtime/data/2026-02-25_09-36_EittConformanceTestVariableValues.json`
+`tests/eitt/data/2026-02-25_09-36_EittConformanceTestVariableValues.json`
 — a dump of every `Fields` default value EITT actually used, across
 every collection/version EITT has ever loaded (useful as a
 cross-reference if a `Fields` `DefaultValue` in the XML ever looks
@@ -416,12 +416,12 @@ General EITT knowledge, and it changes how the template should be read.
 There are three layers, not one:
 
 1. **The conformance test template** —
-   `tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml`. Ships with EITT
+   `tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml`. Ships with EITT
    and is **READ-ONLY**. Its `#VAR` tokens and `Fields`/`DefaultValue`
    entries are the *slots*, and its defaults are deliberately
    conservative — they are not necessarily what any real run uses.
 2. **The variable-values JSON** —
-   `tests/runtime/data/2026-02-25_09-36_EittConformanceTestVariableValues.json`.
+   `tests/eitt/data/2026-02-25_09-36_EittConformanceTestVariableValues.json`.
    Layered itself: a `GLOBAL` block, then the matching test-suite block
    (keyed by GUID + `Name` + `Version` — ours is **V40** of
    "8/10/5 - KNX IoT Point API Tests", which is exactly the
@@ -437,7 +437,7 @@ There are three layers, not one:
 
 We mirror this with `VariableTable.for_collection(project, name,
 overrides=...)`: layer 1 is the template's Fields defaults, and layers
-2/3 are the `variables:` section of `tests/runtime/eitt/overrides.yaml`.
+2/3 are the `variables:` section of `tests/eitt/interpreter/overrides.yaml`.
 
 **Diffing the JSON against the template defaults is a real bug-finder.**
 All 112 variables appear on both sides; 10 disagree, and the split is
@@ -631,7 +631,7 @@ the telegrams); when the direction of a group message matters, check
 
 Some EITT steps assume a human pushes a button or restarts the DUT —
 the XML's only hint is things like `Cycles="*"` plus a narrative
-"trigger manually" comment. `tests/runtime/eitt/overrides.yaml`, keyed
+"trigger manually" comment. `tests/eitt/interpreter/overrides.yaml`, keyed
 by `TestCase.qualified_name`, supports three actions:
 
 - `trigger` — call a DUT test-only control endpoint instead of waiting
@@ -1201,7 +1201,7 @@ runtime conformance suite.
    `/a/swu`, `/auth/at` entries, `/test/trigger`). Every new section
    will surface `KeyError`s for unmapped paths — this is by design
    (loud, not silent), but expect real work per section. The traces in
-   `tests/runtime/data/traces/` are the fastest way to cross-check a
+   `tests/eitt/data/traces/` are the fastest way to cross-check a
    new schema entry's `RawContent` against real wire bytes before
    trusting it.
 4b. **`@@[pahsnc` — WIRED UP (2026-07-25 session).** 21 uses. It was

@@ -50,8 +50,8 @@ No mocks, no in-process calls. Real UDP network I/O.
 
 - **Language**: Python 3.10+ with pytest
 - **Location**: `tests/runtime/` at the stack root
-- **Dependencies**: `tests/runtime/requirements.txt` (cbor2>=5.0, cryptography>=41.0, pytest>=7.0)
-- **Test server**: `tests/runtime/runtime_test_server.c` — headless C binary linked against full `kisClientServer`
+- **Dependencies**: `tests/common/requirements.txt` (cbor2>=5.0, cryptography>=41.0, pytest>=7.0)
+- **Test server**: `tests/common/runtime_test_server.c` — headless C binary linked against full `kisClientServer`
 - **Spec reference**: "08_10_5 KNX IoT Point API Tests v01_01_01_AS"
 - **CI**: GitLab CI `linux-runtime-test` job in `.gitlab-ci.yml`
 - **Docker image**: `luftd/knx-ci:latest` (GCC 15.2, Python 3.13, IPv6 enabled)
@@ -210,7 +210,7 @@ it covers: `test_<topic>.py` — never for the EITT id.
 
 ### Step 3: Generate the Test File
 
-Create `tests/runtime/runtime_tests/test_<topic>.py` following the conventions below.
+Create `tests/runtime/test_<topic>.py` following the conventions below.
 
 ### Step 4: Run Tests
 
@@ -218,7 +218,7 @@ Create `tests/runtime/runtime_tests/test_<topic>.py` following the conventions b
 # Windows (local)
 cd d:\Repos\knx-iot-point-api-stack
 $env:RUNTIME_TEST_SERVER="build\windows-test-gcc\tests\runtime_test_server.exe"
-py -3.13 -m pytest tests/runtime/runtime_tests/test_<topic>.py -v --tb=short
+py -3.13 -m pytest tests/runtime/test_<topic>.py -v --tb=short
 ```
 
 If the server isn't built yet:
@@ -722,10 +722,10 @@ $env:RUNTIME_TEST_SERVER="build\windows-test-gcc\tests\runtime_test_server.exe"
 py -3.13 -m pytest tests/runtime/ -v --tb=short
 
 # Run a single test file
-py -3.13 -m pytest tests/runtime/runtime_tests/test_security.py -v --tb=short
+py -3.13 -m pytest tests/runtime/test_security.py -v --tb=short
 
 # Run a single test
-py -3.13 -m pytest tests/runtime/runtime_tests/test_security.py::TestWriteAccessToken::test_write_at_and_verify -v
+py -3.13 -m pytest tests/runtime/test_security.py::TestWriteAccessToken::test_write_at_and_verify -v
 ```
 
 ---
@@ -734,11 +734,11 @@ py -3.13 -m pytest tests/runtime/runtime_tests/test_security.py::TestWriteAccess
 
 ### Active test files
 
-The whole `tests/runtime/runtime_tests/` directory is collected by pytest and
+The whole `tests/runtime/` directory is collected by pytest and
 run by CI, so a new file needs no CI change. To see the current list:
 
 ```bash
-ls tests/runtime/runtime_tests/test_*.py   # all active test files
+ls tests/runtime/test_*.py   # all active test files
 ```
 
 Naming convention: `test_<topic>.py`, named for the behaviour under test —

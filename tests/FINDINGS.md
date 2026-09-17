@@ -63,7 +63,7 @@ Bugs and issues discovered during unit test development.
   only the Update flag set (Write cleared), contrary to the specification.
 - **Found by:** Spec-vs-code review of the `/k` receive handler while extending
   the runtime group-communication tests; probed by the additional runtime test
-  `test_answer_updates_update_only_go` in `tests/runtime/runtime_tests/test_group_comm.py`
+  `test_answer_updates_update_only_go` in `tests/runtime/test_group_comm.py`
   (cflag=0x80, Update-only). The EITT case `5.4.1.10` could not distinguish the
   deviation because it provisions cflag=0x90 (Write + Update), which updates
   under both interpretations.
@@ -143,7 +143,7 @@ Bugs and issues discovered during unit test development.
   `const bool more_request_needed = query_parameter_key_value_pair_matches >= query_ps;`
 - **Severity:** Medium - breaks the pagination contract (EITT 5.10.1.6-style `p.next` following) whenever the number of matching resources is an exact multiple of the requested page size (`ps`); with `ps=1` this triggers on literally every page, so the client's final "follow the link" request always gets `4.00 Bad Request`.
 - **Found by:** New runtime test `test_wellknown_core_pagination_follows_next_links_over_all_fbs` in
-  `tests/runtime/runtime_tests/test_discovery_pagination.py` (`TestDiscoveryPaginationManyFunctionalBlocks`, test ID
+  `tests/runtime/test_discovery_pagination.py` (`TestDiscoveryPaginationManyFunctionalBlocks`, test ID
   5.1.1.900 -- local extra, not an official EITT clause), which paginates
   `GET /.well-known/core?rt=*&ps=1` page by page, following each `p.next` link, over the real DUT's core
   resources + application resources/functional blocks (`?rt=*` pulls the latter into scope, see the
@@ -226,7 +226,7 @@ Bugs and issues discovered during unit test development.
   records but no TXT record at all, and answered no TXT queries. RFC 6763 clause 6 states that
   *every* DNS-SD service instance must have a TXT record, using a single zero-length string when
   there is no key/value data to convey.
-- **Why it surfaced only now:** `tests/runtime/requirements.txt` pinned `zeroconf>=0.100.0` with no
+- **Why it surfaced only now:** `tests/common/requirements.txt` pinned `zeroconf>=0.100.0` with no
   upper bound, so every CI and Docker run installed the newest release from PyPI. Version 0.151.3
   tightened `ServiceInfo._is_complete` to `bool(self._txt_seen and (ipv4 or ipv6))`, enforcing the
   RFC 6763 clause 6 requirement. Older versions considered an instance complete without a TXT
@@ -260,7 +260,7 @@ Bugs and issues discovered during unit test development.
   test expectations were modified. The `state_sync` snapshot tests, which assert exact TXT/SP
   content, still report `sp=None` for a non-sleepy device, confirming the empty TXT record is parsed
   as *absence of an SP key* rather than as a spurious value, while `sp='300'` is still observed
-  after setting a sleep period. `tests/runtime/requirements.txt` now pins
+  after setting a sleep period. `tests/common/requirements.txt` now pins
   `zeroconf>=0.151.3,<1.0` so the conformance level being tested against is explicit and the same
   silent drift cannot recur.
 
@@ -382,7 +382,7 @@ Bugs and issues discovered during unit test development.
   constant it protects and observing the named failure.
 - **Pinned by:** `CoapHeaderBudgets` (4), `CoapMessageSize` (3) and
   `CoapSerializationModes` (4) in `test_oc_buffer_settings.cpp`, plus
-  `tests/runtime/runtime_tests/test_coap_header_budget.py` (9), which drives real CoAP/OSCORE
+  `tests/runtime/test_coap_header_budget.py` (9), which drives real CoAP/OSCORE
   exchanges with every KNX URI option at its maximum. An under-budgeted frame makes
   `coap_oscore_serialize_message()` return 0 and null `coap_pkt->buffer`, i.e. the
   message is dropped **silently** - which is why the runtime coverage exists.
@@ -747,7 +747,7 @@ Bugs and issues discovered during unit test development.
   is that a multicast discovery query returns a body cut mid link-format, e.g. ending
   `...;if="urn:knx:if.p urn:kn`, and an `if=` wildcard assertion over the full list
   fails.
-- **What the certified reference does:** `tests/runtime/data/traces/5_1.xml` **TelNo 28**
+- **What the certified reference does:** `tests/eitt/data/traces/5_1.xml` **TelNo 28**
   is the reference device's answer to the same multicast query - a single `NON` 2.05
   `application/link-format` datagram carrying the whole **547-byte** body, with **no
   Block2 and no Size2 option**. So the certified behaviour is one datagram, not two

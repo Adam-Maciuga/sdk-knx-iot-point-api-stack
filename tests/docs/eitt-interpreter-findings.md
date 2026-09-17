@@ -60,7 +60,7 @@ on anything in this layer.
 
 ### Run the suite in Docker, or the numbers are meaningless
 
-**Always** `.\tests\runtime\tools\run-in-docker.ps1` (add `-IncludeUncommitted`
+**Always** `.\tests\common\tools\run-in-docker.ps1` (add `-IncludeUncommitted`
 for working-tree changes). Running `pytest test_eitt.py` directly on the
 Windows host **silently produces a completely different result**: there is no
 veth pair and no `dut` netns, so multicast/group traffic has nowhere to go.

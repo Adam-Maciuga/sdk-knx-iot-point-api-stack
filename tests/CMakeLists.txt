@@ -2,7 +2,9 @@
 #
 # Layout:
 #   tests/unit/     — Google Test unit tests (C++ exercising C functions)
-#   tests/runtime/  — Python/pytest network-level conformance tests
+#   tests/common/   — shared Python test infrastructure + the DUT's C source
+#   tests/eitt/     — EITT template-driven conformance tier (pytest)
+#   tests/runtime/  — hand-written network-level conformance tier (pytest)
 #   tests/fuzz/     — libFuzzer harnesses for the pre-auth parsers (clang only)
 
 cmake_minimum_required(VERSION 3.21)
@@ -18,9 +20,15 @@ endif()
 
 # ── Runtime test server ────────────────────────────────────────────────────────
 # Headless CoAP device for network-level conformance tests (like EITT).
-# NOT a GTest binary — started by the Python test suite in tests/runtime/.
+# NOT a GTest binary — started by the Python fixtures in tests/common/,
+# which both pytest tiers (tests/eitt, tests/runtime) share.
 # Only built on platforms with real networking (not mock port).
-add_executable(runtime_test_server runtime/runtime_test_server.c)
+#
+# The output name and location are unchanged by the tier split:
+# build/<preset>/tests/runtime_test_server, which is what
+# tests/common/fixtures.py searches for and what the Docker runner and CI
+# pass in RUNTIME_TEST_SERVER.
+add_executable(runtime_test_server common/runtime_test_server.c)
 
 target_include_directories(runtime_test_server PRIVATE
     ${PROJECT_SOURCE_DIR}

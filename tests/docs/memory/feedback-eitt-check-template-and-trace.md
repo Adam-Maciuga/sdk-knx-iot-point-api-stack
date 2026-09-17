@@ -9,7 +9,7 @@ metadata:
 ---
 
 **The user has asked for this to be remembered HARD.** Applies to the EITT
-dynamic interpreter (`knx-iot-point-api-stack`, `tests/runtime/eitt/`, see
+dynamic interpreter (`knx-iot-point-api-stack`, `tests/eitt/interpreter/`, see
 [[eitt-xml-interpreter-project]]) in TWO situations:
 
 - **Starting a new test category** (a new 5.x collection/suite) — do the whole
@@ -19,13 +19,13 @@ dynamic interpreter (`knx-iot-point-api-stack`, `tests/runtime/eitt/`, see
   theorising and before calling anything a device gap.
 
 ## 1. The template XML
-`tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml`. Read the exact
+`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml`. Read the exact
 TestCase. Check `Activate="yes"` vs `"no"` on EVERY CoAPMessage/Comment — a
 `Activate="no"` or `<!-- -->` block is invisible to real EITT and to the parser.
 Never assume XML text is "live".
 
 ## 2. The corresponding trace
-`tests/runtime/data/traces/5_X.xml` — recorded real EITT runs against real
+`tests/eitt/data/traces/5_X.xml` — recorded real EITT runs against real
 hardware. This is GROUND TRUTH for wire bytes (`RawContent`), addressing
 (`DestinationAddress`/`LocaIP`), `Mid`/`Token`, timing, and `EvalResult`.
 Decode `RawContent` rather than guessing the CBOR.

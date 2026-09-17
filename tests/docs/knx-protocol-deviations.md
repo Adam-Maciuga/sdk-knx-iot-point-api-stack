@@ -1,6 +1,6 @@
 # KNX-IoT vs. the base protocols — what differs, and why we can't use stock libraries
 
-**Purpose:** when fixing `tests/runtime/transport/`, checking what a reference
+**Purpose:** when fixing `tests/common/transport/`, checking what a reference
 library (aiocoap, its OSCORE module, python-zeroconf) does is a good instinct —
 they are mature and their behaviour is usually right. But KNX-IoT deviates from
 the base RFCs in specific, deliberate places, and copying a library 1:1 there

@@ -369,7 +369,7 @@ INTEGRATION (concrete reasons):
   in the 2026-09-11 runtime-tier cleanup (replaced by EITT template case 5.4.1.10,
   eitt tier), while `test_answer_updates_update_only_go` — the update-only GO
   case the template does not have — stays in
-  `tests/runtime/runtime_tests/test_group_comm.py`.
+  `tests/runtime/test_group_comm.py`.
 - `oc_core_knx_spake_post_handler`, `oc_core_knx_spake_separate_post_handler`,
   `oc_spake2plus_init_data` — SPAKE2+ crypto exchange, OSCORE auth-token store
   writes, separate-response delayed callbacks and the brute-force timer.
@@ -473,7 +473,7 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 
 | Function | Status |
 |----------|--------|
-| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/runtime_tests/test_security.py` |
+| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
 | increment_ssn_in_context (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |

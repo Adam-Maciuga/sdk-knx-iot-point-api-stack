@@ -1,6 +1,6 @@
 ---
 name: project-eitt-gui-plan
-description: "PySide6 GUI replacing EITT — phases 0 (telemetry bus) and 1 (read-only viewer) IMPLEMENTED 2026-07-27; phases 2-4 still plan only. Plan at tests/docs/eitt-gui-plan.md, usage at tests/runtime/gui/README.md"
+description: "PySide6 GUI replacing EITT — phases 0 (telemetry bus) and 1 (read-only viewer) IMPLEMENTED 2026-07-27; phases 2-4 still plan only. Plan at tests/docs/eitt-gui-plan.md, usage at tests/eitt/gui/README.md"
 metadata: 
   node_type: memory
   type: project
@@ -14,9 +14,9 @@ front-end**, not only a viewer. Planned 2026-07-26; **phases 0 and 1 built
 
 | Phase | State | Where |
 | --- | --- | --- |
-| 0 — structured telemetry | **done** | `tests/runtime/eitt/events.py` |
-| 1 — read-only viewer | **done** | `tests/runtime/gui/` |
-| 1b — copy-over + editable copies | **done** | `tests/runtime/eitt/project_copy.py` |
+| 0 — structured telemetry | **done** | `tests/eitt/interpreter/events.py` |
+| 1 — read-only viewer | **done** | `tests/eitt/gui/` |
+| 1b — copy-over + editable copies | **done** | `tests/eitt/interpreter/project_copy.py` |
 | 2 — LIVE tracebuffer (not a saved-trace viewer) | **done** | `gui/trace.py`, `gui/trace_view.py` |
 | 3 — runner front-end | **done** | `gui/runner_thread.py` |
 | 4 — `@@!` operator modals | **done** | `gui/main_window.py` |
@@ -31,7 +31,7 @@ goes on the wire**: nine TestCases that previously emitted no discovery
 traffic now send six telegrams each. 5.1.1.x is *about* discovery, so this
 could plausibly shift a result. **Run Docker before building further.**
 
-194 headless tests pass, all under `tests/runtime/harness_tests/`
+194 headless tests pass, all under `tests/eitt/harness_tests/`
 (`test_gui_*.py`, `test_events.py`,
 `test_project_copy.py`, `test_comment_scheme.py`) — none need a DUT.
 
@@ -75,14 +75,14 @@ before agreeing OR disagreeing. Both times the measurement settled it in one
 command and contradicted what I had inferred from aggregates.
 
 Plan: `tests/docs/eitt-gui-plan.md`. Usage/design constraints:
-`tests/runtime/gui/README.md`. Launch with `python -m gui.eitt_gui` from
-`tests/runtime/`.
+`tests/eitt/gui/README.md`. Launch with `python -m gui.eitt_gui` from
+`tests/eitt/` (since the 2026-09-14 tier separation; `eitt_gui.py` puts
+`tests/common/` on `sys.path` itself so `transport` and `fixtures` resolve).
 
 **Verified at 199 passed / 9 skipped / 2 xfailed in 8:47 (Docker).** The
 177-case conformance suite is unchanged by phase 0; the extra passes are new
 headless tests. Run them without a DUT:
-`pytest harness_tests/test_events.py harness_tests/test_comment_scheme.py
-harness_tests/test_gui_models.py`.
+`pytest tests/eitt/harness_tests -q`.
 
 ## What phase 0 actually gives you
 
@@ -101,7 +101,7 @@ returns `@` for everything.
 
 ## Traps hit while building it — don't repeat
 
-- **Qt must NOT go in `tests/runtime/requirements.txt`.** That file is what
+- **Qt must NOT go in `tests/common/requirements.txt`.** That file is what
   the Docker conformance image installs. GUI deps live in
   `gui/requirements.txt`; nothing under `gui/` may be imported by the suite.
 - **`pytest.importorskip` is not enough for an optional dep.** It only

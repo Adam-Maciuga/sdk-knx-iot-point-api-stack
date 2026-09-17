@@ -2,9 +2,11 @@
 
 > **1460 unit tests** (53 files) + **626 runtime tests** across three tiers = **2086 total**
 >
-> Runtime tiers (all under `tests/runtime/`): **eitt** 187 (generated from the
-> conformance template) + **runtime** 245 (hand-written, 19 files) + **harness**
-> 194 (interpreter/GUI, no DUT). The runtime tier was 385 until 2026-09-11, when
+> Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
+> 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
+> **runtime** 245 in `tests/runtime/` (hand-written, 19 files) + **harness**
+> 194 in `tests/eitt/harness_tests/` (interpreter/GUI, no DUT). The shared
+> infrastructure they build on is `tests/common/`. The runtime tier was 385 until 2026-09-11, when
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
@@ -1088,7 +1090,7 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess - no mocks.
-19 `test_*.py` files in `tests/runtime/runtime_tests/`, 245 tests collected
+19 `test_*.py` files in `tests/runtime/`, 245 tests collected
 (with parametrize), plus the generated eitt tier and the DUT-less harness tier.
 The per-section headers below count unique test functions; the extra collected
 items come from parametrized cases in `test_device_resources.py` and
@@ -1097,9 +1099,9 @@ items come from parametrized cases in `test_device_resources.py` and
 ### Runtime tier cleanup (2026-09-11)
 
 The rows below marked *(replaced by the EITT template case — eitt tier)* are
-tests that were **deleted** from `runtime_tests/`. Their requirement is
+tests that were **deleted** from the runtime tier. Their requirement is
 exercised by a `TestCase` in
-`tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml`, which the eitt
+`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml`, which the eitt
 tier runs directly, so keeping a hand-written copy meant maintaining the same
 assertion twice. 135 test functions (143 collected items) went; the per-test
 mapping to EITT case ids is in the commit "runtime tier: drop template-covered
@@ -1109,11 +1111,11 @@ tests, mark overlaps", and the classification behind it is in
 The section headers in Part 2 still give the **pre-cleanup** counts, so that
 this catalog keeps documenting what each EITT case is checked by, wherever it
 now runs. For the live count of what the runtime tier collects today, run
-`pytest tests/runtime/runtime_tests --collect-only -q`.
+`pytest tests/runtime --collect-only -q`.
 
 Tests that survived but overlap a template case — because they assert
 materially more than it does — carry `@pytest.mark.eitt_overlap(<id>)`; list
-them with `pytest tests/runtime/runtime_tests -m eitt_overlap --collect-only -q`.
+them with `pytest tests/runtime -m eitt_overlap --collect-only -q`.
 
 **DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
 
@@ -1780,7 +1782,7 @@ deterministically (`test_srv_resolution_of_unconfigured_device`, `test_aaaa_reso
 `test_full_chain_by_serial_when_configured`, `test_full_chain_by_individual_address`,
 `test_full_chain_via_programming_mode_subtype`), all with
 `Could not resolve service info for <sn>._knx._udp.local.`. The cause was not a
-code regression: `tests/runtime/requirements.txt` pinned `zeroconf>=0.100.0` with
+code regression: `tests/common/requirements.txt` pinned `zeroconf>=0.100.0` with
 no upper bound, so runs silently picked up 0.151.3, which enforces RFC 6763
 clause 6 by requiring a TXT record before a service is considered resolvable. The
 DUT only emitted a TXT record when a sleep period was configured. The responder

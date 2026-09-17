@@ -1,6 +1,6 @@
 ---
 name: feedback-check-reference-libs-then-knx-deviations
-description: "When fixing tests/runtime/transport/, check what aiocoap / zeroconf / the reference OSCORE lib does FIRST — then check knx-protocol-deviations.md for where KNX deliberately differs."
+description: "When fixing tests/common/transport/, check what aiocoap / zeroconf / the reference OSCORE lib does FIRST — then check knx-protocol-deviations.md for where KNX deliberately differs."
 metadata: 
   node_type: memory
   type: feedback
@@ -9,7 +9,7 @@ metadata:
 ---
 
 **Workflow the user asked for (2026-07-26) when touching
-`tests/runtime/transport/` in knx-iot-point-api-stack:**
+`tests/common/transport/` in knx-iot-point-api-stack:**
 
 1. **Check what the reference library does.** For `coap_client.py` that is
    **aiocoap**; for `knx_oscore.py` aiocoap's OSCORE module; for

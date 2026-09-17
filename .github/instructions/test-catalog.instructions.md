@@ -1,6 +1,6 @@
 ---
 description: "Always keep tests/TEST_CATALOG.md up-to-date when adding, removing, or renaming tests."
-applyTo: "tests/unit/**,tests/runtime/**"
+applyTo: "tests/unit/**,tests/common/**,tests/eitt/**,tests/runtime/**"
 ---
 
 `tests/TEST_CATALOG.md` is the single source of truth for the test inventory.

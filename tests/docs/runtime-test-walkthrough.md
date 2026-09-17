@@ -203,10 +203,10 @@ exits, `oc_main_shutdown()` cleans up.
 
 | File | Role |
 |---|---|
-| `tests/runtime/conftest.py` | Fixtures: server lifecycle, SPAKE2+, OSCORE provisioning |
-| `tests/runtime/runtime_test_server.c` | Headless C server running the full KNX stack |
+| `tests/common/fixtures.py` | Fixtures: server lifecycle, SPAKE2+, OSCORE provisioning |
+| `tests/common/runtime_test_server.c` | Headless C server running the full KNX stack |
 | `tests/runtime/coap_client.py` | Pure-Python CoAP client with OSCORE support |
 | `tests/runtime/knx_oscore.py` | OSCORE context: encrypt/decrypt, key derivation |
 | `tests/runtime/knx_spake2plus.py` | SPAKE2+ client for password-authenticated key exchange |
-| `tests/runtime/run-in-docker.ps1` | Runs the full suite in Docker with veth pairs |
-| `tests/runtime/runtime_tests/test_*.py` | The actual test cases, named by behaviour |
+| `tests/common/tools/run-in-docker.ps1` | Runs the full suite in Docker with veth pairs |
+| `tests/runtime/test_*.py` | The actual test cases, named by behaviour |

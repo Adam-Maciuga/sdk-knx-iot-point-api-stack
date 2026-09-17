@@ -10,28 +10,35 @@ metadata:
 
 The EITT XML dynamic interpreter (see [[eitt-xml-interpreter-project]]) lives on branch `feature/runtime_tests_v2` in `d:\Repos\knx-iot-point-api-stack`. **Do NOT commit or push unless asked** — the user reviews first.
 
-**SUPERSEDED 2026-09-10 — see [[project-runtime-test-tiers]].** The hand-written `test_5_*.py` suite was deleted by commit `3a5e2d4a`, which the user later called a mistake; upstream's 349 hand-written tests are restored (verbatim, not yet importable) and will become the "runtime" tier next to this interpreter tier. `tests/runtime/eitt_tests/test_eitt.py` still generates one pytest item per EITT TestCase from the template at collection time.
+**SUPERSEDED 2026-09-10 — see [[project-runtime-test-tiers]].** The hand-written `test_5_*.py` suite was deleted by commit `3a5e2d4a`, which the user later called a mistake; upstream's 349 hand-written tests are restored (verbatim, not yet importable) and will become the "runtime" tier next to this interpreter tier. `tests/eitt/test_eitt.py` still generates one pytest item per EITT TestCase from the template at collection time.
 
-**Layout** (three test tiers since 2026-09-11; `tests/eitt/` no longer exists).
-Only the test modules live in the tier directories — every piece of shared
-infrastructure stays at the `tests/runtime/` level:
+**Layout** (the eitt and runtime tiers became siblings on 2026-09-14; the
+shared infrastructure is its own package, `tests/common/`, which holds no
+tests):
 
 ```
-tests/runtime/
-  conftest.py  pytest.ini (pythonpath = .)  runtime_test_server.c
-  eitt_tests/     test_eitt.py                        (187 items, needs a DUT)
-  runtime_tests/  behaviour-named test_*.py           (245 items, needs a DUT)
-  harness_tests/  test_events.py, test_comment_scheme.py, test_project_copy.py,
-                  test_gui_*.py                       (194 items, no DUT)
-  eitt/        the interpreter + overrides.yaml
-  gui/         the PySide6 runner front-end
-  transport/   coap_client, knx_oscore, knx_spake2plus, mdns_client
-  data/        template, EITT key maps + command scheme, variable-values
-               JSON, FWUUploadDummySmall.bin, traces/ (9 reference runs)
-  tools/       run-in-docker.ps1, run-local-ci*.sh, spake utils
+tests/
+  pytest.ini      pythonpath = . common eitt ; testpaths = eitt runtime
+  conftest.py     thin: re-exports everything common/fixtures.py defines
+  common/
+    fixtures.py   the fixtures, constants, helpers and pytest hooks
+    transport/    coap_client, knx_oscore, knx_spake2plus, mdns_client
+    tools/        run-in-docker.ps1, run-local-ci*.sh, spake utils
+    runtime_test_server.c ; requirements.txt
+  eitt/
+    test_eitt.py    (187 items, needs a DUT)
+    interpreter/    the interpreter + overrides.yaml (package RENAMED from
+                    `eitt` so it does not shadow the directory it lives in)
+    gui/            the PySide6 runner front-end
+    data/           template, EITT key maps + command scheme, variable-values
+                    JSON, FWUUploadDummySmall.bin, traces/ (9 reference runs)
+    harness_tests/  test_events.py, test_comment_scheme.py,
+                    test_project_copy.py, test_gui_*.py  (194 items, no DUT)
+  runtime/          behaviour-named test_*.py  (245 items, needs a DUT)
+  unit/  fuzz/
 ```
 
-Run: `.\tests\runtime\tools\run-in-docker.ps1 -IncludeUncommitted -PytestArgs "-q","--tb=line","-k","Security::"`. Useful switches: `-ServerLogs -OscoreDebug -CoapDebug -GroupDebug` (GroupDebug also enables `[mdns]`), `-TimeScale`, `-NoCache`. Pick one tier with `-Tier eitt|runtime|harness` (default `all`).
+Run: `.\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -PytestArgs "-q","--tb=line","-k","Security::"`. Useful switches: `-ServerLogs -OscoreDebug -CoapDebug -GroupDebug` (GroupDebug also enables `[mdns]`), `-TimeScale`, `-NoCache`. Pick one tier with `-Tier eitt|runtime|harness` (default `all`).
 
 **Status (verified 2026-07-26, FULL SUITE, no filter): 177 passed, 8 skipped,
 2 xfailed, 0 FAILED — exit 0, 8m45s.** (Was 178/1/2/6 before the seven 5.4.2
@@ -58,7 +65,7 @@ all 7 uniformly. **Remove these once /.knx Observe is implemented.**
 **Select a section with `-Section 5.8` / `--section 5.8`, NOT `-k`** (added
 2026-07-26, see the `-k` trap note below). Repeatable: `-Section 5.5,5.6`. An
 unknown section fails loudly and lists the valid ones. Implemented in
-`conftest.py` (`pytest_addoption`), `test_eitt.py` (`_in_section` compares NUMERIC
+`common/fixtures.py` (`pytest_addoption`), `test_eitt.py` (`_in_section` compares NUMERIC
 components of the TestCollection name), and `run-in-docker.ps1`.
 
 **`<Cbor>` payloads were NEVER SENT — real interpreter bug, fixed 2026-07-26.**
@@ -77,11 +84,11 @@ dedicated note below. 7 passed + 2 documented xfails.
 **Select a section with `-Section 5.8` / `--section 5.8`, NOT `-k`** (added
 2026-07-26, see the `-k` trap note below). Repeatable: `-Section 5.5,5.6`. An
 unknown section fails loudly and lists the valid ones. Implemented in
-`conftest.py` (`pytest_addoption`), `test_eitt.py` (`_in_section` compares NUMERIC
+`common/fixtures.py` (`pytest_addoption`), `test_eitt.py` (`_in_section` compares NUMERIC
 components of the TestCollection name), and `run-in-docker.ps1`.
 
 **5.7 = 2/2, 5.8 = 5/5** (2026-07-26). 5.7 needed no changes. **5.8 needed a real
-fix in `tests/runtime/runtime_test_server.c`** — 5.8.3.2 ("Read meta data")
+fix in `tests/common/runtime_test_server.c`** — 5.8.3.2 ("Read meta data")
 failed with `field '/rt' not present in response`.
 
 **The fix came from the demos repo, not from first principles** — the user's

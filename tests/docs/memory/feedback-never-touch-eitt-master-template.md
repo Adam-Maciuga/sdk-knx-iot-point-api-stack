@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-26T00:33:27.398Z
 ---
 
-**Never modify `tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml`.**
+**Never modify `tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml`.**
 The user stated this flatly on 2026-07-26 ("never touch the master template")
 after I twice made a deliberate one-line edit to it, ran a test to prove the
 matcher was strict, then restored from a backup.
@@ -30,9 +30,9 @@ passes vacuously on an empty list — get the evidence WITHOUT touching the
 master:
 
 - copy the template to the scratchpad and point `XML_PATH` (in
-  `tests/runtime/eitt_tests/test_eitt.py`) at the copy, or
+  `tests/eitt/test_eitt.py`) at the copy, or
 - read the decoded response payload straight out of the runner / a debug hook,
   or
-- cross-check the recorded payload in the matching `tests/runtime/data/traces/5_X.xml`.
+- cross-check the recorded payload in the matching `tests/eitt/data/traces/5_X.xml`.
 
 Related: [[project-eitt-5-3-status]].

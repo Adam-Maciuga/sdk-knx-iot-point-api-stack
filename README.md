@@ -105,20 +105,22 @@ Replace the preset name with the matching GCC or Linux test preset as needed.
 
 ### Runtime Conformance Tests
 
-Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. The recommended path is the Docker-based runner described in `tests/runtime/README.md`.
+Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: `tests/eitt/` interprets KNX's conformance template directly, and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. The recommended path is the Docker-based runner; see `tests/README.md` for the map.
 
 ```powershell
-.\tests\runtime\run-in-docker.ps1
+.\tests\common\tools\run-in-docker.ps1
 ```
 
 Useful variants:
 
 ```powershell
-.\tests\runtime\run-in-docker.ps1 -k "5_4"
-.\tests\runtime\run-in-docker.ps1 tests/runtime/runtime_tests/test_observe.py -x
+.\tests\common\tools\run-in-docker.ps1 -Tier eitt
+.\tests\common\tools\run-in-docker.ps1 -Tier runtime
+.\tests\common\tools\run-in-docker.ps1 -k "5_4"
+.\tests\common\tools\run-in-docker.ps1 tests/runtime/test_observe.py -x
 ```
 
-For Linux or CI-style local runs, see `tests/runtime/run-local-ci.sh`.
+For Linux or CI-style local runs, see `tests/common/tools/run-local-ci.sh`.
 
 ### Fuzz Tests
 
@@ -152,7 +154,9 @@ port/                    shared platform abstractions and OS-specific adaptation
   windows/               Windows port
   zephyr/                Zephyr port
 tests/unit/              Google Test unit tests
-tests/runtime/           Python/pytest runtime conformance suite and DUT runner
+tests/common/            shared Python test infrastructure + the DUT's C source
+tests/eitt/              EITT template-driven conformance tier (+ interpreter, GUI)
+tests/runtime/           hand-written network-level conformance tier
 tests/fuzz/              libFuzzer harnesses for the pre-authentication parsers
 tests/docs/              runtime test walkthroughs and supporting notes
 docs/                    stack documentation and migration guides
@@ -174,6 +178,8 @@ Key areas:
 | Document | Description |
 | -------- | ----------- |
 | [KNX IoT documentation pages](https://buildwithknxiot.knx.org/public-projects/knx-iot-docs/) | Stack introduction, ETS6 workflows, and broader Point API documentation |
+| [tests/README.md](tests/README.md) | Map of the five test tiers and how to run each |
+| [tests/eitt/README.md](tests/eitt/README.md) | The EITT template-driven conformance tier |
 | [tests/runtime/README.md](tests/runtime/README.md) | Runtime conformance test setup and execution |
 | [tests/docs/runtime-test-walkthrough.md](tests/docs/runtime-test-walkthrough.md) | Walkthrough of the runtime test environment |
 | [docs/mbedtls_3.x_to_4.x_migration.md](docs/mbedtls_3.x_to_4.x_migration.md) | Migration notes for Mbed TLS 4.x |

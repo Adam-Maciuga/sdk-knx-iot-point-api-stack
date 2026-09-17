@@ -10,11 +10,11 @@ the template does contain. Do not resurrect it.
 
 1. `tests/docs/runtime-test-inventory.md` — the per-test classification
    (COVERED / COVERED-WEAK / KEEP) against the template, section 3.
-2. The `eitt_overlap` markers in `tests/runtime/runtime_tests/` — every
+2. The `eitt_overlap` markers in `tests/runtime/` — every
    hand-written test that overlaps a template case names that case in code.
 
 The authoritative list of case IDs is the template itself,
-`tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml` (193 `TestCase`
+`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml` (193 `TestCase`
 elements, namespace `http://knx.org/xml/eitt/4.3`), which the eitt tier
 executes directly — count it there rather than trusting any doc.
 
@@ -27,5 +27,5 @@ to which EITT case is in the commit message of
 To list the overlaps that remain:
 
 ```
-pytest tests/runtime/runtime_tests -m eitt_overlap --collect-only -q
+pytest tests/runtime -m eitt_overlap --collect-only -q
 ```

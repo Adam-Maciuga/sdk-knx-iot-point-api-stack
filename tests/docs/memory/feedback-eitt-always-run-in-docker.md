@@ -9,7 +9,7 @@ metadata:
 ---
 
 Always run the EITT runtime suite with
-`.\tests\runtime\tools\run-in-docker.ps1` (add `-IncludeUncommitted` to
+`.\tests\common\tools\run-in-docker.ps1` (add `-IncludeUncommitted` to
 include working-tree changes). **Never** run `pytest test_eitt.py` directly
 on the Windows host and never draw a conclusion from such a run.
 

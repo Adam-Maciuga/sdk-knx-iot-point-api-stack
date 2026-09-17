@@ -4,8 +4,8 @@
 
 | Phase | State | Where |
 |---|---|---|
-| 0 — structured telemetry | **done** | `tests/runtime/eitt/events.py` |
-| 1 — read-only viewer | **done** | `tests/runtime/gui/` |
+| 0 — structured telemetry | **done** | `tests/eitt/interpreter/events.py` |
+| 1 — read-only viewer | **done** | `tests/eitt/gui/` |
 | 2 — trace viewer + diff | plan only | — |
 | 3 — runner front-end | plan only | — |
 | 4 — operator affordances | plan only | — |
@@ -14,7 +14,7 @@ Verified at **214 passed / 9 skipped / 2 xfailed in 8:43** in Docker
 (exit 0). The conformance suite is unchanged — it was 177 passed, and the
 additional passes are the new headless tests, which run in the image too
 because they need no DUT. Usage and design constraints:
-`tests/runtime/gui/README.md`.
+`tests/eitt/gui/README.md`.
 
 Goal: a **runner front-end** that replaces EITT for KNX-IoT Point API work —
 browse the conformance template, run it against a DUT, and watch the telegrams
@@ -27,10 +27,10 @@ The parsers already exist in Python and are the expensive part to rebuild:
 
 | Existing asset | What the GUI gets for free |
 |---|---|
-| `eitt/model.py` `parse_eitt_xml()` | The whole left tree + telegram grid. **60 ms** for the full template (10 collections, 193 TestCases, 6,559 sequence items) |
+| `interpreter/model.py` `parse_eitt_xml()` | The whole left tree + telegram grid. **60 ms** for the full template (10 collections, 193 TestCases, 6,559 sequence items) |
 | `eitt/resource_schema.py` | Decode `RawContent` CBOR into readable `CoAP Content`, per resource path |
 | `data/EITT_KnxCommentCommandsScheme.xml` | The Telegram Properties pane for comment commands — Command/Description/Format/params, verbatim from EITT's own grammar |
-| `eitt/runner.py` + `transport/` | The execution engine. This is the part a from-scratch GUI could never justify rewriting |
+| `interpreter/runner.py` + `transport/` | The execution engine. This is the part a from-scratch GUI could never justify rewriting |
 | `data/traces/*.xml` | Reference traces for the tracebuffer pane; largest is 2.1 MB |
 
 A Tauri/Rust front-end would mean either reimplementing all of that or shipping
@@ -71,7 +71,7 @@ a `RunSink` Protocol, and an `EventBus` that fans out to zero or more sinks.
 `SequenceRunner(..., sink=...)` is the opt-in; the default is `NullBus`,
 whose `active` is `False`, so a pytest run builds no records at all.
 
-Three properties are pinned by `harness_tests/test_events.py` (headless, no DUT):
+Three properties are pinned by `tests/eitt/harness_tests/test_events.py` (headless, no DUT):
 
 - constructing a runner the way `test_eitt.py` does leaves telemetry off;
 - the same TestCase run with and without a sink drives the CoAP client
@@ -106,13 +106,13 @@ painful.
 
 `gui/models.py` (`ProjectTreeModel`, `SequenceTableModel`) + `gui/main_window.py`,
 launched with `python -m gui.eitt_gui`. Everything below was built as
-specified; `harness_tests/test_gui_models.py` covers it offscreen.
+specified; `tests/eitt/harness_tests/test_gui_models.py` covers it offscreen.
 
 Two things worth recording from the build:
 
-- **Qt is NOT in `tests/runtime/requirements.txt`.** That file is what the
+- **Qt is NOT in `tests/common/requirements.txt`.** That file is what the
   Docker conformance image installs, and it must stay Qt-free — the GUI
-  dependency lives in `gui/requirements.txt`. `harness_tests/test_gui_models.py`
+  dependency lives in `gui/requirements.txt`. `tests/eitt/harness_tests/test_gui_models.py`
   `importorskip`s PySide6, so it is inert in the image.
 - **The comment-command grammar got its own reader**, `eitt/comment_scheme.py`,
   because the properties pane needs it and it is useful without Qt (it is
@@ -311,7 +311,7 @@ behind pale text.
 
 `gui/theme.py` detects the theme from `QPalette.Base` and returns a matching
 palette; both variants keep the same MEANING per colour and move only
-luminance. `harness_tests/test_gui_theme.py` computes real WCAG ratios for every tint
+luminance. `tests/eitt/harness_tests/test_gui_theme.py` computes real WCAG ratios for every tint
 against BOTH the base and the alternating-row background, in BOTH themes —
 `inactive` failed at 3.15:1 (dark) and 2.74:1 (light) before being lifted;
 everything now clears 4.5:1 AA. Tests must compare against the THEME, never
