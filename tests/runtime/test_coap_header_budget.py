@@ -26,7 +26,7 @@ Reference:
 
 import pytest
 
-from coap_client import LINK_FORMAT
+from transport.coap_client import LINK_FORMAT
 
 COAP_TIMEOUT = 5.0
 

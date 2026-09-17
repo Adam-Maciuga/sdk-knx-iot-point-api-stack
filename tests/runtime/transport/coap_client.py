@@ -413,6 +413,11 @@ class CoapClient:
     def close(self):
         self._sock.close()
 
+    @property
+    def source_port(self) -> int:
+        """Return the local UDP port this client is bound to."""
+        return self._sock.getsockname()[1]
+
     def _next_mid(self) -> int:
         mid = self._mid
         self._mid = (self._mid + 1) & 0xFFFF
@@ -1208,6 +1213,11 @@ class CoapClient:
                                   content_format=content_format,
                                   timeout=timeout)
 
+    def oscore_delete(self, oscore_ctx, path: str,
+                      timeout: Optional[float] = None) -> Optional[
+                          CoapResponse]:
+        return self.oscore_request(oscore_ctx, 4, path, timeout=timeout)
+
     @staticmethod
     def _build_observe_query(path: str, lt: Optional[int],
                              non: Optional[bool]) -> tuple[str, list[str]]:
@@ -1401,6 +1411,44 @@ class CoapClient:
         if 6 not in options:
             return None
         return int.from_bytes(options[6], "big") if options[6] else 0
+
+    def count_incoming_messages(self, timeout: float = 2.0,
+                                ack: bool = True) -> int:
+        """Count non-empty, non-ACK CoAP messages arriving within `timeout`.
+
+        Each observe notification is one message regardless of its token or
+        OSCORE protection, so this is used to detect duplicate notifications
+        (e.g. a stale subscription that should have been replaced).
+        Confirmable messages are ACKed so the server does not retransmit.
+        """
+        import time
+        deadline = time.monotonic() + timeout
+        count = 0
+        old = self._sock.gettimeout()
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._sock.settimeout(remaining)
+                try:
+                    data, _ = self._sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                if len(data) < 4:
+                    continue
+                msg_type = (data[0] >> 4) & 0x03
+                code_byte = data[1]
+                mid = struct.unpack("!H", data[2:4])[0]
+                if msg_type == ACK and code_byte == 0:
+                    continue
+                if msg_type == CON and ack:
+                    ackmsg = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
+                    self._sock.sendto(ackmsg, (self.host, self.port, 0, 0))
+                count += 1
+        finally:
+            self._sock.settimeout(old)
+        return count
 
     def observe_deregister(self, sub: "ObserveSubscription",
                            timeout: Optional[float] = None) -> Optional[
@@ -1639,6 +1687,159 @@ class CoapClient:
                                   interface=interface,
                                   collect_timeout=collect_timeout,
                                   stop_after_first=stop_after_first)
+
+    def multicast_post(self, path: str, payload: bytes = b"",
+                       content_format: int = APPLICATION_CBOR,
+                       scope: int = _DEFAULT_MC_SCOPE,
+                       interface: Optional[str] = None,
+                       collect_timeout: float = 2.0,
+                       stop_after_first: bool = False,
+                       ) -> list[CoapResponse]:
+        """Send a multicast POST and collect responses."""
+        return self.send_multicast(POST, path, payload=payload,
+                                  content_format=content_format, scope=scope,
+                                  interface=interface,
+                                  collect_timeout=collect_timeout,
+                                  stop_after_first=stop_after_first)
+
+    def oscore_multicast_post(self, oscore_ctx, path: str,
+                              payload: bytes = b"",
+                              content_format: int = APPLICATION_CBOR,
+                              scope: int = _DEFAULT_MC_SCOPE,
+                              interface: Optional[str] = None,
+                              collect_timeout: float = 2.0,
+                              port: int = 5683,
+                              target_addr: Optional[str] = None,
+                              echo: Optional[bytes] = None,
+                              ) -> list[CoapResponse]:
+        """Send an OSCORE-protected NON POST to a multicast address.
+
+        Group OSCORE messages require OSCORE protection with the group
+        AT's credentials (sender_id, master_secret).
+
+        Args:
+            oscore_ctx: OscoreContext for the group AT
+            path: URI path (e.g. "/k")
+            payload: Application payload (CBOR s-mode message)
+            content_format: Content-Format for inner message
+            scope: IPv6 multicast scope
+            interface: Network interface for multicast
+            collect_timeout: Response collection window
+            port: Destination port (default 5683)
+            target_addr: Custom multicast address (overrides scope lookup)
+            echo: Echo option value for freshness verification
+
+        Returns:
+            List of CoapResponse from responders.
+        """
+        if target_addr:
+            mcast_addr = target_addr
+        else:
+            mcast_addr = KNX_MULTICAST_ADDRESSES.get(scope)
+        if not mcast_addr:
+            raise ValueError(f"Unknown multicast scope {scope}")
+
+        # Resolve interface
+        scope_id = 0
+        iface = interface or os.environ.get("DEVICE_IFACE")
+        if iface:
+            try:
+                scope_id = int(iface)
+            except (ValueError, TypeError):
+                try:
+                    scope_id = socket.if_nametoindex(iface)
+                except (OSError, AttributeError):
+                    pass
+
+        # OSCORE-protect the inner request
+        oscore_opt, ciphertext, piv = oscore_ctx.protect_request(
+            2, path, payload, content_format=content_format,
+            echo=echo)  # 2 = POST
+
+        # Build NON outer message with OSCORE option
+        mid = self._next_mid()
+        token = self._next_token()
+        tkl = len(token)
+        ver_type_tkl = (1 << 6) | (NON << 4) | tkl
+        code = (POST[0] << 5) | POST[1]
+        header = struct.pack("!BBH", ver_type_tkl, code, mid)
+        options = _encode_option(9, oscore_opt)
+        msg = header + token + options + b"\xFF" + ciphertext
+
+        # Send via multicast socket
+        mcast_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        mcast_sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS,
+                              255 if scope > 2 else 1)
+        if scope_id:
+            mcast_sock.setsockopt(
+                socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF,
+                struct.pack("@I", scope_id))
+        mcast_sock.settimeout(collect_timeout)
+        mcast_sock.bind(("", 0))
+
+        _dbg_coap(f"[coap] oscore multicast POST -> [{mcast_addr}%{scope_id}]"
+                  f":{port}{path}")
+
+        dest = (mcast_addr, port, 0, scope_id)
+        mcast_sock.sendto(msg, dest)
+
+        responses = []
+        import time
+        deadline = time.monotonic() + collect_timeout
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            mcast_sock.settimeout(remaining)
+
+            try:
+                data, addr = mcast_sock.recvfrom(4096)
+            except socket.timeout:
+                break
+
+            if len(data) < 4:
+                continue
+
+            byte0 = data[0]
+            msg_type = (byte0 >> 4) & 0x03
+            tkl_r = byte0 & 0x0F
+            code_byte = data[1]
+            code_class = code_byte >> 5
+            code_detail = code_byte & 0x1F
+            mid_r = struct.unpack("!H", data[2:4])[0]
+            token_r = data[4:4 + tkl_r]
+
+            offset = 4 + tkl_r
+            resp_options, payload_offset = _parse_options(data, offset)
+
+            resp_payload = (data[payload_offset:]
+                            if payload_offset < len(data) else b"")
+
+            ct = None
+            if 12 in resp_options:
+                ct_bytes = resp_options[12]
+                ct = int.from_bytes(ct_bytes, "big") if ct_bytes else 0
+
+            resp = CoapResponse(
+                code_class=code_class,
+                code_detail=code_detail,
+                payload=resp_payload,
+                content_format=ct,
+                msg_type=msg_type,
+                mid=mid_r,
+                token=token_r,
+                options=resp_options,
+                source_addr=addr,
+            )
+            _dbg_coap(f"[coap] oscore multicast response from {addr[0]}: "
+                      f"{resp.code} payload_len={len(resp_payload)}")
+            responses.append(resp)
+
+        mcast_sock.close()
+        _dbg_coap(f"[coap] oscore multicast: collected {len(responses)} "
+                  f"response(s)")
+        return responses
 
     @staticmethod
     def parse_coap_message(data: bytes) -> dict:

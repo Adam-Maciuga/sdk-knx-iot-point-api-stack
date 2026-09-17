@@ -1,5 +1,23 @@
-# Project memory index
+> **This directory is the source of truth for project memory.** It lives in
+> the repo because the user works from several machines; a note written only
+> to `~/.claude/projects/…/memory/` is invisible everywhere else. See
+> [Memory lives in the repo](feedback-memory-lives-in-the-repo.md).
 
-One line per memory file. Source of truth for durable project knowledge; the ~/.claude store is a per-machine mirror.
-
+- [Memory lives in the repo](feedback-memory-lives-in-the-repo.md) — write project memory to tests/docs/memory/ and COMMIT it; the ~/.claude store is a per-machine mirror, and the repo wins when they disagree
+- [EITT XML interpreter project](eitt-xml-interpreter-project.md) — what it is and why; migration from the hand-written suite is complete, full design lives in the repo at tests/docs/eitt-xml-interpreter.md
+- [Runtime test tiers pivot](project-runtime-test-tiers.md) — READ FIRST (2026-09-10): deleting the hand-written suite was a mistake; target = unit / eitt / runtime tiers; branch rebased onto work_in_progress + upstream's 349 tests restored verbatim (not yet importable), backups `backup/runtime_tests_v2-*`; next = classify + port onto transport/
+- [EITT suite current status](project-eitt-5-3-status.md) — status of the interpreter tier when resuming: full suite = 178 passed/1 skipped/2 xfailed, only 5.4.2 (out of scope) failing; 5.10 activation rules, the `<Cbor>` body fix, the veth ULA + own-netns traps, the tests/runtime layout and how to run
+- [Never touch the EITT master template](feedback-never-touch-eitt-master-template.md) — do NOT edit KnxConformanceTestTemplate-PointAPI.xml, not even a temporary backed-up edit; use a scratch copy or the trace
+- [ALWAYS run the EITT suite in Docker](feedback-eitt-always-run-in-docker.md) — use tools/run-in-docker.ps1 (-IncludeUncommitted); a host-native pytest run silently gives 23 failed/155 passed in ~33min instead of 177 passed in ~8.7min, and looks like a code regression
+- [Never diagnose one EITT TestCase alone](feedback-eitt-never-diagnose-single-testcase.md) — `-k <single case>` skips sibling-TestCase preparation and fabricates "access denied" failures; run the whole collection; also `-k 5.6` substring-matches 5.5.5.6 — use `--section`/`-Section`
+- [EITT replacement GUI](project-eitt-gui-plan.md) — PySide6 runner front-end; phases 0-4 BUILT (it runs sequences against a live DUT now). ⚠ commits a7382ba4 + 71d94bd4 are NOT Docker-verified — F15 changes what goes on the wire
+- [Check reference libs, then KNX deviations](feedback-check-reference-libs-then-knx-deviations.md) — fixing transport/? compare against aiocoap/zeroconf FIRST, then tests/docs/knx-protocol-deviations.md for where KNX deliberately differs; the device's C wins
+- [EITT interpreter audit findings](reference-eitt-interpreter-findings.md) — F/T/O/S/M tracker (live list in repo at tests/docs/eitt-interpreter-findings.md); grep it for `**OPEN**` rather than trusting any hand-copied count; update status in the same commit as the fix
+- [EITT certification accepted deviations](reference-eitt-certification-accepted-deviations.md) — the official 1.1.0 cert setup + per-section exceptions (4.00-vs-4.03 "Forbidden is accepted", telegram enable/disable, default-value corrections, 5.10 multi-IP); CHECK THIS before calling any 5.x failure a bug
+- [Optional-dep test guards](feedback-optional-dep-test-guards.md) — importorskip breaks on an installed-but-broken dep; never hardcode cwd-relative data paths, Docker runs pytest from the repo root
+- [Count it in the template](feedback-count-it-in-the-template.md) — before agreeing/disagreeing with any claim about EITT behaviour, count it in the XML (namespace is 4.3, not 4.2); a parser default is not evidence
+- [Always check template + trace](feedback-eitt-check-template-and-trace.md) — before calling an EITT test failure a device gap, check XML Activate state AND data/traces/5_X.xml
+- [@ commands are behavioural](feedback-eitt-comment-commands-are-behavioural.md) — never treat an @/@@[ comment command as a no-op; look it up in EITT's own scheme file
+- [unprotect_response is a minefield](feedback-oscore-unprotect-response-regression.md) — the empty-sender-id branch is an alternative, not a replacement; exercise more than one section and baseline against committed HEAD
+- [EITT's three-layer variable model](reference-eitt-three-layer-variable-model.md) — read-only template + variable-values JSON + generated copy; never trust a bare template default
 - [CHANGELOG only on releases](feedback-changelog-only-on-releases.md) — never add changelog entries as part of a change in the stack repo; the maintainer writes it at release time from git history
