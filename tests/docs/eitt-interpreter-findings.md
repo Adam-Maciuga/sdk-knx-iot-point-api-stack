@@ -1,7 +1,7 @@
 # EITT interpreter — audit findings tracker
 
 Living record of known correctness gaps in the EITT XML interpreter
-(`tests/runtime/eitt/`, `tests/runtime/transport/`). **Update the status of an
+(`tests/eitt/interpreter/`, `tests/common/transport/`; before the 2026-09-14 tier split these were `tests/runtime/eitt/` and `tests/runtime/transport/`). **Update the status of an
 entry in the same commit that fixes it** — this file is how a later session
 knows what is real, what is deliberate, and what is still outstanding.
 
@@ -778,7 +778,7 @@ correctness-enforcing library actively prevents.
 
 ---
 
-# Transport layer (`tests/runtime/transport/coap_client.py`)
+# Transport layer (`tests/common/transport/coap_client.py`)
 
 ## F15 — `@@[pahdiscover` is a silent no-op · **FIXED (2026-07-28)**
 
@@ -1205,7 +1205,7 @@ answering `knx-02c912345678.local`, so the form is certifiable —
 
 ---
 
-# OSCORE (`tests/runtime/transport/knx_oscore.py`)
+# OSCORE (`tests/common/transport/knx_oscore.py`)
 
 Audited 2026-07-26 against the device's own C implementation in `security/`
 (`oc_oscore_crypto.c`, `oc_oscore_context.c`, `oc_oscore_engine.c`,
@@ -1551,7 +1551,7 @@ Each verified byte-for-byte against the C:
 
 ---
 
-# SPAKE2+ (`tests/runtime/transport/knx_spake2plus.py`)
+# SPAKE2+ (`tests/common/transport/knx_spake2plus.py`)
 
 **In good shape.** The two failure modes I was most worried about are both
 absent.
@@ -1647,7 +1647,7 @@ hardened — so nobody mistakes this for a reimplementation of it.
 
 ---
 
-# mDNS / DNS-SD (`tests/runtime/transport/mdns_client.py` + `runner._run_dns_message`)
+# mDNS / DNS-SD (`tests/common/transport/mdns_client.py` + `runner._run_dns_message`)
 
 Audited 2026-07-26. **The three worst findings are FALSE PASSES** — this module
 is more likely to say the device is fine when it isn't than the reverse. That is
