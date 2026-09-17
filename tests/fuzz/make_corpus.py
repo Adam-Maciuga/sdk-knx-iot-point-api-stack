@@ -178,12 +178,12 @@ def corpus_oc_rep():
         "truncated_map.bin": b"\xa1\x61\x73\xb8",
         # Indefinite array of two float32 values: reaches oc_new_float_array(),
         # where FLOAT_POOL used to fall through into DOUBLE_POOL in
-        # oc_mmem_alloc() and leak the float allocation (F-020).
+        # oc_mmem_alloc() and leak the float allocation (sec-hardening F-020).
         "float_array.bin": b"\x9f\xfa\xff\xff\xff\xff\xfa\xfa\xfa\xfa\xfa\xff",
         # Array of one text string longer than STRING_ARRAY_ITEM_MAX_LEN (32):
         # cbor_value_copy_text_string() overwrote its length out-parameter with
         # the untruncated string length on OutOfMemory, and that was used
-        # unclamped as the NUL-terminator write index (F-021).
+        # unclamped as the NUL-terminator write index (sec-hardening F-021).
         "array_string_too_long.bin": b"\x81\x78\x64" + b"A" * 100,
     })
     return seeds
@@ -229,7 +229,7 @@ def corpus_hex_and_base64():
         "invalid_hex.bin": b"zz" + b"AA==",
         "empty_b64.bin": b"00",
         "long_hex.bin": b"0123456789abcdef" * 4,
-        # F-022 regression: sscanf("%2x") scanned past the buffer length on a
+        # sec-hardening F-022 regression: sscanf("%2x") scanned past the buffer length on a
         # non-NUL-terminated input, causing an out-of-bounds read.
         "hex_no_terminator_overread.bin": b"0126\x178"
         + b"1abcdefdef0142356789abcdef0173456789abcdef0123456781abcdef",
@@ -245,7 +245,7 @@ def corpus_timestamp():
         "empty.bin": b"",
         "garbage.bin": b"not-a-timestamp",
         "truncated.bin": b"2024-01-01T",
-        # F-023 regression: inverted bounds check (`cur + 5 < end` instead of
+        # sec-hardening F-023 regression: inverted bounds check (`cur + 5 < end` instead of
         # `cur + 5 > end`) let a truncated timezone offset read past the end
         # of the buffer.
         "truncated_offset_overread.bin": b"2024-06-15T12:30:45+0",
@@ -338,13 +338,13 @@ def corpus_uuid_parse():
     return {
         "well_formed.bin": b"1628fbcc-13ce-4e37-b883-1fd8d2ad945d",
         "wildcard_star.bin": b"*",
-        # F-024 regression: shorter than 36 bytes, previously read past the
+        # sec-hardening F-024 regression: shorter than 36 bytes, previously read past the
         # end of the buffer.
         "too_short.bin": b"short",
         "no_dashes.bin": b"1628fbcc13ce4e37b8831fd8d2ad945d",
         "empty.bin": b"",
         "one_byte.bin": b"a",
-        # F-025 regression: high-bit byte (0xce) passed to isalpha() as a
+        # sec-hardening F-025 regression: high-bit byte (0xce) passed to isalpha() as a
         # signed char, and only 1 dash instead of 4 - overflowed uuid->id.
         "high_bit_and_too_few_dashes.bin": (
             b"q628fb13ce-4ed\xce\xc9" b"d2a2ad5d8d\xce\xc9" b"d2a2ad5d"),
@@ -480,7 +480,7 @@ def corpus_mdns():
                                                b"\xc0\x0c")),
         # Shorter than the 12-byte header.
         "short_header.bin": b"\x00\x00\x84\x00\x00",
-        # F-026 regression: a question name that consumes the datagram right
+        # sec-hardening F-026 regression: a question name that consumes the datagram right
         # up to its declared length, leaving no room for the trailing
         # qtype/qclass fields - mdns_socket_listen() read 2-4 bytes past the
         # FUZZ_MDNS_BUF_SIZE (2048) receive buffer. 31 full 63-byte labels +

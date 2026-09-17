@@ -941,3 +941,29 @@ Bugs and issues discovered during unit test development.
   O6), not this change — `-Tier eitt -Section 5.2` alone is **109 passed / 5 skipped on both HEAD and
   the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
 - **Status:** RESOLVED.
+
+## F-024: `mdns_socket_listen()` reads past the receive buffer when a question name fills the datagram - RESOLVED
+
+- **File:** `port/mdns/mdns.h`, `mdns_socket_listen()` (vendored third-party `mjansson/mdns` library).
+- **Origin:** found and fixed on `feat/sec-hardening` as *their* **F-026** (fuzz harness `fuzz_mdns`, 6-hour
+  mutation campaign; the sec-hardening series numbers findings independently of this file). That fix was a
+  hunk in `port/mdns.patch` applied to a FetchContent copy of the library; this branch vendors the file
+  directly, so the hunk never arrived and the seed replay stayed at 23/24.
+- **Severity:** Medium - heap-buffer-overflow **read**, reachable by any unauthenticated peer on the link
+  segment with one crafted mDNS datagram. The production listener in `port/dns-sd_mdns.c` uses a fixed
+  2048-byte receive buffer with no headroom, which is exactly the vulnerable pattern.
+- **Description:** in the question loop, after `mdns_string_skip()` has computed the end `offset` of the
+  question name, the code reads the two 16-bit fields `rtype` and `rclass` at that offset without checking
+  that four bytes remain in the datagram. A question name that ends at or within three bytes of the buffer
+  end makes the parser read past the buffer. Reproducer: a DNS header claiming one question followed by
+  31 full 63-byte labels plus one 50-byte label, filling the 2048-byte datagram exactly.
+- **Resolution:** `if ((offset + 4) > data_size) break;` before the `rtype`/`rclass` reads, the sec-hardening
+  change applied verbatim to the vendored file.
+- **Verification:** fuzz seed replay (`ctest --preset linux-fuzz-clang`, Docker) **24/24 passed**, up from
+  23/24; the `fuzz_mdns` seed `question_name_fills_datagram` is the regression test. Unit suite
+  **1435 passed, 0 failed** (`windows-test-gcc`). Runtime tier (Docker, `linux-test-gcc`, includes the mDNS discovery and malformed-
+  discovery tests against the live listener) **236 passed, 0 failed, 9 skipped**. Baseline is 237/8; the
+  extra skip is `TestUnicastDiscoveryMalformedLengths::test_unicast_discovery_ia_too_short`, which skips
+  itself when it does not observe the DUT's unicast-resolution discovery GET within its window (three of
+  its siblings skip the same way in every run). It exercises CoAP unicast discovery, not the mDNS parser.
+- **Status:** RESOLVED.

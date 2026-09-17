@@ -23,6 +23,10 @@ Fixes that were previously carried in `port/mdns.patch`:
 - Answer and announcement packets: a TXT record passed in the *answer* slot is
   coalesced like the authority/additional ones, so the header's answer count of
   one always has a record behind it (F-016).
+- `mdns_socket_listen()`: the question loop stops when fewer than four bytes
+  remain after the question name, instead of reading `rtype`/`rclass` past the
+  receive buffer (F-024; found by the `fuzz_mdns` harness on `feat/sec-hardening`
+  as their F-026).
 
 Cleanup done on import, none of it changes what goes on the wire:
 

@@ -720,6 +720,11 @@ mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback
 		} else if (!mdns_string_skip(buffer, data_size, &offset)) {
 			break;
 		}
+		if ((offset + 4) > data_size) {
+			// Not enough bytes left in this datagram for the question's
+			// rtype/rclass fields - stop instead of reading past the buffer.
+			break;
+		}
 		size_t length = offset - question_offset;
 		data = (const uint16_t*)MDNS_POINTER_OFFSET_CONST(buffer, offset);
 
