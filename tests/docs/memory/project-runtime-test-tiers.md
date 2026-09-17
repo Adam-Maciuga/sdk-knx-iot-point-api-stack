@@ -101,6 +101,12 @@ same requirement, and the drop records the EITT case id so it is traceable.
     certified reference trace (`data/traces/5_1.xml` TelNo 28) shows the whole
     547-byte body in one datagram. Fix is the maintainer's call (payload
     budget, block size, or discovery body) — do not "repair" this test.
+  - **`-Tier all` is NOT a baseline (2026-09-15):** the runtime modules run
+    first (deliberate sort key in `fixtures.py::pytest_collection_modifyitems`)
+    against the ONE DUT process, `test_swu` leaves `fwv = 0.0.2` behind, and
+    EITT 5.2.6.1 plus the 5.2.7.1b / 5.2.8.1 / 5.2.9.1 / 5.2.10.1b cascade then
+    fail on `/dev/fwv`. Validate per tier (`-Tier eitt`, `-Tier runtime`);
+    tracked as eitt-interpreter-findings.md O6.
 - **Directory split DONE 2026-09-11**, commit "Split tests/runtime into eitt,
   runtime and harness test tiers": 31 test modules `git mv`d into
   `eitt_tests/` (1), `runtime_tests/` (19) and `harness_tests/` (11), test
@@ -111,7 +117,8 @@ same requirement, and the drop records the EITT case id so it is traceable.
   extra `dirname`/`.parent`. `tools/run-in-docker.ps1` grew
   `-Tier all|eitt|runtime|harness` (default `all`), and the CI
   `linux-runtime-test-asan` job now runs both device tiers as two pytest
-  invocations with separate JUnit reports. Collection after the move is
+  invocations with separate JUnit reports (split and renamed 2026-09-16 into
+  `runtime-asan-memcheck` / `eitt-asan-memcheck`, see the CI pipeline paragraph). Collection after the move is
   unchanged: 766 total = 187 eitt + 385 runtime + 194 harness.
 - **Cleanup DONE 2026-09-11: 135 functions / 143 items deleted, 102 annotated,
   runtime tier = 245 items; mapping in commit `c6f05dc6` "runtime tier: drop
@@ -172,11 +179,11 @@ same requirement, and the drop records the EITT case id so it is traceable.
   `CMakeLists.txt` (`BUILD_TESTING` / `ENABLE_SANITIZERS` / `BUILD_FUZZERS` /
   `ENABLE_COVERAGE` moved before any target so the stack itself gets
   instrumented, not just `tests/`), the `linux-fuzz-clang` and
-  `linux-fuzz-coverage-clang` presets, and the `linux-fuzz-coverage` +
-  `linux-fuzz-explore` CI jobs. Run it with
+  `linux-fuzz-coverage-clang` presets, and the CI jobs now called
+  `fuzz-seed-replay` + `fuzz-explore` (imported as `linux-fuzz-coverage` / `linux-fuzz-explore`). Run it with
   `cmake --preset linux-fuzz-clang && cmake --build --preset linux-fuzz-clang
   && ctest --preset linux-fuzz-clang`; `ctest` replays every seed once
-  (`-runs=0`, label `fuzz`), mutation is the manual `linux-fuzz-explore` job.
+  (`-runs=0`, label `fuzz`), mutation is the manual `fuzz-explore` job.
   Deliberately NOT taken: the `api/`/`messaging/`/`util/`/`port/`/`include/`
   code fixes, the `tests/unit` additions, the FINDINGS/TEST_CATALOG/
   COVERAGE_LEDGER edits, the mdns pin, the `-Wall -Wextra` kis-common hunk of
@@ -212,17 +219,17 @@ same requirement, and the drop records the EITT case id so it is traceable.
   regression seeds, and the matching stack fixes are in the colleague's
   cherry-pick, not in this import. Do not delete seeds to make it green. Each
   failing harness goes green when its fix lands:
-  `fuzz_oc_rep` needs `3df26cf2` (F-017 leak on `malformed_map_key`, F-018
+  `fuzz_oc_rep` needs `3df26cf2` (sec-hardening F-017 leak on `malformed_map_key`, F-018
   overread on `reserved_addl_info`, F-019 leak on `truncated_map`),
-  `5514297f` (F-020, 8-byte float leak on `float_array`) and `68e1cdc1`
-  (F-021, heap overflow write on `array_string_too_long`);
-  `fuzz_timestamp` needs the `api/c-timestamp` half of `8af79e05` (F-023,
+  `5514297f` (sec-hardening F-020, 8-byte float leak on `float_array`) and `68e1cdc1`
+  (sec-hardening F-021, heap overflow write on `array_string_too_long`);
+  `fuzz_timestamp` needs the `api/c-timestamp` half of `8af79e05` (sec-hardening F-023,
   `truncated_offset_overread`); `fuzz_uuid_parse` needs the `api/oc_uuid.c`
-  half of `5e2e50b8` (F-024 on `too_short`/`one_byte`/`no_dashes`, F-025 on
-  `high_bit_and_too_few_dashes`); `fuzz_mdns` needs F-026 ported BY HAND into
+  half of `5e2e50b8` (sec-hardening F-024 on `too_short`/`one_byte`/`no_dashes`, F-025 on
+  `high_bit_and_too_few_dashes`); `fuzz_mdns` needs sec-hardening F-026 ported BY HAND into
   `port/mdns/mdns.h` — sec-hardening fixed it in `port/mdns.patch` against the
   FetchContent copy, which this branch no longer has. The gating
-  `linux-fuzz-coverage` job is therefore RED until those land.
+  `fuzz-seed-replay` job is therefore RED until those land.
 
 - **The vendored mdns is why `fuzz_mdns.c` needed adapting.** sec-hardening
   fetched mdns via FetchContent and patched it; this branch vendors a trimmed
@@ -233,7 +240,7 @@ same requirement, and the drop records the EITT case id so it is traceable.
   `mdns_string_extract()` — and `tests/fuzz/CMakeLists.txt` includes
   `${PROJECT_SOURCE_DIR}/port/mdns` instead of `${mdns_SOURCE_DIR}`. The
   harness still drives the real `mdns_socket_listen()` over a loopback socket,
-  so it still reproduces F-026.
+  so it still reproduces sec-hardening F-026.
 
 - **Separated into `tests/eitt` + `tests/runtime` + `tests/common` on
   2026-09-14**, one commit "Separate the eitt and runtime test tiers; shared
@@ -271,7 +278,7 @@ same requirement, and the drop records the EITT case id so it is traceable.
     runtime; 102 `eitt_overlap`.
 
 - Rebased onto `work_in_progress` again 2026-09-15 (André's ports of the
-  sec-hardening fixes landed: F-017..F-021 CBOR, FLOAT_POOL, timezone bounds, uuid,
+  sec-hardening fixes landed: their F-017..F-021 CBOR, FLOAT_POOL, timezone bounds, uuid,
   blockwise buffer lifetime, `oc_discovery_sn_matches` public). Our fuzz commit's
   plumbing touches to oc_rep.h / oc_discovery.h were dropped in favour of upstream's
   identical ones; only `CMakeLists.txt` (instrumentation block) and
@@ -279,9 +286,24 @@ same requirement, and the drop records the EITT case id so it is traceable.
   Docker after rebase: runtime 237/8/0, eitt 176 + 90 harness / 1 (5.1.1.3e, F-021) /
   13 / 2 — exact baselines. **Fuzz seed replay 23/24**: only `fuzz_mdns` still fails,
   on seed `question_name_fills_datagram` (heap-buffer-overflow read in `mdns_ntohs`,
-  `port/mdns/mdns.h:265`) = F-026, which must be ported by hand into the vendored
+  `port/mdns/mdns.h:265`) = sec-hardening F-026 (ours: F-024), which must be ported by hand into the vendored
   `port/mdns/mdns.h` (sec-hardening fixed it in a patch against the FetchContent copy).
-  The gating `linux-fuzz-coverage` job stays red until that one fix lands.
+  The gating `fuzz-seed-replay` job stays red until that one fix lands.
+- Rebased again 2026-09-16 onto `work_in_progress` `ccd0c2ed` (6 new upstream
+  commits, 44 ahead, no conflicts): five are format-specifier / log-header /
+  ESP-IDF / Zephyr-shell cosmetics (`__FILENAME__` became
+  `KNX_SOURCE_FILE_BASENAME`, nothing on the branch used it); one is behavioural,
+  `c2c84807` "Reject oversized CBOR string/byte array items" (decode side of
+  oc_rep.c, items > 32 bytes dropped instead of truncated — no interaction with
+  the F-023 encoder re-arm, and the fuzz seed `array_string_too_long.bin` is a
+  crash reproducer, so it only gets safer). Verified after rebase: unit
+  1435/1435, eitt 176 + 90 harness / 1 (5.1.1.3e) / 13 / 2, runtime 237/8/0 —
+  exact baselines. Fuzz seed replay NOT re-run then; on 2026-09-16 sec-hardening F-026 was ported
+  by hand into `port/mdns/mdns.h` as our F-024 and the replay is **24/24** - the gating
+  `fuzz-seed-replay` job has no known red left. Runtime tier after the port: 236/0/9 - the ninth skip is
+  `TestUnicastDiscoveryMalformedLengths::test_unicast_discovery_ia_too_short` self-skipping ("DUT did
+  not issue a discovery GET"); that class contributes 3 or 4 env skips depending on timing, so 237/8 and
+  236/9 are the same baseline.
 
 **Why:** the interpreter's purpose is to stop hand-porting each EITT template
 revision, not to lose device coverage that KNX never wrote a TestCase for.
@@ -303,3 +325,68 @@ revision, not to lose device coverage that KNX never wrote a TestCase for.
 Related: [[eitt-xml-interpreter-project]], [[project-eitt-5-3-status]] (the
 "suite is GONE" statement there is superseded by this note),
 [[project-eitt-gui-plan]], [[feedback-eitt-always-run-in-docker]].
+
+**F-022 / F-023 (2026-09-15), committed 51e0d464 / 9452719b:** two device bugs found while driving the
+observe TestCases of section 5.4.2, both fixed with regression tests (`tests/unit/
+test_smode_loopback_recursion.cpp`, `test_smode_read_answer_payload.cpp`; details, evidence and tier
+verification in `tests/FINDINGS.md` F-022/F-023): the s-mode write loopback recursed unboundedly when an
+input and its status output share a GA (`g_in_internal_go_update` guard in
+`oc_send_s_mode_mc_or_uc_message`), and the second read answer on a GA with two r-flagged GOs carried
+stale encoder bytes (`oc_rep_new` re-armed in the `service_r` branch of `oc_core_knx_k_post_handler`).
+The device's /k observe path itself is verified by `tests/runtime/test_observe.py`. Two facts worth
+keeping: the send path looks up the RECIPIENT table (fp/r) for the sending GA, not fp/p; and the V41
+template XML in `tests/eitt/data/` is an OLDER V41 edition than the one loaded in EITT 4.4.0104 (EITT's
+has the §2.5.9 comments, `lt=30`, and expects `st: w` where ours expects `st: a`). The investigation of
+the EITT tool's own observe behaviour is kept out of the repo on purpose; see the local-only note
+`local-eitt-observe-5422.md` next to this file.
+
+**CI pipeline (2026-09-16, commit "Rename the CI jobs by tier"):** jobs are `<tier>-<variant>`:
+build-gcc, unit-gcc, unit-asan, harness, fuzz-seed-replay (gating seed replay + coverage), fuzz-explore
+(manual), runtime-gcc, eitt-gcc (full EITT tier, allow_failure for F-021), runtime-asan-memcheck and
+eitt-asan-memcheck (nightly / merge to work_in_progress / manual; verdict = no sanitizer report, tally
+informational). Device jobs use the runner's netns + ULA network via `!reference`. First local
+eitt-asan-memcheck run: tally identical to gcc (176/1/8/2 in 12:25), so ASan does not disturb the EITT
+timing; it surfaced UBSan nonnull-attribute reports = F-025 OPEN (mem* with NULL, length 0), so the
+memcheck jobs are red until those call sites are fixed. First GitLab run 2026-09-16: `eitt-gcc` on the `runtimetests` runner gave exactly the Docker baseline (176/1/8/2 in 12:18, the one failure 5.1.1.3e = F-021), so the runner exists, the netns block works in CI and the device jobs are trustworthy now; `unit-asan` had failed once on LeakSanitizer in the F-022/F-023 test fixtures (fixed in e17cb2b6).
+
+**Unit tests must also pass `linux-test-asan` before commit (2026-09-16):** the gating `unit-asan` CI
+job runs the suite under ASan+UBSan with LeakSanitizer on, so a test fixture that zeroes an
+`oc_string_t` instead of `oc_free_string()`-ing it fails the pipeline even though the test passes on
+gcc (happened with the F-022/F-023 tests). Docker one-liner: build the test target with
+`cmake --build --preset=linux-test-asan --target <test>` and `ctest --preset=linux-test-asan -R <suite>`.
+
+**F-021 closed 2026-09-16 (test-client gap, not a device defect):** `CoapClient.multicast_get` now
+restarts a `more=1` multicast Block2 answer over unicast (a bare Block2 num=1 follow-up gets a Reset,
+the device keeps no buffer for NON multicast answers) and keeps the multicast identity (NON/mid/token/
+source_addr) on the reassembled response - the type mismatch is what "regressed 5.1.1.3" in the reverted
+first attempt. New EITT baseline: **177 passed / 0 failed / 8 skipped / 2 xfailed** (+90 harness = 267
+passed / 13 skipped in the Docker `-Tier eitt` run). Nothing red is left in the EITT tier; `eitt-gcc`
+can become gating. The 768-byte payload budget is deliberate and stays.
+
+**Tracker round (2026-09-16/17), commits 1c7a23b0 / 1fa9b0b9 / d4c6e4d3 / 1b7b73c6:** all 16 OPEN
+tracker items fixed (M9-M19 mDNS transport fails closed; F6/F9/F16/M7/M8 interpreter fails closed,
+row timeouts, DNS IN verdict; O6 `-Tier all` = two pytest processes). Two things the round exposed and
+fixed: T13 - `IP="BDUT-Multi"` rows had always been sent UNICAST (the alias is provisioned only in the
+never-executed "NEW PROJECT SETUP" TestCase; `test_eitt.py::_seed_project_setup` now applies it per
+collection runner, and `oscore_request(dest=...)` sends the 200 group rows as real OSCORE NON multicast
+from a multicast-configured socket) - and the device's 4.01 Echo challenge for a group write is signed
+under a context derived from the token with the random ID Context and the option's kid as peer id
+(`OscoreContext.with_id_context(kid_ctx, recipient_id=kid)`, the "SPECIAL DECODING" EITT logs). New
+baselines: EITT tier **177/0/8/2** template + 282 harness (Docker `-Tier eitt` = 459 passed / 13
+skipped / 2 xfailed, ~13 min), runtime **236/0/9** (237/8 also fine), harness on host 385/1. Tracker
+leftovers: F8 (`.*` line in content_match), T3 (listeners compare last path segment), O3 (both key
+constructions accepted - needs a decision or the capture oracle). Not pushed yet; tracker + memory note
++ the two EITT reports stay uncommitted by the user's choice.
+
+**2026-09-17, commits 6fae53b8 + 22ca01ee (pushed):** unit-test LINE COVERAGE is wired: presets
+`linux-coverage-gcc` / `windows-coverage-gcc` (inherit the test presets, `ENABLE_COVERAGE=ON` =
+`--coverage -O0`), CI job `unit-coverage-gcc` (gating, gcovr Cobertura + HTML artifact, filters
+api/ messaging/ security/ util/ minus api/c-timestamp), README "Line coverage" section. First host
+measurement: lines 52.5 % (5645/10759), functions 76.7 %, branches 36.7 %. Both coverage jobs had a
+`^TOTAL` badge regex that never matched gcovr's `--print-summary` ("lines: 52.5% (...)"); fixed to
+`^lines:`. The first eitt-gcc pipeline after the tracker round failed all eight 5.1.2 cases with M14's
+"joined ff02::fb on the wildcard index only ... Address already in use": in the GitLab container the
+wildcard join resolves to veth-test, so the explicit join that followed was a duplicate. Fix: named
+interface first, wildcard second, EADDRINUSE after a successful join counts as joined (3 harness
+tests; harness 388/1). EITT skip count is **8**, not 7: seven 5.4.2 cases + 5.3.14.1 (optional
+replwdo); the 13 in a Docker `-Tier eitt` run add the 5 GUI harness modules skipped without PySide6.

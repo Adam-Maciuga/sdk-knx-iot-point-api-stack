@@ -488,7 +488,7 @@ file. (The regex accepting bare digits is nonetheless a latent hazard: a genuine
 
 ---
 
-## F6 — Ignored attributes that are parsed into the model · **OPEN**
+## F6 — Ignored attributes that are parsed into the model · **FIXED (2026-09-16)**
 
 Parsed but never read at execution time — silent gaps, all in *active*
 (non-skipped) TestCases unless noted:
@@ -541,6 +541,8 @@ already but is deliberately *not* used for an assertion, with a comment saying
 why.
 
 ---
+
+**Fix (2026-09-16):** `_unsupported_attributes()` gates every ACTIVE `CoAPMessage`: `SeqNumMethod` accepted only as the inert `"0"`/`"not set"` enum index (all 74 template uses), `Cycles="*"` accepted as "match the first occurrence", `Observe`/`ObserveValue` fail with a named reason (all 6 uses are in the skipped 5.4.2 suite). `Secure` stays declared-but-unevaluated with the reasoning in the code. `CheckRxKid`/`RxKid` is no longer gated but really asserted: `coap_client._parse_oscore_option_full` surfaces the received message's outer OSCORE ID Context on `CoapResponse.oscore_kid_context` (parsed from the same option bytes `unprotect_response` consumed) and `runner._check_rx_kid` requires it present, non-empty and different from the SecContext's own `id_context` for `RxKid="random"` — the fresh 10-byte context `oc_oscore_engine.c`'s `unicast_echo_response_by_mc` branch generates for a 4.01 answering an s-mode MULTICAST write; any other RxKid value fails as unsupported. Covered by `harness_tests/test_runner_failclosed.py` (F6 and CheckRxKid blocks). Consequence: the assertion exposed that the interpreter sent `IP="BDUT-Multi"` rows unicast (tracker T13).
 
 ## F7 — Bare `@@` operator prompts silently no-op · **FIXED (2026-07-27)**
 
@@ -655,7 +657,7 @@ still pass.
 
 ---
 
-## F9 — Malformed XML values fail OPEN · **OPEN**
+## F9 — Malformed XML values fail OPEN · **FIXED (2026-09-16)**
 
 A consistent pattern of dropping the adversarial modifier on bad input:
 `_safe_int` → `0` (and `0` also means "don't care" for the mDNS port);
@@ -699,6 +701,8 @@ Note also that EITT distinguishes "unset" (`'not set'`, 1457 rows in
 future fix has to keep those two apart.
 
 ---
+
+**Fix (2026-09-16):** new `MalformedXmlValue`; `_safe_int`, `_content_format_code`, `_resolve_crit_option`, `_parse_time_to_next`, `SeqNo`, `InvalidAuthTag` and `EchoValue` raise instead of degrading, caught once in `_run_item` so the step fails naming row id, attribute and value; `AcceptedCF`/`CF` are parsed before anything goes on the wire. An unresolved `#VAR` still yields 0.0 because F5/F13 already report it by name. The one template row this bites, 5.5.4.1 CoAPMessage 3FFDAF04-5D79-4762-AF20-7B7673C7054B with `AcceptedCF="r"` (a fragment of "application/cbor"; `traces/5_5.xml` records every GET fp/g/1 with `application/cbor`), is corrected over the read-only template by the new `message_attributes:` override section (`overrides.py`, `overrides.yaml`, applied in `test_eitt.py` with the same hard error on stale entries as `message_activation`). The two other fragment values sit on OUT rows where AcceptedCF is never consumed. Covered by `test_runner_failclosed.py` (F9 block) and `test_overrides_attributes.py`.
 
 ## F10 — `_decode_body` catches bare `Exception` · **FIXED (2026-07-27)**
 
@@ -809,7 +813,7 @@ Two properties taken from the recorded run rather than invented:
 **Verified** against a live device: 5 telegrams, real replies from
 `[fe80::4aec:a409:2973:2a2c]:49887`, where the count was previously 0.
 
-## F16 — Timeouts are hardcoded, and no OUT row overrides them · **OPEN**
+## F16 — Timeouts are hardcoded, and no OUT row overrides them · **FIXED (2026-09-16)**
 
 `AckChkTimeOut` is declared on **0 of the template's 1457 active OUT rows**,
 so every one falls back to the CoAP client's default (5 s, 3 retries). That
@@ -830,6 +834,8 @@ must stay.
 
 Open question for a real-hardware run: whether 5 s is the right default, or
 whether the harness should derive it from the DUT's observed response time.
+
+**Fix (2026-09-16):** one documented `DEFAULT_RESPONSE_TIMEOUT` (row `AckChkTimeOut` → `$COAP_TIMEOUT` → 5.0, non-positive env values rejected) plus `_response_timeout(msg)`; all seven `or 5.0` literals removed, so a future template that sets `AckChkTimeOut` needs no code change. The multicast discovery `collect_timeout` keeps its 6 s `_MDNS_TIMEOUT` floor explicitly (`max(timeout, _MDNS_TIMEOUT)`) rather than by accident. Covered by `test_runner_failclosed.py` (F16 block, including a guard that no bare `or 5.0` survives).
 
 ## T1 — Malformed datagram crashes the run · **FIXED**
 
@@ -1117,7 +1123,7 @@ the run. Now caught and logged.
 
 ---
 
-## T12 — Block2 is reassembled only on `get`/`oscore_get`, not on the runner's own paths · **FIXED for the OSCORE path (2026-09-11); multicast: deliberately not reassembled, see FINDINGS.md F-021**
+## T12 — Block2 is reassembled only on `get`/`oscore_get`, not on the runner's own paths · **FIXED** (OSCORE path 2026-09-11; multicast path 2026-09-16, see FINDINGS.md F-021)
 
 `_reassemble_block2` existed and was correct, but only two of the four ways a
 body reaches the interpreter went through it. The runner does **not** call
@@ -1158,17 +1164,20 @@ signal for the same device behaviour is 5.1.1.3e's failure.
    delegating to `_reassemble_block2`. The follow-up repeats the same method,
    path (queries included), accept, content-format and security context.
 2. `runner.py::_send_request_inner` calls it after `oscore_request` returns.
-3. ~~`CoapClient.multicast_get` completes each response over unicast.~~
-   **REVERTED — the multicast path is deliberately NOT reassembled.** It was
-   implemented (unicast continuation to each response's own `source_addr`, per
-   RFC 7959 5.1), it did not make 5.1.1.3e pass, and it regressed 5.1.1.3 from
-   passing to failing. More importantly it was the wrong thing to build: the
-   real EITT tool evaluates whatever arrives on the multicast query, so a
-   certification run sees the truncated first block and fails 5.1.1.3e exactly
-   as we do. Reassembling in our client would have hidden a real certification
-   risk behind a green test. **5.1.1.3e stays red as an honest device-side
-   finding — `tests/FINDINGS.md` F-021**, which is the maintainer's call to
-   make (payload budget, block size, or discovery body).
+3. `CoapClient.multicast_get` completes each response over unicast -
+   **reinstated 2026-09-16** after a revert (45ca9cb5). The first version
+   continued the transfer with a bare `Block2 num=1` request and got a Reset:
+   the device serves Block2 continuations only from the response buffer it
+   created for a UNICAST block 0 (`engine.c` "processing block2 option"), and
+   a NON multicast answer creates none. The reinstated version restarts the
+   transfer with a plain unicast GET (same path and query) to the responder's
+   source address and reassembles from there; the result keeps the multicast
+   answer's NON type, mid, token and source address, because the template
+   plans "NON 2.05" for these rows and the runner compares the type - that
+   mismatch is what had "regressed 5.1.1.3" the first time. Section 5.1:
+   132 passed, 5.1.1.3e included. The revert's other argument, that the real
+   EITT tool keeps block 0 only, was an unverified assumption; the decision
+   is that our client behaves like a blockwise-capable client regardless.
 
 **The SSN constraint, which shaped the design.** Every follow-up request
 spends another OSCORE sender sequence number, and 5.3.17.x asserts on exact
@@ -1202,6 +1211,49 @@ Audited 2026-07-26 against the device's own C implementation in `security/`
 (`oc_oscore_crypto.c`, `oc_oscore_context.c`, `oc_oscore_engine.c`,
 `messaging/coap/oscore.c`, `api/oc_replay.c`) — note **`security/`, not `api/`**
 — plus `traces/5_3.xml`. All findings below are OPEN; nothing has been changed.
+
+
+## T13 — `IP="BDUT-Multi"` rows were sent unicast to the DUT · **FIXED (2026-09-16)**
+
+The template provisions the alias with `@@[pahdev"BDUT-Multi;ipaddress=[ff35:30:fd11:9988:7766:0:8000:1]:5683"]`
+(the device's KNX group address: scope 5, installation id, group id 8000:0001) and the real EITT tool
+sends every row addressed to it as an OSCORE-protected NON POST to that multicast address (raw EITT
+log). The runner resolved the alias through `ProvisioningEngine.resolve_device` for the password
+lookup only and never for the DESTINATION, so all 200 active IN rows on the alias (5.3.17.3 ×70,
+5.3.19.5 ×102, 5.3.17.4/.5 ×3 each, 5.4.1.2/.3/.10/.11/.12/.13 ×13, the skipped 5.4.2.x ×9) went
+OSCORE-unicast to the DUT. The device accepts unicast `/k` writes, so nothing failed — but the device
+raises its 4.01 Echo challenge under a fresh random ID Context only for a message that arrived on a
+multicast endpoint (`ECHO_CAUSED_BY_MC_SRC`, messaging/coap/engine.c; `unicast_echo_response_by_mc`
+in security/oc_oscore_engine.c), so 5.3.17.3's `CheckRxKid="yes" RxKid="random"` rows could never
+have been earned; the F6 assertion exposed it ("the 4.01 carried the static context 102a3b").
+
+**Fix (2026-09-16):** `_resolve_group_destination` (runner.py) routes any `IP=` alias whose provisioned
+`ipaddress` is an IPv6 multicast literal through `oscore_request(..., dest=…)`; `CoapClient` gained
+`_request_socket(dest)`, which sends the protected NON from a multicast-configured socket
+(`IPV6_MULTICAST_IF` from DEVICE_IFACE, hop limit) and reads the DUT's unicast reply back on that same
+socket, preferring the configured DUT host as source and discarding our own loop-back and third-party
+datagrams before decryption; every adversarial knob (SeqNo, SeqNoOffset, InvalidAuthTag, RndKid, Echo,
+expect_echo_challenge) is unchanged. `BDUT`, the three discovery scopes, a unicast literal and the
+`ipaddress=invalid` placeholder keep today's unicast behaviour; an alias that is neither `BDUT` nor
+provisioned fails the step closed naming the alias. Block2 continuation is skipped for group rows (no
+template group row needs it). Covered by `harness_tests/test_runner_group_destination.py` (36 tests).
+
+The alias itself only resolves because `test_eitt.py::_seed_project_setup` now applies the template's "NEW PROJECT SETUP" TestCase (three provisioning commands, no CoAP message: BDUT serial, the BDUT-Multi group address, MCastGrp01) to every fresh collection runner - EITT runs it once per project by hand, the interpreter excluded it from collection and never referenced it, so a ProvisioningEngine started empty and the first real run failed every group row with "IP alias 'BDUT-Multi' is neither 'BDUT' nor a provisioned device alias".
+
+Two more pieces fell out of the first real runs (2026-09-17): (1) the device signs its 4.01 Echo
+challenge for a group write with a context derived from the same token under the FRESH RANDOM ID
+Context (`unicast_echo_response_by_mc` → `oc_oscore_add_sender_context`, sender id = the token's osc id,
+i.e. the kid in the outer option); the configured context cannot open it (`InvalidTag`), so
+`_recv_oscore_response` now derives a sibling with `OscoreContext.with_id_context(kid_ctx,
+recipient_id=kid)` from the option it is about to unprotect and tries it first - what EITT logs as
+"SPECIAL DECODING: use received random kid_context". The peer id has to come from the wire kid, not
+from the script's provisioning: 5.4.1.12's MulticastTx has no recipientid while 5.3.17.3's has, and
+only the former failed. Covered by `harness_tests/test_oscore_derived_context.py`. (2) A NON group write
+the script expects no answer to (no OUT response row follows; 68 of 5.3.17.3's 70) used to wait the
+full response budget - six minutes of nothing; `_prepare_for_request` now records
+`_group_reply_expected` and the group path waits `_GROUP_NO_REPLY_GRACE` (0.3 s) instead, still long
+enough to see an unplanned Echo challenge. EITT tier after both: 177 template cases passed, 0 failed,
+13:00 instead of 24:19.
 
 ## O1 — `seq_no_override` causes AEAD NONCE REUSE · **FIXED**
 
@@ -1453,6 +1505,31 @@ in the packet-capture oracle where a duplicate `(kid, PIV)` pair is reported as
 a finding instead of a dropped packet. Recorded as a capture-layer check in
 `eitt-packet-capture-plan.md`. Re-open here only if the topology gains a third
 node.
+
+## O6 — `-Tier all` runs both device tiers against ONE DUT process; runtime's SWU test leaves `fwv = 0.0.2` behind and EITT 5.2.6.1 then fails, cascading into 5.2.7.1b / 5.2.8.1 / 5.2.9.1 / 5.2.10.1b · **FIXED (2026-09-16)**
+
+Observed 2026-09-15 in a `run-in-docker.ps1 -Tier all -IncludeUncommitted` run:
+`_eitt_sort_key` deliberately orders the runtime modules BEFORE `test_eitt.py`
+(their inter-module state dependencies), and the DUT is started once per
+pytest session. `tests/runtime/test_swu.py::TestSwuFirmwareUpdate::
+test_push_based_firmware_update` completes a software update, and the DUT app
+(`runtime_test_server.c`, "Update firmware version to 0.0.2") calls
+`oc_core_set_and_store_device_fwv({0,0,2})`. A firmware version legitimately
+survives the factory resets the EITT preparations perform, so when 5.2.6.1
+reads `/dev/fwv` it gets `[0,0,2]` against the template's `[0,0,1]`; the
+collection then cascades exactly as described in eitt-xml-interpreter.md
+("SPAKE2+ rejected because AT already exists" → 4.00 in the shared AUTH
+PREPARATION). Same section run alone (`-Tier eitt -Section 5.2`) is 19/19 on
+the same tree, so the per-tier baselines stand; `all` has never been one.
+
+Options, in order of preference: restart the DUT between tiers in `all`
+mode (cleanest — mirrors how the baselines were taken); or run `test_eitt.py`
+before the runtime modules; or have `test_swu` restore `fwv` in a teardown
+(weakest — it hides that the DUT carries state across tiers). Until one is
+done, treat `-Tier all` failures in 5.2.6–5.2.10 as this item, and validate
+code changes per tier.
+
+**Fix (2026-09-16):** `run-in-docker.ps1 -Tier all` runs `tests/eitt/` and `tests/runtime/` as two consecutive pytest invocations, so each device tier gets a fresh session-scoped DUT and `test_swu`'s `fwv = 0.0.2` never reaches EITT 5.2.6.1. `|| rc=$?` defeats `set -e` so both tiers always run, the worst status becomes the exit code, and the `-rfE` summary still sees both. The generated bash for the other tiers is byte-identical to before; module ordering in `fixtures.py` untouched. CI is unaffected (one job per tier).
 
 ## OSCORE: intentional KNX deviations — CORRECT, do not "fix"
 
@@ -1783,14 +1860,16 @@ right trade. Verified: 5.1 = 42 passed, no timing regression.
 `await_live`, but it has **no callers** — dead code predating `repeat_query`.
 Left alone rather than modified blind; delete it if it stays unused.
 
-## M7 — An IN step that captured NOTHING returns ok=True · **OPEN**
+## M7 — An IN step that captured NOTHING returns ok=True · **FIXED (2026-09-16)**
 
 `runner._run_dns_message`'s IN branch returns success unconditionally. The
 failure is deferred to the following OUT step — so an IN with no following OUT,
 or whose OUT is deactivated, makes a **completely unanswered query a silent
 pass**.
 
-## M8 — Timeout is indistinguishable from "answered with nothing" · **OPEN**
+**Fix (2026-09-16):** the DNS IN branch of `_run_dns_message` fails when the query captured nothing instead of returning `ok=True` and deferring to the next OUT row; an IN with no following OUT, or a deactivated one, is no longer a silent pass. Covered by `test_runner_failclosed.py` (M7 block).
+
+## M8 — Timeout is indistinguishable from "answered with nothing" · **FIXED (2026-09-16)**
 
 The receive loop exits identically whether the deadline expired with zero
 packets or the break fired. `records()` returns `[]` either way; there is no
@@ -1798,7 +1877,9 @@ packets or the break fired. `records()` returns `[]` either way; there is no
 failure but is equally consistent with a join failure, a wrong-interface send
 (M14), a dropped query (M12), or M1/M2 having discarded a good result.
 
-## M9 — Compression pointers: no hang, but names truncate silently · **OPEN**
+**Fix (2026-09-16):** `SequenceRunner._dns_empty_reason` distinguishes "no datagram arrived at all within the budget" from "N datagrams arrived but none yielded a record" and states that the listener bound and joined (a bind/join failure is raised by `records()`, never an empty set), reading the listener's `packets_received()` counter (added with M18) via `getattr` with an elapsed-time fallback. Covered by `test_runner_failclosed.py` (M8 block).
+
+## M9 — Compression pointers: no hang, but names truncate silently · **FIXED (2026-09-16)**
 
 Good news: the `seen` set **does** terminate mutual pointer loops (verified — no
 hang, no expansion bomb, since `seen` tracks absolute offsets). The bad news is
@@ -1808,7 +1889,9 @@ off the end all yield a plausible short name; `decode_dns_name(bytes([3,0x61]))`
 returns the empty name. Downstream the record simply fails to match and the step
 blames the device — a false fail with a misleading cause.
 
-## M10 — RDLENGTH not honoured as a record boundary for PTR/SRV · **PARTIALLY FIXED**
+**Fix (2026-09-16):** `decode_dns_name` raises `MdnsParseError` on a pointer loop, an out-of-bounds or truncated pointer, a label running off the end, a missing root label, a reserved label type, a label over 63 octets and a name over 255 octets, instead of returning a plausible short name; bounded by `end=` so RDLENGTH is a real record boundary for PTR/SRV targets. `MdnsParseError` subclasses `ValueError` on purpose so M2's per-packet guard still skips a malformed foreign datagram with a stated reason. Covered by `harness_tests/test_mdns_client.py::TestM9NameDecoding`.
+
+## M10 — RDLENGTH not honoured as a record boundary for PTR/SRV · **FIXED (2026-09-16)**
 
 M1's fix rejects rdlen **overruns**. Still open: PTR and SRV ignore `rdata`
 entirely and call `decode_dns_name(data, off)` / `(data, off+6)`, which read the
@@ -1817,7 +1900,9 @@ into the next record's bytes and fabricates a target with no error. Verified:
 `PTR rdlen-short -> target='i\x01y\x05'`. `SRV` with `rdlen == 6` and no target
 likewise reads whatever follows.
 
-## M11 — TXT parsing: overrun silently empties, repeated keys backwards · **OPEN**
+**Fix (2026-09-16), with M9:** `parse_records` now passes the record end (`off + rdlen`) as `end=` to `decode_dns_name` for the PTR target and the SRV host (`mdns_client.py`), so a name that runs past its own RDLENGTH raises `MdnsParseError` instead of reading the next record's bytes and fabricating a target. Covered by `harness_tests/test_mdns_client.py::TestM9NameDecoding` (the `end=` cases).
+
+## M11 — TXT parsing: overrun silently empties, repeated keys backwards · **FIXED (2026-09-16)**
 
 No check that `i+n <= len(rdata)`; on overrun the slice truncates, the `=` test
 fails, and the pair is dropped — yielding `{}`, indistinguishable from a
@@ -1830,7 +1915,9 @@ from any foreign packet. **Note also that `_match_dns_record` never reads
 `DnsRecord.txt` at all — no OUT step asserts on TXT content, so the `SP` record
 and its goodbye are effectively untested.**
 
-## M12 — Header flags ignored; a foreign QUERY is parsed as a response · **OPEN**
+**Fix (2026-09-16):** TXT parsing extracted to `parse_txt_rdata`: an overrun raises instead of yielding `{}`, repeated keys keep the FIRST per RFC 6763 §6.4 (was last-wins), valueless keys are kept as `None` (were dropped). Matches python-zeroconf's `_unpack_text_into_properties`. Covered by `TestM11TxtParsing`.
+
+## M12 — Header flags ignored; a foreign QUERY is parsed as a response · **FIXED (2026-09-16)**
 
 `_, _, qd, an, ns, ar = ...` discards ID and FLAGS, so the **QR bit is never
 checked**. RFC 6762 §7.1 known-answer suppression puts real answer records in
@@ -1840,7 +1927,9 @@ is never checked either, **another device's records can satisfy an assertion
 about the DUT**. Contained on an isolated veth namespace; a live false pass on a
 shared lab network.
 
-## M13 — QU bit never set; retries paper over the resulting delay · **OPEN**
+**Fix (2026-09-16):** `parse_records(..., require_response=True)` checks the QR bit and the listener passes it, so a foreign §7.1 known-answer-suppression QUERY can no longer be adopted as the DUT's answer. Safe against this DUT, which sets flags 0x8400 on every answer and announcement (`port/mdns/mdns.h`). Covered by `TestM12QueryResponseBit`.
+
+## M13 — QU bit never set; retries paper over the resulting delay · **FIXED (2026-09-16)**
 
 QCLASS is always `0x0001`, so every query is a QM query and the responder may
 delay 20–120 ms and apply rate limiting / known-answer suppression. This is the
@@ -1849,7 +1938,9 @@ reliable. Three identical QM queries in 3 s is itself what §7.1 damping targets
 Setting QU (`0x8001`) on the first query would let the DUT answer immediately by
 unicast — the listener is bound to `("", 5353)` and would receive it.
 
-## M14 — Silent degradation to a single wildcard join · **OPEN**
+**Fix (2026-09-16):** `_build_query`/`send_query` gained `unicast`; `repeat_query` sets the QU bit (QCLASS 0x8001, RFC 6762 §5.4) on the FIRST query, retries stay QM. The DUT masks 0x8000 off before its class check and always answers multicast, so nothing changes on the wire from its side. Covered by `TestM13UnicastBit`.
+
+## M14 — Silent degradation to a single wildcard join · **FIXED (2026-09-16)**
 
 `_iface_index` swallows `OSError` from `if_nametoindex` and returns 0, so a
 typo'd or unset `DEVICE_IFACE` collapses the join list to `[0]` alone — **the
@@ -1857,7 +1948,9 @@ single-interface configuration the historical silent-empty bug was about** — w
 no warning. See the memory note about joining wildcard index 0 *as well as* the
 named interface.
 
-## M15 — No `IPV6_MULTICAST_IF` when idx == 0 · **OPEN**
+**Fix (2026-09-16):** `_iface_index` raises `MdnsInterfaceError` naming DEVICE_IFACE instead of swallowing `OSError` and returning 0; the lookup runs before the listen thread starts so it surfaces at the caller, and a join that succeeds on index 0 but fails on the CONFIGURED interface is now a setup failure. Covered by `TestM14InterfaceLookup`.
+
+## M15 — No `IPV6_MULTICAST_IF` when idx == 0 · **FIXED (2026-09-16)**
 
 `if idx:` skips the setsockopt and the sendto scope-id is 0, so on a multi-homed
 host the kernel picks the route for `ff02::fb` itself — frequently not the test
@@ -1865,31 +1958,41 @@ interface. Combined with M14, a mistyped `DEVICE_IFACE` sends queries out the
 wrong NIC while listening on all of them: every 5.1 step reports "received
 nothing".
 
-## M16 — Unknown `RecordType` silently falls back to PTR · **OPEN**
+**Fix (2026-09-16):** `IPV6_MULTICAST_IF` is set unconditionally in `send_query`, including for index 0, so the sockopt and the sendto scope-id always agree. Covered by `TestM15MulticastInterfaceOption`.
+
+## M16 — Unknown `RecordType` silently falls back to PTR · **FIXED (2026-09-16)**
 
 `_TYPE_BY_NAME.get(rtype.upper(), DNS_TYPE_PTR)`. An XML `RecordType` this
 module does not know (`ANY`, `NSEC`, a typo) sends a **PTR** query; the OUT step
 then fails with a misleading message pointing at the device. Contradicts the
 runner's stated "deliberately loud, never a silent no-op" policy — should raise.
 
-## M17 — `_ready` is set even when the listener failed to bind · **OPEN**
+**Fix (2026-09-16):** new `dns_type_code()` raises `ValueError` listing the supported types instead of `.get(..., DNS_TYPE_PTR)`; called from `send_query` before any socket is opened and from `repeat_query` in the caller's thread. No template exposure: all 48 DnsMessage rows use PTR/SRV/AAAA only. Covered by `TestM16UnknownRecordType`.
+
+## M17 — `_ready` is set even when the listener failed to bind · **FIXED (2026-09-16)**
 
 `_ready` is set in the `finally`, so a listener that failed to bind returns
 looking healthy and the error only surfaces at `records()`. In between,
 `repeat_query` pumps queries into the void.
 
-## M18 — Fixed 0.15 s sleep as the only join barrier · **OPEN**
+**Fix (2026-09-16):** a second `_listening` event, set only after a successful bind+join, distinguishes "up" from "already over" (`_ready` also fires from the `finally`); the constructor raises the bind/join error itself instead of returning a healthy-looking listener. Covered by `TestM17ReadyOnlyWhenListening`.
+
+## M18 — Fixed 0.15 s sleep as the only join barrier · **FIXED (2026-09-16)**
 
 A guess at MLD report propagation with no verification that the join took
 effect. Given this module's documented history, the most likely residual source
 of intermittent empty results.
 
-## M19 — TTL values are never validated · **OPEN**
+**Fix (2026-09-16):** `_await_join` replaces the blind 0.15 s sleep with a round-tripped probe query for `_knx-join-probe.invalid.` (RFC 6761 reserved TLD; QR=0 so our own M12 check discards it), returning once any datagram reaches the socket; falls back to the sleep when `IPV6_MULTICAST_LOOP` is unavailable. The probe is excluded from `packets_received()`. Covered by `TestM18JoinBarrier`.
+
+## M19 — TTL values are never validated · **FIXED (2026-09-16)**
 
 Nothing checks the DUT's announce TTLs against RFC 6762 §10 (120 s host records,
 75 min shared). `traces/5_1.xml` records `TTL="0"` on every element including
 live ones, so the traces do not discriminate either — TTL correctness is
 untested end to end.
+
+**Fix (2026-09-16):** new `expected_ttl()` / `check_record_ttls()` validate announce TTLs against RFC 6762 §10 (120 s host, 4500 s shared), naming the expected value. Deliberately a REPORTING helper, not wired into the match path: TTL 0 is a goodbye (M5) and this DUT sends `MDNS_DEFAULT_TTL` 60 s for every record on purpose (`port/mdns/mdns.h`), so a gate would fail every live 5.1 step; `allow_device_ttl=False` reports that deviation too. Covered by `TestM19TtlValidation`.
 
 ## mDNS: checked and NOT defects
 

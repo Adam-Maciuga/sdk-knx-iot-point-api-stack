@@ -8,6 +8,30 @@ metadata:
   modified: 2026-07-26T10:16:18.333Z
 ---
 
+**CURRENT STATUS (2026-09-17)** — supersedes the 2026-07-26 numbers below, which are kept as
+history. Layout since 2026-09-14: `tests/eitt/` (test_eitt.py, `interpreter/` package, data/,
+harness_tests/), `tests/runtime/`, `tests/common/` — see [[project-runtime-test-tiers]] for
+everything that moved. Run it in Docker only: `tests/common/tools/run-in-docker.ps1 -Tier eitt
+[-Section 5.x] [-IncludeUncommitted]` (never host-native pytest, see
+[[feedback-eitt-always-run-in-docker]]).
+
+Full tier, Docker and GitLab CI (`eitt-gcc`): **177 passed / 0 failed / 8 skipped / 2 xfailed**,
+~13 min. Skips = the seven 5.4.2 cases (Observe not implemented in the interpreter's request path;
+5.4.2.2 also has a template flaw, read provoked where a write is expected) + 5.3.14.1 (optional
+replwdo). Xfails = the 5.10.1.2 / 5.10.1.4 multi-IPv6 pagination deviation. 5.1.1.3e passes since the
+client reassembles multicast Block2 answers over unicast (F-021 closed as a test-client gap).
+Interpreter facts that matter when resuming: `IP="BDUT-Multi"` rows go out as real OSCORE NON
+multicast to `[ff35:30:fd11:9988:7766:0:8000:1]:5683` (T13; the alias comes from the template's
+"NEW PROJECT SETUP", applied per collection runner by `test_eitt.py::_seed_project_setup`); the
+device's 4.01 Echo challenge for a group write is decrypted with a sibling context derived from the
+option's random kid context and kid (`OscoreContext.with_id_context`); the interpreter fails closed
+on unevaluated attributes and malformed XML values (F6/F9) and corrects template data corruption via
+`overrides.yaml` `message_attributes:`; the tracker `tests/docs/eitt-interpreter-findings.md` has no
+OPEN item, only three PARTIALLY FIXED (F8 `.*` matcher line, T3 listener last-segment compare, O3
+both key constructions accepted).
+
+---
+
 The EITT XML dynamic interpreter (see [[eitt-xml-interpreter-project]]) lives on branch `feature/runtime_tests_v2` in `d:\Repos\knx-iot-point-api-stack`. **Do NOT commit or push unless asked** — the user reviews first.
 
 **SUPERSEDED 2026-09-10 — see [[project-runtime-test-tiers]].** The hand-written `test_5_*.py` suite was deleted by commit `3a5e2d4a`, which the user later called a mistake; upstream's 349 hand-written tests are restored (verbatim, not yet importable) and will become the "runtime" tier next to this interpreter tier. `tests/eitt/test_eitt.py` still generates one pytest item per EITT TestCase from the template at collection time.
