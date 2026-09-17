@@ -337,8 +337,7 @@ The device's /k observe path itself is verified by `tests/runtime/test_observe.p
 keeping: the send path looks up the RECIPIENT table (fp/r) for the sending GA, not fp/p; and the V41
 template XML in `tests/eitt/data/` is an OLDER V41 edition than the one loaded in EITT 4.4.0104 (EITT's
 has the §2.5.9 comments, `lt=30`, and expects `st: w` where ours expects `st: a`). The investigation of
-the EITT tool's own observe behaviour is kept out of the repo on purpose; see the local-only note
-`local-eitt-observe-5422.md` next to this file.
+the EITT tool's own observe behaviour is kept out of the repository on purpose (local notes only).
 
 **CI pipeline (2026-09-16, commit "Rename the CI jobs by tier"):** jobs are `<tier>-<variant>`:
 build-gcc, unit-gcc, unit-asan, harness, fuzz-seed-replay (gating seed replay + coverage), fuzz-explore
