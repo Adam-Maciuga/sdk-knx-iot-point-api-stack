@@ -1,3 +1,14 @@
+# Branch pipelines only. The jobs below carry no rules and therefore exist only
+# in branch and tag pipelines, but the memcheck jobs' catch-all `when: manual`
+# rule also matched merge request pipelines, which then contained nothing but
+# those two jobs and failed validation with "needs 'build-gcc' ... does not
+# exist". A merge request shows the branch pipeline of its source branch.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: always
+
 stages:
   - build
   - test
