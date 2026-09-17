@@ -213,10 +213,14 @@ list(APPEND PORT_SOURCES
 )
 
 # Platform port - Zephyr-specific - Optional
-# TODO FIXME add Kconfig switch
-list(APPEND PORT_SOURCES
-    ${STACK_ROOT}/port/zephyr/knx_shell.c
-)
+# KNX IoT shell command: The shared command handlers (port/knx_shell_commands.c) plus the
+# Zephyr shell binding, compiled with the KNXIOT_SHELL option.
+if(CONFIG_KNXIOT_SHELL)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/knx_shell_commands.c
+        ${STACK_ROOT}/port/zephyr/knx_shell.c
+    )
+endif()
 
 # Network backend selection:
 #   OpenThread   — connectivity_thread.c  +  dns-sd-thread.c   (DNS-SD and OT_SRP)

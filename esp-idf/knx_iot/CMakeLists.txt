@@ -89,6 +89,17 @@ if(CONFIG_KNXIOT_TEST_CONTROL)
     list(APPEND API_SOURCES ${STACK_ROOT}/api/oc_test_control.c)
 endif()
 
+# KNX IoT console command: The shared command handlers (port/knx_shell_commands.c) plus
+# the ESP-IDF console binding. The console component is a fixed private requirement of
+# the component (below), because ESP-IDF resolves the requirements before the
+# configuration is loaded, so the option can only select the sources.
+if(CONFIG_KNXIOT_SHELL)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/knx_shell_commands.c
+        ${STACK_ROOT}/port/freertos_esp32/knx_shell.c
+    )
+endif()
+
 idf_component_register(
     SRCS
         ${API_SOURCES}
@@ -107,6 +118,7 @@ idf_component_register(
         mbedtls
     PRIV_REQUIRES
         lwip esp_netif esp_event esp_wifi esp_timer nvs_flash esp_hw_support pthread
+        console
 )
 
 # -- External libraries (mirrors zephyr/CMakeLists.txt) --

@@ -203,6 +203,18 @@ config KNXIOT_ECHO_RING_SIZE
     help
       Corresponds to CMake: KNX_ECHO_RING_SIZE.
 
+# ── Shell ──────────────────────────────────────────────────────────────────────
+
+config KNXIOT_SHELL
+    bool "KNX IoT shell command (knx_iot)"
+    default y
+    depends on SHELL
+    help
+      Compiles the shared KNX IoT shell commands (port/knx_shell_commands.c) and their
+      Zephyr shell binding (port/zephyr/knx_shell.c), which registers the "knx_iot"
+      command with its subcommands (device parameters, tables, factory reset, heap
+      statistics). Needs the Zephyr shell (CONFIG_SHELL).
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 
 config KNXIOT_TEST_CONTROL
