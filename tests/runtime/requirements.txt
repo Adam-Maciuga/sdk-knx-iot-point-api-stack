@@ -5,3 +5,4 @@ pytest>=7.0
 # been seen), which is the behaviour the mDNS discovery tests assert. The upper bound guards
 # against another silent major-version behaviour change.
 zeroconf>=0.151.3,<1.0
+PyYAML>=6.0

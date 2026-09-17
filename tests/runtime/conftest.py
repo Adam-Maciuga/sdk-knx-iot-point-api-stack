@@ -23,9 +23,9 @@ from pathlib import Path
 import cbor2
 import pytest
 
-from coap_client import CoapClient, APPLICATION_CBOR
-from knx_spake2plus import Spake2PlusClient
-from knx_oscore import OscoreContext
+from transport.coap_client import CoapClient, APPLICATION_CBOR
+from transport.knx_spake2plus import Spake2PlusClient
+from transport.knx_oscore import OscoreContext
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +56,16 @@ def _eitt_sort_key(item):
         )
     # Tests without EITT ID in name sort to the end
     return (999, 999, 999, 999, 999, 999)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--section", action="append", default=[], metavar="N",
+        help="Select whole EITT section(s) by number, e.g. --section 5.6 "
+             "(repeatable). Unlike `-k 5.6`, this matches the section "
+             "boundary exactly: `-k 5.6` is a SUBSTRING match and also "
+             "drags in 5.5.5.6 / 5.5.6.1, which then run without their "
+             "sibling preparation TestCases and fail spuriously.")
 
 
 def pytest_collection_modifyitems(items):
@@ -403,8 +413,26 @@ def server_process():
         print(f"[conftest] Removing stale storage: {d}")
         shutil.rmtree(d, ignore_errors=True)
 
+    # RUNTIME_TEST_SERVER_PREFIX lets the harness launch the DUT somewhere
+    # other than this process's own network namespace — run-in-docker.ps1
+    # sets it to "ip netns exec dut".
+    #
+    # Why that matters: the DUT learns the TOOL's IPv6 address from the
+    # source address of our discovery reply (oc_knx_client.c
+    # knx_coap_discovery_response stores data->endpoint->addr.ipv6.address).
+    # With both veth ends in ONE namespace the kernel picks the device's own
+    # address as the source for a packet to itself, so the DUT records its
+    # own address and sends 5.4.1.4/5.4.1.15's unicast s-mode telegram to
+    # itself. Separate namespaces give each side a correct, distinct source
+    # address (verified: `ip -6 route get` resolves via veth-test/veth-dut
+    # with src ::2/::1 respectively, instead of `dev lo` for both).
+    prefix = (os.environ.get("RUNTIME_TEST_SERVER_PREFIX") or "").split()
+    cmd = prefix + [str(binary)]
+    if prefix:
+        print(f"[conftest] Server launch prefix: {' '.join(prefix)}")
+
     proc = subprocess.Popen(
-        [str(binary)],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

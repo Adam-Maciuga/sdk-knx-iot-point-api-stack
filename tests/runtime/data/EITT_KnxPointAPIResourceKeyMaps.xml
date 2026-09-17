@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  EITT's own JSON<->CBOR key map for the KNX IoT Point API, supplied by the
+  user 2026-07-24 from the EITT installation. This is the AUTHORITATIVE
+  source for resource_schema.py: EITT resolves a telegram's human-readable
+  JSON <Content> to wire CBOR using exactly these tables, so any key we
+  need is here rather than something to reverse-engineer from traces.
+
+  Structure:
+    - The Default="yes" map applies to ANY path that has no path-specific
+      map of its own. resource_schema.py mirrors this as _DEFAULT_SCHEMA.
+    - Path-specific maps override it for that path. Note "auth/at" and
+      "auth/at.*" are DIFFERENT maps (the collection vs. an entry's OSCORE
+      key configuration), and ".well-known/knx/spake" has its own.
+    - Some JSON names deliberately share a CBOR key within a map (e.g. in
+      PAPI_RKM_OSCORE: ms/kid/sub all = 2, hkdf/aud = 3, osc/alg = 4,
+      nbf/salt = 5) because they occur in mutually exclusive contexts.
+      Encoding is therefore JSON-name -> CBOR key (unambiguous); decoding
+      back is ambiguous for those, so prefer the name the XML used.
+-->
+<EITT_KnxPointAPIResourceKeyMaps xmlns="http://knx.org/xml/eitt/4.3" Version="8" DateOfVersion="2024/10/29" MinEITTVersion="4.4.002" Comment="">
+  <Header>
+    <KNXStandard>KNX v3.0.3</KNXStandard>
+  </Header>
+  <History>
+    <Hitem Version="1" Date="2023/06/26" Who="AE" Change="Initial version"/>
+    <Hitem Version="2" Date="2023/08/28" Who="AE" Change="different maps for auth/at.* and .well-known/knx/spake"/>
+    <Hitem Version="3" Date="2023/10/10" Who="AE" Change="auth/at update"/>
+    <Hitem Version="4" Date="2023/10/19" Who="AE" Change="auth/at update contextid"/>
+    <Hitem Version="5" Date="2024/02/07" Who="AE" Change="CBOR key value changed to 14 for 'at'"/>
+    <Hitem Version="6" Date="2024/05/31" Who="AE" Change="CBOR key value 'salt' added to 'auth/at'"/>
+    <Hitem Version="7" Date="2024/05/31" Who="SMV" Change="CBOR key value 'a','c','seqCntr', 'knxClassicObj' added"/>
+    <Hitem Version="8" Date="2024/10/29" Who="SMV" Change="CBOR key value 'pw' added"/>
+  </History>
+  <PointAPIResourceKeyMaps>
+    <!-- Function Point Tables, Functional Blocks and Properties -->
+    <PointAPIResourceKeyMap Path="" ID="PAPI_RKM_DEF_0" Default="yes" DisplayName="Default mappings">
+      <PAResKey JSON="id" CBOR="0" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="value" CBOR="1" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="cmd" CBOR="2" CBORType="text" Support="M"/>
+      <PAResKey JSON="status" CBOR="3" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="sia" CBOR="4" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="s" CBOR="5" CBORType="map" Support="M"/>
+      <PAResKey JSON="st" CBOR="6" CBORType="text" Support="M"/>
+      <PAResKey JSON="ga" CBOR="7" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="cflag" CBOR="8" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="url" CBOR="10" CBORType="text" Support="M"/>
+      <PAResKey JSON="href" CBOR="11" CBORType="text" Support="M"/>
+      <PAResKey JSON="ia" CBOR="12" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="grpid" CBOR="13" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="fid" CBOR="25" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="iid" CBOR="26" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="at" CBOR="14" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="secFlags" CBOR="28" CBORType="map" Support="M"/>
+      <PAResKey JSON="pkgq" CBOR="29" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="fault" CBOR="102" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="g" CBOR="103" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="groupKey" CBOR="107" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="overridden" CBOR="111" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="dpt" CBOR="116" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="knxClassicObj" CBOR="115" CBORType="map" Support="M"/>
+      <PAResKey JSON="a" CBOR="97" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="c" CBOR="99" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="seqCntr" CBOR="110" CBORType="unsigned" Support="M"/>
+    </PointAPIResourceKeyMap>
+    <!-- Different JSON strings in schema files and KNX handbook (event there!) -->
+    <PointAPIResourceKeyMap Path="auth/at" ID="PAPI_RKM_ACCTOKEN_0" DisplayName="Access Token (RFC 8392)">
+      <PAResKey JSON="id" CBOR="0" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="iss" CBOR="1" CBORType="text string" Support="M"/>
+      <PAResKey JSON="ms" CBOR="2" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="aud" CBOR="3" CBORType="text string" Support="M"/>
+      <PAResKey JSON="osc" CBOR="4" CBORType="map" Support="M"/>
+      <PAResKey JSON="nbf" CBOR="5" CBORType="integer,float" Support="O"/>
+      <PAResKey JSON="contextid" CBOR="6" CBORType="integer,float" Support="O"/>
+      <PAResKey JSON="cti" CBOR="7" CBORType="byte string" Support="O"/>
+      <PAResKey JSON="cnf" CBOR="8" CBORType="map" Support="M"/>
+      <PAResKey JSON="scope" CBOR="9" CBORType="map" Support="M"/>
+      <PAResKey JSON="profile" CBOR="38" CBORType="unsigned" Support="M"/>
+      <PAResKey JSON="salt" CBOR="5" CBORType="byte string" Level="2" Support="O"/>
+    </PointAPIResourceKeyMap>
+    <!-- usage ? -->
+    <PointAPIResourceKeyMap Path="auth/at" ID="PAPI_RKM_ACCTOKEN_1" DisplayName="Access Token Confirmation (RFC 8747)">
+      <PAResKey JSON="jwk" CBOR="1" CBORType="" Support=""/>
+      <PAResKey JSON="jwe" CBOR="2" CBORType="" Support=""/>
+      <PAResKey JSON="kid" CBOR="3" CBORType="" Support=""/>
+      <PAResKey JSON="osc" CBOR="4" CBORType="" Support=""/>
+    </PointAPIResourceKeyMap>
+    <!-- Different table content in KNX handbook -->
+    <PointAPIResourceKeyMap Path="auth/at.*" ID="PAPI_RKM_OSCORE" DisplayName="OSCORE Key Configuration">
+      <PAResKey JSON="id" CBOR="0" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="version" CBOR="1" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="ms" CBOR="2" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="kid" CBOR="2" CBORType="text string" Support="M"/>
+      <PAResKey JSON="sub" CBOR="2" CBORType="text string" Support="O"/>
+      <PAResKey JSON="hkdf" CBOR="3" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="aud" CBOR="3" CBORType="text string" Support="O"/>
+      <PAResKey JSON="osc" CBOR="4" CBORType="map" Support="M"/>
+      <PAResKey JSON="alg" CBOR="4" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="nbf" CBOR="5" CBORType="integer" Support="O"/>
+      <PAResKey JSON="salt" CBOR="5" CBORType="byte string" Support="O"/>
+      <PAResKey JSON="contextId" CBOR="6" CBORType="byte string" Support="O"/>
+      <PAResKey JSON="cnf" CBOR="8" CBORType="map" Support="M"/>
+      <PAResKey JSON="scope" CBOR="9" CBORType="map" Support="M"/>
+      <PAResKey JSON="pbkdf2" CBOR="12" CBORType="" Support=""/>
+      <PAResKey JSON="profile" CBOR="38" CBORType="unsigned" Support="M"/>
+    </PointAPIResourceKeyMap>
+    <!-- Different table content in KNX handbook -->
+    <PointAPIResourceKeyMap Path=".well-known/knx/spake" ID="PAPI_RKM_OSCORE" DisplayName="OSCORE Key Configuration">
+      <PAResKey JSON="id" CBOR="0" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="version" CBOR="1" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="ms" CBOR="2" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="hkdf" CBOR="3" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="alg" CBOR="4" CBORType="unsigned" Support="O"/>
+      <PAResKey JSON="salt" CBOR="5" CBORType="byte string" Support="O"/>
+      <PAResKey JSON="contextId" CBOR="6" CBORType="byte string" Support="O"/>
+      <PAResKey JSON="pw" CBOR="8" CBORType="byte string" Support="M"/>
+      <PAResKey JSON="shareP" CBOR="10" CBORType="" Support=""/>
+      <PAResKey JSON="shareV" CBOR="11" CBORType="" Support=""/>
+      <PAResKey JSON="pbkdf2" CBOR="12" CBORType="" Support=""/>
+      <PAResKey JSON="confirmV" CBOR="13" CBORType="" Support=""/>
+      <PAResKey JSON="confirmP" CBOR="14" CBORType="" Support=""/>
+      <PAResKey JSON="rnd" CBOR="15" CBORType="" Support=""/>
+      <PAResKey JSON="it" CBOR="16" CBORType="" Support=""/>
+    </PointAPIResourceKeyMap>
+  </PointAPIResourceKeyMaps>
+</EITT_KnxPointAPIResourceKeyMaps>

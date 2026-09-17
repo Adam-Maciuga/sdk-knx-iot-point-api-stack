@@ -168,43 +168,112 @@ static void put_bool_dp(oc_request_t *request,
   oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 }
 
+/* Add the resource's interfaces as the "if" array of short URNs.
+ * Mirrors add_all_interface_short_urns_for_a_resource() in the demos repo
+ * (apps/knx_iot_datapoint.c) — the BDUT that passes EITT certification. */
+static void add_all_interface_short_urns(const oc_resource_t *resource)
+{
+  oc_interface_mask_t res_interfaces = OC_IF_NONE;
+  oc_resource_get_all_interfaces_for_a_resource(resource, &res_interfaces);
+
+  const unsigned int nr_entries =
+    oc_count_total_interfaces_in_mask(res_interfaces);
+  oc_string_array_t interface_list;
+  oc_new_string_array(&interface_list, nr_entries);
+
+  oc_put_all_interface_short_urns_from_a_mask_in_string_array(res_interfaces,
+                                                              interface_list);
+  oc_rep_set_string_array(root, if, interface_list);
+  oc_free_string_array(&interface_list);
+}
+
+/* GET handler for an integer datapoint, including the "?m=" metadata query.
+ *
+ * Ported from knx_iot_get_handler() in the demos repo
+ * (apps/knx_iot_datapoint.c) so this headless test server answers metadata
+ * reads the same way the certified BDUT (eitt_virtual_gui) does. Three
+ * details matter and are easy to get wrong:
+ *
+ *  - The query keys must be ITERATED. 5.8.3.2 sends a repeated key,
+ *    "?m=id&m=value&m=rt&m=if&m=dpt"; a single oc_get_query_value() only
+ *    ever sees the first one.
+ *  - Each field is an INDEPENDENT `if (... || wildcard)`, not an else-if
+ *    chain, so "?m=*" emits every field and a multi-key query emits each
+ *    one requested.
+ *  - Length-exact strncmp(m_value, "..", m_value_len). "id" and "if" are
+ *    both 2 chars, so a fixed-length compare matches the wrong field.
+ *
+ * "rt" and "if" are absent from EITT's CBOR key map
+ * (data/EITT_KnxPointAPIResourceKeyMaps.xml), so they travel as TEXT keys —
+ * which is what oc_rep_text_set_text_string's #key stringification emits and
+ * what the interpreter's ResourceSchema.decode() passes through unchanged.
+ *
+ * error_state -> 4.04 reproduces the template's negative steps: "?m=id&m=unknown"
+ * still returns id, while "?m=unknown1&m=unknown2" matches nothing and 4.04s. */
 static void get_int_dp(oc_request_t *request,
                        oc_interface_mask_t iface_mask, void *user_data)
 {
   (void)iface_mask;
   int *val = (int *)user_data;
+  bool error_state = true;
+
   oc_rep_begin_root_object();
   if (oc_query_value_exists(request, "m") != -1) {
     char *m_value;
-    int m_len = oc_get_query_value(request, "m", &m_value);
-    const char *sn_str = oc_core_get_device_info()->serialnumber ;
+    char *m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
+    size_t m_key_len;
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+    const char *sn_str = oc_core_get_device_info()->serialnumber;
     const char *uri_str = oc_string(request->resource->uri);
-    if (m_len == 1 && m_value[0] == '*') {
-      /* Full metadata */
-      char id_buf[128];
-      snprintf(id_buf, sizeof(id_buf), "knx://sn:%s%s", sn_str, uri_str);
-      oc_rep_i_set_text_string(root, 0, id_buf);
-      oc_rep_i_set_int(root, 1, *val);
-      oc_rep_text_set_text_string(root, dpt,
-                                  oc_string(request->resource->dpt));
-      oc_rep_text_set_text_string(root, href, uri_str);
-    } else if (m_len >= 2 && strncmp(m_value, "id", 2) == 0) {
-      char id_buf[128];
-      snprintf(id_buf, sizeof(id_buf), "knx://sn:%s%s", sn_str, uri_str);
-      oc_rep_i_set_text_string(root, 0, id_buf);
-    } else if (m_len >= 3 && strncmp(m_value, "dpt", 3) == 0) {
-      oc_rep_text_set_text_string(root, dpt,
-                                  oc_string(request->resource->dpt));
-    } else if (m_len >= 5 && strncmp(m_value, "value", 5) == 0) {
-      oc_rep_i_set_int(root, 1, *val);
-    } else {
-      oc_rep_i_set_int(root, 1, *val);
+
+    oc_init_query_iterator();
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value,
+                            &m_value_len) != -1) {
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard) {
+        char id_buf[128];
+        snprintf(id_buf, sizeof(id_buf), "knx://sn:%s%s", sn_str, uri_str);
+        oc_rep_i_set_text_string(root, 0, id_buf);
+        error_state = false;
+      }
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard) {
+        oc_rep_i_set_int(root, 1, *val);
+        error_state = false;
+      }
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard) {
+        /* skip the "urn:knx" (7 chars) prefix — the template expects the
+         * short form ":dpa.65500.201" */
+        const char *first_type =
+          oc_string_array_get_item(request->resource->types, 0);
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard) {
+        add_all_interface_short_urns(request->resource);
+        error_state = false;
+      }
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard) {
+        oc_rep_text_set_text_string(root, dpt,
+                                    oc_string(request->resource->dpt));
+        error_state = false;
+      }
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard) {
+        oc_rep_text_set_text_string(root, href, uri_str);
+        error_state = false;
+      }
     }
   } else {
     oc_rep_i_set_int(root, 1, *val);
+    error_state = false;
   }
   oc_rep_end_root_object();
-  oc_prepare_cbor_response(request, OC_STATUS_OK);
+
+  if (error_state) {
+    /* unknown 'm' query parameter value(s) only */
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  } else {
+    oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
 }
 
 static void put_int_dp(oc_request_t *request,

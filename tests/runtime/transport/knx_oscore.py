@@ -85,6 +85,7 @@ class OscoreContext:
 
         # Derive keys
         salt = master_salt  # empty for SPAKE2+ derived contexts
+        self._master_salt = salt  # kept for lazy empty-sender-id key derivation
 
         sender_info = _build_info(sender_id, id_context, AEAD_ALG, "Key",
                                   KEY_LEN)
@@ -106,6 +107,25 @@ class OscoreContext:
         _dbg_oscore(f"[oscore]   sender_key={self.sender_key.hex()}")
         _dbg_oscore(f"[oscore]   recipient_key={self.recipient_key.hex()}")
         _dbg_oscore(f"[oscore]   common_iv={self.common_iv.hex()}")
+
+    def _empty_sender_id_key(self) -> bytes:
+        """AEAD key derived with an EMPTY sender ID (id="").
+
+        Used to decrypt a device echo/re-protected response, which the
+        device signs with its own sender context whose Sender ID is empty
+        for a group AT (see oc_oscore_context.c's "Request Key"). When our
+        recipient_id is already empty this equals recipient_key, so we reuse
+        that; otherwise (group AT) we derive it once and cache it.
+        """
+        if not self.recipient_id:
+            return self.recipient_key
+        cached = getattr(self, "_empty_id_key", None)
+        if cached is None:
+            info = _build_info(b"", self.id_context, AEAD_ALG, "Key", KEY_LEN)
+            cached = _hkdf_sha256(self.master_secret, info, KEY_LEN,
+                                  self._master_salt)
+            self._empty_id_key = cached
+        return cached
 
     def _next_piv(self) -> bytes:
         """Get next Partial IV and increment SSN."""
@@ -175,7 +195,11 @@ class OscoreContext:
                         accept: int | None = None,
                         content_format: int | None = None,
                         observe: int | None = None,
-                        block2: bytes | None = None) -> tuple[
+                        block2: bytes | None = None,
+                        seq_no_override: int | None = None,
+                        seq_no_offset: int | None = None,
+                        invalid_auth_tag: bytes | None = None,
+                        kid_override: bytes | None = None) -> tuple[
                             bytes, bytes, bytes]:
         """Protect a CoAP request with OSCORE.
 
@@ -192,6 +216,36 @@ class OscoreContext:
             block2: Block2 option value (RFC 7959). Block2 is a Class E
                     option, so it travels inside the encrypted inner message
                     and never appears as an outer option.
+            seq_no_offset: EITT's SeqNoOffset — this send still CONSUMES
+                     the next sequence number (self.ssn advances by 1,
+                     exactly like a normal send: EITT keeps a monotonic
+                     per-context counter and increments it every telegram),
+                     but the Partial IV actually TRANSMITTED is that
+                     consumed number shifted by this signed offset. This is
+                     what lets 5.3.17.x walk the device's replay window:
+                     a +31 lands ahead (accepted, slides the window), a
+                     following -1 lands just inside the now-advanced window
+                     (a "replay" of an already-covered slot), a -32/-35/-64
+                     lands outside the 32-wide window (rejected). Because
+                     the counter still advances, consecutive offsets
+                     accumulate the same way EITT's do (traces/5_3.xml:
+                     SeqNum 103173 then 103142,103143,... = base+31 then
+                     base,base+1,...). The device only compares RELATIVE to
+                     the highest SSN it has seen (oc_replay.c
+                     oc_replay_check_client), so the absolute base is
+                     irrelevant — only the offset pattern matters.
+            seq_no_override: send this EXACT sequence number as the Partial
+                     IV (EITT's SeqNoFn="fix"+SeqNo — pin it to a fixed
+                     value so each attempt is reproducible). Unlike
+                     seq_no_offset this does NOT consume/advance self.ssn.
+            invalid_auth_tag: replace the last len(tag) bytes of the AEAD
+                     ciphertext with this value, corrupting the
+                     authentication tag so the device MUST reject the
+                     message (EITT's InvalidAuthTag integrity-protection
+                     negative test).
+            kid_override: send this kid in the OSCORE option instead of the
+                     context's real sender_id (EITT's RndKid — a random/
+                     unknown key id the device won't have a context for).
 
         Returns:
             (oscore_option_value, ciphertext, piv) where:
@@ -199,7 +253,22 @@ class OscoreContext:
             - ciphertext: encrypted inner message (becomes outer payload)
             - piv: the partial IV used (needed for response decryption)
         """
-        piv = self._next_piv()
+        if seq_no_override is not None:
+            # Fixed pin — does NOT consume a sequence number.
+            seq = max(0, seq_no_override)
+            piv = seq.to_bytes(5, "big").lstrip(b"\x00") or b"\x00"
+        elif seq_no_offset is not None:
+            # Consume the next SSN normally (advance the counter, exactly
+            # like EITT), but TRANSMIT it shifted by the offset. self.ssn
+            # is "next value to send", so the number this send consumes is
+            # self.ssn; increment the counter, then apply the offset to
+            # the consumed value for the wire PIV.
+            consumed = self.ssn
+            self.ssn += 1
+            seq = max(0, consumed + seq_no_offset)
+            piv = seq.to_bytes(5, "big").lstrip(b"\x00") or b"\x00"
+        else:
+            piv = self._next_piv()
         kid = self.sender_id
 
         # Build inner plaintext: code || inner_options || 0xFF || payload
@@ -272,11 +341,72 @@ class OscoreContext:
         aesccm = AESCCM(self.sender_key, tag_length=TAG_LEN)
         ciphertext = aesccm.encrypt(nonce, bytes(plaintext), aad)
 
+        # Corrupt the AEAD tag (trailing TAG_LEN bytes) if asked to — the
+        # device's AEAD verification must then fail and reject the message.
+        if invalid_auth_tag is not None:
+            bad = invalid_auth_tag[:TAG_LEN].ljust(TAG_LEN, b"\x00")
+            ciphertext = ciphertext[:-TAG_LEN] + bad
+
         # Build OSCORE option (request always includes kid)
-        oscore_opt = self._build_oscore_option(piv, kid=kid,
-                                               kid_context=self.id_context)
+        oscore_opt = self._build_oscore_option(
+            piv, kid=(kid_override if kid_override is not None else kid),
+            kid_context=self.id_context)
 
         return oscore_opt, ciphertext, piv
+
+    def protect_echo_challenge(self, request_kid: bytes, request_piv: bytes,
+                               echo: bytes,
+                               kid_context: bytes,
+                               coap_code: int = 0x81) -> tuple[bytes, bytes]:
+        """Protect a 4.01-with-Echo challenge answering a telegram the DUT
+        sent us — the mirror image of the device's own
+        'unicast echo response' (oc_oscore_engine.c:1526).
+
+        We are the RESPONDER here, so the message is signed with the key
+        derived for the *responder* direction. The device validates it in
+        oc_oscore_receive_message's is_inbound_response branch, which is
+        strict about three things (all reflected in EITT's attributes on
+        the 4.01 step, and in traces/5_3.xml TelNo 762):
+
+        - `kid` must be the sender id from OUR access token, so the device
+          finds the AT entry (oc_core_find_at_entry_by_osc_id); it is NOT
+          randomised.
+        - `kid_context` must be exactly OC_ECHO_KID_CTX_LEN (10) random
+          bytes — that length is the device's marker for "this is an echo
+          response" (`coap_pkt->kid_ctx_len == OC_ECHO_KID_CTX_LEN`), and
+          it is what EITT's RndKid="yes" randomises on this step.
+        - `piv` must be the PIV of the telegram being challenged
+          (EITT's SeqNoFn="asinrequest"): oc_oscore_echo_check_and_consume
+          looks up (kid, ssn) in the device's echo whitelist, which it
+          anchored when it sent that telegram, so any other value is
+          dropped as "kid/SSN not in white-list".
+
+        Args:
+            request_kid: kid of the telegram we are challenging.
+            request_piv: its Partial IV, reused verbatim.
+            echo: Echo option value to challenge with.
+            kid_context: the 10-byte random echo kid context.
+            coap_code: inner response code (default 0x81 = 4.01).
+
+        Returns:
+            (oscore_option_value, ciphertext)
+        """
+        plaintext = bytearray()
+        plaintext.append(coap_code)
+        # Echo (252) is the only inner option on this message.
+        plaintext.extend(self._encode_option(252, echo))
+
+        # A response carrying its OWN PIV is signed with an empty sender id
+        # (see unprotect_response's resp_has_own_piv branch, which is the
+        # receive side of exactly this construction).
+        nonce = self._build_nonce(b"", request_piv)
+        aad = self._build_aad(request_kid, request_piv)
+        aesccm = AESCCM(self._empty_sender_id_key(), tag_length=TAG_LEN)
+        ciphertext = aesccm.encrypt(nonce, bytes(plaintext), aad)
+
+        oscore_opt = self._build_oscore_option(request_piv, kid=request_kid,
+                                               kid_context=kid_context)
+        return oscore_opt, ciphertext
 
     def unprotect_response(self, oscore_option: bytes, ciphertext: bytes,
                            request_piv: bytes,
@@ -299,12 +429,10 @@ class OscoreContext:
         # Parse response OSCORE option to get PIV (if present)
         resp_piv = request_piv
 
-        # Response uses recipient's key (server's sender key = our recipient key)
-        # Nonce computation depends on the response type:
-        # - Echo responses include PIV in the OSCORE option and use the
-        #   server's sender ID (= our recipient_id, typically empty) for nonce
-        # - Normal responses omit PIV and reuse the request sender's ID
-        #   (= our sender_id) for nonce (RFC 8613 §8.3)
+        # A response that carries its own PIV in the OSCORE option is a
+        # message the device built fresh (Echo 4.01, observe notification)
+        # rather than a piggyback 2.xx that reuses the request's PIV; that
+        # distinction drives the AAD below.
         resp_has_own_piv = False
         if oscore_option and len(oscore_option) > 0:
             flags = oscore_option[0]
@@ -313,25 +441,118 @@ class OscoreContext:
                 resp_piv = oscore_option[1:1 + piv_len]
                 resp_has_own_piv = True
 
+        # A response that carries its own PIV can be one of TWO things, and
+        # nothing in the *outer* message distinguishes them — the deciding
+        # fact is the inner CoAP code, which is inside the ciphertext we have
+        # not decrypted yet:
+        #
+        #  a) A device-re-protected message (an Echo 4.01, and for a group AT
+        #     also the 2.xx that follows). The device built it fresh with ITS
+        #     OWN sender context, so nonce and AAD both come from that
+        #     context: nonce uses an EMPTY sender ID (device-side a group
+        #     AT's sender context has Sender ID "" — oc_oscore_context.c
+        #     derives its "Request Key" with id="") and AAD binds the
+        #     RESPONSE's PIV. Verified byte-for-byte against `-ServerLogs`
+        #     for 5.3.17.x (MulticastTx): with
+        #     common_iv=37ec5d919a6b04fa859b1892b9, empty-id + piv=00
+        #     reproduces the device nonce exactly, whereas the mirrored
+        #     7-byte recipient_id gives 30fc77aad6366a85859b1892b9.
+        #
+        #  b) An Observe registration response or notification. These also
+        #     carry their own PIV — it goes in the nonce and is what binds
+        #     the observe sequence (RFC 8613 §4.1.3.5.2) — but they are
+        #     signed with the ordinary request-sender construction: nonce
+        #     uses our sender_id and AAD reuses the REQUEST's PIV.
+        #     test_5_4_observe.py's obs_e2_notification_aad_binds_request_piv
+        #     pins that contract explicitly.
+        #
+        # Both shapes occur on contexts with an empty recipient_id (PASE's
+        # echo challenge and every observe subscription), so no field on the
+        # context or the option tells them apart. Try (a) then (b): AEAD
+        # authentication IS the discriminator, and a wrong guess fails
+        # cleanly with InvalidTag rather than mis-decrypting.
+        # Baseline (RFC 8613 §8.3, and what every unicast context needs):
+        # a response carrying its own PIV is built with the DEVICE's sender
+        # ID — which is our recipient_id, empty for an ordinary unicast or
+        # PASE context — while the AAD always reuses the request's kid+PIV
+        # and the key is always recipient_key. This covers PASE's Echo 4.01
+        # and every Observe registration response/notification (whose own
+        # PIV rides in the option to carry the observe sequence but is used
+        # for the nonce only).
         if resp_has_own_piv:
-            # Echo response: nonce uses server's sender ID (our recipient_id)
             nonce = self._build_nonce(self.recipient_id, resp_piv)
         else:
-            # Normal response: nonce uses request sender's ID (our sender_id)
             nonce = self._build_nonce(self.sender_id, resp_piv)
-
-        # AAD always uses the request's kid and piv
         aad = self._build_aad(request_kid, request_piv)
+        decrypt_key = self.recipient_key
 
-        _dbg_oscore(f"[oscore] unprotect_response:"
-                    f" has_piv={resp_has_own_piv}"
-                    f" piv={resp_piv.hex()}"
-                    f" nonce={nonce.hex()}"
-                    f" key={self.recipient_key.hex()}"
-                    f" ct_len={len(ciphertext)}")
+        # GROUP AT alternative. Device-side, a group AT's sender context has
+        # Sender ID "" (oc_oscore_context.c derives its "Request Key" with
+        # id="") even though we provisioned a NON-empty recipient_id for the
+        # same AT, so nonce, AAD PIV and key all differ from the baseline.
+        # Verified byte-for-byte against `-ServerLogs` for 5.3.17.x
+        # (MulticastTx): with common_iv=37ec5d919a6b04fa859b1892b9, empty-id
+        # + piv=00 reproduces the device nonce exactly, whereas the mirrored
+        # 7-byte recipient_id gives 30fc77aad6366a85859b1892b9.
+        #
+        # BOTH messages the device sends on a group AT — the Echo 4.01 AND
+        # the 2.xx that follows the retry — are signed with that empty-id
+        # sender context, so the key alternative applies whether or not the
+        # response carries its own PIV; only the nonce/AAD differ between
+        # those two shapes.
+        #
+        # Selecting this by inspecting the context alone is not possible: the
+        # multicast echo-challenge context test_5_4_group_comm.py builds per
+        # response has the SAME shape (non-empty recipient_id, response with
+        # its own PIV) yet needs the baseline, because it is keyed on the
+        # random echo kid_ctx the device generated rather than the group's
+        # own context id. `id_context` length separates them, and not by
+        # coincidence: the device marks an echo response with a kid_ctx of
+        # exactly OC_ECHO_KID_CTX_LEN (10) bytes — oc_oscore_engine.c keys
+        # its whole is_inbound_response branch on
+        # `kid_ctx_len == OC_ECHO_KID_CTX_LEN` — while a provisioned group
+        # context id is shorter. Order the candidates by that signal and keep
+        # the other as a fallback: AEAD authentication is the final arbiter,
+        # and a wrong guess fails cleanly with InvalidTag rather than
+        # mis-decrypting.
+        #
+        # (Gating on resp_has_own_piv alone regressed 22 observe/group-comm
+        # tests; on recipient_id alone, 7 group-comm tests; baseline-first
+        # unconditionally, 4 of 5.3. Hence: order, then fall back.)
+        attempts = [(nonce, aad, decrypt_key)]
+        if self.recipient_id:
+            group_key = self._empty_sender_id_key()
+            if resp_has_own_piv:
+                group_attempt = (self._build_nonce(b"", resp_piv),
+                                 self._build_aad(request_kid, resp_piv),
+                                 group_key)
+            else:
+                # Follow-up 2.xx: same nonce/AAD as the baseline, but the
+                # device signed it with its empty-id sender key.
+                group_attempt = (nonce, aad, group_key)
+            is_echo_ctx = (self.id_context is not None
+                           and len(self.id_context) == 10)
+            attempts = ([*attempts, group_attempt] if is_echo_ctx
+                        else [group_attempt, *attempts])
 
-        aesccm = AESCCM(self.recipient_key, tag_length=TAG_LEN)
-        plaintext = aesccm.decrypt(nonce, ciphertext, aad)
+        plaintext = None
+        last_error: Exception | None = None
+        for nonce, aad, key in attempts:
+            _dbg_oscore(f"[oscore] unprotect_response:"
+                        f" has_piv={resp_has_own_piv}"
+                        f" piv={resp_piv.hex()}"
+                        f" nonce={nonce.hex()}"
+                        f" aad={aad.hex()}"
+                        f" key={key.hex()}"
+                        f" ct_len={len(ciphertext)}")
+            try:
+                plaintext = AESCCM(key, tag_length=TAG_LEN).decrypt(
+                    nonce, ciphertext, aad)
+                break
+            except Exception as exc:
+                last_error = exc
+        if plaintext is None:
+            raise last_error
 
         # Parse inner plaintext: code || inner_options || [0xFF || payload]
         inner_code = plaintext[0]

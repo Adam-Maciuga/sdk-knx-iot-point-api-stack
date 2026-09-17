@@ -97,26 +97,12 @@ linux-runtime-test-asan:
       DEVICE_IFACE=veth-test
       RUNTIME_TEST_QUIET=1
       ASAN_OPTIONS=detect_leaks=1:abort_on_error=1
-      COAP_TIMEOUT=15
+      COAP_TIMEOUT=5
       SERVER_STARTUP_TIMEOUT=30
+      RUNTIME_TEST_TIME_SCALE=0.05
       python3 -m pytest
-      tests/runtime/test_5_1_discovery.py
-      tests/runtime/test_5_1_discovery_multicast.py
-      tests/runtime/test_5_1_discovery_extended.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
-      tests/runtime/test_5_2_wellknown_knx.py
-      tests/runtime/test_5_2_fingerprint.py
-      tests/runtime/test_5_2_device_resources.py
-      tests/runtime/test_5_2_swu.py
-      tests/runtime/test_5_3_security.py
-      tests/runtime/test_5_4_group_comm.py
-      tests/runtime/test_5_4_observe.py
-      tests/runtime/test_5_5_fp_tables.py
-      tests/runtime/test_5_6_app_program.py
-      tests/runtime/test_5_7_functional_blocks.py
-      tests/runtime/test_5_8_parameters.py
-      tests/runtime/test_5_10_generic.py
+      tests/runtime/test_eitt.py
+      -k "Discovery:: or well-known/knx:: or Security::"
       -v --tb=short --junit-xml=build/linux-test-asan/runtime-report.xml
   artifacts:
     when: always

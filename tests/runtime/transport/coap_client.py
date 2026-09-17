@@ -12,6 +12,7 @@ testing where packet loss doesn't occur.
 import os
 import socket
 import struct
+import time
 from dataclasses import dataclass, replace
 from typing import Optional
 
@@ -61,6 +62,31 @@ def _dbg_coap(*args, **kwargs):
         print(*args, **kwargs)
 
 
+def _parse_oscore_option(value: bytes) -> tuple[Optional[bytes],
+                                                Optional[bytes]]:
+    """Split an OSCORE option value into (kid, partial_iv).
+
+    Layout per RFC 8613 §6.1 (and knx_oscore._build_oscore_option): a
+    flags byte whose low 3 bits give the PIV length, bit 3 marks a kid and
+    bit 4 a kid context, followed by the PIV, then a length-prefixed kid
+    context, then the kid (running to the end of the option).
+    """
+    if not value:
+        return None, None
+    flags = value[0]
+    pos = 1
+    piv_len = flags & 0x07
+    piv = value[pos:pos + piv_len] if piv_len else None
+    pos += piv_len
+    if flags & 0x10:                       # kid context present
+        if pos >= len(value):
+            return None, piv
+        ctx_len = value[pos]
+        pos += 1 + ctx_len
+    kid = value[pos:] if flags & 0x08 else None
+    return kid, piv
+
+
 def knx_group_multicast_address(grpid: int, iid: int,
                                 scope: int = _DEFAULT_MC_SCOPE) -> str:
     """Compute the KNX IPv6 multicast address for group communication.
@@ -108,6 +134,13 @@ class CoapResponse:
     token: bytes
     options: Optional[dict] = None
     source_addr: Optional[tuple] = None  # (host, port, flowinfo, scope_id)
+    echo_value: Optional[bytes] = None  # CoAP Echo option (252) if present
+    # Outer OSCORE option fields of the message this was decrypted from,
+    # kept for group telegrams because a tool-sent 4.01 Echo challenge has
+    # to quote the challenged telegram's kid and Partial IV back verbatim
+    # (see CoapClient.send_echo_challenge).
+    oscore_kid: Optional[bytes] = None
+    oscore_piv: Optional[bytes] = None
 
     @property
     def code(self) -> str:
@@ -282,14 +315,16 @@ class CoapClient:
         self._sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         self._sock.settimeout(timeout)
         self._sock.bind(("", 0))
+        # Unsolicited REQUESTS the DUT sent us that arrived while we were
+        # reading a response, kept as (parsed_message, source_addr) so a later
+        # step can still claim them. See _recv_oscore_response, where they used
+        # to be discarded as stale, and UnicastTelegramListener, which drains
+        # this before reading the socket. EITT gets this for free by keeping
+        # one socket permanently open; this list is our equivalent.
+        self._pending_requests: list[tuple[dict, tuple]] = []
 
     def close(self):
         self._sock.close()
-
-    @property
-    def source_port(self) -> int:
-        """Return the local UDP port this client is bound to."""
-        return self._sock.getsockname()[1]
 
     def _next_mid(self) -> int:
         mid = self._mid
@@ -602,13 +637,22 @@ class CoapClient:
     def _build_oscore_request(self, oscore_option: bytes,
                               ciphertext: bytes,
                               observe: Optional[int] = None,
-                              token: Optional[bytes] = None) -> bytes:
-        """Build a CoAP CON POST request carrying an OSCORE option.
+                              token: Optional[bytes] = None,
+                              msg_type: int = CON,
+                              crit_option: Optional[tuple] = None) -> bytes:
+        """Build a CoAP POST request carrying an OSCORE option.
 
         OSCORE outer message:
+        - Type = msg_type (CON by default; EITT's `Type` attribute picks
+          CON vs NON per telegram and unicast group writes use NON)
         - Code = POST (0.02)
         - Option 6 (Observe, outer/Class U) = observe, if requested
         - Option 9 (OSCORE) = oscore_option
+        - `crit_option` = (number, value_bytes) for an extra OUTER option,
+          used by EITT's CritOptNo/CritOptValue to send an unknown
+          CRITICAL option the device must reject with 4.02 Bad Option
+          (RFC 7252 §5.4.1). It has to be outer/unencrypted: the point is
+          that the receiving CoAP layer sees and rejects it.
         - Payload = ciphertext (the encrypted inner message)
 
         The inner (encrypted) message also carries the Observe option; the
@@ -620,11 +664,13 @@ class CoapClient:
             token = self._next_token()
         tkl = len(token)
 
-        ver_type_tkl = (1 << 6) | (CON << 4) | tkl
+        ver_type_tkl = (1 << 6) | (msg_type << 4) | tkl
         code = (POST[0] << 5) | POST[1]  # 0.02
         header = struct.pack("!BBH", ver_type_tkl, code, mid)
 
-        # Outer options in option-number order: Observe (6) then OSCORE (9)
+        # Outer options, ascending by number: Observe (6), OSCORE (9), then
+        # any critical option (its number is far higher than 9 in practice —
+        # 65123 in 5.10.5.3 — but sort explicitly rather than assume).
         options = b""
         prev_opt = 0
         if observe is not None:
@@ -633,7 +679,12 @@ class CoapClient:
                              (observe.bit_length() + 7) // 8 or 1, "big"))
             options += _encode_option(6 - prev_opt, obs_bytes)
             prev_opt = 6
-        options += _encode_option(9 - prev_opt, oscore_option)
+        outer = [(9, oscore_option)]
+        if crit_option is not None:
+            outer.append(crit_option)
+        for num, val in sorted(outer):
+            options += _encode_option(num - prev_opt, val)
+            prev_opt = num
 
         msg = header + token + options + b"\xFF" + ciphertext
         return msg
@@ -644,7 +695,15 @@ class CoapClient:
                        accept: Optional[int] = None,
                        content_format: Optional[int] = None,
                        timeout: Optional[float] = None,
-                       block2: Optional[bytes] = None) -> Optional[
+                       block2: Optional[bytes] = None,
+                       seq_no_override: Optional[int] = None,
+                       seq_no_offset: Optional[int] = None,
+                       invalid_auth_tag: Optional[bytes] = None,
+                       kid_override: Optional[bytes] = None,
+                       echo: Optional[bytes] = None,
+                       expect_echo_challenge: bool = False,
+                       msg_type: int = CON,
+                       crit_option: Optional[tuple] = None) -> Optional[
                            CoapResponse]:
         """Send an OSCORE-protected CoAP request.
 
@@ -658,13 +717,39 @@ class CoapClient:
             payload: Application payload (will be encrypted)
             uri_queries: List of query strings
             timeout: Socket timeout override
+            seq_no_override / invalid_auth_tag / kid_override: adversarial
+                replay/integrity/kid overrides forwarded to
+                OscoreContext.protect_request (EITT SeqNoOffset,
+                SeqNoFn="fix"+SeqNo, InvalidAuthTag, RndKid). When any is
+                set the automatic Echo-retry loop is DISABLED — these are
+                deliberately-malformed one-shot requests whose whole point
+                is the device's rejection/challenge, so retrying (which
+                would resync the SSN or resend) would defeat the test.
 
         Returns:
             CoapResponse with decrypted payload, or None on timeout.
             The code_class/code_detail reflect the INNER response code.
         """
-        echo_value = None
-        max_retries = 3
+        # A caller-supplied echo (EITT Echo="sync" follow-up) seeds the
+        # first attempt directly — the device already sent us its
+        # challenge in a PRIOR telegram's response and the XML models the
+        # echo-back as its own separate message, so we don't wait for an
+        # in-loop 4.01 to discover it.
+        echo_value = echo
+        adversarial = (seq_no_override is not None
+                       or seq_no_offset is not None
+                       or invalid_auth_tag is not None
+                       or kid_override is not None
+                       # The caller's script models the 4.01+Echo
+                       # challenge as its own step and replays the
+                       # telegram itself, so auto-satisfying the
+                       # challenge here would skip the very behaviour
+                       # under test — EITT 5.3.17.5 replays with a
+                       # deliberately WRONG echo and asserts the device
+                       # rejects it, which silently "passes" if this loop
+                       # already completed the handshake correctly.
+                       or expect_echo_challenge)
+        max_retries = 1 if adversarial else 3
 
         for attempt in range(max_retries):
             # Split query string from path for inner OSCORE options
@@ -679,9 +764,15 @@ class CoapClient:
                 method_code, inner_path, payload, all_queries,
                 echo=echo_value,
                 accept=accept, content_format=content_format,
-                block2=block2)
+                block2=block2,
+                seq_no_override=seq_no_override,
+                seq_no_offset=seq_no_offset,
+                invalid_auth_tag=invalid_auth_tag,
+                kid_override=kid_override)
 
-            msg = self._build_oscore_request(oscore_opt, ciphertext)
+            msg = self._build_oscore_request(oscore_opt, ciphertext,
+                                             msg_type=msg_type,
+                                             crit_option=crit_option)
             # Extract expected token from built message
             tkl = msg[0] & 0x0F
             expected_token = msg[4:4 + tkl]
@@ -704,10 +795,21 @@ class CoapClient:
 
             resp, inner_options = result
 
+            # Surface any Echo option (252) on the response so the runner
+            # can capture it for a later Echo="sync" follow-up telegram
+            # (the group-message replay-sync flow, EITT 5.3.17.3/.4/.5,
+            # models the echo-back as a SEPARATE message rather than an
+            # in-loop retry).
+            if 252 in inner_options:
+                resp.echo_value = inner_options[252]
+
             # Check for Echo challenge (option 252) — both inner
-            # (OSCORE-protected) and outer (unprotected 4.01)
-            if (resp.code_class == 4 and resp.code_detail == 1
-                    and 252 in inner_options):
+            # (OSCORE-protected) and outer (unprotected 4.01). For
+            # adversarial one-shot sends the retry loop is disabled
+            # (max_retries=1), so a 4.01+Echo is returned to the caller
+            # (with echo_value set above) instead of auto-retried.
+            if (not adversarial and resp.code_class == 4
+                    and resp.code_detail == 1 and 252 in inner_options):
                 echo_value = inner_options[252]
                 _dbg_oscore(f"[oscore] Echo challenge received, retrying "
                             f"(attempt {attempt + 1})")
@@ -761,8 +863,29 @@ class CoapClient:
                 ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
                 self._sock.sendto(ack, (self.host, self.port, 0, 0))
 
-            # Skip messages with wrong token (stale DUT retransmissions)
+            # Skip messages with wrong token (stale DUT retransmissions) —
+            # but FIRST keep it if it is an unsolicited REQUEST the DUT sent
+            # us rather than a stale reply.
+            #
+            # This is where 5.4.1.4's telegram used to vanish. The DUT answers
+            # our group read (`st: r`) with a unicast `st: a` telegram from
+            # inside its own request handler: traces/5_4_1.xml shows it 0.1s
+            # after our ACK (TelNo 98 at 22:25:20.6 -> TelNo 101 at
+            # 22:25:20.7) with a DIFFERENT mid and token (9456/`39 33 30 34`
+            # vs 25636/`27 99 1A 0D`), so it arrives while this loop is still
+            # reading and gets discarded as "stale". EITT never has this
+            # problem because its socket is continuously open and the telegram
+            # is simply buffered until the step that wants it looks — which is
+            # why its step 54 can get away with a plain 2s budget. Buffering it
+            # here gives us the same property.
             if expected_token is not None and token != expected_token:
+                if (code_byte >> 5) == 0 and code_byte != 0:
+                    self._pending_requests.append(
+                        (self.parse_coap_message(data), addr))
+                    _dbg_coap(f"[coap] buffered an unsolicited request "
+                              f"(code={code_byte:#04x} mid={mid} "
+                              f"token={token.hex()}) from {addr[0]}")
+                    continue
                 _dbg_coap(f"[coap] skipping stale oscore msg: token={token.hex()}"
                           f" expected={expected_token.hex()}")
                 continue
@@ -854,20 +977,6 @@ class CoapClient:
         return self.oscore_request(oscore_ctx, 2, path, payload=payload,
                                   content_format=content_format,
                                   timeout=timeout)
-
-    def oscore_delete(self, oscore_ctx, path: str,
-                      timeout: Optional[float] = None) -> Optional[
-                          CoapResponse]:
-        return self.oscore_request(oscore_ctx, 4, path, timeout=timeout)
-
-    # ------------------------------------------------------------------
-    # CoAP Observe (RFC 7641)
-    # ------------------------------------------------------------------
-    #
-    # A single client socket = a single subscription source (IP+port).
-    # The KNX stack replaces a subscription based on source IP+port, not
-    # the CoAP token (spec 2.6.10.1), so dedicate one CoapClient per
-    # observer when a test needs independent subscriptions.
 
     @staticmethod
     def _build_observe_query(path: str, lt: Optional[int],
@@ -1058,44 +1167,6 @@ class CoapClient:
         if 6 not in options:
             return None
         return int.from_bytes(options[6], "big") if options[6] else 0
-
-    def count_incoming_messages(self, timeout: float = 2.0,
-                                ack: bool = True) -> int:
-        """Count non-empty, non-ACK CoAP messages arriving within `timeout`.
-
-        Each observe notification is one message regardless of its token or
-        OSCORE protection, so this is used to detect duplicate notifications
-        (e.g. a stale subscription that should have been replaced).
-        Confirmable messages are ACKed so the server does not retransmit.
-        """
-        import time
-        deadline = time.monotonic() + timeout
-        count = 0
-        old = self._sock.gettimeout()
-        try:
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                self._sock.settimeout(remaining)
-                try:
-                    data, _ = self._sock.recvfrom(4096)
-                except socket.timeout:
-                    break
-                if len(data) < 4:
-                    continue
-                msg_type = (data[0] >> 4) & 0x03
-                code_byte = data[1]
-                mid = struct.unpack("!H", data[2:4])[0]
-                if msg_type == ACK and code_byte == 0:
-                    continue
-                if msg_type == CON and ack:
-                    ackmsg = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
-                    self._sock.sendto(ackmsg, (self.host, self.port, 0, 0))
-                count += 1
-        finally:
-            self._sock.settimeout(old)
-        return count
 
     def observe_deregister(self, sub: "ObserveSubscription",
                            timeout: Optional[float] = None) -> Optional[
@@ -1331,163 +1402,6 @@ class CoapClient:
                                   collect_timeout=collect_timeout,
                                   stop_after_first=stop_after_first)
 
-    def multicast_post(self, path: str, payload: bytes = b"",
-                       content_format: int = APPLICATION_CBOR,
-                       scope: int = _DEFAULT_MC_SCOPE,
-                       interface: Optional[str] = None,
-                       collect_timeout: float = 2.0,
-                       stop_after_first: bool = False,
-                       ) -> list[CoapResponse]:
-        """Send a multicast POST and collect responses."""
-        return self.send_multicast(POST, path, payload=payload,
-                                  content_format=content_format, scope=scope,
-                                  interface=interface,
-                                  collect_timeout=collect_timeout,
-                                  stop_after_first=stop_after_first)
-
-    def oscore_multicast_post(self, oscore_ctx, path: str,
-                              payload: bytes = b"",
-                              content_format: int = APPLICATION_CBOR,
-                              scope: int = _DEFAULT_MC_SCOPE,
-                              interface: Optional[str] = None,
-                              collect_timeout: float = 2.0,
-                              port: int = 5683,
-                              target_addr: Optional[str] = None,
-                              echo: Optional[bytes] = None,
-                              ) -> list[CoapResponse]:
-        """Send an OSCORE-protected NON POST to a multicast address.
-
-        Group OSCORE messages require OSCORE protection with the group
-        AT's credentials (sender_id, master_secret).
-
-        Args:
-            oscore_ctx: OscoreContext for the group AT
-            path: URI path (e.g. "/k")
-            payload: Application payload (CBOR s-mode message)
-            content_format: Content-Format for inner message
-            scope: IPv6 multicast scope
-            interface: Network interface for multicast
-            collect_timeout: Response collection window
-            port: Destination port (default 5683)
-            target_addr: Custom multicast address (overrides scope lookup)
-            echo: Echo option value for freshness verification
-
-        Returns:
-            List of CoapResponse from responders.
-        """
-        if target_addr:
-            mcast_addr = target_addr
-        else:
-            mcast_addr = KNX_MULTICAST_ADDRESSES.get(scope)
-        if not mcast_addr:
-            raise ValueError(f"Unknown multicast scope {scope}")
-
-        # Resolve interface
-        scope_id = 0
-        iface = interface or os.environ.get("DEVICE_IFACE")
-        if iface:
-            try:
-                scope_id = int(iface)
-            except (ValueError, TypeError):
-                try:
-                    scope_id = socket.if_nametoindex(iface)
-                except (OSError, AttributeError):
-                    pass
-
-        # OSCORE-protect the inner request
-        oscore_opt, ciphertext, piv = oscore_ctx.protect_request(
-            2, path, payload, content_format=content_format,
-            echo=echo)  # 2 = POST
-
-        # Build NON outer message with OSCORE option
-        mid = self._next_mid()
-        token = self._next_token()
-        tkl = len(token)
-        ver_type_tkl = (1 << 6) | (NON << 4) | tkl
-        code = (POST[0] << 5) | POST[1]
-        header = struct.pack("!BBH", ver_type_tkl, code, mid)
-        options = _encode_option(9, oscore_opt)
-        msg = header + token + options + b"\xFF" + ciphertext
-
-        # Send via multicast socket
-        mcast_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-        mcast_sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS,
-                              255 if scope > 2 else 1)
-        if scope_id:
-            mcast_sock.setsockopt(
-                socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF,
-                struct.pack("@I", scope_id))
-        mcast_sock.settimeout(collect_timeout)
-        mcast_sock.bind(("", 0))
-
-        _dbg_coap(f"[coap] oscore multicast POST -> [{mcast_addr}%{scope_id}]"
-                  f":{port}{path}")
-
-        dest = (mcast_addr, port, 0, scope_id)
-        mcast_sock.sendto(msg, dest)
-
-        responses = []
-        import time
-        deadline = time.monotonic() + collect_timeout
-
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            mcast_sock.settimeout(remaining)
-
-            try:
-                data, addr = mcast_sock.recvfrom(4096)
-            except socket.timeout:
-                break
-
-            if len(data) < 4:
-                continue
-
-            byte0 = data[0]
-            msg_type = (byte0 >> 4) & 0x03
-            tkl_r = byte0 & 0x0F
-            code_byte = data[1]
-            code_class = code_byte >> 5
-            code_detail = code_byte & 0x1F
-            mid_r = struct.unpack("!H", data[2:4])[0]
-            token_r = data[4:4 + tkl_r]
-
-            offset = 4 + tkl_r
-            resp_options, payload_offset = _parse_options(data, offset)
-
-            resp_payload = (data[payload_offset:]
-                            if payload_offset < len(data) else b"")
-
-            ct = None
-            if 12 in resp_options:
-                ct_bytes = resp_options[12]
-                ct = int.from_bytes(ct_bytes, "big") if ct_bytes else 0
-
-            resp = CoapResponse(
-                code_class=code_class,
-                code_detail=code_detail,
-                payload=resp_payload,
-                content_format=ct,
-                msg_type=msg_type,
-                mid=mid_r,
-                token=token_r,
-                options=resp_options,
-                source_addr=addr,
-            )
-            _dbg_coap(f"[coap] oscore multicast response from {addr[0]}: "
-                      f"{resp.code} payload_len={len(resp_payload)}")
-            responses.append(resp)
-
-        mcast_sock.close()
-        _dbg_coap(f"[coap] oscore multicast: collected {len(responses)} "
-                  f"response(s)")
-        return responses
-
-    # ------------------------------------------------------------------
-    # Multicast listener (receive unsolicited group messages)
-    # ------------------------------------------------------------------
-
     @staticmethod
     def parse_coap_message(data: bytes) -> dict:
         """Parse a raw CoAP message into its components.
@@ -1520,10 +1434,201 @@ class CoapClient:
             "payload": payload,
         }
 
+    def send_echo_challenge(self, oscore_ctx, request_kid: bytes,
+                            request_piv: bytes, echo: bytes,
+                            token: bytes,
+                            kid_context: Optional[bytes] = None) -> None:
+        """Send a 4.01+Echo challenge answering a telegram the DUT sent us.
+
+        Fire-and-forget: it is a NON response, and what the test asserts on
+        is the DUT's RETRANSMISSION of its telegram, captured separately by
+        a group listener. The CoAP token must be the one from the telegram
+        being challenged — the device correlates the echo to its pending
+        s-mode message by mid+token (oc_oscore_engine.c:170).
+        """
+        import os as _os
+        if kid_context is None:
+            # 10 random bytes: the length is what marks this as an echo
+            # response to the device (OC_ECHO_KID_CTX_LEN), and EITT's
+            # RndKid="yes" makes the content random.
+            kid_context = _os.urandom(10)
+
+        oscore_opt, ciphertext = oscore_ctx.protect_echo_challenge(
+            request_kid, request_piv, echo, kid_context)
+
+        mid = self._next_mid()
+        tkl = len(token)
+        ver_type_tkl = (1 << 6) | (NON << 4) | tkl
+        # Outer code is POST for an OSCORE-protected message; the real
+        # 4.01 lives in the encrypted inner message.
+        code = (POST[0] << 5) | POST[1]
+        msg = struct.pack("!BBH", ver_type_tkl, code, mid) + token
+        msg += _encode_option(9, oscore_opt)
+        msg += b"\xff" + ciphertext
+
+        _dbg_oscore(f"[oscore] sending 4.01 Echo challenge kid="
+                    f"{request_kid.hex()} piv={request_piv.hex()} "
+                    f"kid_ctx={kid_context.hex()}")
+        self._sock.sendto(msg, (self.host, self.port, 0, 0))
+
+    def send_plain_response(self, code: tuple, payload: bytes,
+                            token: bytes, dest: tuple,
+                            content_format: Optional[int] = None,
+                            msg_type: int = NON,
+                            mid: Optional[int] = None) -> None:
+        """Send an UNPROTECTED CoAP response to `dest`, quoting `token`.
+
+        Needed when the tool has to answer a request the DUT addressed to
+        IT rather than the other way round — EITT's `UseLastRxToken`. The
+        token is what correlates the answer to the DUT's pending request,
+        so it must be the token off that request, not a fresh one.
+
+        `dest` is the (host, port, flowinfo, scope_id) tuple as returned by
+        recvfrom, so the reply goes back to the exact socket that asked.
+        """
+        if mid is None:
+            mid = self._next_mid()
+        tkl = len(token)
+        ver_type_tkl = (1 << 6) | (msg_type << 4) | tkl
+        code_byte = (code[0] << 5) | code[1]
+        msg = struct.pack("!BBH", ver_type_tkl, code_byte, mid) + token
+        if content_format is not None:
+            cf = content_format.to_bytes(
+                (content_format.bit_length() + 7) // 8 or 1, "big")
+            msg += _encode_option(12, cf)
+        if payload:
+            msg += b"\xFF" + payload
+        _dbg_coap(f"[coap] plain response {code[0]}.{code[1]:02d} "
+                  f"token={token.hex()} -> {dest[0]}:{dest[1]} "
+                  f"({len(payload)}B)")
+        self._sock.sendto(msg, dest)
+
+    def send_empty_ack(self, mid: int, dest: tuple) -> None:
+        """Acknowledge a CON message: an empty ACK (code 0.00, no token).
+
+        RFC 7252 §5.2.2 — a separate ACK carries the request's Message ID
+        and an empty code, and the real answer follows later (or never, for
+        a telegram that needs none). Without it the DUT retransmits the
+        telegram, and those copies arrive on top of whatever request runs
+        next on this socket.
+        """
+        ver_type_tkl = (1 << 6) | (ACK << 4)
+        msg = struct.pack("!BBH", ver_type_tkl, 0, mid)
+        _dbg_coap(f"[coap] empty ACK mid={mid} -> {dest[0]}:{dest[1]}")
+        self._sock.sendto(msg, dest)
+
+    def arm_plain_listener(self, mcast_addr: str,
+                           port: int = 5683,
+                           interface: Optional[str] = None,
+                           timeout: float = 5.0,
+                           path: Optional[str] = None) -> "PlainListener":
+        """Bind and join `mcast_addr` NOW to capture an UNPROTECTED request
+        the DUT sends to us (e.g. its `GET /.well-known/core` discovery
+        query), returning a handle whose result() waits for it.
+
+        Split from collection for the same reason as arm_group_listener:
+        the query is provoked by a step we are about to run, so binding
+        afterwards races it. `path` (if given) filters on the request's
+        Uri-Path so an unrelated multicast query is not mistaken for the
+        one being waited on.
+        """
+        return PlainListener(self, mcast_addr, port, interface, timeout, path)
+
+    def arm_group_listener(self, oscore_ctx, mcast_addr: str,
+                           port: int = 5683,
+                           interface: Optional[str] = None,
+                           timeout: float = 5.0) -> "GroupListener":
+        """Bind and join the group NOW, returning a handle whose result()
+        waits for and decrypts the first matching telegram.
+
+        Bind/join is split from collection because a group read is answered
+        by the DUT *while it handles the request* (oc_knx_client.c's
+        "Sending s-mode multicast" happens inside the /k POST handler),
+        so binding after the request has already been sent races the
+        response and usually loses it. Arm first, send, then collect.
+        """
+        return GroupListener(self, oscore_ctx, mcast_addr, port,
+                             interface, timeout)
+
+    def recv_unicast_telegram(self, oscore_ctx,
+                              timeout: float = 5.0,
+                              path: Optional[str] = None
+                              ) -> "UnicastTelegramListener":
+        """Wait for an unsolicited request the DUT sends us by UNICAST,
+        returning a handle whose result() decrypts it.
+
+        There is NOTHING TO ARM here, unlike arm_group_listener /
+        arm_plain_listener which each bind and join a multicast address.
+        This telegram arrives at the tool's ordinary unicast endpoint —
+        `self._sock`, bound once in __init__ and used for every request —
+        so it is simply a read of a socket that was already listening.
+
+        That mirrors EITT itself: its comment-command grammar
+        (`EITT_KnxCommentCommandsScheme.xml`) has NO listen/capture/receive
+        command of any kind, and neither 5.4.1.4 nor 5.4.1.15 contains
+        anything that could start one. EITT's CoAP endpoint is simply always
+        up, and an `OUT` step means "wait for a matching telegram on it".
+        (`pahmcast"...;join=true"` is about GROUP MEMBERSHIP, not about
+        starting a listener.) The handle exists only to keep a timeout and
+        the decrypt/ACK bookkeeping in one place.
+
+        EITT 5.4.1.4 and 5.4.1.15 need this. The DUT does not know our IPv6
+        address up front; it multicasts
+        `GET /.well-known/core?ep=knx://ia.<iid>.<ia>` to resolve us
+        (oc_knx_client.c knx_add_ipv6_address_coap_discovery, which then
+        allows 25s for an answer), we reply with our own ep, and only THEN
+        does it send the s-mode telegram as a unicast CON POST /k.
+        traces/5_4_1.xml shows the full chain as TelNo 321 -> 322 -> 323.
+
+        A CON telegram is ACKed automatically — the DUT retransmits
+        otherwise, and the retransmissions confuse whatever request runs
+        next on this socket.
+        """
+        return UnicastTelegramListener(self, oscore_ctx, timeout, path)
+
+    def _decrypt_group_telegram(self, captured: list, oscore_ctx
+                                ) -> Optional[CoapResponse]:
+        """Turn raw captured multicast messages into the first one that
+        decrypts under `oscore_ctx` (skipping telegrams meant for other
+        contexts), or None."""
+        for msg, addr in captured:
+            options = msg.get("options") or {}
+            if 9 not in options:
+                # Unprotected group telegram — surface as-is.
+                return CoapResponse(
+                    code_class=msg["code_class"],
+                    code_detail=msg["code_detail"],
+                    payload=msg["payload"],
+                    content_format=options.get(12),
+                    msg_type=msg["type"], mid=msg["mid"],
+                    token=msg.get("token", b""),
+                    options=options, source_addr=addr)
+            try:
+                result = oscore_ctx.unprotect_request(options[9],
+                                                     msg["payload"])
+            except Exception as exc:   # AEAD failure = not for this ctx
+                _dbg_oscore(f"[oscore] group telegram did not decrypt under "
+                            f"this Rx context ({exc}); skipping")
+                continue
+            inner_code, inner_payload, inner_options = result[0], result[1], result[2]
+            kid, piv = _parse_oscore_option(options[9])
+            return CoapResponse(
+                code_class=inner_code >> 5,
+                code_detail=inner_code & 0x1F,
+                payload=inner_payload,
+                content_format=inner_options.get(12),
+                msg_type=msg["type"], mid=msg["mid"],
+                token=msg.get("token", b""),
+                options=inner_options, source_addr=addr,
+                echo_value=inner_options.get(252),
+                oscore_kid=kid, oscore_piv=piv)
+        return None
+
     def listen_multicast(self, mcast_addr: str, port: int = 5683,
                          interface: Optional[str] = None,
                          timeout: float = 5.0,
-                         max_messages: int = 1) -> list[tuple[dict, tuple]]:
+                         max_messages: int = 1,
+                         on_message=None) -> list[tuple[dict, tuple]]:
         """Join a multicast group and listen for incoming CoAP messages.
 
         Args:
@@ -1532,7 +1637,13 @@ class CoapClient:
             interface: Network interface name (e.g. "veth-test").
                        Falls back to DEVICE_IFACE env var.
             timeout: How long to listen (seconds).
-            max_messages: Stop after receiving this many messages.
+            max_messages: Stop after receiving this many messages; pass 0
+                       for "no count limit" (bounded only by timeout or
+                       on_message).
+            on_message: Optional callback invoked as (msg, addr) for each
+                       parsed message. Returning True stops listening
+                       immediately — lets a caller that recognises the
+                       message it wanted avoid waiting out the timeout.
 
         Returns:
             List of (parsed_message_dict, sender_address) tuples.
@@ -1567,7 +1678,7 @@ class CoapClient:
         deadline = time.monotonic() + timeout
 
         try:
-            while len(messages) < max_messages:
+            while max_messages == 0 or len(messages) < max_messages:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     break
@@ -1584,6 +1695,8 @@ class CoapClient:
                               f" opts={sorted(msg['options'].keys())}"
                               f" payload_len={len(msg['payload'])}")
                     messages.append((msg, addr))
+                    if on_message is not None and on_message(msg, addr):
+                        break
         finally:
             sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_LEAVE_GROUP,
                             mreq)
@@ -1591,3 +1704,262 @@ class CoapClient:
 
         _dbg_coap(f"[coap] multicast listener: captured {len(messages)} message(s)")
         return messages
+
+
+class GroupListener:
+    """A multicast group listener that is already bound and joined.
+
+    Created by CoapClient.arm_group_listener() BEFORE the request that
+    provokes the telegram is sent, because the DUT answers a group read
+    from inside its own request handler — bind afterwards and the reply
+    is usually already gone. result() joins the listener thread and
+    returns the first telegram that decrypts under the bound context.
+    """
+
+    def __init__(self, client: "CoapClient", oscore_ctx, mcast_addr: str,
+                 port: int, interface: Optional[str], timeout: float):
+        import threading
+        import time
+        self._client = client
+        self._oscore_ctx = oscore_ctx
+        self._timeout = timeout
+        self._result: Optional[CoapResponse] = None
+        self._ready = threading.Event()
+        self._done = threading.Event()
+
+        def _accept(msg, addr) -> bool:
+            """Called per captured datagram. Returning True stops the
+            listener immediately — a group we joined also carries other
+            parties' traffic (and, when the tool is the sender, its own
+            echo), so 'first datagram' is not 'the telegram we want';
+            'first datagram that decrypts under this context' is. Stopping
+            here rather than waiting out the timeout matters: 5.3.19.5
+            plays 100 read/response pairs, and a 5s wait on each turns an
+            11s test into 8.5 minutes."""
+            resp = client._decrypt_group_telegram([(msg, addr)], oscore_ctx)
+            if resp is None:
+                return False
+            self._result = resp
+            self._done.set()
+            return True
+
+        def _listen():
+            self._ready.set()
+            client.listen_multicast(
+                mcast_addr, port=port, interface=interface,
+                timeout=timeout, max_messages=0, on_message=_accept)
+            self._done.set()
+
+        self._thread = threading.Thread(target=_listen, daemon=True)
+        self._thread.start()
+        self._ready.wait(timeout=2.0)
+        time.sleep(0.3)           # let the bind/join actually settle
+
+    def result(self) -> Optional[CoapResponse]:
+        self._done.wait(timeout=self._timeout + 2)
+        self._thread.join(timeout=2.0)
+        return self._result
+
+
+class PlainListener:
+    """An already-bound listener for an UNPROTECTED request the DUT sends
+    to us, created by CoapClient.arm_plain_listener().
+
+    The captured CoapResponse carries the request's `token` and
+    `source_addr`, which is what CoapClient.send_plain_response() needs to
+    answer it (EITT's `UseLastRxToken`).
+    """
+
+    def __init__(self, client: "CoapClient", mcast_addr: str, port: int,
+                 interface: Optional[str], timeout: float,
+                 path: Optional[str]):
+        import threading
+        import time
+        self._client = client
+        self._timeout = timeout
+        self._result: Optional[CoapResponse] = None
+        self._ready = threading.Event()
+        self._done = threading.Event()
+        want = (path or "").strip("/") or None
+
+        # Uri-Path (option 11) is repeatable, but parse_coap_message keeps
+        # only the LAST segment (a GET /.well-known/core parses back as
+        # {11: b'core'}), so match on the final segment rather than the
+        # whole path.
+        want_last = want.rsplit("/", 1)[-1] if want else None
+
+        def _accept(msg, addr) -> bool:
+            options = msg.get("options") or {}
+            if want_last is not None:
+                got = options.get(11)
+                if isinstance(got, bytes):
+                    got = got.decode(errors="replace")
+                if (got or "") != want_last:
+                    return False
+            self._result = CoapResponse(
+                code_class=msg["code_class"],
+                code_detail=msg["code_detail"],
+                payload=msg["payload"],
+                content_format=options.get(12),
+                msg_type=msg["type"], mid=msg["mid"],
+                token=msg.get("token", b""),
+                options=options, source_addr=addr)
+            self._done.set()
+            return True
+
+        def _listen():
+            self._ready.set()
+            client.listen_multicast(
+                mcast_addr, port=port, interface=interface,
+                timeout=timeout, max_messages=0, on_message=_accept)
+            self._done.set()
+
+        self._thread = threading.Thread(target=_listen, daemon=True)
+        self._thread.start()
+        self._ready.wait(timeout=2.0)
+        time.sleep(0.3)           # let the bind/join settle
+
+    def result(self) -> Optional[CoapResponse]:
+        self._done.wait(timeout=self._timeout + 2)
+        self._thread.join(timeout=2.0)
+        return self._result
+
+
+class UnicastTelegramListener:
+    """A read of the client's ALREADY-OPEN socket, waiting for an unsolicited
+    request the DUT sends us by unicast. Created by
+    CoapClient.recv_unicast_telegram().
+
+    Unlike GroupListener/PlainListener there is no multicast address to bind
+    or join and nothing to arm: the telegram arrives on the client's own
+    socket, which has been listening since __init__, so this just reads
+    `client._sock`. It is a class only to keep the timeout, the CON ACK and
+    the decrypt in one place. One consequence worth knowing — while the read
+    is running it OWNS the socket, so no ordinary request may be issued on
+    the same CoapClient until result() has returned.
+
+    See CoapClient.recv_unicast_telegram for why the DUT can only send this
+    after it has resolved our address via multicast discovery, and for why
+    EITT needs no listen command either.
+    """
+
+    def __init__(self, client: "CoapClient", oscore_ctx,
+                 timeout: float, path: Optional[str] = None):
+        import threading
+        self._client = client
+        self._oscore_ctx = oscore_ctx
+        self._timeout = timeout
+        self._result: Optional[CoapResponse] = None
+        self._done = threading.Event()
+        # Diagnostics for the "none arrived" case: how many datagrams were
+        # seen and rejected, so a caller can tell "nothing came" from
+        # "something came but was not ours".
+        self._seen = 0
+        self._skipped = 0
+        want = (path or "").strip("/") or None
+        # parse_coap_message keeps only the LAST Uri-Path segment, so match
+        # on that (same reasoning as PlainListener).
+        self._want_last = want.rsplit("/", 1)[-1] if want else None
+        self._thread = threading.Thread(target=self._listen, daemon=True)
+        self._thread.start()
+
+    def _listen(self) -> None:
+        client = self._client
+        sock = client._sock
+        old_timeout = sock.gettimeout()
+        deadline = time.monotonic() + self._timeout
+        try:
+            # Anything already buffered wins: the telegram may have landed
+            # while an earlier step was reading a response (5.4.1.4's arrives
+            # 0.1s after our ACK), in which case it is here rather than still
+            # on the socket.
+            while client._pending_requests:
+                msg, addr = client._pending_requests.pop(0)
+                if self._accept(msg, addr):
+                    return
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return
+                sock.settimeout(remaining)
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    return
+                except OSError:
+                    return
+                msg = client.parse_coap_message(data)
+                if not msg:
+                    continue
+                if self._accept(msg, addr):
+                    return
+        finally:
+            try:
+                sock.settimeout(old_timeout)
+            except OSError:
+                pass
+            self._done.set()
+
+    def _accept(self, msg: dict, addr: tuple) -> bool:
+        """Decide one message. True when it is the telegram we wanted (and
+        `self._result` has been set); False to keep looking."""
+        client = self._client
+        self._seen += 1
+        options = msg.get("options") or {}
+        # Only a REQUEST (code class 0) can be a telegram the DUT
+        # originated; anything else is a stale response still in
+        # flight on this socket.
+        if msg.get("code_class") != 0:
+            _dbg_coap("[coap] unicast listener skipped a "
+                      f"{msg.get('code_class')}.{msg.get('code_detail'):02d} "
+                      "(not a request)")
+            return False
+        # NO path filter before decryption. An OSCORE-protected
+        # request carries its Uri-Path INSIDE the ciphertext — the
+        # outer options hold only the OSCORE option (9) — so matching
+        # `options[11]` here rejects every protected telegram. (It
+        # cost a debugging round: 3 datagrams arrived, all decryptable,
+        # and all were dropped by exactly that test.) The path is
+        # checked after decryption below, and only when the message
+        # was NOT protected, where an outer path really does exist.
+        if self._want_last is not None and 9 not in options:
+            got = options.get(11)
+            if isinstance(got, bytes):
+                got = got.decode(errors="replace")
+            if (got or "") != self._want_last:
+                return False
+        # A CON obliges us to ACK, or the DUT keeps retransmitting
+        # and those copies land on top of the next request.
+        if msg.get("type") == CON:
+            try:
+                client.send_empty_ack(msg["mid"], addr)
+            except OSError as exc:
+                _dbg_coap(f"[coap] unicast ACK failed: {exc}")
+        resp = client._decrypt_group_telegram(
+            [(msg, addr)], self._oscore_ctx)
+        if resp is None:
+            self._skipped += 1
+            _dbg_coap("[coap] unicast telegram did not decrypt "
+                      "under the bound context; skipping")
+            return False
+        # Now the inner options are available, so a protected
+        # telegram's real Uri-Path can be checked.
+        if self._want_last is not None and 9 in options:
+            inner = (resp.options or {}).get(11)
+            if isinstance(inner, bytes):
+                inner = inner.decode(errors="replace")
+            if (inner or "") != self._want_last:
+                self._skipped += 1
+                _dbg_coap(f"[coap] unicast telegram inner path "
+                          f"{inner!r} != {self._want_last!r}; skipping")
+                return False
+        _dbg_coap(f"[coap] unicast telegram captured from "
+                  f"{addr[0]}:{addr[1]} "
+                  f"{resp.code_class}.{resp.code_detail:02d}")
+        self._result = resp
+        return True
+
+    def result(self) -> Optional[CoapResponse]:
+        self._done.wait(timeout=self._timeout + 2)
+        self._thread.join(timeout=2.0)
+        return self._result
