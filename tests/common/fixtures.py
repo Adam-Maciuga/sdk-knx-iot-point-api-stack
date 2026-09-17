@@ -69,6 +69,7 @@ RUNTIME_MODULE_ORDER = [
     "test_generic_resources",
     "test_coap_header_budget",
     "test_coap_payload_limit",
+    "test_blockwise_response_type",
 ]
 _RUNTIME_MODULE_RANK = {
     name: i for i, name in enumerate(RUNTIME_MODULE_ORDER)

@@ -913,13 +913,10 @@ int coap_receive(oc_message_t* incoming_message)
                 goto send_message;
               }
               OC_DBG("received all blocks for payload");
-              if (is_con)
-              {
-                OC_DBG("CON answer received - send empty ack");
-                coap_send_response_with_empty_ack(inbound_coap_pkt->mid, &incoming_message->endpoint);
-              }
-              coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
-              transaction->mid = outbound_coap_pkt->mid;
+              /*
+                The response to the final Block1 request keeps the type prepared for the request
+                (piggybacked ACK for CON, NON for NON) - see the Block2 counterpart below.
+              */
               coap_set_header_block1(outbound_coap_pkt, block1_num, block1_more, block1_size);
 
               /*
@@ -961,23 +958,17 @@ int coap_receive(oc_message_t* incoming_message)
             {
               OC_DBG("dispatching next block");
               uint8_t more = response_buffer->next_block_offset < response_buffer->payload_size ? 1 : 0;
-              if (more == 0)
-              {
-                if (is_con)
-                {
-                  OC_DBG("CON answer received - send empty ack");
-                  coap_send_response_with_empty_ack(inbound_coap_pkt->mid, &incoming_message->endpoint);
-                }
-                coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
-                transaction->mid = outbound_coap_pkt->mid;
-
-                /*
-                  No Accept option is set here: Accept is a request-only option (client -> server).
-                  This is the outbound response; the response format is conveyed via Content-Format
-                  (see block2 path) or falls back to the resource default per KNX IoT spec 2.2.4.
-
-                */ 
-              }
+              /*
+                The final block is answered like every block before it: with the type the request
+                asked for (piggybacked ACK + same MID for a CON request, NON + fresh MID for a NON
+                request), as prepared above. RFC 7252 5.2.3 wants a NON request answered NON; for a
+                CON request the piggybacked ACK is protected by the response cache
+                (oc_coap_response_cache_store, RFC 7252 4.5): a retransmitted request for the last
+                block is answered from the cache, so no transfer state has to survive it.
+                No Accept option is set here: Accept is a request-only option (client -> server).
+                The response format is conveyed via Content-Format or falls back to the resource
+                default per KNX IoT spec 2.2.4.
+              */
               coap_set_header_content_format( outbound_coap_pkt, response_buffer->return_content_type);
               coap_set_payload(outbound_coap_pkt, payload, payload_size);
               coap_set_header_block2(outbound_coap_pkt, block2_num, more, block2_size);
