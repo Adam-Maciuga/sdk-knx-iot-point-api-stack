@@ -31,6 +31,10 @@
     fabricated "response body could not be decoded" failures.
 #>
 
+# Named parameters only: without this a bare pytest path such as
+# `run-in-docker.ps1 tests/runtime/test_observe.py` binds to -Preset instead of
+# falling through to $PytestArgs.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Preset = "linux-test-gcc",
     [string]$Image = "itgesellschaft/knxiot-knx-ci:latest",
