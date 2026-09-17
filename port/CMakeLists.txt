@@ -125,7 +125,11 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     #set(WITH_FREESTANDING OFF CACHE BOOL "" FORCE)
     #set(WITH_CBOR2JSON OFF CACHE BOOL "" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(BUILD_TOOLS ON CACHE BOOL "" FORCE)
+    # cbordump is TinyCBOR's own debug CLI tool; nothing in this repo uses it, and
+    # linking it as a standalone executable under our sanitizer flags requires the
+    # clang compiler-rt runtime archives, which are not guaranteed to be installed
+    # wherever this project's own code doesn't otherwise need them.
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 
     FetchContent_Declare(
         tinycbor
@@ -133,7 +137,15 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
         GIT_TAG v7.0
     )
 
+    # TinyCBOR's own CMakeLists.txt adds its "tests" subdirectory whenever BUILD_TESTING
+    # is set (the standard CTest variable, which this project enables for its own tests);
+    # those extra executables (e.g. tst_c90) are not built with our compiler-rt setup and
+    # fail to link under the sanitizer preset, so keep BUILD_TESTING off just for this fetch.
+    set(_kis_saved_build_testing ${BUILD_TESTING})
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(tinycbor)
+    set(BUILD_TESTING ${_kis_saved_build_testing} CACHE BOOL "" FORCE)
+    unset(_kis_saved_build_testing)
 endif()
 
 ### mDNS/DNS-SD library ###

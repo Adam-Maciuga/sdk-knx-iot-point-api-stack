@@ -148,6 +148,31 @@
         "BUILD_TESTING": true,
         "ENABLE_SANITIZERS": true
       }
+    },
+    {
+      "name": "linux-fuzz-clang",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Fuzzers (clang + libFuzzer)",
+      "description": "libFuzzer harnesses with ASan + UBSan. Logging is off: OC_PRINT dominates the runtime and throttles executions per second.",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "BUILD_TESTING": true,
+        "BUILD_FUZZERS": true,
+        "OC_PRINT_ENABLED": false,
+        "OC_DEBUG_ENABLED": false,
+        "OC_DEBUG_OSCORE_ENABLED": false
+      }
+    },
+    {
+      "name": "linux-fuzz-coverage-clang",
+      "inherits": "linux-fuzz-clang",
+      "displayName": "Linux Fuzz Coverage (clang + libFuzzer)",
+      "description": "Same as linux-fuzz-clang, plus gcov-compatible source coverage. Report with: gcovr -r . --gcov-executable 'llvm-cov gcov' --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' --exclude 'api/c-timestamp/.*' <builddir>",
+      "cacheVariables": {
+        "ENABLE_COVERAGE": true
+      }
     }
   ],
   "buildPresets": [
@@ -238,6 +263,18 @@
       "inherits": "linux-common-config",
       "displayName": "Linux Test + Sanitizers (GCC)",
       "configurePreset": "linux-test-asan"
+    },
+    {
+      "name": "linux-fuzz-clang",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Fuzzers (clang + libFuzzer)",
+      "configurePreset": "linux-fuzz-clang"
+    },
+    {
+      "name": "linux-fuzz-coverage-clang",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Fuzz Coverage (clang + libFuzzer)",
+      "configurePreset": "linux-fuzz-coverage-clang"
     }
   ],
   "testPresets": [
@@ -260,6 +297,18 @@
       "name": "linux-test-asan",
       "configurePreset": "linux-test-asan",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-fuzz-clang",
+      "configurePreset": "linux-fuzz-clang",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "fuzz" } }
+    },
+    {
+      "name": "linux-fuzz-coverage-clang",
+      "configurePreset": "linux-fuzz-coverage-clang",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "fuzz" } }
     }
   ]
 }

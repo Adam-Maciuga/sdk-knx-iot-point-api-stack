@@ -120,6 +120,25 @@ Useful variants:
 
 For Linux or CI-style local runs, see `tests/runtime/run-local-ci.sh`.
 
+### Fuzz Tests
+
+The fuzz tier runs libFuzzer harnesses (`tests/fuzz/`) against the parsers that process attacker-controlled bytes before any credential check: CoAP and OSCORE option parsing, the CBOR `oc_rep` tree, mDNS, blockwise reassembly, the hex/base64/UUID/timestamp decoders and several resource handlers. It needs clang; the seed corpus is generated into the build tree by `make_corpus.py`, so no binary blobs are committed.
+
+```bash
+cmake --preset linux-fuzz-clang
+cmake --build --preset linux-fuzz-clang
+ctest --preset linux-fuzz-clang
+```
+
+CTest replays every seed exactly once (`-runs=0`) under the `fuzz` label, so the gating run is deterministic. To actually mutate, run a harness directly with its corpus:
+
+```bash
+cd build/linux-fuzz-clang/tests/fuzz
+./fuzz_coap_parse corpus/coap_parse -max_total_time=300
+```
+
+New crashes land in `artifacts/`. In CI, `linux-fuzz-coverage` gates on the seed replay and reports source coverage; `linux-fuzz-explore` is a manual longer mutation run.
+
 ## Project Structure
 
 ```text
@@ -134,6 +153,7 @@ port/                    shared platform abstractions and OS-specific adaptation
   zephyr/                Zephyr port
 tests/unit/              Google Test unit tests
 tests/runtime/           Python/pytest runtime conformance suite and DUT runner
+tests/fuzz/              libFuzzer harnesses for the pre-authentication parsers
 tests/docs/              runtime test walkthroughs and supporting notes
 docs/                    stack documentation and migration guides
 cmake/                   helper CMake modules and toolchain files

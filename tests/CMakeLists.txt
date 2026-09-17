@@ -3,11 +3,18 @@
 # Layout:
 #   tests/unit/     — Google Test unit tests (C++ exercising C functions)
 #   tests/runtime/  — Python/pytest network-level conformance tests
+#   tests/fuzz/     — libFuzzer harnesses for the pre-auth parsers (clang only)
 
 cmake_minimum_required(VERSION 3.21)
 
 # ── Unit tests (Google Test) ───────────────────────────────────────────────────
 add_subdirectory(unit)
+
+# ── Fuzz harnesses ─────────────────────────────────────────────────────────────
+# After unit/: the harnesses reuse kisClientServer_tail and kis-app-stubs.
+if(BUILD_FUZZERS)
+    add_subdirectory(fuzz)
+endif()
 
 # ── Runtime test server ────────────────────────────────────────────────────────
 # Headless CoAP device for network-level conformance tests (like EITT).

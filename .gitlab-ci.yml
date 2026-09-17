@@ -61,6 +61,117 @@ linux-unit-test-asan:
   dependencies: []
 
 # ----------------------------------------------------------
+# Fuzzing — seed-corpus regression + coverage (gating)
+# Replays every generated seed exactly once (-runs=0) first: deterministic on
+# purpose, so a random mutation seed can never fail a pipeline for an
+# unrelated commit. Then, per target, mutates from that corpus for a short,
+# fixed budget (FUZZ_COVERAGE_SECONDS) purely to grow line coverage - any
+# crash found here is logged and kept as an artifact but does NOT fail the
+# job (that is what the manual linux-fuzz-explore job gates on).
+# Also reports source coverage (gcov via gcovr, clang): how much of api/,
+# messaging/, security/ and util/ the corpus plus the mutation burst
+# reaches. Excludes tests/, third-party FetchContent deps and the vendored
+# api/c-timestamp parser, matching linux-unit-test-coverage's scope.
+# ----------------------------------------------------------
+linux-fuzz-coverage:
+  stage: test
+  image: itgesellschaft/knxiot-knx-ci:latest
+  variables:
+    FUZZ_COVERAGE_SECONDS: "30"
+  script:
+    # llvm-19 provides llvm-cov-19 (gcovr's gcov-executable for clang's
+    # --coverage output); the clang package alone does not install it.
+    - apt-get update -qq && apt-get install -y -qq clang libclang-rt-19-dev llvm-19 > /dev/null 2>&1
+    - curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+    - python3 /tmp/get-pip.py --break-system-packages --quiet
+    - python3 -m pip install --break-system-packages --quiet gcovr
+    - cmake --preset=linux-fuzz-coverage-clang
+    - cmake --build --preset=linux-fuzz-coverage-clang
+    - ctest --preset=linux-fuzz-coverage-clang --output-junit build/linux-fuzz-coverage-clang/fuzz-report.xml
+    - |
+      mkdir -p fuzz-coverage-crashes
+      cd build/linux-fuzz-coverage-clang/tests/fuzz
+      for t in fuzz_coap_parse fuzz_oscore_options fuzz_oc_rep fuzz_mdns \
+               fuzz_query_string fuzz_blockwise_reassembly fuzz_hex_and_base64 fuzz_timestamp \
+               fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
+               fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
+               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce \
+               fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
+               fuzz_knx_lsm_post fuzz_auth_at_post; do
+        "./$t" "corpus/${t#fuzz_}" -max_total_time="$FUZZ_COVERAGE_SECONDS" -timeout=10 \
+          -rss_limit_mb=2048 -artifact_prefix="../../../../fuzz-coverage-crashes/${t}-" \
+          || echo "warning: $t found a crash during the coverage mutation burst - see fuzz-coverage-crashes/"
+      done
+      cd -
+    - mkdir -p build/linux-fuzz-coverage-clang/coverage-html
+    - >
+      gcovr --root . --gcov-executable 'llvm-cov-19 gcov'
+      --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/'
+      --exclude 'api/c-timestamp/.*'
+      --cobertura build/linux-fuzz-coverage-clang/coverage.xml
+      --html-details build/linux-fuzz-coverage-clang/coverage-html/index.html
+      --print-summary
+      build/linux-fuzz-coverage-clang
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    paths:
+      - build/linux-fuzz-coverage-clang/coverage-html/
+      - fuzz-coverage-crashes/
+    reports:
+      junit: build/linux-fuzz-coverage-clang/fuzz-report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: build/linux-fuzz-coverage-clang/coverage.xml
+    expire_in: 4 weeks
+  needs: []
+
+# ----------------------------------------------------------
+# Fuzzing — mutation run (on demand)
+# Start from the GitLab UI. Override FUZZ_SECONDS when triggering to change the
+# budget per target. New inputs land in fuzz-findings/, crashes in
+# fuzz-crashes/; add an interesting input to tests/fuzz/make_corpus.py to keep
+# it as a permanent seed.
+# ----------------------------------------------------------
+linux-fuzz-explore:
+  stage: test
+  image: itgesellschaft/knxiot-knx-ci:latest
+  when: manual
+  allow_failure: true
+  variables:
+    FUZZ_SECONDS: "900"
+  script:
+    # libclang-rt-19-dev provides the compiler-rt static archives (asan/ubsan/fuzzer);
+    # the clang package alone only installs the frontend, not these link-time archives.
+    - apt-get update -qq && apt-get install -y -qq clang libclang-rt-19-dev > /dev/null 2>&1
+    - cmake --preset=linux-fuzz-clang
+    - cmake --build --preset=linux-fuzz-clang
+    - |
+      status=0
+      mkdir -p fuzz-crashes
+      for t in fuzz_coap_parse fuzz_oscore_options fuzz_oc_rep fuzz_mdns \
+               fuzz_query_string fuzz_blockwise_reassembly fuzz_hex_and_base64 fuzz_timestamp \
+               fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
+               fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
+               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce \
+               fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
+               fuzz_knx_lsm_post fuzz_auth_at_post; do
+        seeds="build/linux-fuzz-clang/tests/fuzz/corpus/${t#fuzz_}"
+        mkdir -p "fuzz-findings/$t"
+        "build/linux-fuzz-clang/tests/fuzz/$t" "fuzz-findings/$t" "$seeds" \
+          -max_total_time="$FUZZ_SECONDS" -timeout=10 -rss_limit_mb=2048 \
+          -artifact_prefix=fuzz-crashes/ || status=1
+      done
+      exit $status
+  artifacts:
+    when: always
+    paths:
+      - fuzz-crashes/
+      - fuzz-findings/
+    expire_in: 4 weeks
+  needs: []
+
+# ----------------------------------------------------------
 # Sanitizer Tests (ASan + UBSan) — Runtime Conformance
 # NOTE: allow_failure while a benign 1-byte SPAKE shutdown leak remains
 #       (oc_oscore_set_auth_shared, api/oc_knx_sec.c). Memory-error and

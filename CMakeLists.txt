@@ -1,6 +1,49 @@
 cmake_minimum_required (VERSION 3.21)
 project(knx-iot-stack) 
 
+### Instrumentation ###
+# Must run BEFORE any target or add_subdirectory() call: a target's COMPILE_OPTIONS
+# property is initialised from the directory property at target creation time, so
+# flags added later do not reach targets that already exist. Placing this block at
+# the end of the file instrumented only tests/, leaving the stack itself and the
+# FetchContent dependencies uninstrumented.
+option(BUILD_TESTING "Build unit tests (requires a C++ compiler)" OFF)
+option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(BUILD_FUZZERS "Build the libFuzzer harnesses in tests/fuzz (clang only, implies BUILD_TESTING)" OFF)
+option(ENABLE_COVERAGE "Enable gcov-compatible source coverage instrumentation (GCC or Clang)" OFF)
+
+if(BUILD_FUZZERS)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "BUILD_FUZZERS requires clang: -fsanitize=fuzzer is not implemented in GCC.")
+    endif()
+    # The harnesses reuse kis-app-stubs / kisClientServer_tail from tests/unit.
+    set(BUILD_TESTING ON CACHE BOOL "" FORCE)
+endif()
+
+if(ENABLE_COVERAGE AND NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "ENABLE_COVERAGE requires GCC or Clang; both emit gcov-compatible .gcno/.gcda via --coverage. With Clang, read them with 'gcovr --gcov-executable \"llvm-cov gcov\"'.")
+endif()
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    if(ENABLE_SANITIZERS)
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+    if(BUILD_FUZZERS)
+        # fuzzer-no-link: coverage instrumentation everywhere, libFuzzer's main()
+        # is linked into the harness executables only (see tests/fuzz).
+        add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -g)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+    if(ENABLE_COVERAGE)
+        # -O0: instrumented counters must map 1:1 to source lines: an optimising
+        # build inlines and reorders code, which makes gcov attribute hits to the
+        # wrong line or merge lines together.
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+    endif()
+endif()
+
 ### Compiler ###
 # Compiler options (please do not forget to add own options such as to reduce enum sizes, such as for gcc -fshort-enums).
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
@@ -283,14 +326,8 @@ target_include_directories(kisTestControl PUBLIC ${PROJECT_SOURCE_DIR}/api)
 target_link_libraries(kisTestControl PUBLIC kisClientServer)
 
 ### Unit Tests ###
-option(BUILD_TESTING "Build unit tests (requires a C++ compiler)" OFF)
-option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 if(BUILD_TESTING)
     enable_language(CXX)
     enable_testing()
-    if(ENABLE_SANITIZERS AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
-        add_link_options(-fsanitize=address,undefined)
-    endif()
     add_subdirectory(tests)
 endif()
