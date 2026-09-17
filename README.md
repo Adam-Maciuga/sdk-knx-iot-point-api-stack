@@ -125,22 +125,27 @@ percentage on the job and the merge request, and the HTML report is an artifact.
 
 ### Runtime Conformance Tests
 
-Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: `tests/eitt/` interprets KNX's conformance template directly, and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. The recommended path is the Docker-based runner; see `tests/README.md` for the map.
+Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: `tests/eitt/` interprets KNX's conformance template directly, and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. They run in Docker only: the device needs its own network namespace and a veth pair with unique local addresses, which the runners create exactly as the CI jobs `eitt-gcc` and `runtime-gcc` do; see `tests/README.md` for the map.
+
+Windows (PowerShell) and Linux, macOS or Git Bash have a runner each with the same options:
 
 ```powershell
-.\tests\common\tools\run-in-docker.ps1
+.\tests\common\tools\run-in-docker.ps1                       # both device tiers, committed HEAD
+.\tests\common\tools\run-in-docker.ps1 -Tier eitt            # the EITT conformance tier
+.\tests\common\tools\run-in-docker.ps1 -Tier runtime         # the hand-written tier
+.\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6 -IncludeUncommitted
+.\tests\common\tools\run-in-docker.ps1 -Tier runtime tests/runtime/test_observe.py -x
 ```
 
-Useful variants:
-
-```powershell
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt
-.\tests\common\tools\run-in-docker.ps1 -Tier runtime
-.\tests\common\tools\run-in-docker.ps1 -k "5_4"
-.\tests\common\tools\run-in-docker.ps1 tests/runtime/test_observe.py -x
+```bash
+tests/common/tools/run-in-docker.sh                          # both device tiers, committed HEAD
+tests/common/tools/run-in-docker.sh --tier eitt
+tests/common/tools/run-in-docker.sh --tier runtime
+tests/common/tools/run-in-docker.sh --tier eitt --section 5.6 --uncommitted
+tests/common/tools/run-in-docker.sh --tier runtime -- tests/runtime/test_observe.py -x
 ```
 
-For Linux or CI-style local runs, see `tests/common/tools/run-local-ci.sh`.
+`all` (the default) runs the two tiers as separate pytest processes, each against a fresh device. Select EITT sections with the section option, not with `-k`: pytest's `-k 5.6` also matches 5.5.5.6. By default the committed HEAD is tested; `-IncludeUncommitted` / `--uncommitted` packs the working tree instead. `-Tier harness` / `--tier harness` runs the interpreter's own no-device tests. Both runners hand the container `tests/common/tools/run-local-ci.sh`, which is also usable directly inside a Linux CI container.
 
 ### Fuzz Tests
 

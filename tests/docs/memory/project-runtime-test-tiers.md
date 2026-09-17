@@ -390,3 +390,10 @@ wildcard join resolves to veth-test, so the explicit join that followed was a du
 interface first, wildcard second, EADDRINUSE after a successful join counts as joined (3 harness
 tests; harness 388/1). EITT skip count is **8**, not 7: seven 5.4.2 cases + 5.3.14.1 (optional
 replwdo); the 13 in a Docker `-Tier eitt` run add the 5 GUI harness modules skipped without PySide6.
+
+**Local Docker runners (2026-09-17):** one in-container implementation, `tests/common/tools/run-local-ci.sh`
+(`--tier all|eitt|runtime|harness`, `--section 5.x`, netns + ULA network as in CI, one pytest process per
+tier), driven by two thin wrappers with identical options: `run-in-docker.ps1` (Windows) and the new
+`run-in-docker.sh` (Linux/macOS/Git Bash, `--uncommitted`, `--no-cache`, `--server-logs`, `--coap-debug`,
+`--oscore-debug`, `--group-debug`, `--time-scale`, `--slow`, `--` pytest args). The ps1 no longer carries
+its own bash here-string. Documented in README.md, tests/README.md and tests/runtime/README.md.

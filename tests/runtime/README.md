@@ -119,8 +119,22 @@ a pile of environment-induced failures that read as a code regression.
 
 ## Running on Linux / CI directly
 
-`../common/tools/run-local-ci.sh` does the same steps as the CI job (veth
-pair, build, pytest) and is intended to run inside a Linux container or CI
-runner. `../common/tools/run-local-ci-zephyr.sh` drives pytest against an
-already-running external DUT (real Zephyr hardware or the virtual EITT GUI)
-instead. See the comments at the top of each script.
+`../common/tools/run-in-docker.sh` is the bash twin of the PowerShell runner
+for Linux, macOS and Git Bash, with the same options spelled `--tier`,
+`--section`, `--uncommitted`, `--no-cache`, `--server-logs`, `--coap-debug`,
+`--oscore-debug`, `--group-debug`, `--time-scale`, `--slow`:
+
+```bash
+tests/common/tools/run-in-docker.sh --tier runtime
+tests/common/tools/run-in-docker.sh --tier eitt --section 5.6 --uncommitted
+tests/common/tools/run-in-docker.sh --tier runtime -- tests/runtime/test_observe.py -x
+```
+
+Inside the container both runners execute `../common/tools/run-local-ci.sh`,
+which does what the CI jobs `runtime-gcc` / `eitt-gcc` do: DUT in its own
+network namespace with unique local addresses on a veth pair, build of
+`runtime_test_server`, one pytest process per tier (`--tier all` = eitt then
+runtime, each against a fresh DUT). A Linux CI runner can call it directly.
+`../common/tools/run-local-ci-zephyr.sh` is different: it drives pytest on the
+host against an already-running external DUT (real Zephyr hardware or the
+virtual EITT GUI). See the comments at the top of each script.

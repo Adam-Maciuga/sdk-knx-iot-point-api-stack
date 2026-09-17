@@ -91,155 +91,65 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
 
-# Base pytest invocation names the tier directory (or directories) selected
-# by -Tier. User args are appended, so `-k Security::`, `-x`, or an explicit
-# file path all work. The shared infrastructure the tiers import lives in
-# tests/common/ (fixtures.py, transport/, tools/) and holds no tests, so it
-# is simply never named here.
-#
-# `all` lists BOTH tier directories explicitly rather than leaning on
-# tests/pytest.ini's `testpaths`: testpaths applies only when pytest gets no
-# path argument at all, and this script always passes one.
-#   --tb=long     full tracebacks (why a test failed, all frames)
-#   --showlocals  values of local variables at each failing frame
-#   -rfE          short summary line per failed/errored test (parsed below)
-$Base = switch ($Tier) {
-    'eitt'    { "tests/eitt/" }
-    'runtime' { "tests/runtime/" }
-    'harness' { "tests/eitt/harness_tests/" }
-    default   { "tests/eitt/ tests/runtime/" }
-}
+# ---------------------------------------------------------------------------
+# The in-container logic lives in ONE place: tests/common/tools/run-local-ci.sh
+# (shared with run-in-docker.sh, the bash twin of this runner, and step for step
+# the same as .gitlab-ci.yml's device jobs). This script only packs the source
+# tree, starts the container privileged and maps its switches onto that
+# script's options. Whatever version of run-local-ci.sh is in the packed tree
+# is the one that runs, so -IncludeUncommitted covers the runner itself too.
+# ---------------------------------------------------------------------------
 if (-not $PytestArgs) {
+    # -v so the per-test PASSED/FAILED lines exist for the summary below;
+    # --tb=long and --showlocals so a failure is diagnosable from the log.
     $PytestArgs = @("-v", "--tb=long", "--showlocals")
 }
-# -Section 5.5,5.6 -> --section 5.5 --section 5.6 (see the param's comment
-# for why this exists instead of just using -k).
-foreach ($s in $Section) {
-    $PytestArgs += @("--section", $s)
-}
-# Each element of $PytestArgs becomes ONE bash word inside the heredoc
-# below, however many spaces it contains (e.g. -k "eitt and Security::").
-# Bash re-tokenizes $ArgsStr when it expands unquoted on the pytest
-# command line, so an argument with an embedded space (a multi-term -k
-# expression, a value with quotes) would otherwise be split back apart
-# and fed to pytest as two separate arguments. Single-quoting each
-# element -- with embedded single quotes escaped the POSIX way,
-# '\'' -- keeps it intact as one word no matter what it contains.
+$InnerArgs = @(
+    "--tier", $Tier,
+    "--preset", $Preset,
+    "--time-scale", $TimeScale.ToString([Globalization.CultureInfo]::InvariantCulture)
+)
+foreach ($s in $Section) { $InnerArgs += @("--section", $s) }
+if ($ServerLogs)   { $InnerArgs += "--server-logs" }
+if ($OscoreDebug)  { $InnerArgs += "--oscore-debug" }
+if ($CoapDebug)    { $InnerArgs += "--coap-debug" }
+if ($GroupDebug)   { $InnerArgs += "--group-debug" }
+if ($RunSlowTests) { $InnerArgs += "--slow" }
+$InnerArgs += "--"
+$InnerArgs += $PytestArgs
+
 function ConvertTo-BashSingleQuoted([string]$s) {
     return "'" + ($s -replace "'", "'\''") + "'"
 }
-$QuotedPytestArgs = $PytestArgs | ForEach-Object { ConvertTo-BashSingleQuoted $_ }
-$ArgsStr = "$Base " + ($QuotedPytestArgs -join " ")
-$QuietFlag = if ($ServerLogs) { "0" } else { "1" }
-$OscoreDbgFlag = if ($OscoreDebug) { "1" } else { "0" }
-$CoapDbgFlag = if ($CoapDebug) { "1" } else { "0" }
-$GroupDbgFlag = if ($GroupDebug) { "1" } else { "0" }
+$QuotedInner = ($InnerArgs | ForEach-Object { ConvertTo-BashSingleQuoted $_ }) -join " "
 
 $Source = if ($IncludeUncommitted) { "working tree (uncommitted + untracked)" } else { "committed HEAD" }
-$SlowEnv = if ($RunSlowTests) { "RUN_SLOW_TESTS=1 " } else { "" }
-Write-Host "=== Running runtime tests in Docker ($Image) ===" -ForegroundColor Cyan
+Write-Host "=== Running device tests in Docker ($Image) ===" -ForegroundColor Cyan
 Write-Host "    Repo:   $RepoRoot"
 Write-Host "    Branch: $(git -C $RepoRoot branch --show-current)"
 Write-Host "    Tier:   $Tier"
-Write-Host "    Args:   $ArgsStr"
+Write-Host "    Inner:  run-local-ci.sh $QuotedInner"
 Write-Host "    Source: $Source" -ForegroundColor Yellow
 Write-Host ""
 
-# Bash script executed inside the container. Built as a here-string, normalised
-# to LF, and base64-encoded so no CRLF or quoting survives the trip.
-$Bash = @"
-set -euo pipefail
-echo '--- Installing iproute2 ---'
-apt-get update -qq && apt-get install -y -qq iproute2 > /dev/null 2>&1
-echo '--- Creating veth pair (DUT in its own netns) ---'
-# The DUT lives in a SEPARATE network namespace, the test tool stays in the
-# root one, and the veth pair is the only link between them.
-#
-# Why separate namespaces and not just a veth pair in one: the DUT learns the
-# TOOL's IPv6 address from the SOURCE address of our discovery reply
-# (oc_knx_client.c knx_coap_discovery_response stores
-# data->endpoint->addr.ipv6.address). With both ends in one namespace every
-# address is local, so the kernel answers "source for a packet to ::1?" with
-# ::1 itself — `ip -6 route get` says `dev lo` for both — and the DUT records
-# its OWN address, then sends 5.4.1.4/5.4.1.15's unicast s-mode telegram to
-# itself. Distinct prefixes and /128 + explicit host routes do NOT fix that;
-# only real namespace separation does.
-ip netns add dut
-ip link add veth-dut type veth peer name veth-test
-ip link set veth-dut netns dut
-ip link set veth-test up
-ip netns exec dut ip link set lo up
-ip netns exec dut ip link set veth-dut up
-ip netns exec dut sysctl -w net.ipv6.conf.veth-dut.disable_ipv6=0
-sysctl -w net.ipv6.conf.veth-test.disable_ipv6=0
-sleep 3
-# Multicast route on both ends. The DUT sends query responses via
-# mdns_listen_sock6 using sendto() with sin6_scope_id=0, so the kernel needs a
-# multicast route to resolve the outgoing interface. The test client needs it
-# to send its raw PTR queries to FF02::FB.
-ip netns exec dut ip -6 route add ff00::/8 dev veth-dut || true
-ip -6 route add ff00::/8 dev veth-test || true
-# Give each end a UNIQUE LOCAL ADDRESS (fd00::/8, RFC 4193) alongside its
-# automatic link-local, so the network matches the scope the rest of the setup
-# assumes. KNX_MULTICAST_SCOPE defaults to 5 (site-local) on BOTH sides —
-# CMakeLists.txt line 84 for the stack, fixtures.py MC_SCOPE for the tests —
-# but a veth pair comes up link-local only (fe80::/10, RFC 6724 score 2, not
-# 5). That mismatch silently disables every DEVICE-ORIGINATED s-mode message:
-# oc_init_read_next (oc_knx_fp.c) waits for
-# oc_connectivity_get_network_scope() >= SCOPE_SITE_LOCAL before sending, logs
-# "network not (yet)up with correct scope" (651 times in one run), gives up
-# after 20 attempts, and sends nothing.
-ip netns exec dut ip -6 addr add fd11:9988:7766::1/64 dev veth-dut nodad || true
-ip -6 addr add fd11:9988:7766::2/64 dev veth-test nodad || true
-sleep 1
-DUT_ADDR=fd11:9988:7766::1
-echo "DUT address=`${DUT_ADDR} (netns 'dut', veth-dut) <-> tool fd11:9988:7766::2 (veth-test)"
-echo '--- Building runtime_test_server ($Preset) ---'
-cmake --preset=$Preset
-cmake --build --preset=$Preset --target runtime_test_server
-echo '--- Installing Python dependencies ---'
-# Both steps are skippable on a warm cache volume: pip itself is installed
-# into /usr/local (cached), and the wheels land in the cached pip dir, so a
-# second run neither downloads get-pip.py nor re-resolves requirements.
-if ! python3 -m pip --version > /dev/null 2>&1; then
-  curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-  python3 /tmp/get-pip.py --break-system-packages --quiet 2>/dev/null || true
-fi
-python3 -m pip install --break-system-packages --quiet \
-  -r tests/common/requirements.txt
-echo '--- Running tests ---'
-RUNTIME_TEST_SERVER=build/$Preset/tests/runtime_test_server \
-RUNTIME_TEST_SERVER_PREFIX='ip netns exec dut' \
-DUT_IFACE=veth-dut DEVICE_HOST=`$DUT_ADDR DEVICE_IFACE=veth-test \
-COAP_TIMEOUT=5 SERVER_STARTUP_TIMEOUT=30 RUNTIME_TEST_QUIET=$QuietFlag \
-RUNTIME_TEST_TIME_SCALE=$TimeScale KNX_TEST_DEBUG_OSCORE=$OscoreDbgFlag \
-KNX_TEST_DEBUG_COAP=$CoapDbgFlag KNX_TEST_DEBUG_GROUP=$GroupDbgFlag \
-KNX_TEST_DEBUG_MDNS=$GroupDbgFlag \
-$SlowEnv`python3 -m pytest -rfE $ArgsStr
-"@
-
-$Bash = $Bash -replace "`r`n", "`n"
+# The one-line launcher is passed base64-encoded so no quoting of the pytest
+# arguments has to survive cmd.exe, PowerShell and bash at once.
+$Bash = "exec bash tests/common/tools/run-local-ci.sh $QuotedInner`n"
 $B64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Bash))
 
-# Pack the sources into a binary tar. PowerShell pipes corrupt binary streams,
-# so write to a temp file and feed it to docker stdin via a cmd redirect.
-#   - default:            committed HEAD via `git archive`
-#   - -IncludeUncommitted: the working tree (tracked + untracked, minus
-#                          .gitignore) tarred from the live files so
-#                          uncommitted edits are included.
 $Tar = Join-Path ([IO.Path]::GetTempPath()) "knx-runtime-$([Guid]::NewGuid().ToString('N')).tar"
 $List = "$Tar.list"
 $code = 1
 try {
+    # Pack the tree into a tar the container unpacks into its own filesystem:
+    # no bind mount, so no stale CMake caches, CRLF surprises or try-compile
+    # failures from Docker Desktop's file sharing.
     if ($IncludeUncommitted) {
-        # git ls-files honours .gitignore and lists tracked + new untracked files.
         Push-Location $RepoRoot
         try {
             $files = git ls-files --cached --others --exclude-standard --full-name
-            # Write a BOM-free, LF-terminated list; tar.exe chokes on a BOM.
             [IO.File]::WriteAllText($List, ($files -join "`n") + "`n",
                                     [Text.UTF8Encoding]::new($false))
-            # tar.exe (bsdtar) ships with Windows 10+. -T reads the file list.
             tar -c -f $Tar -C $RepoRoot -T $List
         } finally {
             Pop-Location
@@ -252,20 +162,10 @@ try {
     $inner += 'tar -xf - -C /w && cd /w && bash /run.sh'
 
     # Persistent caches. The container is --rm, so without these EVERY run
-    # recompiles all 197 objects (mbedtls, tinycbor, the whole stack),
-    # re-downloads get-pip.py and re-resolves requirements.txt — ~60s of
-    # fixed overhead before a single test executes, even when only a Python
-    # test file changed. Named volumes survive between runs:
-    #   knx-rt-build  -> /w/build   (CMake tree; safe because build/ is
-    #                                gitignored, so the untar never touches it
-    #                                and CMake's own dependency checking
-    #                                decides what to rebuild)
-    #   knx-rt-pip    -> pip's wheel cache, so requirements resolve offline
-    # NOT cached: /usr/local — the image's own toolchain lives there
-    # (/usr/local/bin/gcc), so shadowing it with a volume would break the
-    # build outright.
-    # Pass -NoCache for a guaranteed-clean build (e.g. after changing a
-    # CMake preset or chasing a suspected stale-artifact problem).
+    # recompiles all objects (mbedtls, tinycbor, the whole stack), re-downloads
+    # get-pip.py and re-resolves requirements.txt. Named volumes survive between
+    # runs: knx-rt-build -> /w/build (build/ is gitignored, so the untar never
+    # touches it and CMake decides what to rebuild), knx-rt-pip -> pip's cache.
     $mounts = ""
     if (-not $NoCache) {
         $mounts = "-v knx-rt-build:/w/build " +

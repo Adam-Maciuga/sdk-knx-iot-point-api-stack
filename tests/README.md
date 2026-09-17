@@ -63,12 +63,27 @@ pair and a `dut` network namespace that only the Docker harness creates, and
 a host-native run fails in ways that look like code regressions:
 
 ```powershell
-.\tests\common\tools\run-in-docker.ps1                 # both device tiers
+.\tests\common\tools\run-in-docker.ps1                 # both device tiers, each against a fresh DUT
 .\tests\common\tools\run-in-docker.ps1 -Tier eitt
 .\tests\common\tools\run-in-docker.ps1 -Tier runtime
 .\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6
 .\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -Tier runtime
 ```
+
+The same from Linux, macOS or Git Bash (`--help` lists every option):
+
+```bash
+tests/common/tools/run-in-docker.sh                    # both device tiers
+tests/common/tools/run-in-docker.sh --tier eitt --section 5.6
+tests/common/tools/run-in-docker.sh --tier runtime --uncommitted
+tests/common/tools/run-in-docker.sh --tier harness     # no device needed
+```
+
+Both wrappers pack the tree (committed HEAD, or the working tree with
+`-IncludeUncommitted` / `--uncommitted`), start the CI image privileged and run
+`common/tools/run-local-ci.sh` inside it. That script is the in-container half
+and takes the same `--tier` / `--section` options, so a Linux CI runner can
+call it directly.
 
 See [`runtime/README.md`](runtime/README.md) for the runner's options and
 gotchas, and [`eitt/README.md`](eitt/README.md) for the EITT tier.
