@@ -24,6 +24,7 @@ import os
 import socket
 import struct
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Optional
 
@@ -89,28 +90,58 @@ def _dbg_coap(*args, **kwargs):
         print(*args, **kwargs)
 
 
-def _parse_oscore_option(value: bytes) -> tuple[Optional[bytes],
-                                                Optional[bytes]]:
-    """Split an OSCORE option value into (kid, partial_iv).
+def _parse_oscore_option_full(value: bytes) -> tuple[Optional[bytes],
+                                                     Optional[bytes],
+                                                     Optional[bytes]]:
+    """Split an OSCORE option value into (kid, partial_iv, kid_context).
 
     Layout per RFC 8613 §6.1 (and knx_oscore._build_oscore_option): a
     flags byte whose low 3 bits give the PIV length, bit 3 marks a kid and
     bit 4 a kid context, followed by the PIV, then a length-prefixed kid
     context, then the kid (running to the end of the option).
+
+    The kid context comes last in the tuple because it is the field a
+    caller almost never wants: the only message in this suite that carries
+    a meaningful one is the 4.01 Echo challenge the device builds for an
+    s-mode MULTICAST write, where oc_oscore_engine.c's
+    `unicast_echo_response_by_mc` branch generates OC_ECHO_KID_CTX_LEN
+    fresh random bytes for it. EITT's `CheckRxKid="yes" RxKid="random"` is
+    the assertion that the device did exactly that; every other response
+    shape either omits the field or repeats a provisioned context id.
+
+    A TRUNCATED option (the flags byte promises a field the bytes do not
+    carry) yields None for what could not be read rather than raising:
+    this runs on datagrams straight off the wire, including ones addressed
+    to other contexts.
     """
     if not value:
-        return None, None
+        return None, None, None
     flags = value[0]
     pos = 1
     piv_len = flags & 0x07
     piv = value[pos:pos + piv_len] if piv_len else None
     pos += piv_len
+    kid_context = None
     if flags & 0x10:                       # kid context present
         if pos >= len(value):
-            return None, piv
+            return None, piv, None
         ctx_len = value[pos]
-        pos += 1 + ctx_len
+        pos += 1
+        kid_context = value[pos:pos + ctx_len]
+        pos += ctx_len
     kid = value[pos:] if flags & 0x08 else None
+    return kid, piv, kid_context
+
+
+def _parse_oscore_option(value: bytes) -> tuple[Optional[bytes],
+                                                Optional[bytes]]:
+    """Split an OSCORE option value into (kid, partial_iv).
+
+    The two-field view of `_parse_oscore_option_full`; kept with its
+    original signature because every caller but the CheckRxKid assertion
+    wants exactly these two.
+    """
+    kid, piv, _kid_context = _parse_oscore_option_full(value)
     return kid, piv
 
 
@@ -149,6 +180,104 @@ def knx_group_multicast_address(grpid: int, iid: int,
     return socket.inet_ntop(socket.AF_INET6, bytes(b))
 
 
+def _is_multicast_v6(address: Optional[str]) -> bool:
+    """True when `address` is an IPv6 multicast address (first byte 0xff).
+
+    Purely textual — no DNS, no name lookup — so it is safe to call on an
+    EITT `IP="..."` alias value that has already been resolved to a
+    literal. A zone suffix ("%eth0") and surrounding brackets are
+    tolerated because that is how the template writes group addresses.
+    """
+    if not address:
+        return False
+    text = address.strip()
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1]
+    text = text.split("%", 1)[0]
+    try:
+        packed = socket.inet_pton(socket.AF_INET6, text)
+    except (OSError, ValueError):
+        return False
+    return packed[0] == 0xFF
+
+
+def parse_ipv6_endpoint(value: Optional[str],
+                        default_port: int = 5683
+                        ) -> Optional[tuple[str, int]]:
+    """Parse "[<ipv6>]:<port>", "[<ipv6>]" or a bare "<ipv6>" into
+    (address, port), or None when `value` is not an IPv6 literal.
+
+    This is the shape EITT's '@@[pahdev"Alias;ipaddress=..."' writes —
+    '[ff35:30:fd11:9988:7766:0:8000:1]:5683' for the DUT's group address.
+    A non-address placeholder (the template also uses the literal
+    "invalid" to force a rediscovery) returns None, which callers treat
+    as "no usable endpoint" rather than guessing one.
+    """
+    if not value:
+        return None
+    text = value.strip()
+    port = default_port
+    if text.startswith("["):
+        end = text.find("]")
+        if end < 0:
+            return None
+        host, rest = text[1:end], text[end + 1:]
+        if rest.startswith(":"):
+            try:
+                port = int(rest[1:])
+            except ValueError:
+                return None
+        elif rest:
+            return None
+    else:
+        host = text
+    zone = ""
+    if "%" in host:
+        host, _, zone = host.partition("%")
+    try:
+        socket.inet_pton(socket.AF_INET6, host)
+    except (OSError, ValueError):
+        return None
+    return (f"{host}%{zone}" if zone else host), port
+
+
+def _same_host(a: Optional[str], b: Optional[str]) -> bool:
+    """Compare two IPv6 address strings by their packed bytes, ignoring
+    the textual form and any zone suffix — "fd11::1" and
+    "FD11:0:0:0:0:0:0:1%eth0" are the same host."""
+    def _packed(x):
+        if not x:
+            return None
+        t = x.strip().split("%", 1)[0]
+        if t.startswith("[") and t.endswith("]"):
+            t = t[1:-1].split("%", 1)[0]
+        try:
+            return socket.inet_pton(socket.AF_INET6, t)
+        except (OSError, ValueError):
+            return None
+    pa, pb = _packed(a), _packed(b)
+    if pa is None or pb is None:
+        return a == b
+    return pa == pb
+
+
+def _multicast_scope_id(interface: Optional[str] = None) -> int:
+    """Resolve the outgoing interface index for multicast, from
+    `interface` or DEVICE_IFACE (an index or a name). 0 = let the stack
+    choose, matching `oscore_multicast_post`."""
+    iface = interface or os.environ.get("DEVICE_IFACE")
+    if not iface:
+        return 0
+    try:
+        return int(iface)
+    except (ValueError, TypeError):
+        pass
+    try:
+        return socket.if_nametoindex(iface)
+    except (OSError, AttributeError):
+        return 0
+
+
 @dataclass
 class CoapResponse:
     """Parsed CoAP response."""
@@ -165,9 +294,16 @@ class CoapResponse:
     # Outer OSCORE option fields of the message this was decrypted from,
     # kept for group telegrams because a tool-sent 4.01 Echo challenge has
     # to quote the challenged telegram's kid and Partial IV back verbatim
-    # (see CoapClient.send_echo_challenge).
+    # (see CoapClient.send_echo_challenge), and for responses because
+    # EITT's `CheckRxKid` asserts on the kid CONTEXT the device chose.
+    #
+    # All three are read from the SAME option bytes the decryption was
+    # handed (`options[9]`), so `oscore_kid_context` is by construction
+    # the ID Context of the message that actually decrypted here — not a
+    # second, independently-parsed view of a different datagram.
     oscore_kid: Optional[bytes] = None
     oscore_piv: Optional[bytes] = None
+    oscore_kid_context: Optional[bytes] = None
 
     @property
     def code(self) -> str:
@@ -886,6 +1022,59 @@ class CoapClient:
         msg = header + token + options + b"\xFF" + ciphertext
         return msg
 
+    @contextmanager
+    def _request_socket(self, dest: Optional[tuple[str, int]]):
+        """Yield (socket, sendto_target, scope_id) for one OSCORE request.
+
+        `dest=None` or a UNICAST dest keeps the client's own long-lived
+        socket — the unicast path is byte-for-byte what it was.
+
+        A MULTICAST dest gets a dedicated socket configured the way
+        `oscore_multicast_post` configures its own (IPV6_MULTICAST_IF from
+        DEVICE_IFACE, hop limit 255 above link-local, bound to an
+        ephemeral port) and `self._sock` is pointed at it for the duration
+        of the exchange, so `_recv_oscore_response` — which reads and ACKs
+        on `self._sock` — receives the reply on the SAME socket the group
+        message went out from. That matters: the device answers a group
+        message unicast to the sender's source address and port, so a
+        reply read on any other socket would never arrive.
+        """
+        if dest is None:
+            yield self._sock, (self.host, self.port, 0, 0), 0
+            return
+        address, port = dest
+        if not _is_multicast_v6(address):
+            yield self._sock, (address, port, 0, 0), 0
+            return
+
+        address, _, zone = address.partition("%")
+        scope_id = (_multicast_scope_id(zone) if zone
+                    else _multicast_scope_id())
+        # ff02::/16 is link-local; anything wider needs a hop limit that
+        # survives the veth/bridge hop (same rule as oscore_multicast_post).
+        link_local = address.lower().startswith("ff02")
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        try:
+            sock.setsockopt(socket.IPPROTO_IPV6,
+                            socket.IPV6_MULTICAST_HOPS,
+                            1 if link_local else 255)
+            if scope_id:
+                sock.setsockopt(socket.IPPROTO_IPV6,
+                                socket.IPV6_MULTICAST_IF,
+                                struct.pack("@I", scope_id))
+            sock.settimeout(self.timeout)
+            sock.bind(("", 0))
+            previous = self._sock
+            self._sock = sock
+            _dbg_coap(f"[coap] oscore group send -> [{address}%{scope_id}]"
+                      f":{port} from port {sock.getsockname()[1]}")
+            try:
+                yield sock, (address, port, 0, scope_id), scope_id
+            finally:
+                self._sock = previous
+        finally:
+            sock.close()
+
     def oscore_request(self, oscore_ctx, method_code: int, path: str,
                        payload: bytes = b"",
                        uri_queries: list = None,
@@ -900,7 +1089,8 @@ class CoapClient:
                        echo: Optional[bytes] = None,
                        expect_echo_challenge: bool = False,
                        msg_type: int = CON,
-                       crit_option: Optional[tuple] = None) -> Optional[
+                       crit_option: Optional[tuple] = None,
+                       dest: Optional[tuple[str, int]] = None) -> Optional[
                            CoapResponse]:
         """Send an OSCORE-protected CoAP request.
 
@@ -922,6 +1112,22 @@ class CoapClient:
                 deliberately-malformed one-shot requests whose whole point
                 is the device's rejection/challenge, so retrying (which
                 would resync the SSN or resend) would defeat the test.
+            dest: (address, port) to send to instead of the configured
+                (self.host, self.port). When `address` is an IPv6
+                MULTICAST address the protected message goes out as a
+                GROUP message: NON by default (EITT's group rows are all
+                Type="NON"; an explicit non-CON `msg_type` still wins),
+                from a socket configured with IPV6_MULTICAST_IF /
+                IPV6_MULTICAST_HOPS exactly like `oscore_multicast_post`.
+                The reply is read back on THAT SAME socket, because the
+                device answers a group message UNICAST to the sender's
+                source address and port — the 4.01 Echo challenge and the
+                s-mode responses both come back that way. Everything else
+                on this path (the adversarial knobs, Echo, the Block2/
+                Echo-retry logic, `_recv_oscore_response`'s decryption and
+                the `oscore_kid_context`/Echo surfacing) is the unicast
+                path's, unchanged. A UNICAST `dest` simply retargets the
+                normal socket.
 
         Returns:
             CoapResponse with decrypted payload, or None on timeout.
@@ -933,6 +1139,15 @@ class CoapClient:
         # echo-back as its own separate message, so we don't wait for an
         # in-loop 4.01 to discover it.
         echo_value = echo
+        # A group message is never confirmable: there is no single peer to
+        # ACK it and the device treats a CON to a multicast destination as
+        # malformed. Every EITT group row is already Type="NON", so this
+        # only corrects a caller that left the CON default in place; an
+        # explicitly non-CON `msg_type` is honoured as-is.
+        wire_msg_type = msg_type
+        if (dest is not None and _is_multicast_v6(dest[0])
+                and msg_type == CON):
+            wire_msg_type = NON
         adversarial = (seq_no_override is not None
                        or seq_no_offset is not None
                        or invalid_auth_tag is not None
@@ -968,24 +1183,32 @@ class CoapClient:
                 kid_override=kid_override)
 
             msg = self._build_oscore_request(oscore_opt, ciphertext,
-                                             msg_type=msg_type,
+                                             msg_type=wire_msg_type,
                                              crit_option=crit_option)
             # Extract expected token from built message
             tkl = msg[0] & 0x0F
             expected_token = msg[4:4 + tkl]
 
-            old_timeout = self._sock.gettimeout()
             effective_timeout = timeout if timeout is not None else self.timeout
-            self._sock.settimeout(effective_timeout)
-
-            try:
-                self._sock.sendto(msg, (self.host, self.port, 0, 0))
-                result = self._recv_oscore_response(
-                    oscore_ctx, piv, effective_timeout, expected_token)
-            except socket.timeout:
-                return None
-            finally:
-                self._sock.settimeout(old_timeout)
+            with self._request_socket(dest) as (sock, target, scope_id):
+                old_timeout = sock.gettimeout()
+                sock.settimeout(effective_timeout)
+                try:
+                    sock.sendto(msg, target)
+                    # Only a GROUP send needs the "which responder is this?"
+                    # filter: a unicast exchange is already correlated by
+                    # token, and applying a source filter there would
+                    # reject the DUT's legitimate replies from an
+                    # ephemeral address the caller never configured.
+                    prefer = self.host if _is_multicast_v6(
+                        target[0]) else None
+                    result = self._recv_oscore_response(
+                        oscore_ctx, piv, effective_timeout, expected_token,
+                        prefer_source=prefer)
+                except socket.timeout:
+                    return None
+                finally:
+                    sock.settimeout(old_timeout)
 
             if result is None:
                 return None
@@ -1018,12 +1241,22 @@ class CoapClient:
 
     def _recv_oscore_response(self, oscore_ctx, piv: bytes,
                               timeout: float,
-                              expected_token: bytes = None) -> Optional[
-                                  tuple[CoapResponse, dict]]:
+                              expected_token: bytes = None,
+                              prefer_source: Optional[str] = None
+                              ) -> Optional[tuple[CoapResponse, dict]]:
         """Receive and decrypt an OSCORE response.
 
         Skips messages whose token doesn't match expected_token (stale
         retransmissions from DUT).
+
+        `prefer_source` is set only on the GROUP path (see `dest` in
+        `oscore_request`): a multicast send can be looped back to our own
+        socket by the host stack and can also be answered by responders
+        that are not the DUT, so anything whose source address is not the
+        configured DUT host is discarded rather than decrypted as "the"
+        response. It is left None for unicast, where the DUT legitimately
+        answers from an ephemeral address and the token is the
+        correlation.
 
         Returns (CoapResponse, inner_options_dict) or None on timeout.
         """
@@ -1056,6 +1289,17 @@ class CoapClient:
                 continue
 
             if len(data) < 4:
+                continue
+
+            if prefer_source is not None and not _same_host(
+                    addr[0], prefer_source):
+                # Our own multicast datagram looped back, or another
+                # responder on the group. Neither is the DUT's answer.
+                self._last_discards.append(
+                    f"group reply from {addr[0]}, not the DUT "
+                    f"({prefer_source})")
+                _dbg_coap(f"[coap] ignoring group datagram from {addr[0]} "
+                          f"(want {prefer_source})")
                 continue
 
             byte0 = data[0]
@@ -1142,9 +1386,50 @@ class CoapClient:
             if 9 in options:
                 # Decrypt the response
                 resp_oscore_opt = options[9]
-                inner_code, inner_payload, inner_options = (
-                    oscore_ctx.unprotect_response(
-                        resp_oscore_opt, outer_payload, piv))
+                # Parsed from the very bytes handed to unprotect_response,
+                # so what is surfaced below is the outer option of the
+                # message that decrypted, not of some other datagram. The
+                # device's 4.01 Echo challenge for an s-mode MULTICAST
+                # write carries a FRESH RANDOM kid context here
+                # (oc_oscore_engine.c, unicast_echo_response_by_mc,
+                # generates OC_ECHO_KID_CTX_LEN random bytes and signs the
+                # 4.01 with a context derived under it); EITT asserts on
+                # it via CheckRxKid and decrypts with a context derived
+                # from it ("SPECIAL DECODING: use received random
+                # kid_context"). Do the same: a kid context that differs
+                # from ours selects a sibling context for the unprotect,
+                # with the configured context kept as the fallback. AEAD
+                # authentication is the arbiter either way.
+                resp_kid, resp_piv, resp_kid_ctx = (
+                    _parse_oscore_option_full(resp_oscore_opt))
+                unprotect_with = [oscore_ctx]
+                if (resp_kid_ctx
+                        and resp_kid_ctx != oscore_ctx.id_context
+                        and hasattr(oscore_ctx, "with_id_context")):
+                    _dbg_oscore(f"[oscore] response carries kid context "
+                                f"{resp_kid_ctx.hex()} (ours: "
+                                f"{(oscore_ctx.id_context or b'').hex() or 'none'}"
+                                f"); deriving a sibling context for it")
+                    # The device derives that context's keys from the kid
+                    # it puts in the option (the token's osc id), not from
+                    # whatever recipient id the script provisioned - which
+                    # 5.4.1.12's MulticastTx leaves empty.
+                    unprotect_with.insert(
+                        0, oscore_ctx.with_id_context(
+                            resp_kid_ctx,
+                            recipient_id=(resp_kid if resp_kid
+                                          else oscore_ctx.recipient_id)))
+                last_exc: Optional[Exception] = None
+                for ctx in unprotect_with:
+                    try:
+                        inner_code, inner_payload, inner_options = (
+                            ctx.unprotect_response(
+                                resp_oscore_opt, outer_payload, piv))
+                        break
+                    except InvalidTag as exc:
+                        last_exc = exc
+                else:
+                    raise last_exc
                 # Surface the OUTER (Class U) Observe option, which carries
                 # the sequence number for observe registrations and
                 # notifications per RFC 8613 4.1.3.5.2.  The inner Observe
@@ -1160,6 +1445,9 @@ class CoapClient:
                     mid=mid,
                     token=token,
                     options=inner_options,
+                    oscore_kid=resp_kid,
+                    oscore_piv=resp_piv,
+                    oscore_kid_context=resp_kid_ctx,
                 ), inner_options)
             else:
                 # Unprotected response (e.g. 4.01 Unauthorized)
@@ -1174,6 +1462,11 @@ class CoapClient:
                 outer_opts = {}
                 if 252 in options:
                     outer_opts[252] = options[252]
+                # No option 9 means no OSCORE fields at all — spelled out
+                # rather than left to the dataclass defaults, because
+                # "the device answered in the clear" is exactly what the
+                # CheckRxKid assertion has to be able to tell apart from
+                # "the device answered protected but with no kid context".
                 return (CoapResponse(
                     code_class=code_class,
                     code_detail=code_detail,
@@ -1182,6 +1475,9 @@ class CoapClient:
                     msg_type=msg_type,
                     mid=mid,
                     token=token,
+                    oscore_kid=None,
+                    oscore_piv=None,
+                    oscore_kid_context=None,
                 ), outer_opts)
 
     def oscore_get(self, oscore_ctx, path: str,
@@ -1831,6 +2127,15 @@ class CoapClient:
         Group OSCORE messages require OSCORE protection with the group
         AT's credentials (sender_id, master_secret).
 
+        LARGELY SUPERSEDED by `oscore_request(..., dest=(addr, port))`,
+        which is what the EITT interpreter now drives every `IP=` alias
+        that resolves to a group address through. This function collects
+        a LIST of responses over a fixed window and re-implements the
+        response parse inline, so it has neither the adversarial knobs
+        (SeqNo/InvalidAuthTag/kid) nor the Echo-challenge surfacing; it is
+        kept because other callers still use it and its "sweep for all
+        responders" shape has no equivalent on the request path.
+
         Args:
             oscore_ctx: OscoreContext for the group AT
             path: URI path (e.g. "/k")
@@ -2174,7 +2479,7 @@ class CoapClient:
                             f"this Rx context ({exc}); skipping")
                 continue
             inner_code, inner_payload, inner_options = result[0], result[1], result[2]
-            kid, piv = _parse_oscore_option(options[9])
+            kid, piv, kid_ctx = _parse_oscore_option_full(options[9])
             return CoapResponse(
                 code_class=inner_code >> 5,
                 code_detail=inner_code & 0x1F,
@@ -2184,7 +2489,8 @@ class CoapClient:
                 token=msg.get("token", b""),
                 options=inner_options, source_addr=addr,
                 echo_value=inner_options.get(252),
-                oscore_kid=kid, oscore_piv=piv)
+                oscore_kid=kid, oscore_piv=piv,
+                oscore_kid_context=kid_ctx)
         return None
 
     def listen_multicast(self, mcast_addr: str, port: int = 5683,

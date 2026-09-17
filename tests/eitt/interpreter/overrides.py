@@ -28,6 +28,13 @@ survive swapping to a new EITT revision:
    (excluded, with a reason) or action="xfail" (run, but a failure
    doesn't fail the suite).
 
+3. Corrupt template data. A single attribute value in the shipped
+   template can be plain wrong — a truncated fragment left behind by an
+   editing accident — and the master template must not be edited to fix
+   it. "message_attributes:" corrects one attribute of one message over
+   the read-only template, the same way "message_activation:" corrects
+   its Activate state (see MessageAttributes).
+
 Overrides are keyed by TestCase.qualified_name (collection::suite::case)
 so they keep matching after an XML regeneration that preserves test
 names, and show up as a clean diff in code review — see
@@ -123,6 +130,43 @@ class MessageActivation:
     reason: str = ""
 
 
+# XML attribute name -> CoAPMessage field (see model.py CoAPMessage.from_xml).
+# Deliberately a closed list rather than a generic setattr: an unknown name
+# would otherwise create a stray attribute on the dataclass and the override
+# would silently do nothing, which is the exact failure mode this section
+# exists to prevent.
+_MESSAGE_ATTRIBUTE_FIELDS = {
+    "AcceptedCF": "accepted_cf",
+    "CF": "cf",
+    "ContentFormat": "cf",
+}
+
+
+@dataclass
+class MessageAttributes:
+    """One CoAPMessage whose XML attribute values we correct after parsing.
+
+    Unlike MessageActivation this is not an operator CHOICE — it is template
+    data corruption. The shipped template carries at least one attribute whose
+    value is a truncated fragment of the real one (5.5.4.1's `AcceptedCF="r"`,
+    the tail of "application/cbor"), which the fail-closed Content-Format
+    parsing rejects rather than silently dropping.
+
+    The master template is read-only (see the project notes), so the
+    correction lives here, keyed the same way MessageActivation is: `case`
+    (TestCase NAME) plus the message's XML `id` (a GUID), both of which
+    survive template regeneration, with `index` for the rare duplicate-ID
+    case. `set` maps XML attribute names to their corrected values; only
+    names in _MESSAGE_ATTRIBUTE_FIELDS are accepted, and an unknown one is a
+    load-time ValueError so a typo cannot quietly be a no-op.
+    """
+    case: str
+    id: str
+    set: dict
+    index: Optional[int] = None
+    reason: str = ""
+
+
 class OverrideTable:
     """Loaded overrides.yaml, keyed by TestCase.qualified_name."""
 
@@ -131,6 +175,7 @@ class OverrideTable:
         self._variables: dict = {}
         self._manual_actions: list[ManualAction] = []
         self._message_activation: list[MessageActivation] = []
+        self._message_attributes: list[MessageAttributes] = []
         self._accepted_response_codes: dict[str, set] = {}
 
     @property
@@ -231,6 +276,53 @@ class OverrideTable:
                 reason=spec.get("reason", ""),
             ))
 
+        # "message_attributes:" is not a TestCase key either — it corrects
+        # corrupt attribute VALUES over the read-only template (see
+        # MessageAttributes).
+        attr_raw = raw.pop("message_attributes", None) or []
+        if not isinstance(attr_raw, list):
+            raise ValueError(
+                "eitt/overrides.yaml 'message_attributes' must be a LIST of "
+                "{case, id, set, reason} mappings")
+        message_attributes = []
+        for spec in attr_raw:
+            if (not isinstance(spec, dict) or "case" not in spec
+                    or "id" not in spec or "set" not in spec):
+                raise ValueError(
+                    "each eitt/overrides.yaml 'message_attributes' entry must "
+                    "be a mapping with 'case', 'id' and 'set' keys")
+            assignments = spec["set"]
+            if not isinstance(assignments, dict) or not assignments:
+                raise ValueError(
+                    f"message_attributes entry case={spec['case']!r} "
+                    f"id={spec['id']!r}: 'set' must be a NON-EMPTY mapping of "
+                    "XML attribute name -> value")
+            for attr_name, value in assignments.items():
+                if attr_name not in _MESSAGE_ATTRIBUTE_FIELDS:
+                    raise ValueError(
+                        f"message_attributes entry case={spec['case']!r} "
+                        f"id={spec['id']!r}: unknown XML attribute "
+                        f"{attr_name!r} — must be one of "
+                        f"{sorted(_MESSAGE_ATTRIBUTE_FIELDS)}")
+                if not isinstance(value, str):
+                    raise ValueError(
+                        f"message_attributes entry case={spec['case']!r} "
+                        f"id={spec['id']!r}: value for {attr_name!r} must be a "
+                        f"string, got {type(value).__name__}")
+            if not str(spec.get("reason", "")).strip():
+                raise ValueError(
+                    f"message_attributes entry case={spec['case']!r} "
+                    f"id={spec['id']!r} needs a non-empty 'reason' — it "
+                    "overrides the certified template, so why must be written "
+                    "down")
+            message_attributes.append(MessageAttributes(
+                case=spec["case"],
+                id=spec["id"],
+                set=dict(assignments),
+                index=spec.get("index"),
+                reason=spec["reason"],
+            ))
+
         # "accepted_response_codes:" is not a TestCase key either — see the
         # property above. Shape: {planned: [accepted, ...]}.
         codes_raw = raw.pop("accepted_response_codes", None) or {}
@@ -261,6 +353,7 @@ class OverrideTable:
         table._variables = {k: str(v) for k, v in variables.items()}
         table._manual_actions = manual_actions
         table._message_activation = message_activation
+        table._message_attributes = message_attributes
         table._accepted_response_codes = accepted_codes
         return table
 
@@ -273,6 +366,47 @@ class OverrideTable:
         template's own (wrong) branch active and the failure would surface
         far away from its cause.
         """
+        by_key = self._messages_by_key(project)
+
+        unmatched = []
+        for entry in self._message_activation:
+            targets, problem = self._select(by_key, entry)
+            if problem:
+                unmatched.append(problem)
+                continue
+            for msg in targets:
+                msg.activate = entry.active
+        return unmatched
+
+    def apply_message_attributes(self, project) -> list[str]:
+        """Correct CoAPMessage attribute values per 'message_attributes:'.
+
+        Called once, right after apply_message_activation. Returns the list of
+        entries that matched nothing, exactly as apply_message_activation does
+        — the caller raises on a non-empty result, because a stale entry would
+        otherwise leave the template's corrupt value in place and the failure
+        would surface far away from its cause.
+        """
+        by_key = self._messages_by_key(project)
+
+        unmatched = []
+        for entry in self._message_attributes:
+            targets, problem = self._select(by_key, entry)
+            if problem:
+                unmatched.append(problem)
+                continue
+            for msg in targets:
+                for attr_name, value in entry.set.items():
+                    setattr(msg, _MESSAGE_ATTRIBUTE_FIELDS[attr_name], value)
+        return unmatched
+
+    @staticmethod
+    def _messages_by_key(project) -> dict:
+        """Every CoAPMessage in the project, keyed by (case name, XML id).
+
+        A list per key: 5.10.1.2's two `auth` alternatives literally share one
+        GUID, which is what `index` disambiguates.
+        """
         by_key: dict[tuple[str, str], list] = {}
         for _coll, _suite, tc in project.iter_test_cases():
             for item in tc.sequence:
@@ -281,25 +415,24 @@ class OverrideTable:
                 if mid is None or not hasattr(item, "activate"):
                     continue
                 by_key.setdefault((tc.name, mid), []).append(item)
+        return by_key
 
-        unmatched = []
-        for entry in self._message_activation:
-            targets = by_key.get((entry.case, entry.id))
-            if not targets:
-                unmatched.append(
-                    f"case={entry.case!r} id={entry.id!r} (no such message)")
-                continue
-            if entry.index is not None:
-                if entry.index >= len(targets):
-                    unmatched.append(
-                        f"case={entry.case!r} id={entry.id!r} "
-                        f"index={entry.index} (only {len(targets)} occurrence"
-                        f"{'s' if len(targets) != 1 else ''})")
-                    continue
-                targets = [targets[entry.index]]
-            for msg in targets:
-                msg.activate = entry.active
-        return unmatched
+    @staticmethod
+    def _select(by_key: dict, entry) -> tuple[list, Optional[str]]:
+        """The messages one entry addresses, or an empty list plus a string
+        saying why it matched nothing — shared by both apply_* methods so a
+        stale entry reads the same however it went stale."""
+        targets = by_key.get((entry.case, entry.id))
+        if not targets:
+            return [], f"case={entry.case!r} id={entry.id!r} (no such message)"
+        if entry.index is not None:
+            if entry.index >= len(targets):
+                return [], (
+                    f"case={entry.case!r} id={entry.id!r} "
+                    f"index={entry.index} (only {len(targets)} occurrence"
+                    f"{'s' if len(targets) != 1 else ''})")
+            targets = [targets[entry.index]]
+        return targets, None
 
     def manual_action(self, prompt: str) -> Optional[ManualAction]:
         """The mapping for one `@@!` prompt text, or None when no pattern

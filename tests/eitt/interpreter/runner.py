@@ -17,11 +17,12 @@ not silent gaps — each raises or skips loudly rather than guessing):
   - DnsMessage playback (mDNS discovery) — the existing hand-written
     test_discovery_mdns.py already covers this well; wiring EITT's
     DnsMessage sequence items to zeroconf is future work.
-  - CheckRxKid and SeqNoFn="asinrequest" outside the 4.01-challenge step:
-    their general semantics are still unconfirmed, so they are accepted
-    but not acted on. (SeqNoFn/SeqNoOffset/InvalidAuthTag/RndKid ARE
-    implemented — see _resolve_oscore_overrides and
-    knx_oscore.protect_request/protect_echo_challenge.)
+  - SeqNoFn="asinrequest" outside the 4.01-challenge step: its general
+    semantics are still unconfirmed, so it is accepted but not acted on.
+    (SeqNoFn/SeqNoOffset/InvalidAuthTag/RndKid ARE implemented — see
+    _resolve_oscore_overrides and
+    knx_oscore.protect_request/protect_echo_challenge; CheckRxKid is
+    implemented in _check_rx_kid.)
   - The "@#"TestCaseName"" inline test-case reference and "@>w"...;
     unlimited"" loop-invocation comment forms are handled by
     PreparationRegistry / LoopRunner below, not inline in run_sequence.
@@ -37,7 +38,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from transport.coap_client import ACK, CON, NON, RST
+from transport.coap_client import (ACK, CON, NON, RST, _is_multicast_v6,
+                                   parse_ipv6_endpoint)
 from .content_match import match_content
 from .events import RX, TX, CaseEvent, NullBus, StepEvent, Telegram
 from .hooks import HookContext, get_hook
@@ -79,6 +81,43 @@ _MODAL_WAIT_SECONDS = 3.0
 # was really waiting on.
 _MANUAL_ACTION_SETTLE_SECONDS = 3.0
 
+# --- F16: the ONE response-timeout default -------------------------------
+#
+# How long to wait for a message the script expects but has not arrived
+# yet — a CoAP response, a DUT-originated group or unicast telegram, a
+# triggered sensor write. Every such wait used to carry its own literal
+# `5.0` (seven of them) or pass None and inherit whatever the CoAP
+# client happened to default to, so "the timeout" was not a decision the
+# harness had ever made: raising it meant finding all seven.
+#
+# Precedence, highest first:
+#   1. the ROW's own `AckChkTimeOut` attribute (EITT's "Wait for Response
+#      Timeout"), honoured wherever a row is in scope — see
+#      `_response_timeout`. It is declared on 9 of the template's rows
+#      (10/15/20 s) and on none of the 1457 ACTIVE OUT rows, so today it
+#      changes nothing; a future template revision that sets it is
+#      honoured without further code changes.
+#   2. $COAP_TIMEOUT, the environment knob the Docker harness and the GUI
+#      already set (run-in-docker.ps1 exports COAP_TIMEOUT=5,
+#      gui/runner_thread.py exports the connection dialog's value).
+#   3. 5.0 s, the historical literal.
+#
+# Raise it for slow real hardware: a device that answers in 6 s is
+# otherwise recorded as NOT RECEIVED, i.e. a conformance failure that did
+# not happen. NOT to be confused with `TimeToNext`, which is scripted
+# PACING and must keep its certification-accurate value.
+def _default_response_timeout() -> float:
+    raw = os.environ.get("COAP_TIMEOUT", "")
+    try:
+        value = float(raw)
+    except ValueError:
+        return 5.0
+    return value if value > 0 else 5.0
+
+
+DEFAULT_RESPONSE_TIMEOUT = _default_response_timeout()
+
+
 # How long an mDNS step waits for the DUT's answer. Deliberately NOT
 # scaled by RUNTIME_TEST_TIME_SCALE: this is a real network wait for a
 # real responder, not one of the XML's pacing delays.
@@ -90,6 +129,13 @@ _MANUAL_ACTION_SETTLE_SECONDS = 3.0
 # "received nothing" while the device log showed a perfectly good
 # send_query_response.
 _MDNS_TIMEOUT = 6.0
+
+# How long a NON group write waits for a reply when the script expects none
+# (no OUT response row follows). Long enough for the DUT's immediate 4.01
+# Echo challenge over a veth pair (~15 ms) to be seen and reported, short
+# enough that 5.3.17.3's 68 unanswered replay-window writes cost seconds,
+# not minutes. See _prepare_for_request / _group_reply_expected.
+_GROUP_NO_REPLY_GRACE = 0.3
 
 # How long to wait for a DUT-originated UNICAST s-mode telegram. Deliberately
 # larger than the scripted TimeToNext — see _expect_unicast_telegram.
@@ -115,11 +161,20 @@ _DISCOVERY_TIMEOUT = 1.0
 _DISCOVERY_DEAD_SCOPES: set = set()
 
 
-def _safe_int(value) -> int:
+def _safe_int(value, *, attribute: str = "value") -> int:
+    """Parse an integer attribute, or raise.
+
+    Used to return 0 on anything unparseable, which is indistinguishable
+    from a genuine 0 — and 0 is itself meaningful ("don't care" for an
+    mDNS port). See finding F9.
+    """
+    if value is None or str(value).strip() == "":
+        return 0
     try:
         return int(str(value).strip())
     except (TypeError, ValueError):
-        return 0
+        raise MalformedXmlValue(
+            f"{attribute}={value!r} is not an integer") from None
 _LOOP_INVOKE_RE = re.compile(r'^@>w"([^;"]+);([^"]*)"')
 
 # `@@!<text>` — EITT's "display comment in toolbar, suspend evaluation and
@@ -169,6 +224,121 @@ def _step_summary(item) -> str:
 class UnsupportedFeature(Exception):
     """Raised when a sequence item uses XML semantics this interpreter
     doesn't implement yet — deliberately loud, never a silent no-op."""
+
+
+class MalformedXmlValue(Exception):
+    """An attribute value in the XML cannot be parsed into the thing it
+    is supposed to become.
+
+    Raised, not defaulted. See finding F9: every lenient parser in this
+    module used to degrade a bad value into "no modifier at all"
+    (`_safe_int` -> 0, `_content_format_code` -> option dropped,
+    `_resolve_crit_option` -> option dropped, `_parse_time_to_next` -> no
+    wait), which turns an ADVERSARIAL row into a benign one and lets the
+    TestCase pass on an exchange it never performed. The message always
+    names the attribute AND the offending value so the row can be found
+    in the template.
+
+    Known live instance in the shipped template: three rows carry
+    `AcceptedCF="a"` / `AcceptedCF="r"` — single-character fragments of
+    `application/...` against 1517 well-formed siblings, and absent from
+    every reference trace, i.e. template data corruption. Only one of the
+    three (5.5.4.1 item 15, an `IN GET fp/g/1`) is on a REQUEST row and
+    therefore actually reaches a parser; the other two sit on `OUT` rows,
+    where AcceptedCF is never consumed.
+    """
+
+
+# --- F6: attributes that are PARSED but not EXECUTED ----------------------
+#
+# Every attribute the model carries must either be acted on at run time or
+# be explicitly recognised as inert. An attribute that is parsed, ignored,
+# and never mentioned again is the same silent gap F7/F8 closed for comment
+# commands: the TestCase reports a pass it never earned.
+#
+# `_unsupported_attributes` below is the fail-closed gate. It runs on every
+# ACTIVE CoAPMessage and returns the reasons the step cannot be played
+# faithfully; the runner turns a non-empty list into a failed step naming
+# the row and the attribute.
+#
+# NOT gated here, and why:
+#   `Secure`  — 897 uses. It asserts whether the RESPONSE arrived OSCORE
+#               protected, NOT whether our request was sent protected; the
+#               two disagree on exactly the 8 negative tests where the
+#               device deliberately fails to decrypt and answers in the
+#               clear (5.3.18.1 x4, 5.2.2.1, 5.2.2.3, 5.4.1.15 x2).
+#               Asserting it needs the transport layer to report whether a
+#               reply actually decrypted, which it does not yet do. Failing
+#               closed on it would fail 82 TestCases, so it stays declared-
+#               but-unevaluated, recorded here rather than silently dropped.
+#               See finding F6's "Secure: attempted, reverted" section.
+#   `CheckRxKid`/`RxKid`
+#             — 2 uses, both on 5.3.17.3's OUT 4.01 rows. Previously
+#               gated here; now really asserted, in `_check_rx_kid`
+#               below, against the outer OSCORE option of the received
+#               message (CoapResponse.oscore_kid_context).
+#   nothing else — every other attribute the model carries is honoured
+#               somewhere in this module.
+
+# `SeqNumMethod` is a UI enum INDEX in the template ("0" on all 74 rows,
+# 70 of them active), not the numeric sequence-number-method the trace
+# files record. Index 0 is the "not set" default, i.e. inert — which is
+# consistent with the 35 IN rows carrying BOTH SeqNumMethod="0" and a
+# SecContext, something the trace's own numbering (0 = unsecured request)
+# could never express. Any OTHER value would be a method this interpreter
+# has never seen and cannot honour.
+_SEQ_NUM_METHOD_INERT = {"", "0", "not set"}
+
+# `Cycles` is EITT's "repeat this row N times". The template uses it once,
+# `Cycles="*"` on 5.4.1.15's OUT row for the DUT's repeated discovery GET
+# — "unlimited", i.e. accept however many the device chooses to send,
+# which is exactly what matching the FIRST one does. A finite count > 1
+# would mean "the device must send it exactly N times", which this
+# interpreter does not count, so it fails rather than matching once.
+_CYCLES_ACCEPTED = {"", "*", "0", "1"}
+
+# `RxKid` values `_check_rx_kid` knows how to assert. Both of the
+# template's two uses say "random" — the device's freshly generated
+# OSCORE ID Context on a 4.01 Echo challenge answering an s-mode
+# MULTICAST write. Any other value would be a check this interpreter has
+# never seen, and is failed rather than silently passed.
+_RX_KID_IMPLEMENTED = {"random"}
+
+
+def _unsupported_attributes(msg: CoAPMessage) -> list[str]:
+    """Reasons an ACTIVE CoAPMessage row cannot be played faithfully.
+
+    Empty list = every attribute on the row is either honoured elsewhere
+    in this module or is provably inert. See finding F6.
+    """
+    reasons: list[str] = []
+
+    snm = (msg.seq_num_method or "").strip().lower()
+    if snm not in _SEQ_NUM_METHOD_INERT:
+        reasons.append(
+            f"SeqNumMethod={msg.seq_num_method!r} — only the inert default "
+            f"(index '0' / 'not set') is understood; every one of the "
+            f"template's 74 uses carries '0', so a different value names a "
+            f"sequence-number method this interpreter has never seen and "
+            f"would silently ignore")
+
+    cycles = (msg.cycles or "").strip()
+    if cycles not in _CYCLES_ACCEPTED:
+        reasons.append(
+            f"Cycles={msg.cycles!r} — only '*' (unlimited, satisfied by "
+            f"matching the first occurrence) is implemented; a finite "
+            f"repeat count is not counted, so the row would assert less "
+            f"than it says")
+
+    if msg.observe or msg.observe_value:
+        reasons.append(
+            f"Observe={msg.observe!r}/ObserveValue={msg.observe_value!r} — "
+            f"the CoAP Observe option (6) is not sent by the interpreter's "
+            f"request path, so an observe registration would go out as a "
+            f"plain GET and the step would assert against the wrong "
+            f"exchange. All 6 uses are inside the skipped 5.4.2 suite")
+
+    return reasons
 
 
 @dataclass
@@ -224,7 +394,8 @@ _CF_CODES = {
 }
 
 
-def _content_format_code(cf: Optional[str]) -> Optional[int]:
+def _content_format_code(cf: Optional[str], *,
+                         attribute: str = "CF") -> Optional[int]:
     """Map a Content-Format/AcceptedCF name to its CoAP numeric code.
 
     EITT's `AcceptedCF` becomes the request's CoAP Accept option (17). It
@@ -243,7 +414,13 @@ def _content_format_code(cf: Optional[str]) -> Optional[int]:
     try:
         return int(key)
     except ValueError:
-        return None
+        # F9: silently dropping the option turns "the device must honour
+        # this Accept/Content-Format" into "send it unconstrained", which
+        # the device then satisfies trivially. Name the value instead.
+        raise MalformedXmlValue(
+            f"{attribute}={cf!r} is neither a known Content-Format name "
+            f"({', '.join(sorted(_CF_CODES))}) nor a numeric CoAP "
+            f"content-format code") from None
 
 
 def _response_code_tuple(code: Optional[str]) -> Optional[tuple]:
@@ -285,6 +462,19 @@ _MSG_TYPE_BY_NAME = {"con": CON, "non": NON, "ack": ACK, "rst": RST}
 def _coap_msg_type_expected(type_str: Optional[str]) -> Optional[int]:
     """The CoAP message type an OUT row demands, or None if unspecified."""
     return _MSG_TYPE_BY_NAME.get((type_str or "").strip().lower())
+
+
+def _response_timeout(msg: Optional[CoAPMessage] = None) -> float:
+    """How long to wait for the message this row expects.
+
+    The row's own `AckChkTimeOut` ("Wait for Response Timeout" in EITT's
+    UI) wins; otherwise the single documented default. See F16 and the
+    DEFAULT_RESPONSE_TIMEOUT block comment for the full precedence.
+    """
+    scripted = getattr(msg, "ack_chk_timeout", None)
+    if scripted:
+        return float(scripted)
+    return DEFAULT_RESPONSE_TIMEOUT
 
 
 def _format_codes(codes: list) -> str:
@@ -338,6 +528,64 @@ def _plain_multicast_scope(ip: Optional[str]) -> Optional[int]:
     return _MC_SCOPE_ALIASES.get((ip or "").strip().lower())
 
 
+class UnknownDeviceAlias(Exception):
+    """An `IP="..."` attribute named a device alias nothing provisioned.
+
+    Deliberately NOT a silent fall-back to the configured DUT: that is
+    exactly the bug this class exists to prevent. `BDUT-Multi` resolves to
+    the device's GROUP address, and before F-group-dest every one of the
+    200 rows addressed to it was unicast to the DUT instead — which the
+    device accepts, so the whole collection passed while never once
+    exercising the multicast reception path the TestCases are named after
+    (the 4.01 Echo challenge under a fresh random ID Context is raised
+    only for a message that arrived on a multicast endpoint,
+    messaging/coap/engine.c ECHO_CAUSED_BY_MC_SRC). A future alias that
+    nobody provisioned must fail loudly for the same reason.
+    """
+
+
+def _resolve_group_destination(provisioning, alias: str
+                               ) -> Optional[tuple[str, int]]:
+    """The (address, port) an EITT `IP="<alias>"` attribute names, or None
+    to mean "the configured DUT unicast endpoint" (today's behaviour).
+
+    The rule, in order:
+
+    - "" / "BDUT" — the device under test itself. None.
+    - one of the three well-known discovery scope aliases
+      ("Multicast Link-Local"/"Realm-Local"/"Site-Local") — handled by
+      `_plain_multicast_scope` on the unsecured path, untouched here.
+      None.
+    - an alias '@@[pahdev"<alias>;ipaddress=..."' provisioned with an IPv6
+      MULTICAST literal (first byte 0xff) — that address and port. This is
+      `BDUT-Multi`, whose one provisioning line in NEW PROJECT SETUP is
+      '[ff35:30:fd11:9988:7766:0:8000:1]:5683': scope 5, installation id
+      fd11:9988:7766, group id 8000:0001, i.e. the DUT's KNX group
+      multicast address.
+    - an alias provisioned with a UNICAST literal, or with the template's
+      "invalid" placeholder (5.1.2.x deliberately invalidates the cached
+      address before rediscovering it) — None, keeping today's behaviour.
+    - anything else — UnknownDeviceAlias, naming the alias.
+    """
+    name = (alias or "").strip()
+    if not name or name.upper() == "BDUT":
+        return None
+    if _plain_multicast_scope(name) is not None:
+        return None
+    device = provisioning.resolve_device(name)
+    if device is None:
+        raise UnknownDeviceAlias(name)
+    endpoint = parse_ipv6_endpoint(device.ip_address)
+    if endpoint is None:
+        # A provisioned alias whose ipaddress is absent or the literal
+        # "invalid" — the device IS known, it just has no usable literal
+        # right now (PatchAddressFn supplies one at runtime).
+        return None
+    if not _is_multicast_v6(endpoint[0]):
+        return None
+    return endpoint
+
+
 def _resolve_crit_option(msg) -> Optional[tuple]:
     """Build the (number, value) outer CoAP option for EITT's
     CritOptNo/CritOptValue pair, or None.
@@ -350,14 +598,19 @@ def _resolve_crit_option(msg) -> Optional[tuple]:
     """
     if not msg.crit_opt_no:
         return None
-    try:
-        num = int(str(msg.crit_opt_no).strip())
-    except ValueError:
-        return None
+    # F9: returning None here dropped the whole point of 5.10.5.3 — the
+    # request would go out clean, the device would answer 2.05, and the
+    # step would fail blaming the device for not rejecting an option that
+    # was never sent.
+    num = _safe_int(msg.crit_opt_no, attribute="CritOptNo")
     raw = (msg.crit_opt_value or "").strip()
     try:
         val = bytes.fromhex(raw.replace(" ", "")) if raw else b""
     except ValueError:
+        # NOT an error: a CritOptValue that is not hex is taken as literal
+        # text, which is how the template's one use ('ABCD') is written and
+        # what the reference run put on the wire. Only the option NUMBER
+        # has no textual reading.
         val = raw.encode()
     return num, val
 
@@ -509,6 +762,13 @@ class SequenceRunner:
         # code is ALWAYS 2.04, so type is one of only two outer-layer
         # facts an OUT step can still assert.
         self._last_response_type: Optional[int] = None
+        # OSCORE ID Context (kid context) carried in the OUTER OSCORE
+        # option of the last response, or None when the message carried
+        # none / arrived unprotected. This is the only outer-layer OSCORE
+        # fact an OUT row asserts on — EITT's CheckRxKid — and it is read
+        # from the very option bytes the decryption consumed, so it can
+        # never describe a different datagram than the one matched here.
+        self._last_response_kid_context: Optional[bytes] = None
         # Whether the last REQUEST was sent OSCORE-protected. Recorded for
         # a future `Secure` assertion (F6) but NOT yet sufficient for one:
         # `Secure` on an OUT row describes the RESPONSE, and the two differ
@@ -938,12 +1198,25 @@ class SequenceRunner:
     # -- per-item dispatch -------------------------------------------------
 
     def _run_item(self, item) -> StepResult:
-        if isinstance(item, Comment):
-            return self._run_comment(item)
-        if isinstance(item, CoAPMessage):
-            return self._run_coap_message(item)
-        if isinstance(item, DnsMessage):
-            return self._run_dns_message(item)
+        # F9: a MalformedXmlValue raised anywhere below aborts THIS STEP
+        # with a message naming the row and the offending value, instead
+        # of the parser quietly substituting a harmless default. It is
+        # caught here rather than per-parser so every call site — body,
+        # path, timing, OSCORE override, option — gets the same treatment
+        # and none can be forgotten.
+        try:
+            if isinstance(item, Comment):
+                return self._run_comment(item)
+            if isinstance(item, CoAPMessage):
+                return self._run_coap_message(item)
+            if isinstance(item, DnsMessage):
+                return self._run_dns_message(item)
+        except MalformedXmlValue as exc:
+            return StepResult(
+                ok=False, item=item,
+                reason=f"malformed XML value on "
+                f"{type(item).__name__} {getattr(item, 'id', '?')} "
+                f"({_step_summary(item)}): {exc}")
         return StepResult(ok=False, item=item,
                           reason=f"Unknown sequence item type {type(item)}")
 
@@ -1334,10 +1607,22 @@ class SequenceRunner:
             listener = mdns_client.MdnsListener(timeout=_MDNS_TIMEOUT)
             listener.repeat_query(service, msg.record_type,
                                   every=_MDNS_RETRY_INTERVAL)
+            started = time.monotonic()
             self._dns_records = listener.records()
+            elapsed = time.monotonic() - started
             self._dns_query_name = service
             _dbg_group(f"[mdns] query {msg.record_type} {service!r} -> "
                        f"cached {len(self._dns_records)} records")
+            # M7: this branch used to `return ok=True` unconditionally and
+            # leave the verdict to the FOLLOWING OUT step. An IN with no
+            # following OUT — or one whose OUT is Activate="no" — then made
+            # a completely unanswered query a silent pass. The query is an
+            # assertion in its own right: the DUT must answer it.
+            if not self._dns_records:
+                return StepResult(
+                    ok=False, item=msg,
+                    reason=self._dns_empty_reason(msg, service, listener,
+                                                  elapsed))
             self._apply_wait(msg)
             return StepResult(ok=True, item=msg)
 
@@ -1360,10 +1645,65 @@ class SequenceRunner:
             listener = self._dns_listener or mdns_client.MdnsListener(
                 timeout=_MDNS_TIMEOUT, await_live=True)
             self._dns_listener = None
+            started = time.monotonic()
             self._dns_records = listener.records()
+            elapsed = time.monotonic() - started
             _dbg_group(f"[mdns] unsolicited listen -> "
                        f"{len(self._dns_records)} records")
+            if not self._dns_records:
+                # M8: same distinction as the IN branch. Without it the
+                # step reports "expected a PTR but received nothing",
+                # which reads as a device failure and is equally
+                # consistent with a join/interface problem on OUR side.
+                return StepResult(
+                    ok=False, item=msg,
+                    reason=self._dns_empty_reason(msg, service, listener,
+                                                  elapsed))
         return self._match_dns_record(msg, self._dns_records, service)
+
+    @staticmethod
+    def _dns_empty_reason(msg: DnsMessage, service: str, listener,
+                          elapsed: float) -> str:
+        """Why an mDNS step captured nothing — M8.
+
+        "The deadline expired with zero packets" and "packets arrived but
+        none parsed into a record" are the same empty list downstream, and
+        they point at completely different causes: the first is a silent
+        link (a missed multicast join, the wrong interface, a query the
+        responder rate-limited away), the second is a real device or
+        parser problem. Say which one happened, and say that the listener
+        itself was healthy, so the reader is not sent hunting a device bug
+        for a local misconfiguration.
+
+        `packets_seen` is read defensively: it is a diagnostic the
+        listener may or may not expose, and a missing counter must not
+        turn a clean failure into an AttributeError.
+        """
+        seen = getattr(listener, "packets_seen", None)
+        if seen is None:
+            # No packet counter available, so infer from the clock: the
+            # listener breaks out as soon as ANY record is stored, which
+            # means a genuinely silent link is the only way to consume the
+            # whole budget.
+            quiet = elapsed >= _MDNS_TIMEOUT * 0.9
+            observed = ("no datagram arrived at all in "
+                        f"{elapsed:.1f}s (the full {_MDNS_TIMEOUT:.0f}s "
+                        f"budget)" if quiet else
+                        f"the listener stopped after {elapsed:.1f}s with "
+                        f"nothing stored")
+        elif seen == 0:
+            observed = (f"no datagram arrived at all in {elapsed:.1f}s "
+                        f"(the full {_MDNS_TIMEOUT:.0f}s budget)")
+        else:
+            observed = (f"{seen} datagram(s) arrived within {elapsed:.1f}s "
+                        f"but none yielded a usable record")
+        direction = "query" if msg.cway == "IN" else "announcement"
+        return (f"mDNS {msg.record_type} {direction} for {service!r} "
+                f"captured nothing: {observed}. The listener itself bound "
+                f"and joined successfully (a bind/join failure is raised "
+                f"by records(), not reported as an empty set), so this is "
+                f"either the DUT not answering or the query/announcement "
+                f"not reaching it")
 
     def _match_dns_record(self, msg: DnsMessage, records: list,
                           service: str) -> StepResult:
@@ -1441,7 +1781,9 @@ class SequenceRunner:
         if msg.eval_fn:
             hook = get_hook(msg.eval_fn)
             payload = json.dumps({"dns": {
-                "planned": {"service": service, "port": _safe_int(msg.port)},
+                "planned": {"service": service,
+                            "port": _safe_int(msg.port,
+                                              attribute="Port")},
                 "received": {"type": match.rtype, "service": match.name,
                              "host": match.target, "port": match.port},
             }})
@@ -1457,6 +1799,17 @@ class SequenceRunner:
     def _run_coap_message(self, msg: CoAPMessage) -> StepResult:
         if not msg.activate:
             return StepResult(ok=True, item=msg)
+
+        # F6: an attribute this interpreter parses but cannot honour must
+        # fail the step, not be dropped. A deactivated row is exempt — it
+        # is not played at all — which is checked ABOVE this point.
+        unsupported = _unsupported_attributes(msg)
+        if unsupported:
+            return StepResult(
+                ok=False, item=msg,
+                reason=f"CoAPMessage {msg.id} ({_step_summary(msg)}) carries "
+                f"an attribute this interpreter cannot execute: "
+                + "; ".join(unsupported))
 
         if msg.is_request:
             # An 'IN' step whose Code is a response code is not a request
@@ -1494,6 +1847,9 @@ class SequenceRunner:
             (resp.code_class, resp.code_detail) if resp is not None else None)
         self._last_response_type = (
             resp.msg_type if resp is not None else None)
+        self._last_response_kid_context = (
+            getattr(resp, "oscore_kid_context", None)
+            if resp is not None else None)
         self._emit_response(resp)
 
     def _emit_response(self, resp, *, secured: Optional[bool] = None) -> None:
@@ -1658,10 +2014,12 @@ class SequenceRunner:
         if msg.seq_no_offset is not None:
             seq_no_offset = msg.seq_no_offset
         elif (msg.seq_no_fn or "").lower() == "fix" and msg.seq_no is not None:
-            try:
-                seq_no_override = int(self.variables.substitute(msg.seq_no))
-            except (ValueError, TypeError):
-                seq_no_override = None
+            # F9: falling back to None here meant SeqNoFn="fix" silently
+            # became "auto-increment", i.e. 5.3.18.1's four fixed-PIV
+            # replays each got a FRESH sequence number and stopped being
+            # the reproducible negative test they are written as.
+            seq_no_override = _safe_int(
+                self.variables.substitute(msg.seq_no), attribute="SeqNo")
 
         invalid_tag = None
         if msg.invalid_auth_tag:
@@ -1669,7 +2027,15 @@ class SequenceRunner:
             try:
                 invalid_tag = bytes.fromhex(resolved.replace(" ", ""))
             except ValueError:
-                invalid_tag = None
+                # F9: the WHOLE of 5.3.18.1 is "corrupt the auth tag and
+                # check the device rejects it". Dropping the corruption on
+                # a typo turns it into a positive test that the device
+                # passes by behaving correctly.
+                raise MalformedXmlValue(
+                    f"CoAPMessage {msg.id}: InvalidAuthTag="
+                    f"{msg.invalid_auth_tag!r} (resolved to {resolved!r}) is "
+                    f"not a hex byte string, so the auth-tag corruption this "
+                    f"negative test depends on cannot be applied") from None
 
         kid_override = b"\xde\xad\xbe\xef" if msg.rnd_kid else None
 
@@ -1691,11 +2057,18 @@ class SequenceRunner:
         if echo_attr == "sync":
             return self._last_echo
         if echo_attr == "fix" and msg.echo_value:
+            resolved = self.variables.substitute(msg.echo_value)
             try:
-                return bytes.fromhex(
-                    self.variables.substitute(msg.echo_value).replace(" ", ""))
+                return bytes.fromhex(resolved.replace(" ", ""))
             except ValueError:
-                return None
+                # F9: Echo="fix" exists so 5.3.17.5 can send a DELIBERATELY
+                # WRONG echo and assert the device rejects it. Returning
+                # None omits the option entirely, which is a different
+                # message the device may legitimately accept.
+                raise MalformedXmlValue(
+                    f"CoAPMessage {msg.id}: EchoValue={msg.echo_value!r} "
+                    f"(resolved to {resolved!r}) is not a hex byte string, "
+                    f"so the scripted Echo option cannot be sent") from None
         return None
 
     def _send_request(self, msg: CoAPMessage) -> StepResult:
@@ -1756,6 +2129,25 @@ class SequenceRunner:
     def _send_request_inner(self, msg: CoAPMessage, path: str,
                             body: bytes) -> StepResult:
 
+        # Where this row is addressed. An `IP=` alias that a pahdev
+        # command bound to an IPv6 GROUP address makes the request a real
+        # multicast; everything else keeps the configured DUT unicast
+        # endpoint. Resolved BEFORE anything goes on the wire so an
+        # unknown alias aborts the step instead of half-sending it to the
+        # wrong peer. PatchAddressFn has already retargeted self.coap by
+        # the time we get here, so its rows keep winning: a PatchAddressFn
+        # row's alias is "BDUT", which resolves to None.
+        try:
+            group_dest = _resolve_group_destination(
+                self.provisioning, self.variables.substitute(msg.ip))
+        except UnknownDeviceAlias as exc:
+            return StepResult(
+                ok=False, item=msg,
+                reason=f"CoAPMessage {msg.id}: IP alias {str(exc)!r} is "
+                f"neither 'BDUT' nor a device any '@@[pahdev' command "
+                f"provisioned, so there is no address to send this "
+                f"request to")
+
         oscore_ctx = self.provisioning.resolve_context(msg.sec_context)
         method_map = {"GET": 1, "POST": 2, "PUT": 3, "DELETE": 4}
         method_code = method_map.get(msg.code)
@@ -1764,7 +2156,23 @@ class SequenceRunner:
                 f"CoAPMessage {msg.id} has an unrecognized request Code "
                 f"'{msg.code}'")
 
-        timeout = msg.ack_chk_timeout
+        # Parsed ONCE, before anything goes on the wire: a malformed
+        # AcceptedCF/CF now raises MalformedXmlValue (F9) and must abort
+        # the step rather than half-send it.
+        accept_code = _content_format_code(msg.accepted_cf,
+                                           attribute="AcceptedCF")
+        cf_code = _content_format_code(msg.cf, attribute="CF")
+        timeout = _response_timeout(msg)
+        if group_dest is not None and not getattr(
+                self, "_group_reply_expected", True):
+            # A NON group write the script does not expect an answer to
+            # (no OUT response row follows): EITT sends and proceeds by
+            # TimeToNext. The DUT sends nothing back on the group path
+            # either, so waiting the full response budget only stalls the
+            # sequence (68 of 5.3.17.3's 70 group writes). Keep a short
+            # grace so an unplanned 4.01 Echo challenge is still seen and
+            # reported instead of silently missed.
+            timeout = min(timeout, _GROUP_NO_REPLY_GRACE)
         # Which path this REQUEST took. See F6 — not the same thing as the
         # OUT row's `Secure`, which describes the response.
         self._last_request_secured = oscore_ctx is not None
@@ -1783,14 +2191,14 @@ class SequenceRunner:
                 content_format=msg.cf or "",
                 secured=oscore_ctx is not None,
                 sec_context=msg.sec_context or "",
-                peer=(self.coap.host, self.coap.port)))
+                peer=group_dest or (self.coap.host, self.coap.port)))
         if oscore_ctx is not None:
             seq_no_override, seq_no_offset, invalid_tag, kid_override = \
                 self._resolve_oscore_overrides(msg, oscore_ctx)
             echo = self._resolve_echo(msg)
             resp = self.coap.oscore_request(
                 oscore_ctx, method_code, path, payload=body, timeout=timeout,
-                accept=_content_format_code(msg.accepted_cf),
+                accept=accept_code,
                 # The request's OWN Content-Format (option 12). Omitting it
                 # made every payload look like CBOR to the device, which
                 # then CBOR-parsed raw firmware bytes at /a/swu and
@@ -1798,7 +2206,7 @@ class SequenceRunner:
                 # valid CBOR (oc_ri.c:1083 only parses when the format IS
                 # CBOR/OSCORE). 5.2.9.1 uploads
                 # CF="application/octet-stream".
-                content_format=_content_format_code(msg.cf),
+                content_format=cf_code,
                 seq_no_override=seq_no_override,
                 seq_no_offset=seq_no_offset,
                 invalid_auth_tag=invalid_tag,
@@ -1806,7 +2214,12 @@ class SequenceRunner:
                 echo=echo,
                 expect_echo_challenge=self._expect_echo_challenge,
                 msg_type=_coap_msg_type(msg.type),
-                crit_option=_resolve_crit_option(msg))
+                crit_option=_resolve_crit_option(msg),
+                # None for every ordinary row, so the unicast path is
+                # untouched; the group address for a `BDUT-Multi`-style
+                # alias, which makes this one send go out NON to the
+                # group and read its reply back on the same socket.
+                dest=group_dest)
             # RFC 7959: a body larger than one block comes back as Block2
             # with "more" set, and the rest must be asked for. The device
             # is RFC-correct here — ff269ddc took KNX_PAYLOAD_SIZE from
@@ -1834,11 +2247,19 @@ class SequenceRunner:
                            or kid_override is not None
                            or self._expect_echo_challenge)
             if not adversarial:
-                resp = self.coap.complete_oscore_block2(
-                    resp, oscore_ctx, method_code, path, payload=body,
-                    accept=_content_format_code(msg.accepted_cf),
-                    content_format=_content_format_code(msg.cf),
-                    timeout=timeout, msg_type=_coap_msg_type(msg.type))
+                # A group row never gets here in the template (every one
+                # is a small s-mode NON write), and a Block2 continuation
+                # to a multicast group is not a thing the protocol does,
+                # so the follow-up GETs stay unicast — but skip them
+                # outright rather than silently unicast a continuation of
+                # a message the device only ever saw as a group telegram.
+                if group_dest is None:
+                    resp = self.coap.complete_oscore_block2(
+                        resp, oscore_ctx, method_code, path, payload=body,
+                        accept=accept_code,
+                        content_format=cf_code,
+                        timeout=timeout,
+                        msg_type=_coap_msg_type(msg.type))
         else:
             scope = _plain_multicast_scope(msg.ip)
             if scope is not None:
@@ -1851,8 +2272,14 @@ class SequenceRunner:
                 # unicast port, which `source_addr` carries.
                 responses = self.coap.multicast_get(
                     path, scope=scope,
-                    accept=_content_format_code(msg.accepted_cf),
-                    collect_timeout=timeout or _MDNS_TIMEOUT,
+                    accept=accept_code,
+                    # A multicast sweep collects for at least
+                    # _MDNS_TIMEOUT: the responder deliberately delays
+                    # its answer, so the general response timeout is the
+                    # FLOOR here, not the value. (Before F16 this read
+                    # `timeout or _MDNS_TIMEOUT` and got 6.0 purely
+                    # because no row sets AckChkTimeOut.)
+                    collect_timeout=max(timeout, _MDNS_TIMEOUT),
                     stop_after_first=True)
                 resp = responses[0] if responses else None
                 if resp is not None and resp.source_addr:
@@ -1980,6 +2407,17 @@ class SequenceRunner:
                     nxt = cand
                 break
         self._expect_echo_challenge = self._script_owns_echo_handshake(nxt)
+        # Whether the script expects a RESPONSE to this request at all: an
+        # active OUT row carrying a response code ("2.04", "4.01"). A
+        # following OUT with a method (the DUT's own group telegram) or no
+        # following OUT means EITT sends and moves on by TimeToNext. Only
+        # the group path reads this (see _send_request_inner): a unicast
+        # request is always answered, a NON group write is not, and waiting
+        # the full response timeout for 68 of 5.3.17.3's 70 group writes
+        # was six minutes of nothing.
+        self._group_reply_expected = (
+            nxt is not None and nxt.is_response
+            and _response_code_tuple(nxt.code) is not None)
         if nxt is None or not nxt.is_response:
             return
         # The step's own SecContext when it names one; otherwise the joined
@@ -2015,9 +2453,10 @@ class SequenceRunner:
         timeout = (nxt.ack_chk_timeout
                    or _parse_time_to_next(
                        self.variables.substitute(nxt.time_to_next))
-                   or 5.0)
+                   or DEFAULT_RESPONSE_TIMEOUT)
         self._group_capture = self.coap.arm_group_listener(
-            oscore_ctx, addr, timeout=max(timeout, 5.0))
+            oscore_ctx, addr,
+            timeout=max(timeout, DEFAULT_RESPONSE_TIMEOUT))
 
     def _script_owns_echo_handshake(
             self, nxt: Optional[CoAPMessage]) -> bool:
@@ -2087,7 +2526,7 @@ class SequenceRunner:
         _dbg_group(f"[group] arming plain listener on {addr} for a "
                    f"DUT-originated {msg.code} /{msg.path}")
         return self.coap.arm_plain_listener(
-            addr, timeout=msg.ack_chk_timeout or 5.0,
+            addr, timeout=_response_timeout(msg),
             path=msg.path or None)
 
     def _group_address_for(self, group) -> Optional[str]:
@@ -2149,7 +2588,7 @@ class SequenceRunner:
                     reason=f"expected the DUT to send {msg.code} "
                     f"/{msg.path} to us, but no multicast scope is joined "
                     f"to listen on")
-            self._trigger_sensor(None, msg.ack_chk_timeout or 5.0)
+            self._trigger_sensor(None, _response_timeout(msg))
         got = capture.result()
         if got is None:
             return StepResult(
@@ -2197,7 +2636,7 @@ class SequenceRunner:
             self._arm_unicast_for_next(msg)
         self.coap.send_plain_response(
             code, body, got.token, got.source_addr,
-            content_format=_content_format_code(msg.cf),
+            content_format=_content_format_code(msg.cf, attribute="CF"),
             msg_type=_coap_msg_type(msg.type))
         self._apply_wait(msg)
         return StepResult(ok=True, item=msg)
@@ -2287,7 +2726,7 @@ class SequenceRunner:
         echo = self._last_echo or os.urandom(8)
 
         group = self.provisioning.group_for_rx_context(msg.sec_context)
-        timeout = msg.ack_chk_timeout or 5.0
+        timeout = _response_timeout(msg)
         # Arm BEFORE challenging: the DUT retransmits as soon as it
         # processes the challenge.
         if group is not None:
@@ -2393,7 +2832,7 @@ class SequenceRunner:
                     ok=False, item=msg,
                     reason=f"cannot listen for a group telegram on "
                     f"'{ctx_alias}': no context or group address")
-            timeout = msg.ack_chk_timeout or 5.0
+            timeout = _response_timeout(msg)
             capture = self.coap.arm_group_listener(oscore_ctx, addr,
                                                   timeout=timeout)
             self._trigger_sensor(group, timeout)
@@ -2411,6 +2850,8 @@ class SequenceRunner:
         self._last_response = resp.payload
         self._last_response_code = None
         self._last_response_type = None
+        self._last_response_kid_context = getattr(
+            resp, "oscore_kid_context", None)
         self._last_request_path = msg.path or "k"
         if getattr(resp, "echo_value", None):
             self._last_echo = resp.echo_value
@@ -2491,8 +2932,10 @@ class SequenceRunner:
             # may take to appear.
             # substitute() before parsing — a raw "#VAR" yields 0.0 and
             # collapses this to the 5.0 fallback (finding F13).
-            scripted = msg.ack_chk_timeout or _parse_time_to_next(
-                self.variables.substitute(msg.time_to_next)) or 5.0
+            scripted = (msg.ack_chk_timeout
+                        or _parse_time_to_next(
+                            self.variables.substitute(msg.time_to_next))
+                        or DEFAULT_RESPONSE_TIMEOUT)
             listener = self.coap.recv_unicast_telegram(
                 oscore_ctx, timeout=max(scripted, _UNICAST_TELEGRAM_TIMEOUT),
                 path=msg.path or None)
@@ -2513,6 +2956,8 @@ class SequenceRunner:
         self._last_response = resp.payload
         self._last_response_code = None
         self._last_response_type = None
+        self._last_response_kid_context = getattr(
+            resp, "oscore_kid_context", None)
         self._last_request_path = msg.path or "k"
         decoded = _decode_body(resp.payload, msg.cf, self._last_request_path)
         _dbg_group(f"[group] unicast telegram code={resp.code_class}."
@@ -2645,6 +3090,12 @@ class SequenceRunner:
                 f"received: "
                 f"{_MSG_TYPE_NAMES.get(actual_type, actual_type)}")
 
+        # --- assert the RECEIVED kid CONTEXT (EITT CheckRxKid) -----------
+        if msg.check_rx_kid:
+            failure = self._check_rx_kid(msg)
+            if failure is not None:
+                return failure
+
         response_payload = self._last_response or b""
         # An 'OUT' message has no Path of its own — the schema lookup
         # keys on the immediately preceding request's path instead.
@@ -2672,6 +3123,82 @@ class SequenceRunner:
 
         self._apply_wait(msg)
         return StepResult(ok=True, item=msg)
+
+    def _check_rx_kid(self, msg: CoAPMessage) -> Optional[StepResult]:
+        """Assert EITT's `CheckRxKid` on the response just received, or
+        return None when it holds.
+
+        Both of the template's uses sit on 5.3.17.3's two OUT rows:
+        `Type="NON" Code="4.01" Echo="sync" SeqNoFn="asinrequest"
+        CheckRxKid="yes" RxKid="random" SecContext="MulticastTx"` — the
+        DEVICE's 4.01 Unauthorized + Echo challenge answering a replayed
+        multicast group write whose sequence number fell outside the
+        anti-replay window.
+
+        What the device does there, and therefore what this asserts:
+        oc_oscore_engine.c's `unicast_echo_response_by_mc` branch builds
+        that 4.01 under a BRAND NEW sender context whose ID Context is
+        OC_ECHO_KID_CTX_LEN freshly generated random bytes
+        (`psa_generate_random(rnd, ...)`), and puts it in the outer OSCORE
+        option. The real EITT tool logs "SPECIAL DECODING: use received
+        random kid_context" at exactly this point and derives its
+        decryption context from that value. So `RxKid="random"` means:
+        the 4.01 carried a kid context, it was non-empty, and it was NOT
+        the sending context's own (provisioned, static) ID Context.
+
+        Any other `RxKid` value names a check this interpreter has never
+        seen; it fails loudly rather than passing an assertion nobody
+        made — the same fail-closed rule the F6 gate enforces.
+        """
+        received = self._last_response_kid_context
+        rx_kid = (msg.rx_kid or "").strip().lower()
+
+        if rx_kid not in _RX_KID_IMPLEMENTED:
+            return StepResult(
+                ok=False, item=msg,
+                reason=f"CheckRxKid: RxKid={msg.rx_kid!r} is "
+                f"unsupported — only 'random' (the device's fresh "
+                f"OSCORE ID Context on a 4.01 "
+                f"Echo challenge for an s-mode multicast write) is "
+                f"implemented, so any other value would be passed without "
+                f"being checked")
+
+        if not received:
+            return StepResult(
+                ok=False, item=msg,
+                reason="CheckRxKid: the 4.01 carried no kid context "
+                "(the outer OSCORE option had no ID Context, or the "
+                "message arrived unprotected), but RxKid='random' requires "
+                "the device to answer under a freshly generated one")
+
+        own = self._own_id_context(msg.sec_context)
+        if own is not None and received == own:
+            return StepResult(
+                ok=False, item=msg,
+                reason=f"CheckRxKid: the 4.01 carried the static context "
+                f"{received.hex()} — the '{msg.sec_context}' context's own "
+                f"ID Context — expected a random one")
+
+        _dbg_group(f"[group] CheckRxKid ok: received kid_ctx="
+                   f"{received.hex()} ({len(received)}B), differs from the "
+                   f"'{msg.sec_context}' context's own "
+                   f"{own.hex() if own else 'none'}")
+        return None
+
+    def _own_id_context(self, alias: Optional[str]) -> Optional[bytes]:
+        """The provisioned OSCORE ID Context of the security context an
+        OUT row names, or None when the alias resolves to nothing.
+
+        `OscoreContext.id_context` is the attribute name (knx_oscore.py);
+        it is `None` on a context provisioned without one, which is not
+        the same as "the response carried none" and must not be confused
+        with it — hence the caller only compares when this is not None.
+        """
+        ctx = self.provisioning.resolve_context(alias or "")
+        if ctx is None:
+            return None
+        own = getattr(ctx, "id_context", None)
+        return own or None
 
     def _apply_wait(self, msg: CoAPMessage) -> None:
         """Sleep this message's TimeToNext before moving on — but only when
@@ -2707,10 +3234,24 @@ class SequenceRunner:
 _TTN_RE = re.compile(r"^(\d+):(\d+):(\d+(?:\.\d+)?)$")
 
 
-def _parse_time_to_next(value: Optional[str]) -> float:
-    """Parse a TimeToNext value: either 'HH:MM:SS.f' or a millisecond
-    integer left over from an unresolved #VAR (NumberField defaults for
-    TimeToNextTelegram fields are plain milliseconds, e.g. "1000")."""
+def _parse_time_to_next(value: Optional[str], *,
+                        attribute: str = "TimeToNext") -> float:
+    """Parse a TimeToNext value: either 'HH:MM:SS.f' or a plain millisecond
+    number (NumberField defaults for TimeToNextTelegram fields are
+    milliseconds, e.g. "1000").
+
+    F9: anything else used to collapse to 0.0 — "no wait" — which is the
+    most dangerous possible default here, because several steps use
+    TimeToNext as the BUDGET for a telegram that has not arrived yet
+    (`Wait="no"`, see _apply_wait) and a 0 s budget reports a device that
+    answered perfectly as silent.
+
+    The one exception is a token that still carries a leading '#': that is
+    an UNRESOLVED variable, which VariableTable.substitute already records
+    in `unresolved` and the test layer already reports by name (finding
+    F5/F13). Raising here as well would replace that precise report with a
+    step failure that names the symptom instead of the missing Field.
+    """
     if not value:
         return 0.0
     m = _TTN_RE.match(value)
@@ -2720,4 +3261,8 @@ def _parse_time_to_next(value: Optional[str]) -> float:
     try:
         return float(value) / 1000.0
     except ValueError:
-        return 0.0
+        if "#" in value:
+            return 0.0
+        raise MalformedXmlValue(
+            f"{attribute}={value!r} is neither 'HH:MM:SS[.f]' nor a "
+            f"millisecond number") from None

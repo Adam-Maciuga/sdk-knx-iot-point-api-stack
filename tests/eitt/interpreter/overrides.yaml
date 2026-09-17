@@ -29,6 +29,19 @@
 # value here when the template's shipped default is NOT what a real run
 # uses — see the "How EITT generates a runnable test" section of
 # tests/docs/eitt-xml-interpreter.md.
+#
+# The special "message_attributes:" key (NOT a TestCase name either) corrects
+# a corrupt ATTRIBUTE VALUE of one message over the read-only master template.
+# Where "message_activation:" below records the operator's CHOICE between two
+# alternative branches, this records template DATA CORRUPTION: a value that is
+# simply wrong and that the template — which must never be edited — cannot be
+# fixed in. Keyed the same way (case name + the message's XML ID, with `index`
+# for a duplicate ID); `set` maps XML attribute names to their corrected
+# values, and `reason` is mandatory. Only attribute names the interpreter
+# actually maps onto a CoAPMessage field are accepted (AcceptedCF, CF /
+# ContentFormat) — anything else is a load-time error, so a typo here can
+# never be a silent no-op. An entry that matches no message is a hard error
+# at collection time, exactly as for message_activation.
 
 variables:
   # The template's Fields default is 1000, but that is a leftover from
@@ -113,35 +126,36 @@ accepted_response_codes:
 # --- 5.4.2: out of scope, whole suite ----------------------------------------
 # "5.4.2. GET & OBSERVE /.knx" is labelled "(Preliminary - Not for Certification)"
 # in the template's own suite name. The device's /k Observe path is correct
-# (tests/runtime/test_observe.py covers it); the section is skipped because the
-# template and the EITT tool are not: 5.4.2.2 provokes a read where the expected
-# notification needs a write (tests/docs/eitt-template-5422-step2-read-vs-write.md),
-# and EITT itself cancels the observation after the first notification
-# (tests/docs/eitt-bug-observe-cancel-5422.md), so the section cannot pass on any
-# conforming device until KNX fixes both.
+# (tests/runtime/test_observe.py covers it). What keeps the suite skipped is on
+# the interpreter's side: its request path does not send the CoAP Observe option
+# (the F6 gate fails an Observe row rather than sending a plain GET), and
+# 5.4.2.2's Step 2 provokes a read (st:r) where the expected notification needs a
+# write (st:w), which is a template flaw the attribute overrides cannot correct
+# because it sits in the CBOR body. Lifting the skip needs Observe support in
+# the interpreter plus a body-level correction for 5.4.2.2.
 #
 # 'skip' rather than 'xfail' on purpose: xfail would run them anyway (~2 min of
 # Observe timeouts) and 5.4.2.2d actually PASSES, so it would report XPASS and
 # reintroduce exactly the clutter this is meant to remove. Skip states the real
 # situation — the section is out of scope — and covers all 7 uniformly.
 #
-# REMOVE these once KNX has fixed the template and the tool; the section then wants a real run.
+# REMOVE these once the interpreter sends Observe and 5.4.2.2's Step 2 is corrected; the section then wants a real run.
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.1. Read the last sent S-Mode Message":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2. Observe all outgoing S-Mode Messages":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2b. Deregister observation to S-Mode communication":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2c. Delete observation to S-Mode communication":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2d. Ensure that Notifications are confirmable per default":
   action: skip
@@ -149,11 +163,11 @@ accepted_response_codes:
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.2e. Non-Confirmable Notifications can be requested":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 "5.4. Messaging::5.4.2. GET & OBSERVE /.knx  (Preliminary - Not for Certification)::5.4.2.3. Invalid Observe for S-Mode without setting the lifetime parameter":
   action: skip
-  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', template provokes a read where a write is expected, and EITT cancels the observation itself (tests/docs/eitt-bug-observe-cancel-5422.md)"
+  reason: "5.4.2 out of scope — 'Preliminary - Not for Certification', Observe option not implemented in the interpreter's request path; 5.4.2.2 additionally has a template flaw (read provoked where a write is expected)"
 
 # --- 5.10: two failures that are properties of the TEST SETUP, not the DUT ---
 # Both are xfail (run, report, don't fail the suite) rather than skip, so if
@@ -299,6 +313,37 @@ manual_actions:
 
   - match: "test finished"
     reason: "end-of-window acknowledgement only — no device action; the 'nothing was sent' check is the surrounding steps"
+
+
+# ---------------------------------------------------------------------------
+# message_attributes — corrupt attribute VALUES corrected over the read-only
+# master template (which must NEVER be edited).
+# ---------------------------------------------------------------------------
+message_attributes:
+
+  # 5.5.4.1's first GET fp/g/1 ships AcceptedCF="r" — not a Content-Format at
+  # all, just the tail fragment of "application/cbor" that an editing accident
+  # left behind in the template. The intended value is not a guess: the
+  # certified reference run recorded EVERY GET fp/g/1 of this section with
+  # AcceptedCF="application/cbor" (data/traces/5_5.xml, e.g. TelNo 9, 43, 67,
+  # all "EvalResult=OK").
+  #
+  # It matters now because the interpreter stopped silently dropping
+  # unparseable Content-Format/Accept values (finding F9): _content_format_code
+  # raises MalformedXmlValue instead, so "r" now fails the TestCase loudly
+  # rather than sending a GET with no Accept option and passing by accident.
+  # Corrected here rather than in the XML because the master template is
+  # read-only, and because a value edited into it would silently disappear on
+  # the next template revision while this entry would loudly stop matching.
+  #
+  # The other two "r"-like fragments in the template (AcceptedCF="a") sit on
+  # OUT rows, where AcceptedCF is never consumed, so they are deliberately not
+  # listed.
+  - case: '5.5.4.1. Delete Group Object via its Identifier'
+    id: 3FFDAF04-5D79-4762-AF20-7B7673C7054B
+    set:
+      AcceptedCF: application/cbor
+    reason: "template data corruption: AcceptedCF=\"r\" is a fragment of \"application/cbor\"; data/traces/5_5.xml records every GET fp/g/1 of the certified run with AcceptedCF=\"application/cbor\". Overridden rather than edited into the XML because the master template is read-only."
 
 
 # ---------------------------------------------------------------------------

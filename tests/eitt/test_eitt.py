@@ -107,6 +107,19 @@ if _UNMATCHED_ACTIVATION:
         f"CoAPMessage in {XML_PATH.name}: {_UNMATCHED_ACTIVATION!r} — check "
         "for a typo or a stale entry from a previous XML revision.")
 
+# Corrupt attribute VALUES corrected over the same read-only template — the
+# template ships 5.5.4.1's GET fp/g/1 with AcceptedCF="r", a fragment of
+# "application/cbor". Same hard-error handling: a stale entry would leave the
+# corrupt value in place, and since the interpreter now fails closed on an
+# unparseable Content-Format (finding F9) that surfaces as an unrelated-looking
+# TestCase failure.
+_UNMATCHED_ATTRIBUTES = _OVERRIDES.apply_message_attributes(_PROJECT)
+if _UNMATCHED_ATTRIBUTES:
+    raise RuntimeError(
+        "eitt/overrides.yaml 'message_attributes' entries matched no "
+        f"CoAPMessage in {XML_PATH.name}: {_UNMATCHED_ATTRIBUTES!r} — check "
+        "for a typo or a stale entry from a previous XML revision.")
+
 _PREPARATIONS = PreparationRegistry(_PROJECT)
 
 # TestCases that are themselves preparation sequences (invoked via the
@@ -240,8 +253,45 @@ def _runner_for_collection(collection_name: str, coap, cache: dict
     runner = SequenceRunner(coap=coap, project=_PROJECT, variables=vt,
                             provisioning=engine, preparations=_PREPARATIONS,
                             overrides=_OVERRIDES)
+    _seed_project_setup(runner)
     cache[collection_name] = runner
     return runner
+
+
+_PROJECT_SETUP_CASE = "NEW PROJECT SETUP"
+
+
+def _seed_project_setup(runner) -> None:
+    """Apply the template's project-level provisioning to a fresh runner.
+
+    EITT runs the "NEW PROJECT SETUP" TestCase once per project, by the
+    operator, before any collection: it holds only provisioning comment
+    commands (`@@[pahdev"BDUT;serialnumber=..."`,
+    `@@[pahdev"BDUT-Multi;ipaddress=[ff35:30:...:8000:1]:5683"`,
+    `@@[pahmcast"MCastGrp01;..."`) and no CoAP message. Nothing in a
+    collection re-provisions them, so a ProvisioningEngine that starts
+    empty never learns the `BDUT-Multi` alias every group-message row is
+    addressed to (tracker T13). The case is excluded from collection
+    (_EXCLUDED_CASE_NAMES) and is applied here instead, once per
+    collection runner, through the same comment-command path a sequence
+    would use.
+    """
+    setup = next((tc for _c, _s, tc in _PROJECT.iter_test_cases()
+                  if tc.name == _PROJECT_SETUP_CASE), None)
+    if setup is None:
+        raise RuntimeError(
+            f"{XML_PATH.name} has no '{_PROJECT_SETUP_CASE}' TestCase; the "
+            f"project-level provisioning (BDUT serial, BDUT-Multi group "
+            f"address, MCastGrp01) has to come from somewhere")
+    if any(not hasattr(item, "text") for item in setup.sequence):
+        raise RuntimeError(
+            f"'{_PROJECT_SETUP_CASE}' contains CoAP messages; it is applied "
+            f"as provisioning only, so this template revision needs a look")
+    result = runner.run(setup)
+    if not result.ok:
+        raise RuntimeError(
+            f"'{_PROJECT_SETUP_CASE}' provisioning failed: "
+            f"{result.failure.reason if result.failure else result!r}")
 
 
 def test_eitt(eitt_case, coap, _collection_runners):

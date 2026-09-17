@@ -117,6 +117,33 @@ class OscoreContext:
         _dbg_oscore(f"[oscore]   recipient_key={self.recipient_key.hex()}")
         _dbg_oscore(f"[oscore]   common_iv={self.common_iv.hex()}")
 
+    def with_id_context(self, id_context: bytes,
+                        recipient_id: bytes | None = None) -> "OscoreContext":
+        """A sibling context: same master secret and salt, derived under a
+        different ID Context (and, optionally, peer id).
+
+        This is how the device protects its 4.01 Echo challenge for an
+        s-mode MULTICAST write: oc_oscore_engine.c (unicast_echo_response_by_mc)
+        generates OC_ECHO_KID_CTX_LEN random bytes and builds a NEW sender
+        context from the same access token with `.id_context = rnd` and
+        `sender_id = the token's osc id` (oc_oscore_add_sender_context) -
+        the kid it then puts in the outer OSCORE option. The receiver has to
+        derive the same keys from what that option carries: EITT logs this
+        as "SPECIAL DECODING: use received random kid_context" and its
+        updated context shows both ids equal to that kid. So `recipient_id`
+        should be the kid of the message being unprotected; the script's
+        own provisioning may well have left it empty (5.4.1.12's MulticastTx
+        has no recipientid, 5.3.17.3's has). The SSN is not copied; a
+        derived context is only ever used to unprotect.
+        """
+        return OscoreContext(master_secret=self.master_secret,
+                             sender_id=self.sender_id,
+                             recipient_id=(self.recipient_id
+                                           if recipient_id is None
+                                           else recipient_id),
+                             id_context=id_context,
+                             master_salt=self._master_salt)
+
     def _empty_sender_id_key(self) -> bytes:
         """AEAD key derived with an EMPTY sender ID (id="").
 
