@@ -127,6 +127,25 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
                                     uint32_t group_address, char service_type, const uint8_t* value_data,
                                     int value_size, oc_group_table_t* recipient);
 
+/*
+  re-entrancy guard for the internal group object update ('loopback') below in
+  oc_send_s_mode_mc_or_uc_message.
+
+  After a write is put on the wire, all GOs carrying the sending GA are updated internally by
+  calling their application PUT handler. A product PUT handler is allowed to answer with a status
+  write of its own (a MaC may legally map an input and its status output onto the SAME GA), which
+  re-enters this function -> sends again -> loops back again -> unbounded recursion, one multicast
+  and one OC_MAX_APP_DATA_SIZE allocation per level until the stack or the message pool is gone.
+
+  The guard makes the loopback strictly single level: the outermost write still updates every
+  internal GO exactly once (the legitimate case, incl. updating a DIFFERENT input on the same GA),
+  but a write issued from within such an update only transmits - it does not start a second
+  loopback round. A depth flag is used rather than skipping only the originating resource, because
+  the observed cycle runs through a different resource (input -> status output -> input) and would
+  therefore survive a per resource exclusion.
+*/
+static bool g_in_internal_go_update = false;
+
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
   if (!request || request->uri_path_len == 0)
@@ -473,11 +492,27 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         }
       }
 
-      // update internal GOs on any (uc/mc) write request
-      OC_INF("checking & updating internal group objects");
+      // update internal GOs on any (uc/mc) write request, but only when this write was not itself
+      // triggered from inside an internal GO update (see 'g_in_internal_go_update')
+      int go_table_index_where_ga_is_used = -1;
 
-      // get FIRST GO index with that GA included (one out of 0...max of GO array)
-      int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(sending_ga);
+      // true when this very call was reached FROM an internal GO update (a PUT handler that sends)
+      const bool nested_write = g_in_internal_go_update;
+
+      if (nested_write)
+      {
+        OC_DBG("skipping internal group object update, already inside one (re-entrancy guard)");
+      }
+      else
+      {
+        OC_INF("checking & updating internal group objects");
+
+        // block a nested loopback for the whole duration of the update round
+        g_in_internal_go_update = true;
+
+        // get FIRST GO index with that GA included (one out of 0...max of GO array)
+        go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(sending_ga);
+      }
 
       while (go_table_index_where_ga_is_used != -1)
       {
@@ -545,7 +580,13 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
       }
 
-      /* 
+      // release the guard only in the frame that took it, nested frames must not clear it
+      if (!nested_write)
+      {
+        g_in_internal_go_update = false;
+      }
+
+      /*
         /p notification - send possible notification to subscribers of the original 
                           resource, forward path on application triggered write requests 
                           (/k notification - see 'coap_notify_k_observers')

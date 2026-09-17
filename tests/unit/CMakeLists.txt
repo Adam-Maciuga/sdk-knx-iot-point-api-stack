@@ -116,6 +116,21 @@ target_link_options(test_smode_send_refcount PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=oc_etimer_restart
 )
+kis_add_test(test_smode_loopback_recursion test_smode_loopback_recursion.cpp)
+# Regression tests for the internal GO update ("loopback") in
+# oc_send_s_mode_mc_or_uc_message (finding F-022). The tests drive the REAL send
+# path so the GO table walk that carried the recursion is exercised 1:1; only the
+# outgoing message is neutralised. --wrap=oc_init_s_mode_message_update makes
+# oc_issue_s_mode_message skip its encode-and-send body (no oc_message_t, no
+# transaction), so no live network stack or oc_main_init() is needed.
+target_link_options(test_smode_loopback_recursion PRIVATE
+    -Wl,--wrap=oc_init_s_mode_message_update
+)
+# oc_rep macros use g_err |= cbor_encode_*() which is an invalid
+# enum-to-int conversion in strict C++.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_loopback_recursion PRIVATE -fpermissive)
+endif()
 kis_add_test(test_oc_knx_helpers     test_oc_knx_helpers.cpp)
 kis_add_test(test_oc_knx             test_oc_knx.cpp)
 kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)

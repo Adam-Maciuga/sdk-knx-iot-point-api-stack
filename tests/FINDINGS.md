@@ -770,3 +770,82 @@ Bugs and issues discovered during unit test development.
   lenient enough to match inside the first block - 5.1.1.3e is the honest signal.
 - **Status:** OPEN. Runtime EITT tier re-run 2026-09-11: **5.1.1.3e FAILED for this
   reason.**
+
+## F-022: Unbounded recursion in the s-mode write loopback (self-DoS + multicast flood) - RESOLVED
+
+- **File:** `api/oc_knx_client.c`, `oc_send_s_mode_mc_or_uc_message()` - the "checking & updating
+  internal group objects" block.
+- **Severity:** High - a legal MaC configuration drives the device into unbounded recursion: one
+  multicast datagram and one `OC_MAX_APP_DATA_SIZE` `malloc` per level until the stack or the
+  message pool is exhausted. It is both a self-DoS and a multicast flood of the installation, and it
+  is reachable from a single inbound s-mode write, i.e. by any peer on the group.
+- **Found by:** debugging EITT TestCase **5.4.2.2a** against the virtual device
+  `apps/knx/eitt/knx_iot_eitt.c`; confirmed from the device log, not by inspection.
+- **Reproduction config.** Two group objects share one GA, which is a legal and common KNX pattern
+  (an input and its status output on the same GA):
+
+  | GO id | href   | direction                             | GA | cflags     |
+  |-------|--------|---------------------------------------|----|------------|
+  | 13    | `/p/1` | input, PUT handler `knx_iot_put_lsab` | 2  | 88 (`rwt`) |
+  | 14    | `/p/2` | output, GET only                      | 2  | 88 (`rwt`) |
+
+- **Root cause - the internal GO update re-enters the send path.** After a write is transmitted for
+  `sending_ga`, the function walks every GO carrying that GA and, for each one with
+  `OC_CFLAG_WRITE` and a `put_handler`, SYNCHRONOUSLY invokes the application PUT handler
+  ("update internal GOs on any write request"). A product PUT handler is permitted to answer with a
+  status write of its own, and that write re-enters `oc_send_s_mode_mc_or_uc_message()`, which
+  transmits and then runs the same loopback again. The cycle observed on the device:
+
+  ```
+  inbound s-mode write on GA 2
+    -> PUT /p/1  (knx_iot_put_lsab_callback)
+      -> oc_send_s_mode_mc_or_uc(/p/2, 'w')
+        -> multicast on GA 2
+          -> loopback finds /p/1 writable
+            -> PUT /p/1 -> ... forever
+  ```
+
+  There is no depth bound and no termination condition: the recursion is limited only by the call
+  stack or the message pool.
+- **Log evidence.** The device emitted one multicast per iteration, with consecutive MIDs inside the
+  same millisecond:
+
+  ```
+  Sending s-mode multicast w   ... mid 40512
+  Sending s-mode multicast w   ... mid 40513
+  Sending s-mode multicast w   ... mid 40514
+  ...
+  checking & updating internal group objects   (once per level)
+  ```
+
+  Each level also allocates an `OC_MAX_APP_DATA_SIZE` value buffer before recursing, so memory
+  pressure grows linearly with depth.
+- **Why a per-resource exclusion is not sufficient.** The obvious narrower fix - skip the loopback
+  for the GO/resource that originated the send - does not break this cycle, because the cycle runs
+  through a DIFFERENT resource each half-turn (`/p/1` -> `/p/2` -> `/p/1`). Excluding only the
+  originating href leaves the loop intact.
+- **Resolution:** a file-scope re-entrancy flag, `g_in_internal_go_update`, makes the loopback
+  strictly single level. The outermost write still updates every internal GO exactly once - the
+  legitimate behaviour, including updating a *different* input on the same GA - but a write issued
+  from *within* such an update only transmits and does not start a second loopback round. The flag
+  is taken by the frame that enters the update and released only by that same frame (`nested_write`),
+  so nested frames cannot clear a guard they did not take.
+- **Other call sites checked.** `oc_issue_s_mode_message()` and `oc_do_s_mode_message_update()` do
+  not contain the loopback pattern - they only encode and transmit. The deferred
+  `knx_coap_discovery_response_handler()` also sends (the IPv6-resolved path) but runs no GO table
+  walk, so it is not a recursion source. No further guards were needed.
+- **Pinned by:** `SmodeLoopback.RecursiveWriteFromPutHandlerIsBounded` in
+  `tests/unit/test_smode_loopback_recursion.cpp`, which reproduces the table above with a PUT
+  handler that sends on the same GA. Verified as a real repro by removing the guard: the handler
+  re-entered **17 times** (stopped only by the test's own safety ceiling) with **17** transmissions,
+  against **1** call and **2** transmissions with the guard. Its companion
+  `SmodeLoopback.SingleLevelLoopbackStillUpdatesOtherInputs` pins that the guard did not
+  over-correct - a second, non-sending input on the same GA is still updated exactly once - and that
+  test passes both with and without the guard, so it is not merely detecting the flag's presence.
+- **Verification:** full unit suite **1435 passed, 0 failed** (`windows-test-gcc`, 42.26 s). Docker
+  device tiers on the working tree (2026-09-15, `linux-test-gcc`): runtime tier **214 passed, 0 failed,
+  5 skipped**; EITT tier **171 passed**, the only failures being the known F-021 (5.1.1.3e) and the
+  5.2.6.1→5.2.10.1b cluster, which is the `-Tier all` fwv-ordering hazard (eitt-interpreter-findings.md
+  O6), not this change — `-Tier eitt -Section 5.2` alone is **109 passed / 5 skipped on both HEAD and
+  the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
+- **Status:** RESOLVED.
