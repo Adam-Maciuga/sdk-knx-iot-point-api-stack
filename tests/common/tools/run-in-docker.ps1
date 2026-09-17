@@ -134,7 +134,10 @@ Write-Host ""
 
 # The one-line launcher is passed base64-encoded so no quoting of the pytest
 # arguments has to survive cmd.exe, PowerShell and bash at once.
-$Bash = "exec bash tests/common/tools/run-local-ci.sh $QuotedInner`n"
+# A CRLF working copy of the shell scripts (an editor, or a checkout made before
+# .gitattributes forced eol=lf on *.sh) would fail in bash with "$'\x0D': command
+# not found"; strip the carriage returns before running.
+$Bash = "sed -i 's/\x0D//g' tests/common/tools/*.sh && exec bash tests/common/tools/run-local-ci.sh $QuotedInner`n"
 $B64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Bash))
 
 $Tar = Join-Path ([IO.Path]::GetTempPath()) "knx-runtime-$([Guid]::NewGuid().ToString('N')).tar"
@@ -150,7 +153,9 @@ try {
             $files = git ls-files --cached --others --exclude-standard --full-name
             [IO.File]::WriteAllText($List, ($files -join "`n") + "`n",
                                     [Text.UTF8Encoding]::new($false))
-            tar -c -f $Tar -C $RepoRoot -T $List
+            # Windows' own tar.exe by full path: when this script is launched from
+            # Git Bash, /usr/bin/tar shadows it and fails with "Cannot connect to C".
+            & "$env:SystemRoot\System32\tar.exe" -c -f $Tar -C $RepoRoot -T $List
         } finally {
             Pop-Location
         }

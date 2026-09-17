@@ -80,7 +80,10 @@ fi
 
 # The inner script is read from the tar itself, so the version that runs is
 # the one in the packed tree (HEAD or working tree, as selected above).
-INNER='mkdir -p /w && tar -xf - -C /w && cd /w && bash tests/common/tools/run-local-ci.sh "$@"'
+# sed strips carriage returns first: a CRLF working copy of the scripts (an editor,
+# or a checkout made before .gitattributes forced eol=lf on *.sh) would otherwise
+# fail in bash with "$'\x0D': command not found".
+INNER='mkdir -p /w && tar -xf - -C /w && cd /w && sed -i "s/\x0D//g" tests/common/tools/*.sh && bash tests/common/tools/run-local-ci.sh "$@"'
 
 echo "=== Running device tests in Docker ($IMAGE) ==="
 echo "    Repo:   $REPO_ROOT"
