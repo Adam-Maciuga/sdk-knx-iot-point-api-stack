@@ -10,21 +10,28 @@ metadata:
 
 The EITT XML dynamic interpreter (see [[eitt-xml-interpreter-project]]) lives on branch `feature/runtime_tests_v2` in `d:\Repos\knx-iot-point-api-stack`. **Do NOT commit or push unless asked** — the user reviews first.
 
-**SUPERSEDED 2026-09-10 — see [[project-runtime-test-tiers]].** The hand-written `test_5_*.py` suite was deleted by commit `3a5e2d4a`, which the user later called a mistake; upstream's 349 hand-written tests are restored (verbatim, not yet importable) and will become the "runtime" tier next to this interpreter tier. `tests/runtime/test_eitt.py` still generates one pytest item per EITT TestCase from the template at collection time.
+**SUPERSEDED 2026-09-10 — see [[project-runtime-test-tiers]].** The hand-written `test_5_*.py` suite was deleted by commit `3a5e2d4a`, which the user later called a mistake; upstream's 349 hand-written tests are restored (verbatim, not yet importable) and will become the "runtime" tier next to this interpreter tier. `tests/runtime/eitt_tests/test_eitt.py` still generates one pytest item per EITT TestCase from the template at collection time.
 
-**Layout** (post-restructure; `tests/eitt/` no longer exists):
+**Layout** (three test tiers since 2026-09-11; `tests/eitt/` no longer exists).
+Only the test modules live in the tier directories — every piece of shared
+infrastructure stays at the `tests/runtime/` level:
 
 ```
 tests/runtime/
-  conftest.py  test_eitt.py  runtime_test_server.c
+  conftest.py  pytest.ini (pythonpath = .)  runtime_test_server.c
+  eitt_tests/     test_eitt.py                        (187 items, needs a DUT)
+  runtime_tests/  behaviour-named test_*.py           (245 items, needs a DUT)
+  harness_tests/  test_events.py, test_comment_scheme.py, test_project_copy.py,
+                  test_gui_*.py                       (194 items, no DUT)
   eitt/        the interpreter + overrides.yaml
+  gui/         the PySide6 runner front-end
   transport/   coap_client, knx_oscore, knx_spake2plus, mdns_client
   data/        template, EITT key maps + command scheme, variable-values
                JSON, FWUUploadDummySmall.bin, traces/ (9 reference runs)
   tools/       run-in-docker.ps1, run-local-ci*.sh, spake utils
 ```
 
-Run: `.\tests\runtime\tools\run-in-docker.ps1 -IncludeUncommitted -PytestArgs "-q","--tb=line","-k","Security::"`. Useful switches: `-ServerLogs -OscoreDebug -CoapDebug -GroupDebug` (GroupDebug also enables `[mdns]`), `-TimeScale`, `-NoCache`.
+Run: `.\tests\runtime\tools\run-in-docker.ps1 -IncludeUncommitted -PytestArgs "-q","--tb=line","-k","Security::"`. Useful switches: `-ServerLogs -OscoreDebug -CoapDebug -GroupDebug` (GroupDebug also enables `[mdns]`), `-TimeScale`, `-NoCache`. Pick one tier with `-Tier eitt|runtime|harness` (default `all`).
 
 **Status (verified 2026-07-26, FULL SUITE, no filter): 177 passed, 8 skipped,
 2 xfailed, 0 FAILED — exit 0, 8m45s.** (Was 178/1/2/6 before the seven 5.4.2

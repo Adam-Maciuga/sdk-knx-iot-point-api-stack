@@ -9,7 +9,7 @@ tests/docs/eitt-xml-interpreter.md.
 
 This module provides just enough of a resolver for that: send a query for
 one record type, capture the DUT's multicast answer, and hand back the
-parsed records. `test_5_1_discovery_mdns.py` keeps its own richer
+parsed records. `test_discovery_mdns.py` keeps its own richer
 snapshot/announcement tooling for the hand-written state-sync tests; the
 wire-format primitives here are deliberately the same shape so the two
 stay easy to compare.

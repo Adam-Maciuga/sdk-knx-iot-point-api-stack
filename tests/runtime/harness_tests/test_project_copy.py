@@ -15,7 +15,7 @@ import pytest
 from eitt.model import parse_eitt_xml
 from eitt.project_copy import cases_in, copy_scope, iter_references
 
-TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data", "KnxConformanceTestTemplate-PointAPI.xml")
 
 

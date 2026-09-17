@@ -1,12 +1,15 @@
 """
 Runtime conformance tests — EITT 5.2.8 / 5.2.9 / 5.2.10
 
-5.2.8.1   Read list of software update property-ids (GET /swu link-format)
+5.2.8.1 (the /swu link-format listing) is covered by the EITT template and
+now lives in the eitt tier.
+
 5.2.9.1   Read specific SWU data during PUSH-based firmware update
 5.2.10.1b Invalid PUT on read-only resource for various SWU property-ids
 
 Plus /swu/lastupdate lifecycle checks (manufacturing date after startup,
-after a software update and after a reboot).
+after a software update and after a reboot) and the PUT /a/swu block-query
+validation family, none of which the template covers.
 """
 
 import re
@@ -15,63 +18,85 @@ import time
 import cbor2
 import pytest
 
-from transport.coap_client import APPLICATION_CBOR, LINK_FORMAT
-
 APPLICATION_OCTET_STREAM = 42
 
 
-# ===========================================================================
-#  5.2.8.1 — GET /swu (link-format listing)
-# ===========================================================================
+# =========================================================================
+#  /swu/lastupdate helpers shared by the pre/post update tests
+# =========================================================================
 
-class TestSwuResourceList:
-    """5.2.8.1: Read list of software update property-ids."""
+class _SwuLastUpdateBase:
+    """Constants and helpers for the /swu/lastupdate tests.
 
-    MANDATORY_RESOURCES = [
-        "swu/pkgname", "swu/pkgbytes", "swu/pkgv",
-        "swu/update", "swu/state", "swu/result",
-        "swu/lastupdate", "swu/method", "swu/protocol", "swu/hwref",
-    ]
+    The DUT calls oc_core_set_device_mfd("2020-04-12T23:20:50.52Z") before
+    oc_core_set_device_res(), so oc_create_knx_swu_resources() seeds
+    /swu/lastupdate with it. The DUT also simulates an RTC and calls
+    oc_swu_set_last_update() when an upgrade completes.
+    """
 
-    def test_5_2_8_1_swu_link_format(self, coap, oscore_ctx):
-        """GET /swu → 2.05 with link-format listing SWU sub-resources.
+    MFG_DATE = "2020-04-12T23:20:50.52Z"
+    RFC3339_RE = re.compile(
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
 
-        EITT expects application/link-format with mandatory SWU resources,
-        each having if= and ct= attributes. Also checks /a/swu with ct=42.
+    def _get_lastupdate(self, coap, oscore_ctx):
+        resp = coap.oscore_get(oscore_ctx, "/swu/lastupdate")
+        assert resp is not None and resp.is_successful, (
+            f"GET /swu/lastupdate failed: "
+            f"{resp.code if resp else 'timeout'}")
+        data = cbor2.loads(resp.payload)
+        assert "osv" not in data, (
+            f"lastupdate must not contain an 'osv' key, got {data!r}")
+        val = data.get(1)
+        assert isinstance(val, str) and self.RFC3339_RE.match(val), (
+            f"lastupdate should be an RFC3339 timestamp, got {val!r}")
+        return val
+
+    def _run_update(self, coap, oscore_ctx):
+        """Push a small firmware package and trigger the upgrade."""
+        firmware = bytes(range(256))
+        resp = coap.oscore_request(
+            oscore_ctx, 3, "/a/swu",
+            payload=firmware,
+            uri_queries=[f"ps={len(firmware)}", f"pkgs={len(firmware)}"],
+            content_format=APPLICATION_OCTET_STREAM,
+            timeout=10.0)
+        assert resp is not None and resp.is_successful, (
+            f"PUT /a/swu failed: {resp.code if resp else 'timeout'}")
+
+        resp = coap.oscore_put(oscore_ctx, "/swu/update",
+                               payload=cbor2.dumps({1: 0}))
+        assert resp is not None and resp.is_successful, (
+            f"PUT /swu/update failed: {resp.code if resp else 'timeout'}")
+
+        # test server simulates the upgrade with a 2s delayed callback
+        time.sleep(4)
+
+
+# =========================================================================
+#  /swu/lastupdate before any software update
+# =========================================================================
+
+class TestSwuLastUpdateBeforeUpdate(_SwuLastUpdateBase):
+    """The manufacturing date is the value before any update.
+
+    Defined ahead of TestSwuFirmwareUpdate on purpose: the module runs in
+    definition order and this assertion only holds before the earliest
+    test that performs a software update.
+    """
+
+    def test_lastupdate_is_mfg_date_before_any_update(self, coap,
+                                                              oscore_ctx):
+        """Before the first update /swu/lastupdate is the manufacturing date.
+
+        The skip below is only a safety net for partial runs (e.g. -k
+        selections) where an update may still have happened first.
         """
-        resp = coap.oscore_get(oscore_ctx, "/swu", accept=LINK_FORMAT)
-        if resp is None:
-            pytest.skip("GET /swu timed out")
-        if not resp.is_successful:
-            pytest.skip(f"GET /swu not supported: {resp.code}")
-
-        body = resp.payload
-        if isinstance(body, bytes):
-            body = body.decode("utf-8", errors="replace")
-
-        for res in self.MANDATORY_RESOURCES:
-            assert res in body, (
-                f"Missing mandatory SWU resource '{res}' in link-format: "
-                f"{body[:200]}")
-
-        # EITT validates if= and ct= on each entry
-        lines = [l.strip() for l in body.split(",") if l.strip()]
-        for line in lines:
-            # Every SWU sub-resource must have if= attribute
-            if "/swu/" in line:
-                assert re.search(r'if="[^"]*"', line), (
-                    f"EITT: SWU entry must have if= attribute. Got: {line}")
-                # ct must be 60 (or variants)
-                assert re.search(
-                    r'ct=((?:60 50)|(?:50 60)|(?:60)|'
-                    r'(?:"60 50")|(?:"50 60"))', line), (
-                    f"EITT: SWU entry must have ct=60. Got: {line}")
-            # /a/swu must have ct=42 and if= attribute
-            if "/a/swu" in line and "/swu/" not in line:
-                assert "ct=42" in line, (
-                    f"EITT: /a/swu must have ct=42. Got: {line}")
-                assert re.search(r'if="[^"]*"', line), (
-                    f"EITT: /a/swu must have if= attribute. Got: {line}")
+        val = self._get_lastupdate(coap, oscore_ctx)
+        if val != self.MFG_DATE:
+            pytest.skip(
+                "device already performed a software update in this session "
+                f"(lastupdate={val})")
+        assert val == self.MFG_DATE
 
 
 # ===========================================================================
@@ -117,7 +142,8 @@ class TestSwuFirmwareUpdate:
         data = cbor2.loads(resp.payload)
         return resp, data.get(key)
 
-    def test_5_2_9_1_swu_firmware_update(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.9.1")
+    def test_push_based_firmware_update(self, coap, oscore_ctx):
         """Full PUSH-based firmware update cycle matching EITT 5.2.9.1."""
         firmware = bytes(range(256)) * (self.FIRMWARE_SIZE // 256) \
             + bytes(range(self.FIRMWARE_SIZE % 256))
@@ -267,78 +293,17 @@ class TestSwuFirmwareUpdate:
             f"still got the pre-update value {val!r}")
 
 
-# ===========================================================================
-#  /swu/lastupdate lifecycle (manufacturing date on the device)
-# ===========================================================================
+# =========================================================================
+#  /swu/lastupdate after a software update
+# =========================================================================
 
-class TestSwuLastUpdateLifecycle:
-    """/swu/lastupdate lifecycle around the device manufacturing date.
+class TestSwuLastUpdateAfterUpdate(_SwuLastUpdateBase):
+    """The DUT stamps a new timestamp on upgrade and keeps it over a reboot.
 
-    The DUT calls oc_core_set_device_mfd("2020-04-12T23:20:50.52Z") before
-    oc_core_set_device_res(), so oc_create_knx_swu_resources() seeds
-    /swu/lastupdate with it. The DUT also simulates an RTC and calls
-    oc_swu_set_last_update() when an upgrade completes.
-
-    Covered:
-      - value is always a valid RFC3339 timestamp, never an "osv" status
-      - the manufacturing date is the value before any update
-      - the DUT stamps a new time after a software update
-      - the value survives a reboot
+    Runs after TestSwuFirmwareUpdate: these tests perform their own
+    software update, which bumps the firmware version that the earlier
+    test asserts on.
     """
-
-    MFG_DATE = "2020-04-12T23:20:50.52Z"
-    RFC3339_RE = re.compile(
-        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
-
-    def _get_lastupdate(self, coap, oscore_ctx):
-        resp = coap.oscore_get(oscore_ctx, "/swu/lastupdate")
-        assert resp is not None and resp.is_successful, (
-            f"GET /swu/lastupdate failed: "
-            f"{resp.code if resp else 'timeout'}")
-        data = cbor2.loads(resp.payload)
-        assert "osv" not in data, (
-            f"lastupdate must not contain an 'osv' key, got {data!r}")
-        val = data.get(1)
-        assert isinstance(val, str) and self.RFC3339_RE.match(val), (
-            f"lastupdate should be an RFC3339 timestamp, got {val!r}")
-        return val
-
-    def _run_update(self, coap, oscore_ctx):
-        """Push a small firmware package and trigger the upgrade."""
-        firmware = bytes(range(256))
-        resp = coap.oscore_request(
-            oscore_ctx, 3, "/a/swu",
-            payload=firmware,
-            uri_queries=[f"ps={len(firmware)}", f"pkgs={len(firmware)}"],
-            content_format=APPLICATION_OCTET_STREAM,
-            timeout=10.0)
-        assert resp is not None and resp.is_successful, (
-            f"PUT /a/swu failed: {resp.code if resp else 'timeout'}")
-
-        resp = coap.oscore_put(oscore_ctx, "/swu/update",
-                               payload=cbor2.dumps({1: 0}))
-        assert resp is not None and resp.is_successful, (
-            f"PUT /swu/update failed: {resp.code if resp else 'timeout'}")
-
-        # test server simulates the upgrade with a 2s delayed callback
-        time.sleep(4)
-
-    def test_5_2_9_0_lastupdate_is_mfg_date_before_any_update(self, coap,
-                                                              oscore_ctx):
-        """Before the first update /swu/lastupdate is the manufacturing date.
-
-        Named with the EITT-style prefix 5.2.9.0 so conftest's numeric sort
-        places it immediately before test_5_2_9_1_swu_firmware_update, the
-        earliest test that performs a software update. The skip below is only
-        a safety net for partial runs (e.g. -k selections) where an update may
-        still have happened first.
-        """
-        val = self._get_lastupdate(coap, oscore_ctx)
-        if val != self.MFG_DATE:
-            pytest.skip(
-                "device already performed a software update in this session "
-                f"(lastupdate={val})")
-        assert val == self.MFG_DATE
 
     def test_lastupdate_changes_after_swu_update(self, coap, oscore_ctx):
         """The DUT stamps a new timestamp when the update completes."""
@@ -372,6 +337,7 @@ class TestSwuLastUpdateLifecycle:
             f"lastupdate changed over reboot: {after!r} (was {before!r})")
 
 
+
 # ===========================================================================
 #  5.2.10.1b — Invalid PUT on read-only SWU resources
 # ===========================================================================
@@ -391,10 +357,11 @@ class TestSwuReadOnlyPutRejected:
         ("swu/result", {1: 9}),
     ]
 
+    @pytest.mark.eitt_overlap("5.2.10.1b")
     @pytest.mark.parametrize("path,payload_data",
                              READONLY_RESOURCES,
                              ids=[r[0] for r in READONLY_RESOURCES])
-    def test_5_2_10_1b_put_readonly_swu_rejected(self, coap, oscore_ctx,
+    def test_put_readonly_swu_rejected(self, coap, oscore_ctx,
                                                   path, payload_data):
         """PUT /{path} → 4.xx (read-only SWU resource must reject write)."""
         # Read original value (may be 4.04 for pkgname/pkgv)
@@ -496,4 +463,3 @@ class TestSwuBlockQueryValidation:
             pytest.skip("PUT /a/swu with leading zeros timed out")
         assert resp.code != "4.00", (
             f"PUT /a/swu with leading zeros should not be rejected, got {resp.code}")
-

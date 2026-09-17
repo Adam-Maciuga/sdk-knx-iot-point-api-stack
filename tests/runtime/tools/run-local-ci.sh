@@ -6,11 +6,11 @@
 #   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh [pytest-args...]"
 #
 # Examples:
-#   # Run only test_5_4_group_comm.py:
-#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh tests/runtime/test_5_4_group_comm.py"
+#   # Run only test_group_comm.py:
+#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh tests/runtime/runtime_tests/test_group_comm.py"
 #
 #   # Run a single test class:
-#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh 'tests/runtime/test_5_4_group_comm.py::TestOwnGroupObjectUpdate' -v"
+#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh 'tests/runtime/runtime_tests/test_group_comm.py::TestOwnGroupObjectUpdate' -v"
 #
 # NOTE: git archive uses HEAD, so commit your changes first.
 #       To include uncommitted work, use tar piping instead:
@@ -41,25 +41,10 @@ python3 /tmp/get-pip.py --break-system-packages --quiet
 python3 -m pip install --break-system-packages --quiet \
   -r tests/runtime/requirements.txt
 
-# Default test files (same as CI) — override by passing args
+# Default: the whole runtime tier (same as CI); conftest.py orders the
+# modules.  Override by passing args.
 if [ $# -eq 0 ]; then
-  set -- \
-    tests/runtime/test_5_1_discovery.py \
-    tests/runtime/test_5_1_discovery_multicast.py \
-    tests/runtime/test_5_1_discovery_extended.py \
-    tests/runtime/test_5_2_wellknown_knx.py \
-    tests/runtime/test_5_2_fingerprint.py \
-    tests/runtime/test_5_2_device_resources.py \
-    tests/runtime/test_5_2_swu.py \
-    tests/runtime/test_5_3_security.py \
-    tests/runtime/test_5_4_group_comm.py \
-    tests/runtime/test_5_5_fp_tables.py \
-    tests/runtime/test_5_6_app_program.py \
-    tests/runtime/test_5_7_functional_blocks.py \
-    tests/runtime/test_5_8_parameters.py \
-    tests/runtime/test_5_10_generic.py \
-    tests/runtime/test_5_1_discovery_mdns.py \
-    tests/runtime/test_5_2_reset.py
+  set -- tests/runtime/runtime_tests/
 fi
 
 echo "=== Running tests ==="

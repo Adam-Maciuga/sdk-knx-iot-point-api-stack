@@ -31,7 +31,8 @@ goes on the wire**: nine TestCases that previously emitted no discovery
 traffic now send six telegrams each. 5.1.1.x is *about* discovery, so this
 could plausibly shift a result. **Run Docker before building further.**
 
-194 headless tests pass (`test_gui_*.py`, `test_events.py`,
+194 headless tests pass, all under `tests/runtime/harness_tests/`
+(`test_gui_*.py`, `test_events.py`,
 `test_project_copy.py`, `test_comment_scheme.py`) — none need a DUT.
 
 ## EITT's pane names are INVERTED — do not "fix" them
@@ -80,7 +81,8 @@ Plan: `tests/docs/eitt-gui-plan.md`. Usage/design constraints:
 **Verified at 199 passed / 9 skipped / 2 xfailed in 8:47 (Docker).** The
 177-case conformance suite is unchanged by phase 0; the extra passes are new
 headless tests. Run them without a DUT:
-`pytest test_events.py test_comment_scheme.py test_gui_models.py`.
+`pytest harness_tests/test_events.py harness_tests/test_comment_scheme.py
+harness_tests/test_gui_models.py`.
 
 ## What phase 0 actually gives you
 

@@ -6,7 +6,12 @@ Goal: **unit tests for the complete stack.** Every source file has a
 not unit-testable in isolation, and the concrete reason is recorded here.
 
 Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
-**never** a reason to skip a unit test.
+**never** a reason to skip a unit test. They live in three tiers; the
+hand-written **runtime** tier covers only behaviour the EITT conformance
+template does not, the generated **eitt** tier covers the template itself.
+Where a note below cites a runtime test by name, check
+`tests/docs/runtime-test-inventory.md` if the name no longer resolves: the
+2026-09-11 cleanup removed the hand-written tests the template already covers.
 
 ## Status codes
 
@@ -359,9 +364,12 @@ INTEGRATION (concrete reasons):
   register/unregister, datapoint init, GO/recipient-table walks, s-mode
   unicast/multicast CoAP send and DNS-SD republish (need a bootstrapped device +
   populated RI tables + network). The `oc_core_knx_k_post_handler` st="a"
-  Write+Update rule (FINDINGS F-005 RESOLVED) is exercised at the runtime level
-  by `test_5_4_1_10`/`test_5_4_1_10b` (now covered by the dynamic EITT suite),
-  not by a unit test.
+  Write+Update rule (FINDINGS F-005 RESOLVED) is exercised at the runtime level,
+  not by a unit test: `test_5_4_1_10_multicast_answer_updates_value` (pre-rename name) was removed
+  in the 2026-09-11 runtime-tier cleanup (replaced by EITT template case 5.4.1.10,
+  eitt tier), while `test_answer_updates_update_only_go` — the update-only GO
+  case the template does not have — stays in
+  `tests/runtime/runtime_tests/test_group_comm.py`.
 - `oc_core_knx_spake_post_handler`, `oc_core_knx_spake_separate_post_handler`,
   `oc_spake2plus_init_data` — SPAKE2+ crypto exchange, OSCORE auth-token store
   writes, separate-response delayed callbacks and the brute-force timer.
@@ -465,7 +473,7 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 
 | Function | Status |
 |----------|--------|
-| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_5_3_security.py` |
+| oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/runtime_tests/test_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
 | increment_ssn_in_context (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |
@@ -709,7 +717,7 @@ Static GET/PUT handlers are reached through their owning `const oc_resource_t co
 | oc_set_swu_cb (oc_main.c) | DONE (verified via /a/swu cb path) |
 | oc_swu_set_package_name/last_update/hwref/package_bytes/package_version/state/result | DONE (verified via GET handlers) |
 | oc_swu_set_query_url | REMOVED (function no longer exists) |
-| oc_create_knx_swu_resources | INTEGRATION - calls oc_storage_read during init and is meaningful only against the RI resource table; the device mfg_date seeding of /swu/lastupdate is covered at runtime by `TestSwuLastUpdateLifecycle` in test_5_2_swu.py |
+| oc_create_knx_swu_resources | INTEGRATION - calls oc_storage_read during init and is meaningful only against the RI resource table; the device mfg_date seeding of /swu/lastupdate is covered at runtime by `TestSwuLastUpdateLifecycle` in test_swu.py |
 
 ### api/oc_server_api.c — DONE (pure helpers + resource mutators); network/RI paths integration-level
 

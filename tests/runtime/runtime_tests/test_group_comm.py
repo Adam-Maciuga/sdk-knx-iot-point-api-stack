@@ -1,24 +1,24 @@
 """
 Runtime conformance tests — EITT 5.4 Group Communication (S-Mode)
 
-5.4.1.1   Sending Unicast Write Group Message to Device
+The plain replications (5.4.1.1/.2/.5/.7/.8/.10/.11/.13) were removed with
+the tier split and run in the eitt tier now.  What remains either decrypts
+and inspects the telegram far beyond what the template matches (marked
+@pytest.mark.eitt_overlap) or has no template case at all:
+
 5.4.1.1b  Sending Unicast Write Group Message — GA Not in Auth Table
-5.4.1.2   Sending Multicast Write Group Message to Device
 5.4.1.3   Sending Multicast Read Group Message to Device Elicits Response
 5.4.1.4   Sending Unicast Read Group Message to Device Elicits Response
-5.4.1.5   Sending Unicast Write to Update Multiple Group Objects
 5.4.1.6   Trigger Device to Elicit Multicast Write Group Message
-5.4.1.7   Trigger Device to Elicit Multicast Write for First Sending GA
-5.4.1.8   Trigger Device to Check Not Sending in Loading State
 5.4.1.9   Set Init Flag Causes S-Mode Group Message on Startup
-5.4.1.10  Sending Multicast Response Group Message Causes Update
-5.4.1.10b Multicast Response on UPDATE-only GO (ADDITIONAL, non-EITT) - probes
+Multicast Response on UPDATE-only GO (ADDITIONAL, non-EITT) - probes
           spec(Table 19 "if w=true") vs code(oc_knx.c checks u-flag only)
-5.4.1.11  Sending Multicast Write Gets Ignored in Loading State
 5.4.1.12  Updating Own Group Objects for Outgoing Group Messages
-5.4.1.13  Receiving Support for Long Group Addresses
 5.4.1.14  Sending Support for Long Group Addresses
 5.4.1.15  Trigger Sending (Non) Confirmable Messages
+Malformed ep lengths in unicast discovery (ADDITIONAL, non-EITT)
+Read-on-init network gate (ADDITIONAL, non-EITT, privileged)
+Unicast NON re-resolution (ADDITIONAL, non-EITT)
 
 Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
 EITT trace: tests/EITT_REFERENCE_PROJECT/5_4_1_trace_buffer.xml
@@ -896,47 +896,6 @@ def _roi_restart(coap, oscore_ctx):
 
 
 # ===========================================================================
-# 5.4.1.1 — Unicast Write Group Message
-# ===========================================================================
-
-class TestUnicastWrite:
-    """5.4.1.1: POST /k unicast write with valid scope → 2.04, value updates.
-
-    GO table: ga=[65535, 1], cflag=0x10 (write), href=/p/1
-    AT scope: [1, 65535] (both GAs authorized)
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx):
-        go = [{0: 13, 7: [65535, 1], 8: 0x10, 11: "/p/1"}]
-        _provision_unicast(coap, oscore_ctx, go, scope=[1, 65535])
-        yield
-        set_lsm(coap, oscore_ctx, 4)  # unload
-
-    def test_5_4_1_1_unicast_write_updates_value(self, coap, oscore_ctx):
-        """POST /k unicast with {sia, s:{value:true, st:"w", ga:1}} → 2.04,
-        then GET /p/1 → {value: true}."""
-        # Set initial value to false
-        _set_datapoint(coap, oscore_ctx, "/p/1", False)
-
-        # Unicast write via OSCORE
-        uc_ctx = _make_uc_ctx()
-        payload = _build_smode_write(1, True, sia=PEER_IA)
-
-        # First request may trigger echo challenge; coap_client auto-retries
-        resp = coap.oscore_post(uc_ctx, "/k", payload=payload, timeout=5)
-        assert resp is not None, "POST /k timed out"
-        assert resp.code == "2.04", (
-            f"Expected 2.04 Changed, got {resp.code}")
-
-        # Verify value updated
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1 value=true after write, got {data}")
-
-
-# ===========================================================================
 # 5.4.1.1b — Unicast Write with GA Not in Auth Table
 # ===========================================================================
 
@@ -957,7 +916,8 @@ class TestUnicastWriteUnauthorized:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_1b_unauthorized_ga_returns_forbidden(self, coap,
+    @pytest.mark.eitt_overlap("5.4.1.1.b")
+    def test_unauthorized_ga_returns_forbidden(self, coap,
                                                          oscore_ctx):
         """POST /k with ga=1 but AT scope only has [65535] → 4.03 Forbidden,
         /p/1 value unchanged."""
@@ -974,52 +934,6 @@ class TestUnicastWriteUnauthorized:
         data = _get_datapoint(coap, oscore_ctx, "/p/1")
         assert data.get(1) is False, (
             f"Expected /p/1 value=false (unchanged), got {data}")
-
-
-# ===========================================================================
-# 5.4.1.2 — Multicast Write Group Message
-# ===========================================================================
-
-class TestMulticastWrite:
-    """5.4.1.2: NON POST /k multicast write → value updates (no response).
-
-    GO table: ga=[65535], cflag=0x10 (write), href=/p/1
-    PUB table: ga=[65535], grpid=0x80000001
-    AT: multicast with context_id
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        go = [{0: 13, 7: [65535], 8: 0x10, 11: "/p/1"}]
-        pub = [{0: 7, 7: [65535], 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=[65535],
-                              pub_entries=pub)
-        yield
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_2_multicast_write_updates_value(self, coap, oscore_ctx,
-                                                     device_iface):
-        """NON POST /k multicast with {value:true, st:"w", ga:65535} →
-        no response, GET /p/1 → {value: true}."""
-        _set_datapoint(coap, oscore_ctx, "/p/1", False)
-
-        tx_ctx = _sync_multicast_ssn(coap, device_iface, _make_mc_tx_ctx())
-
-        payload = _build_smode_write(65535, True, sia=DUT_IA)
-        tx_ctx.ssn += 1
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1 value=true after multicast write, got {data}")
 
 
 # ===========================================================================
@@ -1049,7 +963,8 @@ class TestMulticastRead:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_3_multicast_read_gets_answer(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.4.1.3")
+    def test_multicast_read_gets_answer(self, coap, oscore_ctx,
                                                   device_iface):
         """NON POST /k multicast with st:"r" → DUT responds with
         NON POST /k containing {sia:4353, s:{value:false, st:"a", ga:65535}}.
@@ -1151,7 +1066,8 @@ class TestUnicastRead:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_4_unicast_read_gets_answer(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.4.1.4")
+    def test_unicast_read_gets_answer(self, coap, oscore_ctx):
         """CON POST /k with st:"r" → 2.04, DUT sends back CON POST /k
         with {sia:4353, s:{value:true, st:"a", ga:65535}}."""
         # Set value to true directly (not via /k) to avoid triggering
@@ -1181,56 +1097,6 @@ class TestUnicastRead:
 
 
 # ===========================================================================
-# 5.4.1.5 — Unicast Write Updates Multiple Group Objects
-# ===========================================================================
-
-class TestUnicastWriteMultipleGO:
-    """5.4.1.5: POST /k unicast write with ga=65535 updates both /p/1 and /p/4
-    because both GO entries share ga=65535.
-
-    GO table:
-      - {id:13, ga:[65535,1], cflag:0x10, href:/p/1}
-      - {id:6,  ga:[65535,2], cflag:0x10, href:/p/4}
-    PUB table: ga=[65535], ia=PEER_IA, at=UC_TOKEN_ID
-    AT: unicast with scope=[65535]
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx):
-        # EITT: no AUTH/IA preparation — chains from 5.4.1.4, just tables
-        go = [
-            {0: 13, 7: [65535, 1], 8: 0x10, 11: "/p/1"},
-            {0: 6, 7: [65535, 2], 8: 0x10, 11: "/p/4"},
-        ]
-        pub = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC_TOKEN_ID}]
-        _provision_unicast(coap, oscore_ctx, go, scope=[65535],
-                           pub_entries=pub)
-        yield
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_5_write_updates_both_datapoints(self, coap, oscore_ctx):
-        """POST /k with ga=65535 → both /p/1 and /p/4 updated to true."""
-        _set_datapoint(coap, oscore_ctx, "/p/1", False)
-        _set_datapoint(coap, oscore_ctx, "/p/4", False)
-
-        uc_ctx = _make_uc_ctx()
-        payload = _build_smode_write(65535, True, sia=PEER_IA)
-        resp = coap.oscore_post(uc_ctx, "/k", payload=payload, timeout=5)
-        assert resp is not None, "POST /k timed out"
-        assert resp.code == "2.04", (
-            f"Expected 2.04, got {resp.code}")
-
-        data1 = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data1.get(1) is True, (
-            f"Expected /p/1 value=true, got {data1}")
-
-        data4 = _get_datapoint(coap, oscore_ctx, "/p/4")
-        assert data4.get(1) is True, (
-            f"Expected /p/4 value=true, got {data4}")
-
-
-# ===========================================================================
 # 5.4.1.6 — Trigger Device to Elicit Multicast Write
 # ===========================================================================
 
@@ -1257,7 +1123,8 @@ class TestTriggerMulticastWrite:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_6_trigger_multicast_write(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.4.1.6")
+    def test_trigger_multicast_write(self, coap, oscore_ctx,
                                               device_iface):
         """Trigger sensor on /p/3 → receive multicast s-mode write."""
         mcast_addr_str = _mcast_addr()
@@ -1282,92 +1149,6 @@ class TestTriggerMulticastWrite:
         assert s_obj[6] == "w", f"Expected st='w', got {s_obj[6]}"
         assert s_obj[7] == 65535, f"Expected ga=65535, got {s_obj[7]}"
         assert 1 in s_obj, f"Missing 'value' (key 1) in s-mode payload"
-
-
-# ===========================================================================
-# 5.4.1.7 — Trigger Multicast Write for First Sending GA
-# ===========================================================================
-
-class TestTriggerFirstGA:
-    """5.4.1.7: Trigger sensor with GO having ga=[65535, 1] → DUT sends
-    multicast with first GA (65535).
-
-    GO table: ga=[65535, 1], cflag=0x40 (transmit), href=/p/3
-    RCP table: ga=[65535, 1], grpid=0x80000001
-    AT: multicast with scope=[65535, 1]
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        auth_prepare(coap, oscore_ctx)
-        ia_prepare(coap, oscore_ctx)
-        go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
-        rcp = [{0: 7, 7: [65535, 1], 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=[65535, 1],
-                              rcp_entries=rcp)
-        yield
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_7_sends_first_ga(self, coap, oscore_ctx, device_iface):
-        """Trigger sensor → DUT sends multicast with ga=65535 (first GA)."""
-        mcast_addr_str = _mcast_addr()
-
-        received = _listen_and_trigger(
-            coap, oscore_ctx, device_iface, mcast_addr_str,
-            href="/p/3", value=True)
-
-        assert len(received) >= 1, (
-            "No multicast message received from device")
-
-        rx_ctx = _make_mc_rx_ctx()
-        data = _decrypt_smode(received[0][0], rx_ctx)
-
-        assert data[5][7] == 65535, (
-            f"Expected ga=65535 (first GA), got {data[5][7]}")
-
-
-# ===========================================================================
-# 5.4.1.8 — Not Sending in Loading State
-# ===========================================================================
-
-class TestNotSendingInLoadingState:
-    """5.4.1.8: Trigger sensor in LOADING state → DUT does NOT send.
-
-    Continues from 5.4.1.7 config, then sets LSM=loading.
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        # EITT: no AUTH/IA preparation — chains from 5.4.1.7, just tables
-        go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
-        rcp = [{0: 7, 7: [65535, 1], 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=[65535, 1],
-                              rcp_entries=rcp)
-        # Set to LOADING state
-        set_lsm(coap, oscore_ctx, 1)  # loading
-        yield
-        # Restore to loaded then unload for cleanup
-        set_lsm(coap, oscore_ctx, 2)  # loaded
-        set_lsm(coap, oscore_ctx, 4)  # unload
-
-    def test_5_4_1_8_no_send_in_loading(self, coap, oscore_ctx,
-                                         device_iface):
-        """Trigger sensor in LOADING state → no multicast message sent."""
-        mcast_addr_str = _mcast_addr()
-
-        received = _listen_and_trigger(
-            coap, oscore_ctx, device_iface, mcast_addr_str,
-            href="/p/3", value=True, timeout=3.0)
-
-        assert len(received) == 0, (
-            f"Device should NOT send in loading state, "
-            f"got {len(received)} message(s)")
 
 
 # ===========================================================================
@@ -1398,7 +1179,8 @@ class TestInitFlagStartup:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_9_init_flag_sends_read_on_restart(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.4.1.9")
+    def test_init_flag_sends_read_on_restart(self, coap, oscore_ctx,
                                                        device_iface):
         """Restart device → receive multicast s-mode with st:"r"."""
         mcast_addr_str = _mcast_addr()
@@ -1438,7 +1220,7 @@ class TestInitFlagStartup:
 
 
 # ===========================================================================
-# 5.4.1.9b — Read-on-Init Network-Up Gate + Max-Retry Cap (ADDITIONAL, non-EITT)
+# Read-on-Init Network-Up Gate + Max-Retry Cap (ADDITIONAL, non-EITT)
 # ===========================================================================
 #
 # Probes the network-up gate added to oc_init_read_next (api/oc_knx_fp.c):
@@ -1507,7 +1289,7 @@ class TestReadOnInitNetworkGate:
             f"Expected ga=65535, got {data[5][7]}")
 
     # -- network up from the beginning -----------------------------------
-    def test_5_4_900_1_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
+    def test_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
                                                                device_iface):
         """ULA present before restart -> DUT sends the init read promptly."""
         _roi_set_network_up()
@@ -1536,7 +1318,7 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(received)
 
     # -- withheld while the network is down ------------------------------
-    def test_5_4_900_2_read_on_init_withheld_while_down(self, coap, oscore_ctx,
+    def test_read_on_init_withheld_while_down(self, coap, oscore_ctx,
                                                          device_iface):
         """Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles)."""
         # Network is already down via the per-test reset fixture.
@@ -1563,7 +1345,7 @@ class TestReadOnInitNetworkGate:
             f"present, but a message was received: {received}")
 
     # -- released once the network comes up (~600 ms) --------------------
-    def test_5_4_900_3_read_on_init_released_after_network_up(self, coap, oscore_ctx,
+    def test_read_on_init_released_after_network_up(self, coap, oscore_ctx,
                                                                device_iface):
         """Network down from the start, then up after ~600 ms -> read fires.
 
@@ -1627,7 +1409,7 @@ class TestReadOnInitNetworkGate:
         self._assert_init_read(released)
 
     # -- abandoned after the max-retry cap -------------------------------
-    def test_5_4_900_4_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
+    def test_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
                                                                   device_iface):
         """Network never comes up -> read is abandoned after the 20-cycle cap.
 
@@ -1685,71 +1467,6 @@ class TestReadOnInitNetworkGate:
 
 
 # ===========================================================================
-# 5.4.1.10 — Multicast Response (st="a") Causes Update
-# ===========================================================================
-
-class TestMulticastResponseUpdate:
-    """5.4.1.10: NON POST /k multicast with st:"a" (answer) → value updates.
-
-    GO table: ga=[65535], cflag=0x90 (write + update = 0x10 | 0x80),
-              href=/p/1
-    PUB table: ga=[65535], grpid=0x80000001
-    AT: multicast with scope=[65535, 1]
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        auth_prepare(coap, oscore_ctx)
-        ia_prepare(coap, oscore_ctx)
-        go = [{0: 13, 7: [65535], 8: 0x90, 11: "/p/1"}]  # cflag=144=w+u
-        pub = [{0: 7, 7: [65535], 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=[65535, 1],
-                              pub_entries=pub)
-        yield
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_10_multicast_answer_updates_value(self, coap, oscore_ctx,
-                                                      device_iface):
-        """Multicast write true, then multicast answer false → /p/1 = false."""
-        _set_datapoint(coap, oscore_ctx, "/p/1", False)
-
-        tx_ctx = _sync_multicast_ssn(coap, device_iface, _make_mc_tx_ctx())
-
-        # Write true
-        payload_w = _build_smode_write(65535, True, sia=PEER_IA)
-        tx_ctx.ssn += 1
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload_w,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        # Verify write took effect
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1=true after write, got {data}")
-
-        # Now send answer (st="a") with false
-        payload_a = _build_smode_answer(65535, False, sia=PEER_IA)
-        tx_ctx.ssn += 1
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload_a,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        # Value should be updated by the answer message
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is False, (
-            f"Expected /p/1=false after answer, got {data}")
-
-
-# ===========================================================================
 # 5.4.1.10b - Multicast Response (st="a") with UPDATE-only GO (ADDITIONAL)
 # ===========================================================================
 #
@@ -1770,7 +1487,7 @@ class TestMulticastResponseUpdate:
 # stays unchanged.
 
 class TestMulticastResponseUpdateOnly:
-    """5.4.1.10b (ADDITIONAL, non-EITT): NON POST /k multicast with st:"a"
+    """ADDITIONAL, non-EITT: NON POST /k multicast with st:"a"
     on an UPDATE-only GO (cflag=0x80, w=false).
 
     GO table: ga=[65535], cflag=0x80 (update only = OC_CFLAG_UPDATE, w=0),
@@ -1797,7 +1514,7 @@ class TestMulticastResponseUpdateOnly:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_10b_answer_updateonly_go(self, coap, oscore_ctx,
+    def test_answer_updates_update_only_go(self, coap, oscore_ctx,
                                             device_iface):
         """Set /p/1=true via /p, then multicast answer (st="a") false on a
         u-only GO. Spec-conformant code keeps /p/1=true (no update).
@@ -1844,72 +1561,6 @@ class TestMulticastResponseUpdateOnly:
             f"requires w=true, so /p/1 must stay True. Got {data}.")
 
 
-
-# ===========================================================================
-# 5.4.1.11 — Multicast Write Ignored in Loading State
-# ===========================================================================
-
-class TestMulticastWriteIgnoredLoading:
-    """5.4.1.11: Multicast write in LOADING state → value unchanged.
-
-    GO table: ga=[65535], cflag=0x90 (w+u), href=/p/1
-    PUB table: ga=[65535], grpid=0x80000001
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        # EITT: no AUTH/IA preparation — chains from 5.4.1.10, just tables
-        go = [{0: 13, 7: [65535], 8: 0x90, 11: "/p/1"}]
-        pub = [{0: 7, 7: [65535], 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=[65535, 1],
-                              pub_entries=pub)
-        yield
-        # Ensure we're back in loaded state, then unload
-        try:
-            set_lsm(coap, oscore_ctx, 2)
-        except AssertionError:
-            pass
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_11_write_ignored_in_loading(self, coap, oscore_ctx,
-                                                 device_iface):
-        """Multicast write in loaded state → true, then set loading,
-        multicast write false → still true."""
-        # Sync multicast SSN first (sync writes false as side-effect)
-        tx_ctx = _sync_multicast_ssn(coap, device_iface, _make_mc_tx_ctx())
-
-        # Set /p/1 to true via unicast (after sync, which may change it)
-        _set_datapoint(coap, oscore_ctx, "/p/1", True)
-        time.sleep(0.3)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1=true before loading, got {data}")
-
-        # Set LOADING state
-        set_lsm(coap, oscore_ctx, 1)
-
-        # Write false in loading state — should be ignored
-        payload_f = _build_smode_write(65535, False, sia=PEER_IA)
-        tx_ctx.ssn += 1
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload_f,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        # Restore loaded state to read the value
-        set_lsm(coap, oscore_ctx, 2)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1=true (unchanged in loading), got {data}")
-
-
 # ===========================================================================
 # 5.4.1.12 — Updating Own Group Objects for Outgoing Messages
 # ===========================================================================
@@ -1949,7 +1600,8 @@ class TestOwnGroupObjectUpdate:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_12_self_update_on_transmit(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.4.1.12")
+    def test_self_update_on_transmit(self, coap, oscore_ctx,
                                                 device_iface):
         """Trigger sensor → DUT sends multicast write for ga=65535,
         DUT also updates /p/1 (receiving GO with ga=65535)."""
@@ -1979,109 +1631,6 @@ class TestOwnGroupObjectUpdate:
 
 
 # ===========================================================================
-# 5.4.1.13 — Receiving Support for Long Group Addresses
-# ===========================================================================
-
-class TestLongGAReceive:
-    """5.4.1.13: Device correctly processes multicast writes with various
-    GA sizes: 0, 256, 65535, 4294967295 (0xFFFFFFFF).
-
-    GO table: ga=[0, 256, 65535, 4294967295], cflag=0x10, href=/p/1
-    PUB table: same 4 GAs, grpid=0x80000001
-    AT: multicast with scope=[0, 256, 65535, 4294967295]
-    """
-
-    @pytest.fixture(autouse=True, scope="class")
-    @staticmethod
-    def setup(coap, oscore_ctx, device_iface):
-        if device_iface is None:
-            pytest.skip("Multicast tests require DEVICE_IFACE env var")
-        auth_prepare(coap, oscore_ctx)
-        ia_prepare(coap, oscore_ctx)
-        gas = [0, 256, 65535, 4294967295]
-        go = [{0: 13, 7: gas, 8: 0x10, 11: "/p/1"}]
-        pub = [{0: 7, 7: gas, 13: GROUP_GRPID}]
-        _provision_multicast(coap, oscore_ctx, go, scope=gas,
-                              pub_entries=pub)
-        yield
-        set_lsm(coap, oscore_ctx, 4)
-
-    def test_5_4_1_13_long_ga_write_ga0(self, coap, oscore_ctx,
-                                          device_iface):
-        """Multicast write ga=0 → /p/1 = true."""
-        _set_datapoint(coap, oscore_ctx, "/p/1", False)
-        tx_ctx = _sync_multicast_ssn(coap, device_iface, _make_mc_tx_ctx(),
-                                      ga=0)
-
-        payload = _build_smode_write(0, True, sia=DUT_IA)
-        tx_ctx.ssn += 1
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1=true after ga=0 write, got {data}")
-
-    def test_5_4_1_13_long_ga_write_ga256(self, coap, oscore_ctx,
-                                            device_iface):
-        """Multicast write ga=256 → /p/1 = false."""
-        tx_ctx = _make_mc_tx_ctx()
-        tx_ctx.ssn = 10  # use high SSN to avoid anti-replay
-
-        payload = _build_smode_write(256, False, sia=DUT_IA)
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is False, (
-            f"Expected /p/1=false after ga=256 write, got {data}")
-
-    def test_5_4_1_13_long_ga_write_ga65535(self, coap, oscore_ctx,
-                                              device_iface):
-        """Multicast write ga=65535 → /p/1 = true."""
-        tx_ctx = _make_mc_tx_ctx()
-        tx_ctx.ssn = 20
-
-        payload = _build_smode_write(65535, True, sia=DUT_IA)
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is True, (
-            f"Expected /p/1=true after ga=65535 write, got {data}")
-
-    def test_5_4_1_13_long_ga_write_ga_max32(self, coap, oscore_ctx,
-                                               device_iface):
-        """Multicast write ga=4294967295 (0xFFFFFFFF) → /p/1 = false."""
-        tx_ctx = _make_mc_tx_ctx()
-        tx_ctx.ssn = 30
-
-        payload = _build_smode_write(4294967295, False, sia=DUT_IA)
-        coap.oscore_multicast_post(
-            tx_ctx, "/k", payload=payload,
-            target_addr=_mcast_addr(),
-            interface=device_iface,
-            collect_timeout=1.0)
-        time.sleep(0.5)
-
-        data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is False, (
-            f"Expected /p/1=false after ga=0xFFFFFFFF write, got {data}")
-
-
-# ===========================================================================
 # 5.4.1.14 — Sending Support for Long Group Addresses
 # ===========================================================================
 
@@ -2108,7 +1657,8 @@ class TestLongGASend:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_14_sends_long_ga(self, coap, oscore_ctx, device_iface):
+    @pytest.mark.eitt_overlap("5.4.1.14")
+    def test_sends_long_ga(self, coap, oscore_ctx, device_iface):
         """Trigger sensor → DUT sends multicast with ga=4294967295."""
         mcast_addr_str = _mcast_addr()
 
@@ -2161,7 +1711,8 @@ class TestUnicastConfirmable:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_1_15_unicast_sends_con(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.4.1.15")
+    def test_unicast_sends_con(self, coap, oscore_ctx,
                                          device_iface):
         """Trigger sensor → DUT resolves PEER_IA via discovery, then
         sends CON POST /k (unicast to test host).
@@ -2235,7 +1786,7 @@ class TestUnicastNonReResolution:
         yield
         set_lsm(coap, oscore_ctx, 4)
 
-    def test_5_4_901_1_unicast_non_re_resolution(self, coap, oscore_ctx,
+    def test_unicast_non_re_resolution(self, coap, oscore_ctx,
                                                    device_iface):
         """Trigger the sensor repeatedly; the DUT sends unicast NON POSTs
         that go unanswered.  After 4 failures the recipient is marked
@@ -2436,7 +1987,7 @@ class TestUnicastDiscoveryMalformedLengths:
             f"Unexpected CoAP type for unicast POST: {msg['type']}")
 
     # ---- test 1: IID too long (11+ hex chars, spec max 10) -> reject -------
-    def test_5_4_1_15_bonus_iid_too_long(self, coap, oscore_ctx,
+    def test_unicast_discovery_iid_too_long(self, coap, oscore_ctx,
                                          device_iface):
         """IID of 12 hex chars exceeds the 10-char (5-octet) maximum;
         the IID/IA separator falls outside the parser search window, so the
@@ -2446,7 +1997,7 @@ class TestUnicastDiscoveryMalformedLengths:
             self._run_reject(device_iface, coap, oscore_ctx, ep))
 
     # ---- test 2: IID too short (empty) -> reject ---------------------------
-    def test_5_4_1_15_bonus_iid_too_short(self, coap, oscore_ctx,
+    def test_unicast_discovery_iid_too_short(self, coap, oscore_ctx,
                                           device_iface):
         """An empty IID is invalid (all-zero collapses to a single '0');
         the parsed IID does not match the device IID, so no POST follows."""
@@ -2455,7 +2006,7 @@ class TestUnicastDiscoveryMalformedLengths:
             self._run_reject(device_iface, coap, oscore_ctx, ep))
 
     # ---- test 3: IA too long (5+ hex chars, spec max 4) -> reject ----------
-    def test_5_4_1_15_bonus_ia_too_long(self, coap, oscore_ctx,
+    def test_unicast_discovery_ia_too_long(self, coap, oscore_ctx,
                                         device_iface):
         """An IA of 5 hex chars exceeds the 4-char (2-octet) maximum; the
         first four chars ('2110') do not match PEER_IA (110f), so the DUT
@@ -2465,7 +2016,7 @@ class TestUnicastDiscoveryMalformedLengths:
             self._run_reject(device_iface, coap, oscore_ctx, ep))
 
     # ---- test 4: IA too short (empty) -> reject ----------------------------
-    def test_5_4_1_15_bonus_ia_too_short(self, coap, oscore_ctx,
+    def test_unicast_discovery_ia_too_short(self, coap, oscore_ctx,
                                          device_iface):
         """An empty IA is invalid (all-zero collapses to a single '0'); the
         parsed IA does not match PEER_IA, so no POST follows."""
@@ -2474,7 +2025,7 @@ class TestUnicastDiscoveryMalformedLengths:
             self._run_reject(device_iface, coap, oscore_ctx, ep))
 
     # ---- test 5: SN too long (17 hex chars, spec width 12) -> reject -------
-    def test_5_4_1_15_bonus_sn_too_long(self, coap, oscore_ctx,
+    def test_unicast_discovery_sn_too_long(self, coap, oscore_ctx,
                                         device_iface):
         """A serial number longer than the parser search window pushes the
         'knx://ia.' anchor out of reach, so the DUT cannot locate the IID/IA
@@ -2484,7 +2035,7 @@ class TestUnicastDiscoveryMalformedLengths:
             self._run_reject(device_iface, coap, oscore_ctx, ep))
 
     # ---- test 6: SN too short (4 hex chars, spec width 12) -----------------
-    def test_5_4_1_15_bonus_sn_too_short(self, coap, oscore_ctx,
+    def test_unicast_discovery_sn_too_short(self, coap, oscore_ctx,
                                          device_iface):
         """A serial number shorter than the spec width of 12 hex chars.
 

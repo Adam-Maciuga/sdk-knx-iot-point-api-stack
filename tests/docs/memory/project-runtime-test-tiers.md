@@ -20,8 +20,13 @@ observe, stricter AT validation, ...) — must survive.
 | Tier | What | Where |
 | --- | --- | --- |
 | unit | Google Test, untouched by this work | `tests/unit/` |
-| eitt | template-driven interpreter, one pytest item per TestCase | `tests/runtime/eitt/`, `test_eitt.py` (exact final directory TBD with the user) |
-| runtime | hand-written tests for behaviour the template does NOT cover, ported onto the branch's shared `transport/`, `conftest.py`, `tools/` | `tests/runtime/` |
+| eitt | template-driven interpreter, one pytest item per TestCase | `tests/runtime/eitt_tests/` (`test_eitt.py`) |
+| runtime | hand-written tests for behaviour the template does NOT cover, ported onto the branch's shared `transport/`, `conftest.py`, `tools/` | `tests/runtime/runtime_tests/` (behaviour-named `test_*.py`) |
+| harness | tests of the interpreter and GUI code itself, no DUT | `tests/runtime/harness_tests/` (`test_events.py`, `test_comment_scheme.py`, `test_project_copy.py`, `test_gui_*.py`) |
+
+The shared infrastructure — `conftest.py`, `transport/`, `eitt/`, `gui/`,
+`data/`, `tools/`, `runtime_test_server.c`, `pytest.ini` — stays at the
+`tests/runtime/` level; only the test modules live in the tier directories.
 
 A hand-written test is dropped only when a template TestCase exercises the
 same requirement, and the drop records the EITT case id so it is traceable.
@@ -88,6 +93,64 @@ same requirement, and the drop records the EITT case id so it is traceable.
     certified reference trace (`data/traces/5_1.xml` TelNo 28) shows the whole
     547-byte body in one datagram. Fix is the maintainer's call (payload
     budget, block size, or discovery body) — do not "repair" this test.
+- **Directory split DONE 2026-09-11**, commit "Split tests/runtime into eitt,
+  runtime and harness test tiers": 31 test modules `git mv`d into
+  `eitt_tests/` (1), `runtime_tests/` (19) and `harness_tests/` (11), test
+  bodies unchanged. Imports resolve via `pythonpath = .` in
+  `tests/runtime/pytest.ini` (pytest >= 7), which keeps `tests/runtime` on
+  sys.path whatever the cwd or the selected tier — no `__init__.py` files were
+  added. The seven modules that resolve `data/` against `__file__` gained one
+  extra `dirname`/`.parent`. `tools/run-in-docker.ps1` grew
+  `-Tier all|eitt|runtime|harness` (default `all`), and the CI
+  `linux-runtime-test-asan` job now runs both device tiers as two pytest
+  invocations with separate JUnit reports. Collection after the move is
+  unchanged: 766 total = 187 eitt + 385 runtime + 194 harness.
+- **Cleanup DONE 2026-09-11: 135 functions / 143 items deleted, 102 annotated,
+  runtime tier = 245 items; mapping in commit `c6f05dc6` "runtime tier: drop
+  template-covered tests, mark overlaps"** (one commit, per-file sections in
+  the body). Two deviations from the estimate, both arithmetic rather than
+  classification: `test_device_resources.py` drops 13 items not 5 because
+  `test_5_2_7_1b_put_readonly_rejected` is parametrised x9, and
+  `test_discovery_mdns.py` drops 5 not 8 because the inventory
+  contradicts itself there — its per-file summary row says 8 C / 8 CW, its
+  itemised section 3.3 table says 5 C / 11 CW, and section 3 wins. Net 245,
+  not the 242 predicted from the summary table. Docs updated in a second
+  commit; `EITT_TEST_COVERAGE.md` is now a pointer, not a map.
+  Docker-verified: runtime tier **235 passed / 0 failed / 8 env skips**
+  (= 245), eitt tier unchanged. The first Docker run caught two defects the
+  host-side collect could not: (a) a removed `DUT_SERIAL_NUMBER` import that
+  was still used inside a test body — counting `grep` hits is NOT a safe
+  unused-import check, use an AST undefined-name scan; and (b) a hidden
+  inter-test dependency, `test_full_chain_via_programming_mode_subtype` relied on the deleted
+  `test_5_1_2_4_pm_subtype_enabled` having just switched programming mode on.
+  **Deleting a test can break a surviving sibling that never had its own
+  setup** — after any such cleanup, run the tier in Docker before believing
+  the collect count.
+- **Renamed 2026-09-11 off the EITT numbering**, commit "runtime tier: name
+  tests by behaviour instead of EITT id" (complete old->new mapping in the
+  commit body). Rule going forward: **runtime-tier files and functions are
+  named for the behaviour they test, never for an EITT id**; template overlap
+  is recorded only by `@pytest.mark.eitt_overlap("5.x.y.z")` and, where it
+  helps, a docstring starting "Overlaps EITT 5.x.y.z: ...". The 900-series
+  pseudo-ids (`5_1_900_*`, `5_4_900_*`, ...) were never template ids and are
+  gone entirely. Two consequences worth knowing:
+  - `conftest._eitt_sort_key` can no longer order the runtime tier by name, so
+    `conftest.RUNTIME_MODULE_ORDER` now declares the module run order
+    explicitly (it reproduces the pre-rename sequence). A new runtime module
+    must be added to that list.
+  - Within a module, order is now definition order, and `test_swu.py` shows how
+    sharp that edge is. The old numeric sort satisfied TWO opposite constraints
+    at once (5.2.9.0 mfg-date < 5.2.9.1 update < the rest of the lifecycle
+    class). Moving the whole `TestSwuLastUpdateLifecycle` class above
+    `TestSwuFirmwareUpdate` fixed the first and broke the second: the class also
+    holds `test_lastupdate_changes_after_swu_update`, which runs an update and
+    bumps `dev/fwv` 0.0.1 -> 0.0.2, so the firmware test's "Initial FWV should
+    be [0, 0, 1]" failed (Docker: 1 failed / 236 passed / 8 skipped). Fixed in
+    the follow-up commit by splitting the class into `_SwuLastUpdateBase` +
+    `TestSwuLastUpdateBeforeUpdate` (before) and `TestSwuLastUpdateAfterUpdate`
+    (after). **A class is not the unit of ordering — an individual test is.**
+  `.gitlab-ci.yml` and both `run-local-ci*.sh` now run the whole
+  `runtime_tests/` directory instead of an explicit file list.
 - Running the Docker script from Git Bash: `-PytestArgs "a","b"` arrives as one
   string and `-IncludeUncommitted` breaks because Git Bash's `tar` shadows
   Windows `tar.exe`. Run it from PowerShell (or `powershell -Command "& ..."`),
@@ -99,6 +162,8 @@ revision, not to lose device coverage that KNX never wrote a TestCase for.
 **How to apply:**
 
 - Never delete a hand-written test without naming the EITT case that covers it.
+- Before adding a hand-written test, check the template for a covering
+  TestCase; if one exists, do not add the test.
 - Port in file-sized, reviewable commits; keep upstream's test bodies, change
   imports/fixtures only, and run the ported file in Docker before the next.
 - Rebase first, restructure second (done in that order on 2026-09-10 for a

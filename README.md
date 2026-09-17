@@ -115,7 +115,7 @@ Useful variants:
 
 ```powershell
 .\tests\runtime\run-in-docker.ps1 -k "5_4"
-.\tests\runtime\run-in-docker.ps1 tests/runtime/test_5_4_observe.py -x
+.\tests\runtime\run-in-docker.ps1 tests/runtime/runtime_tests/test_observe.py -x
 ```
 
 For Linux or CI-style local runs, see `tests/runtime/run-local-ci.sh`.

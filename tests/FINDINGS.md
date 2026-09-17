@@ -63,7 +63,7 @@ Bugs and issues discovered during unit test development.
   only the Update flag set (Write cleared), contrary to the specification.
 - **Found by:** Spec-vs-code review of the `/k` receive handler while extending
   the runtime group-communication tests; probed by the additional runtime test
-  `test_5_4_1_10b_answer_updateonly_go` in `tests/runtime/test_5_4_group_comm.py`
+  `test_answer_updates_update_only_go` in `tests/runtime/runtime_tests/test_group_comm.py`
   (cflag=0x80, Update-only). The EITT case `5.4.1.10` could not distinguish the
   deviation because it provisions cflag=0x90 (Write + Update), which updates
   under both interpretations.
@@ -89,9 +89,10 @@ Bugs and issues discovered during unit test development.
   With cflag=0x80 the response is now ignored and the value is left unchanged.
   This also aligns the receive path with the outbound side
   (`oc_knx_client.c`, which already gates on `OC_CFLAG_WRITE`). Validated
-  end-to-end in Docker (veth multicast): `test_5_4_1_10b_answer_updateonly_go`
+  end-to-end in Docker (veth multicast): `test_answer_updates_update_only_go`
   passes (value stays unchanged with w=0) and the positive case
-  `test_5_4_1_10_multicast_answer_updates_value` (cflag=0x90) still updates.
+  the removed `test_5_4_1_10_multicast_answer_updates_value` (pre-rename
+  name, cflag=0x90) still updates.
 
 ## F-006: ~~PM discovery with a serial-number wildcard returns Not Found~~ - RESOLVED
 
@@ -141,8 +142,8 @@ Bugs and issues discovered during unit test development.
 - **File:** `api/oc_discovery.c`, `oc_well_known_core_discovery_handler()` (~line 754):
   `const bool more_request_needed = query_parameter_key_value_pair_matches >= query_ps;`
 - **Severity:** Medium - breaks the pagination contract (EITT 5.10.1.6-style `p.next` following) whenever the number of matching resources is an exact multiple of the requested page size (`ps`); with `ps=1` this triggers on literally every page, so the client's final "follow the link" request always gets `4.00 Bad Request`.
-- **Found by:** New runtime test `test_5_1_1_900_pagination_follows_next_links_over_all_fbs` in
-  `tests/runtime/test_5_1_discovery.py` (`TestDiscoveryPaginationManyFunctionalBlocks`, test ID
+- **Found by:** New runtime test `test_wellknown_core_pagination_follows_next_links_over_all_fbs` in
+  `tests/runtime/runtime_tests/test_discovery_pagination.py` (`TestDiscoveryPaginationManyFunctionalBlocks`, test ID
   5.1.1.900 -- local extra, not an official EITT clause), which paginates
   `GET /.well-known/core?rt=*&ps=1` page by page, following each `p.next` link, over the real DUT's core
   resources + application resources/functional blocks (`?rt=*` pulls the latter into scope, see the
@@ -216,9 +217,9 @@ Bugs and issues discovered during unit test development.
   (since folded into `port/mdns/mdns.h`, see `port/mdns/README.md`).
 - **Severity:** High - the device was undiscoverable by any RFC 6763 conformant client, including
   the standard `zeroconf` Python library and, by extension, the EITT-style discovery tests.
-- **Found by:** `test_5_1_discovery_mdns.py` - five deterministic failures
-  (`test_5_1_2_1_srv_resolution`, `test_5_1_2_1_aaaa_resolution`, `test_5_1_2_2_full_chain_configured`,
-  `test_5_1_2_3_ia_full_chain`, `test_5_1_2_4_pm_full_chain`), all failing at
+- **Found by:** `test_discovery_mdns.py` - five deterministic failures
+  (`test_srv_resolution_of_unconfigured_device`, `test_aaaa_resolution_of_unconfigured_device`, `test_full_chain_by_serial_when_configured`,
+  `test_full_chain_by_individual_address`, `test_full_chain_via_programming_mode_subtype`), all failing at
   `_verify_discovery_chain` with `Could not resolve service info for <sn>._knx._udp.local.`
 - **Description:** The responder emitted a TXT record **only** when a non-zero sleep period was
   configured (`knx.sp != 0`). A normal, non-sleepy device therefore advertised PTR, SRV and AAAA
@@ -381,7 +382,7 @@ Bugs and issues discovered during unit test development.
   constant it protects and observing the named failure.
 - **Pinned by:** `CoapHeaderBudgets` (4), `CoapMessageSize` (3) and
   `CoapSerializationModes` (4) in `test_oc_buffer_settings.cpp`, plus
-  `tests/runtime/test_coap_header_budget.py` (9), which drives real CoAP/OSCORE
+  `tests/runtime/runtime_tests/test_coap_header_budget.py` (9), which drives real CoAP/OSCORE
   exchanges with every KNX URI option at its maximum. An under-budgeted frame makes
   `coap_oscore_serialize_message()` return 0 and null `coap_pkt->buffer`, i.e. the
   message is dropped **silently** - which is why the runtime coverage exists.
@@ -494,7 +495,7 @@ Bugs and issues discovered during unit test development.
 - **Severity:** Medium - multicast carries no acknowledgement. A lost single announcement leaves
   every cache with the old record until its TTL runs out.
 - **Found by:** a review of the announcement path against RFC 6762 section 8.3, confirmed by
-  `test_dns_sd_mdns.cpp`. The runtime test `test_5_1_901_3_transition_pm_disable` had encoded the
+  `test_dns_sd_mdns.cpp`. The runtime test `test_transition_pm_disable` had encoded the
   single announcement: its capture window opened exactly one second after the setup change, so a
   conformant responder fails it with the repeat of the setup announcement.
 - **Description:** RFC 6762 section 8.3 requires at least two unsolicited responses, one second
@@ -507,7 +508,7 @@ Bugs and issues discovered during unit test development.
 - **Resolution:** Every successful announcement schedules `repeat_announcement()` as a delayed
   callback on the RI event loop (`oc_set_delayed_callback`, one second). A new change within that
   second restarts the delay, so the repeat always carries the newest record. `knx_dns_sd_stop()`
-  cancels a pending repeat before the goodbye. `test_5_1_discovery_mdns.py` now drops packets that
+  cancels a pending repeat before the goodbye. `test_discovery_mdns.py` now drops packets that
   arrive before the trigger of a transition (`TransitionResult(packets, trigger_time)`), and
   `MDNS_ANNOUNCE_WAIT_S` rose to 1.5 s so the repeat passes before the next step.
 - **Verification:** `test_dns_sd_mdns.cpp`: the four cases `SecondAnnouncementFollowsOneSecondLater`,
@@ -581,7 +582,7 @@ Bugs and issues discovered during unit test development.
 - **Verification:** full unit suite 1407 passed, 0 failed (windows-test-gcc). No test asserted on
   the emitted string before or after - the existing `if.ll` occurrences in `test_oc_discovery.cpp`
   and `test_oc_knx_fb.cpp` are query *inputs*, not response assertions. The runtime discovery
-  regexes in `test_5_1_discovery.py` match on `rt=` and `ct=` only. The fix was subsequently carried
+  regexes in `test_discovery_pagination.py` match on `rt=` and `ct=` only. The fix was subsequently carried
   by the 380 passed / 5 skipped / 0 failed runtime run (848.00s, `-IncludeUncommitted`).
 
 ## F-019: `CONTENT_NONE` marker serialized as a CoAP Content-Format option - RESOLVED

@@ -19,7 +19,9 @@
     .\tests\runtime\run-in-docker.ps1 -Section 5.5,5.6 -IncludeUncommitted
     .\tests\runtime\run-in-docker.ps1 -k "5_9"
     .\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k "5_9"
-    .\tests\runtime\run-in-docker.ps1 tests/runtime/test_5_9_observe.py -v
+    .\tests\runtime\run-in-docker.ps1 -Tier eitt -Section 5.6
+    .\tests\runtime\run-in-docker.ps1 -Tier runtime
+    .\tests\runtime\run-in-docker.ps1 tests/runtime/runtime_tests/test_observe.py -v
     .\tests\runtime\run-in-docker.ps1 --tb=long -x
 
 .NOTES
@@ -37,7 +39,7 @@ param(
     [Alias("WorkingTree", "Dirty")]
     [switch]$IncludeUncommitted,
     # Set RUN_SLOW_TESTS inside the container so tests gated behind it run
-    # (currently test_5_3_1_6d_unblocks_after_timeout, which waits out a ~60 s
+    # (currently test_spake_lockout_unblocks_after_timeout, which waits out a ~60 s
     # brute-force lockout timer).
     [switch]$RunSlowTests,
     # Stream the device's own server-side logs (protocol/state-machine
@@ -74,6 +76,13 @@ param(
     # SUBSTRING match, so "5.6" also selects 5.5.5.6 and 5.5.6.1, which then
     # run WITHOUT their sibling preparation TestCases and fail spuriously.
     [string[]]$Section,
+    # Which test tier to run (see tests/runtime/README.md):
+    #   eitt    -> tests/runtime/eitt_tests/    (template-driven interpreter)
+    #   runtime -> tests/runtime/runtime_tests/ (hand-written device tests)
+    #   harness -> tests/runtime/harness_tests/ (interpreter/GUI tests, no DUT)
+    #   all     -> tests/runtime/               (everything, the default)
+    [ValidateSet('all', 'eitt', 'runtime', 'harness')]
+    [string]$Tier = 'all',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$PytestArgs
 )
@@ -81,13 +90,21 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
 
-# Base pytest invocation always scans the runtime dir. User args are
-# appended, so `-k Security::`, `-x`, or an explicit file path all work.
-# (tools/ holds no tests, so nothing needs ignoring.)
+# Base pytest invocation scans the directory selected by -Tier (the whole
+# runtime dir by default). User args are appended, so `-k Security::`, `-x`,
+# or an explicit file path all work. The test modules live in the per-tier
+# subdirectories; the shared infrastructure (conftest.py, transport/, eitt/,
+# gui/, data/, tools/) sits next to them in tests/runtime/ and holds no
+# tests, so nothing needs ignoring.
 #   --tb=long     full tracebacks (why a test failed, all frames)
 #   --showlocals  values of local variables at each failing frame
 #   -rfE          short summary line per failed/errored test (parsed below)
-$Base = "tests/runtime/"
+$Base = switch ($Tier) {
+    'eitt'    { "tests/runtime/eitt_tests/" }
+    'runtime' { "tests/runtime/runtime_tests/" }
+    'harness' { "tests/runtime/harness_tests/" }
+    default   { "tests/runtime/" }
+}
 if (-not $PytestArgs) {
     $PytestArgs = @("-v", "--tb=long", "--showlocals")
 }
@@ -119,6 +136,7 @@ $SlowEnv = if ($RunSlowTests) { "RUN_SLOW_TESTS=1 " } else { "" }
 Write-Host "=== Running runtime tests in Docker ($Image) ===" -ForegroundColor Cyan
 Write-Host "    Repo:   $RepoRoot"
 Write-Host "    Branch: $(git -C $RepoRoot branch --show-current)"
+Write-Host "    Tier:   $Tier"
 Write-Host "    Args:   $ArgsStr"
 Write-Host "    Source: $Source" -ForegroundColor Yellow
 Write-Host ""
@@ -271,7 +289,7 @@ finally {
 }
 
 # Extract failing/erroring test IDs from pytest's -v result lines:
-# e.g. "tests/runtime/test_x.py::Class::method FAILED [ 42%]"
+# e.g. "tests/runtime/runtime_tests/test_x.py::Class::method FAILED [ 42%]"
 $failed = $output |
     Select-String -Pattern '^tests/runtime/\S+\s+(FAILED|ERROR)\s+\[' |
     ForEach-Object { $_.ToString().Trim() }

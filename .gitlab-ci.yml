@@ -101,13 +101,31 @@ linux-runtime-test-asan:
       SERVER_STARTUP_TIMEOUT=30
       RUNTIME_TEST_TIME_SCALE=0.05
       python3 -m pytest
-      tests/runtime/test_eitt.py
+      tests/runtime/eitt_tests/
       -k "Discovery:: or well-known/knx:: or Security::"
-      -v --tb=short --junit-xml=build/linux-test-asan/runtime-report.xml
+      -v --tb=short --junit-xml=build/linux-test-asan/runtime-report-eitt.xml
+    # Second invocation: the hand-written runtime tier. Kept separate from the
+    # EITT tier above so that tier keeps its -k section filter, and so each
+    # tier produces its own JUnit report.
+    - >
+      RUNTIME_TEST_SERVER=build/linux-test-asan/tests/runtime_test_server
+      DUT_IFACE=veth-dut
+      DEVICE_HOST=$DUT_ADDR
+      DEVICE_IFACE=veth-test
+      RUNTIME_TEST_QUIET=1
+      ASAN_OPTIONS=detect_leaks=1:abort_on_error=1
+      COAP_TIMEOUT=5
+      SERVER_STARTUP_TIMEOUT=30
+      RUNTIME_TEST_TIME_SCALE=0.05
+      python3 -m pytest
+      tests/runtime/runtime_tests/
+      -v --tb=short --junit-xml=build/linux-test-asan/runtime-report-runtime.xml
   artifacts:
     when: always
     reports:
-      junit: build/linux-test-asan/runtime-report.xml
+      junit:
+        - build/linux-test-asan/runtime-report-eitt.xml
+        - build/linux-test-asan/runtime-report-runtime.xml
   dependencies: []
   allow_failure: true
 
@@ -143,8 +161,7 @@ linux-runtime-test:
     - python3 /tmp/get-pip.py --break-system-packages --quiet
     - python3 -m pip install --break-system-packages --quiet -r tests/runtime/requirements.txt
     # Run tests — DUT binds to veth-dut, test client sends via veth-test
-    # NOTE: Running only verified EITT-matching test categories.
-    #       Add more test files here as each 5.x category is verified.
+    # The whole runtime tier runs; conftest.py orders the modules.
     - >
       RUNTIME_TEST_SERVER=build/linux-test-gcc/tests/runtime_test_server
       DUT_IFACE=veth-dut
@@ -152,23 +169,7 @@ linux-runtime-test:
       DEVICE_IFACE=veth-test
       RUNTIME_TEST_QUIET=1
       python3 -m pytest
-      tests/runtime/test_5_1_discovery.py
-      tests/runtime/test_5_1_discovery_multicast.py
-      tests/runtime/test_5_1_discovery_extended.py
-      tests/runtime/test_5_1_discovery_mdns.py
-      tests/runtime/test_5_2_reset.py
-      tests/runtime/test_5_2_wellknown_knx.py
-      tests/runtime/test_5_2_fingerprint.py
-      tests/runtime/test_5_2_device_resources.py
-      tests/runtime/test_5_2_swu.py
-      tests/runtime/test_5_3_security.py
-      tests/runtime/test_5_4_group_comm.py
-      tests/runtime/test_5_4_observe.py
-      tests/runtime/test_5_5_fp_tables.py
-      tests/runtime/test_5_6_app_program.py
-      tests/runtime/test_5_7_functional_blocks.py
-      tests/runtime/test_5_8_parameters.py
-      tests/runtime/test_5_10_generic.py
+      tests/runtime/runtime_tests/
       -v --tb=short --junit-xml=build/linux-test-gcc/runtime-report.xml
   artifacts:
     when: always

@@ -1,3 +1,6 @@
+> **Test names in this report are the pre-rename names**; the old->new mapping
+> is in the commit "runtime tier: name tests by behaviour instead of EITT id".
+>
 > **Provenance.** Generated 2026-09-10 by comparing upstream `work_in_progress`
 > (`b6271257`) against this branch at its PRE-rebase tip `8434a58b`. Section 5.2
 > therefore overstates the transport gap: the rebase already merged upstream's

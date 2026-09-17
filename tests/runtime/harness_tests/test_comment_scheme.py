@@ -98,6 +98,6 @@ def test_modal_prompt_is_documented_as_suspending(scheme):
 def test_explicit_path_is_accepted():
     # Relative to THIS file — pytest may be invoked from the repo root.
     scheme = parse_comment_scheme(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "data", "EITT_KnxCommentCommandsScheme.xml"))
     assert len(scheme) == 27

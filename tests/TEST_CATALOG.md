@@ -1,10 +1,16 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1460 unit tests** (53 files) + **385 runtime tests** (20 files) = **1845 total**
+> **1460 unit tests** (53 files) + **626 runtime tests** across three tiers = **2086 total**
+>
+> Runtime tiers (all under `tests/runtime/`): **eitt** 187 (generated from the
+> conformance template) + **runtime** 245 (hand-written, 19 files) + **harness**
+> 194 (interpreter/GUI, no DUT). The runtime tier was 385 until 2026-09-11, when
+> every test the template already covers was removed — see "Runtime tier cleanup"
+> below.
 >
 > Branch: `work_in_progress` | Unit: 1432 registered and passed (windows-test-gcc, GCC/CTest, ~47s, 100% passed out of 1432). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1432 + 28 = 1460 (the mdns count itself was not re-verified in this run).
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
-> Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
+> Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
 
@@ -549,7 +555,7 @@ content, empty-payload PUT → bad request, and array-size validation.
 **Coverage note:** `oc_knx_load_device`, `oc_knx_device_storage_reset`, and
 `oc_knx_device_restart` still require a live request pipeline (storage + OSCORE
 init / DNS-SD re-register) and are covered by the runtime suite
-(`test_5_2_*`, `test_5_2_reset.py`, `test_5_6_app_program.py`).
+(`test_device_resources.py`, `test_reset.py`, `test_load_state_machine.py`).
 
 ---
 
@@ -1082,10 +1088,32 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess - no mocks.
-20 `test_*.py` files in `tests/runtime/`. 385 tests collected (with parametrize).
+19 `test_*.py` files in `tests/runtime/runtime_tests/`, 245 tests collected
+(with parametrize), plus the generated eitt tier and the DUT-less harness tier.
 The per-section headers below count unique test functions; the extra collected
-items come from parametrized cases in `test_5_2_device_resources.py` (16 -> 24)
-and `test_5_2_swu.py` (6 -> 10).
+items come from parametrized cases in `test_device_resources.py` and
+`test_swu.py`.
+
+### Runtime tier cleanup (2026-09-11)
+
+The rows below marked *(replaced by the EITT template case — eitt tier)* are
+tests that were **deleted** from `runtime_tests/`. Their requirement is
+exercised by a `TestCase` in
+`tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml`, which the eitt
+tier runs directly, so keeping a hand-written copy meant maintaining the same
+assertion twice. 135 test functions (143 collected items) went; the per-test
+mapping to EITT case ids is in the commit "runtime tier: drop template-covered
+tests, mark overlaps", and the classification behind it is in
+`tests/docs/runtime-test-inventory.md`.
+
+The section headers in Part 2 still give the **pre-cleanup** counts, so that
+this catalog keeps documenting what each EITT case is checked by, wherever it
+now runs. For the live count of what the runtime tier collects today, run
+`pytest tests/runtime/runtime_tests --collect-only -q`.
+
+Tests that survived but overlap a template case — because they assert
+materially more than it does — carry `@pytest.mark.eitt_overlap(<id>)`; list
+them with `pytest tests/runtime/runtime_tests -m eitt_overlap --collect-only -q`.
 
 **DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
 
@@ -1136,97 +1164,97 @@ correct, the client was not).
 
 ---
 
-### test_5_1_discovery.py — Unicast Discovery (10 tests, 19 collected)
+### test_discovery_pagination.py — Unicast Discovery (10 tests, 19 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestUnicastDiscovery** | `test_5_1_1_2_unicast_discovery` | 5.1.1.2 |
-| **TestUnicastDiscoveryFilters** | `test_5_1_1_4_step1_rt_known_value` | 5.1.1.4 |
-| | `test_5_1_1_4_step2_rt_wildcard` | 5.1.1.4 |
-| | `test_5_1_1_4_step3_if_known_value` | 5.1.1.4 |
-| | `test_5_1_1_4_step4_ep_serial_number` | 5.1.1.4 |
-| | `test_5_1_1_4_step5_ep_sn_wildcard` | 5.1.1.4 |
-| **TestInvalidUnicastQueries** | `test_5_1_1_4b_invalid_query_key` | 5.1.1.4b |
-| | `test_5_1_1_4c_invalid_interface` | 5.1.1.4c |
-| | `test_5_1_1_4d_invalid_resource_type` | 5.1.1.4d |
-| | `test_5_1_1_4e_if_wildcard` | 5.1.1.4e |
+| **TestUnicastDiscovery** | `test_5_1_1_2_unicast_discovery` | 5.1.1.2 *(replaced by the EITT template case — eitt tier)* |
+| **TestUnicastDiscoveryFilters** | `test_5_1_1_4_step1_rt_known_value` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4_step2_rt_wildcard` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4_step3_if_known_value` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4_step4_ep_serial_number` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4_step5_ep_sn_wildcard` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
+| **TestInvalidUnicastQueries** | `test_5_1_1_4b_invalid_query_key` | 5.1.1.4b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4c_invalid_interface` | 5.1.1.4c *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4d_invalid_resource_type` | 5.1.1.4d *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_4e_if_wildcard` | 5.1.1.4e *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_1_discovery_multicast.py — Multicast Discovery (19 tests)
+### test_discovery_multicast.py — Multicast Discovery (19 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestMulticastDiscovery** | `test_5_1_1_1_site_local_discovery` | 5.1.1.1 |
-| | `test_5_1_1_1_second_request` | 5.1.1.1 |
-| **TestMulticastDiscoveryFilters** | `test_5_1_1_3_step1_rt_known_value` | 5.1.1.3 |
-| | `test_5_1_1_3_step2_rt_wildcard` | 5.1.1.3 |
-| | `test_5_1_1_3_step3_if_known_value` | 5.1.1.3 |
-| | `test_5_1_1_3_step4_ep_serial_number` | 5.1.1.3 |
-| | `test_5_1_1_3_step5_ep_sn_wildcard` | 5.1.1.3 |
-| **TestInvalidMulticastQueries** | `test_5_1_1_3b_invalid_query_key` | 5.1.1.3b |
-| | `test_5_1_1_3c_invalid_interface` | 5.1.1.3c |
-| | `test_5_1_1_3d_invalid_resource_type` | 5.1.1.3d |
-| **TestMulticastInterfaceWildcard** | `test_5_1_1_3e_if_wildcard` | 5.1.1.3e |
-| **TestMulticastProgrammingModeDiscovery** | `test_5_1_1_5_pm_on_returns_response` | 5.1.1.5 |
-| | `test_5_1_1_5b_pm_off_no_response` | 5.1.1.5b |
-| **TestMulticastPMEndpointDiscovery** | `test_5_1_1_6_pm_ep_correct_sn` | 5.1.1.6 |
-| | `test_5_1_1_6b_pm_off_no_response` | 5.1.1.6b |
-| | `test_5_1_1_6c_pm_on_wrong_sn` | 5.1.1.6c |
-| **TestMulticastIADiscovery** | `test_5_1_1_9a_correct_iid_ia` | 5.1.1.9a |
-| | `test_5_1_1_9b_wrong_iid` | 5.1.1.9b |
-| | `test_5_1_1_9c_wrong_ia` | 5.1.1.9c |
+| **TestMulticastDiscovery** | `test_5_1_1_1_site_local_discovery` | 5.1.1.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_1_second_request` | 5.1.1.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastDiscoveryFilters** | `test_5_1_1_3_step1_rt_known_value` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3_step2_rt_wildcard` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3_step3_if_known_value` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3_step4_ep_serial_number` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3_step5_ep_sn_wildcard` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
+| **TestInvalidMulticastQueries** | `test_5_1_1_3b_invalid_query_key` | 5.1.1.3b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3c_invalid_interface` | 5.1.1.3c *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_3d_invalid_resource_type` | 5.1.1.3d *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastInterfaceWildcard** | `test_5_1_1_3e_if_wildcard` | 5.1.1.3e *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastProgrammingModeDiscovery** | `test_5_1_1_5_pm_on_returns_response` | 5.1.1.5 *(replaced by the EITT template case — eitt tier)* |
+| | `test_multicast_pm_query_silent_when_pm_off` | 5.1.1.5b |
+| **TestMulticastPMEndpointDiscovery** | `test_5_1_1_6_pm_ep_correct_sn` | 5.1.1.6 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_6b_pm_off_no_response` | 5.1.1.6b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_6c_pm_on_wrong_sn` | 5.1.1.6c *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastIADiscovery** | `test_5_1_1_9a_correct_iid_ia` | 5.1.1.9a *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_9b_wrong_iid` | 5.1.1.9b *(replaced by the EITT template case — eitt tier)* |
+| | `test_multicast_endpoint_query_silent_for_wrong_ia` | 5.1.1.9c |
 
 ---
 
-### test_5_1_discovery_extended.py — Extended Discovery (14 tests)
+### test_discovery_programming_mode.py — Extended Discovery (14 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestProgrammingModeDiscovery** | `test_5_1_1_5c_pm_unicast_device_in_pm` | 5.1.1.5c |
-| | `test_5_1_1_5d_pm_unicast_device_not_in_pm` | 5.1.1.5d |
-| | `test_5_1_1_6d_pm_ep_correct_sn` | 5.1.1.6d |
-| | `test_5_1_1_6e_pm_ep_not_in_pm` | 5.1.1.6e |
-| | `test_5_1_1_6f_pm_ep_wrong_sn` | 5.1.1.6f |
-| **TestGroupAddressDiscovery** | `test_5_1_1_7_multicast_ga_single_go` | 5.1.1.7 |
-| | `test_5_1_1_7b_multicast_ga_multiple_go` | 5.1.1.7b |
-| | `test_5_1_1_7c_multicast_ga_no_match` | 5.1.1.7c |
-| | `test_5_1_1_7d_multicast_multi_ga_per_go` | 5.1.1.7d |
-| | `test_5_1_1_7e_unicast_matching_ga` | 5.1.1.7e |
-| | `test_5_1_1_7f_unicast_multiple_go` | 5.1.1.7f |
-| | `test_5_1_1_7g_unicast_no_matching_ga` | 5.1.1.7g |
-| | `test_5_1_1_7h_unicast_multi_ga_per_go` | 5.1.1.7h |
-| **TestGAWildcard** | `test_5_1_1_8_ga_wildcard_rejected` | 5.1.1.8 |
+| **TestProgrammingModeDiscovery** | `test_5_1_1_5c_pm_unicast_device_in_pm` | 5.1.1.5c *(replaced by the EITT template case — eitt tier)* |
+| | `test_pm_unicast_device_not_in_pm_returns_404` | 5.1.1.5d |
+| | `test_5_1_1_6d_pm_ep_correct_sn` | 5.1.1.6d *(replaced by the EITT template case — eitt tier)* |
+| | `test_pm_with_endpoint_device_not_in_pm_returns_404` | 5.1.1.6e |
+| | `test_pm_with_endpoint_wrong_serial_returns_404` | 5.1.1.6f |
+| **TestGroupAddressDiscovery** | `test_5_1_1_7_multicast_ga_single_go` | 5.1.1.7 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7b_multicast_ga_multiple_go` | 5.1.1.7b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7c_multicast_ga_no_match` | 5.1.1.7c *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7d_multicast_multi_ga_per_go` | 5.1.1.7d *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7e_unicast_matching_ga` | 5.1.1.7e *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7f_unicast_multiple_go` | 5.1.1.7f *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7g_unicast_no_matching_ga` | 5.1.1.7g *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_1_1_7h_unicast_multi_ga_per_go` | 5.1.1.7h *(replaced by the EITT template case — eitt tier)* |
+| **TestGAWildcard** | `test_5_1_1_8_ga_wildcard_rejected` | 5.1.1.8 *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_1_discovery_mdns.py — mDNS Discovery (16 EITT tests, 32 collected)
+### test_discovery_mdns.py — mDNS Discovery (16 EITT tests, 32 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestMdnsDiscoverySerialUnconfigured** | `test_5_1_2_1_browse_knx_service` | 5.1.2.1 |
-| | `test_5_1_2_1_browse_serial_subtype` | 5.1.2.1 |
-| | `test_5_1_2_1_srv_resolution` | 5.1.2.1 |
-| | `test_5_1_2_1_aaaa_resolution` | 5.1.2.1 |
-| | `test_5_1_2_1_coap_reachability` | 5.1.2.1 |
-| **TestMdnsDiscoverySerialConfigured** | `test_5_1_2_2_serial_subtype_configured` | 5.1.2.2 |
-| | `test_5_1_2_2_full_chain_configured` | 5.1.2.2 |
-| **TestMdnsDiscoveryIA** | `test_5_1_2_3_ia_subtype_discovery` | 5.1.2.3 |
-| | `test_5_1_2_3_ia_full_chain` | 5.1.2.3 |
-| **TestMdnsDiscoveryIAZero** | `test_5_1_2_3a_ia_zero_subtype` | 5.1.2.3a |
-| **TestMdnsDiscoveryIAUnconfigured** | `test_5_1_2_3b_ia_unconfigured_subtype` | 5.1.2.3b |
-| **TestMdnsDiscoveryPM** | `test_5_1_2_4_pm_subtype_enabled` | 5.1.2.4 |
-| | `test_5_1_2_4_pm_full_chain` | 5.1.2.4 |
-| | `test_5_1_2_4_pm_subtype_disabled` | 5.1.2.4 |
-| **TestMdnsUnsolicitedPM** | `test_5_1_2_5a_pm_toggle_announcements` | 5.1.2.5a |
-| **TestMdnsUnsolicitedIA** | `test_5_1_2_5b_ia_change_announcement` | 5.1.2.5b |
-| **TestMdnsStateSync** | `test_5_1_902_7_state_sync_mdns_alive_in_unloaded` | - (non-EITT) |
+| **TestMdnsDiscoverySerialUnconfigured** | `test_browse_knx_service_by_serial` | 5.1.2.1 |
+| | `test_5_1_2_1_browse_serial_subtype` | 5.1.2.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_srv_resolution_of_unconfigured_device` | 5.1.2.1 |
+| | `test_aaaa_resolution_of_unconfigured_device` | 5.1.2.1 |
+| | `test_coap_reachability_of_unconfigured_device` | 5.1.2.1 |
+| **TestMdnsDiscoverySerialConfigured** | `test_5_1_2_2_serial_subtype_configured` | 5.1.2.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_full_chain_by_serial_when_configured` | 5.1.2.2 |
+| **TestMdnsDiscoveryIA** | `test_5_1_2_3_ia_subtype_discovery` | 5.1.2.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_full_chain_by_individual_address` | 5.1.2.3 |
+| **TestMdnsDiscoveryIAZero** | `test_5_1_2_3a_ia_zero_subtype` | 5.1.2.3a *(replaced by the EITT template case — eitt tier)* |
+| **TestMdnsDiscoveryIAUnconfigured** | `test_unconfigured_device_advertises_default_ia_subtype` | 5.1.2.3b |
+| **TestMdnsDiscoveryPM** | `test_5_1_2_4_pm_subtype_enabled` | 5.1.2.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_full_chain_via_programming_mode_subtype` | 5.1.2.4 |
+| | `test_programming_mode_subtype_withdrawn_when_disabled` | 5.1.2.4 |
+| **TestMdnsUnsolicitedPM** | `test_programming_mode_toggle_announcements` | 5.1.2.5a |
+| **TestMdnsUnsolicitedIA** | `test_individual_address_change_announcement` | 5.1.2.5b |
+| **TestMdnsStateSync** | `test_state_sync_mdns_alive_in_unloaded` | - (non-EITT) |
 
 > The table above lists the EITT-numbered tests. The module collects 32 tests in
 > total; the remainder are the non-EITT `5_1_901_x` (transition audit) and
 > `5_1_902_x` (state sync) additions.
 >
-> `test_5_1_902_7_state_sync_mdns_alive_in_unloaded` guards the deliberate
+> `test_state_sync_mdns_alive_in_unloaded` guards the deliberate
 > absence of a `knx_dns_sd_stop()` call when the LSM enters UNLOADED
 > (`api/oc_knx.c`): the unload clears the group tables but leaves sn/ia/iid
 > intact, so the device must remain discoverable. The test asserts that no mDNS
@@ -1235,197 +1263,197 @@ correct, the client was not).
 
 ---
 
-### test_5_2_wellknown_knx.py — API Version & IA (5 tests)
+### test_ia_assignment.py — API Version & IA (5 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestApiVersion** | `test_5_2_1_1_api_version` | 5.2.1.1 |
-| **TestRestart** | `test_5_2_2_3_restart_pm_resets` | 5.2.2.3 |
-| **TestIaAssignment** | `test_5_2_3_1_set_ia_and_iid` | 5.2.3.1 |
-| | `test_5_2_3_1b_get_ia_rejected` | 5.2.3.1b |
-| | `test_5_2_3_2_set_ia_iid_and_fid` | 5.2.3.2 |
+| **TestApiVersion** | `test_5_2_1_1_api_version` | 5.2.1.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestRestart** | `test_5_2_2_3_restart_pm_resets` | 5.2.2.3 *(replaced by the EITT template case — eitt tier)* |
+| **TestIaAssignment** | `test_set_ia_and_iid` | 5.2.3.1 |
+| | `test_get_ia_rejected` | 5.2.3.1b |
+| | `test_set_ia_iid_and_fabric_id` | 5.2.3.2 |
 
 ---
 
-### test_5_2_reset.py — Reset Commands (2 tests)
+### test_reset.py — Reset Commands (2 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestFactoryReset** | `test_5_2_2_1_factory_reset` | 5.2.2.1 |
-| **TestResetCode7** | `test_5_2_2_2_reset_code_7` | 5.2.2.2 |
+| **TestFactoryReset** | `test_factory_reset_clears_all_state` | 5.2.2.1 |
+| **TestResetCode7** | `test_reset_code_7_preserves_network_info` | 5.2.2.2 |
 
 ---
 
-### test_5_2_fingerprint.py — Fingerprint Resource (5 tests)
+### test_fingerprint.py — Fingerprint Resource (5 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestFingerprintChanges** | `test_5_2_4_1_fingerprint_changes` | 5.2.4.1 |
-| **TestFingerprintInvalidWrite** | `test_5_2_4_1b_post_fingerprint_rejected` | 5.2.4.1b |
-| | `test_5_2_4_1c_put_fingerprint_rejected` | 5.2.4.1c |
-| **TestFingerprintLoadingState** | `test_5_2_4_2_fingerprint_loading` | 5.2.4.2 |
-| **TestFingerprintUnloadedState** | `test_5_2_4_3_fingerprint_unloaded` | 5.2.4.3 |
+| **TestFingerprintChanges** | `test_fingerprint_changes_after_each_modification` | 5.2.4.1 |
+| **TestFingerprintInvalidWrite** | `test_post_fingerprint_rejected` | 5.2.4.1b |
+| | `test_put_fingerprint_rejected` | 5.2.4.1c |
+| **TestFingerprintLoadingState** | `test_5_2_4_2_fingerprint_loading` | 5.2.4.2 *(replaced by the EITT template case — eitt tier)* |
+| **TestFingerprintUnloadedState** | `test_5_2_4_3_fingerprint_unloaded` | 5.2.4.3 *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_2_device_resources.py — Device Resources (16 tests, 24 collected)
+### test_device_resources.py — Device Resources (16 tests, 24 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestDevResourceList** | `test_5_2_5_1_dev_link_format` | 5.2.5.1 |
-| **TestDevResourceRead** | `test_5_2_6_1_serial_number` | 5.2.6.1 |
-| | `test_5_2_6_1_firmware_version` | 5.2.6.1 |
-| | `test_5_2_6_1_hardware_type` | 5.2.6.1 |
-| | `test_5_2_6_1_model` | 5.2.6.1 |
-| | `test_5_2_6_1_sna` | 5.2.6.1 |
-| | `test_5_2_6_1_da` | 5.2.6.1 |
-| | `test_5_2_6_1_iid` | 5.2.6.1 |
-| | `test_5_2_6_1_pm` | 5.2.6.1 |
-| | `test_5_2_6_1_mid` | 5.2.6.1 |
-| | `test_5_2_6_1_port` | 5.2.6.1 |
-| | `test_5_2_6_1_ipv6` | 5.2.6.1 |
-| | `test_5_2_6_1_hname` | 5.2.6.1 |
-| | `test_5_2_6_1_fid` | 5.2.6.1 |
-| **TestDevResourceWrite** | `test_5_2_7_1_write_pm` | 5.2.7.1 |
-| **TestDevReadOnlyPutRejected** | `test_5_2_7_1b_put_readonly_rejected` ×9 | 5.2.7.1b |
+| **TestDevResourceList** | `test_dev_link_format_lists_sub_resources` | 5.2.5.1 |
+| **TestDevResourceRead** | `test_read_serial_number` | 5.2.6.1 |
+| | `test_read_firmware_version` | 5.2.6.1 |
+| | `test_5_2_6_1_hardware_type` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_read_model` | 5.2.6.1 |
+| | `test_read_subnet_address` | 5.2.6.1 |
+| | `test_read_device_address` | 5.2.6.1 |
+| | `test_5_2_6_1_iid` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_read_programming_mode` | 5.2.6.1 |
+| | `test_read_manufacturer_id` | 5.2.6.1 |
+| | `test_read_coap_port` | 5.2.6.1 |
+| | `test_read_ipv6_address` | 5.2.6.1 |
+| | `test_read_hostname` | 5.2.6.1 |
+| | `test_5_2_6_1_fid` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestDevResourceWrite** | `test_5_2_7_1_write_pm` | 5.2.7.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestDevReadOnlyPutRejected** | `test_5_2_7_1b_put_readonly_rejected` ×9 | 5.2.7.1b *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_2_swu.py — Software Update (8 tests, 29 collected)
+### test_swu.py — Software Update (8 tests, 29 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestSwuResourceList** | `test_5_2_8_1_swu_link_format` | 5.2.8.1 |
-| **TestSwuFirmwareUpdate** | `test_5_2_9_1_swu_firmware_update` | 5.2.9.1 |
-| **TestSwuLastUpdateLifecycle** | `test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` | - |
+| **TestSwuResourceList** | `test_5_2_8_1_swu_link_format` | 5.2.8.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestSwuFirmwareUpdate** | `test_push_based_firmware_update` | 5.2.9.1 |
+| **TestSwuLastUpdateLifecycle** | `test_lastupdate_is_mfg_date_before_any_update` | - |
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_changes_after_swu_update` | - |
 | **TestSwuLastUpdateLifecycle** | `test_lastupdate_survives_reboot` | - |
-| **TestSwuReadOnlyPutRejected** | `test_5_2_10_1b_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
+| **TestSwuReadOnlyPutRejected** | `test_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
 | **TestSwuBlockQueryValidation** | `test_invalid_block_query_returns_400` ×18 | - |
 | **TestSwuBlockQueryValidation** | `test_leading_zero_is_accepted` | - |
 
 ---
 
-### test_5_3_security.py — Security & OSCORE (76 tests)
+### test_security.py — Security & OSCORE (76 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestSpake2PlusProtocol** | `test_5_3_1_1_full_handshake` | 5.3.1.1 |
-| | `test_5_3_1_2_wrong_password_spake` | 5.3.1.2 |
-| | `test_5_3_1_2b_wrong_confirm_p` | 5.3.1.2b |
-| **TestSpake2PlusResetTypes** | `test_5_3_1_3_spake_across_reset_types` | 5.3.1.3 |
-| **TestSecondarySpake** | `test_5_3_1_4a_secured_spake_post_rejected` | 5.3.1.4a |
-| **TestSpake2PlusStateMachine** | `test_5_3_1_5a_credential_before_parameter` | 5.3.1.5a |
-| | `test_5_3_1_5b_verification_before_parameter` | 5.3.1.5b |
-| | `test_5_3_1_5c_repeated_parameter_mid_handshake` | 5.3.1.5c |
-| | `test_5_3_1_5d_parameter_missing_id` | 5.3.1.5d |
-| | `test_5_3_1_5e_parameter_missing_rnd` | 5.3.1.5e |
-| | `test_5_3_1_5f_ordered_handshake_completes` | 5.3.1.5f |
-| | `test_5_3_1_5g_parameter_restart_then_completes` | 5.3.1.5g |
-| | `test_5_3_1_5h_parameter_after_credential_restarts` | 5.3.1.5h |
-| | `test_5_3_1_5i_repeated_credential_request` | 5.3.1.5i |
-| | `test_5_3_1_5j_verification_after_parameter` | 5.3.1.5j |
-| | `test_5_3_1_5k_restart_from_credentials_completes` | 5.3.1.5k |
-| **TestSpake2PlusBruteForce** | `test_5_3_1_6a_block_after_ten_failures` | 5.3.1.6a |
-| | `test_5_3_1_6b_factory_reset_clears_block` | 5.3.1.6b |
-| | `test_5_3_1_6c_counter_decreases_over_time` | 5.3.1.6c |
-| | `test_5_3_1_6d_unblocks_after_timeout` | 5.3.1.6d |
-| | `test_5_3_1_6e_partial_step_does_not_reset_counter` | 5.3.1.6e |
-| | `test_5_3_1_6f_full_handshake_resets_counter` | 5.3.1.6f |
-| **TestAuthResourceList** | `test_5_3_4_1_get_auth_without_oscore_returns_403` | 5.3.4.1 |
-| | `test_5_3_4_1_get_auth_link_format` | 5.3.4.1 |
-| **TestWriteAccessToken** | `test_5_3_8_1_write_at_and_verify` | 5.3.8.1 |
-| | `test_5_3_8_1_write_at_with_group_scope` | 5.3.8.1 |
-| | `test_5_3_8_1b_post_auth_at_without_oscore_fails` | 5.3.8.1b |
-| | `test_5_3_8_1c_put_auth_at_without_oscore_fails` | 5.3.8.1c |
-| | `test_5_3_8_1d_post_at_without_if_sec_scope_fails` | 5.3.8.1d |
-| | `test_5_3_8_1e_put_at_without_if_sec_scope_fails` | 5.3.8.1e |
-| | `test_5_3_8_1f_put_at_with_if_sec_scope_still_fails` | 5.3.8.1f |
-| | `test_5_3_8_2_mixed_scope_rejected` | 5.3.8.2 |
-| | `test_5_3_8_3_multi_group_scope` | 5.3.8.3 |
-| | `test_5_3_8_4_overwrite_existing_at` | 5.3.8.4 |
-| | `test_5_3_8_5_create_multiple_ats_single_write` | 5.3.8.5 |
-| | `test_5_3_8_6_update_multiple_ats` | 5.3.8.6 |
-| **TestReadAccessTokenList** | `test_5_3_9_1_get_auth_at_link_format` | 5.3.9.1 |
-| | `test_5_3_9_3a_get_auth_at_without_oscore_returns_403` | 5.3.9.3a |
-| | `test_5_3_9_3b_get_auth_at_without_oscore_configured_device` | 5.3.9.3b |
-| **TestReadAccessTokenById** | `test_5_3_10_1_get_at_by_id` | 5.3.10.1 |
-| | `test_5_3_10_1_get_nonexistent_at_returns_error` | 5.3.10.1 |
-| | `test_5_3_10_2a_get_at_without_oscore_returns_403` | 5.3.10.2a |
-| | `test_5_3_10_2b_get_at_with_wrong_scope_returns_403` | 5.3.10.2b |
-| **TestDeleteAccessToken** | `test_5_3_11_1_delete_at` | 5.3.11.1 |
-| | `test_5_3_11_1_delete_nonexistent_at` | 5.3.11.1 |
-| **TestOscoreResourceList** | `test_5_3_12_1_get_auth_o_without_oscore_returns_403` | 5.3.12.1 |
-| | `test_5_3_12_1_get_auth_o_link_format` | 5.3.12.1 |
-| **TestReplayWindowSize** | `test_5_3_13_1_get_replwdo_without_oscore_returns_403` | 5.3.13.1 |
-| | `test_5_3_13_1_get_replwdo` | 5.3.13.1 |
-| **TestOscoreDelay** | `test_5_3_15_1_get_osndelay_without_oscore_returns_403` | 5.3.15.1 |
-| | `test_5_3_15_1_get_osndelay` | 5.3.15.1 |
-| | `test_5_3_16_1_put_osndelay` | 5.3.16.1 |
-| **TestAntiReplayWindow** | `test_5_3_17_1_old_ssn_within_window_accepted` | 5.3.17.1 |
-| **TestGroupAntiReplayWindow** | `test_5_3_17_3_group_anti_replay_window` | 5.3.17.3 |
-| **TestSyncDelayEcho** | `test_5_3_17_4_sync_delay_echo` | 5.3.17.4 |
-| **TestInvalidEchoReply** | `test_5_3_17_5_invalid_echo_reply` | 5.3.17.5 |
-| **TestGroupOscoreMulticast** | `test_5_3_17_6_receive_device_multicast` | 5.3.17.6 |
-| **TestEchoChallenge** | `test_5_3_17_7_echo_on_new_context` | 5.3.17.7 |
-| **TestEchoPaseToken** | `test_5_3_17_8_echo_on_pase_at_post` | 5.3.17.8 |
-| **TestMessageIntegrity** | `test_5_3_18_1_corrupted_auth_tag_rejected` | 5.3.18.1 |
-| | `test_5_3_18_1_different_auth_tag_rejected` | 5.3.18.1 |
-| **TestEmptyMessageIsNotOscore** | `test_5_3_18_2_empty_message_with_oscore_option_rejected` (3 params: CON/NON/ACK) | 5.3.18.2 |
-| | `test_5_3_18_2_empty_reset_does_not_break_oscore` | 5.3.18.2 |
-| | `test_5_3_18_2_empty_reset_with_token_rejected` | 5.3.18.2 |
-| **TestOscoreEncryption32ByteMs** | `test_5_3_19_1_oscore_with_32_byte_master_secret` | 5.3.19.1 |
-| | `test_5_3_19_1_oscore_with_16_byte_master_secret` | 5.3.19.1 |
-| **TestOscoreMasterSalt** | `test_5_3_19_2_oscore_with_master_salt` | 5.3.19.2 |
-| **TestGroupOscoreMasterSaltCtxId** | `test_5_3_19_5_group_oscore_with_salt_and_ctx_id` | 5.3.19.5 |
-| **TestOscoreContextId** | `test_5_3_19_6_context_ids_with_master_salt` | 5.3.19.6 |
-| **TestAccessControlByScope** | `test_5_3_20_1_limited_scope_can_access_matching_resource` | 5.3.20.1 |
-| | `test_5_3_20_1_limited_scope_rejected_for_post_auth_at` | 5.3.20.1 |
-| | `test_5_3_20_1_limited_scope_rejected_for_dev_pm` | 5.3.20.1 |
-| | `test_5_3_20_1_if_p_scope_can_access_dev_pm` | 5.3.20.1 |
-| | `test_5_3_20_1_if_d_scope_can_read_device_info` | 5.3.20.1 |
+| **TestSpake2PlusProtocol** | `test_spake_full_handshake` | 5.3.1.1 |
+| | `test_spake_wrong_password_fails_verification` | 5.3.1.2 |
+| | `test_spake_wrong_confirm_p_rejected` | 5.3.1.2b |
+| **TestSpake2PlusResetTypes** | `test_spake_across_reset_types` | 5.3.1.3 |
+| **TestSecondarySpake** | `test_secured_spake_post_rejected` | 5.3.1.4a |
+| **TestSpake2PlusStateMachine** | `test_spake_state_credential_before_parameter` | 5.3.1.5a |
+| | `test_spake_state_verification_before_parameter` | 5.3.1.5b |
+| | `test_spake_state_repeated_parameter_mid_handshake` | 5.3.1.5c |
+| | `test_spake_state_parameter_missing_id` | 5.3.1.5d |
+| | `test_spake_state_parameter_missing_rnd` | 5.3.1.5e |
+| | `test_spake_state_ordered_handshake_completes` | 5.3.1.5f |
+| | `test_spake_state_parameter_restart_then_completes` | 5.3.1.5g |
+| | `test_spake_state_parameter_after_credential_restarts` | 5.3.1.5h |
+| | `test_spake_state_repeated_credential_request` | 5.3.1.5i |
+| | `test_spake_state_verification_after_parameter` | 5.3.1.5j |
+| | `test_spake_state_restart_from_credentials_completes` | 5.3.1.5k |
+| **TestSpake2PlusBruteForce** | `test_spake_lockout_block_after_ten_failures` | 5.3.1.6a |
+| | `test_spake_lockout_factory_reset_clears_block` | 5.3.1.6b |
+| | `test_spake_lockout_counter_decreases_over_time` | 5.3.1.6c |
+| | `test_spake_lockout_unblocks_after_timeout` | 5.3.1.6d |
+| | `test_spake_lockout_partial_step_does_not_reset_counter` | 5.3.1.6e |
+| | `test_spake_lockout_full_handshake_resets_counter` | 5.3.1.6f |
+| **TestAuthResourceList** | `test_get_auth_without_oscore_returns_403` | 5.3.4.1 |
+| | `test_5_3_4_1_get_auth_link_format` | 5.3.4.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestWriteAccessToken** | `test_write_at_and_verify` | 5.3.8.1 |
+| | `test_write_at_with_group_scope` | 5.3.8.1 |
+| | `test_5_3_8_1b_post_auth_at_without_oscore_fails` | 5.3.8.1b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_3_8_1c_put_auth_at_without_oscore_fails` | 5.3.8.1c *(replaced by the EITT template case — eitt tier)* |
+| | `test_post_at_without_if_sec_scope_fails` | 5.3.8.1d |
+| | `test_5_3_8_1e_put_at_without_if_sec_scope_fails` | 5.3.8.1e *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_3_8_1f_put_at_with_if_sec_scope_still_fails` | 5.3.8.1f *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_3_8_2_mixed_scope_rejected` | 5.3.8.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_3_8_3_multi_group_scope` | 5.3.8.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_overwrite_existing_at` | 5.3.8.4 |
+| | `test_create_multiple_ats_single_write` | 5.3.8.5 |
+| | `test_update_multiple_ats` | 5.3.8.6 |
+| **TestReadAccessTokenList** | `test_get_auth_at_link_format` | 5.3.9.1 |
+| | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a |
+| | `test_5_3_9_3b_get_auth_at_without_oscore_configured_device` | 5.3.9.3b *(replaced by the EITT template case — eitt tier)* |
+| **TestReadAccessTokenById** | `test_get_at_by_id` | 5.3.10.1 |
+| | `test_get_nonexistent_at_returns_error` | 5.3.10.1 |
+| | `test_get_at_by_id_without_oscore_returns_403` | 5.3.10.2a |
+| | `test_5_3_10_2b_get_at_with_wrong_scope_returns_403` | 5.3.10.2b *(replaced by the EITT template case — eitt tier)* |
+| **TestDeleteAccessToken** | `test_delete_at` | 5.3.11.1 |
+| | `test_delete_nonexistent_at` | 5.3.11.1 |
+| **TestOscoreResourceList** | `test_get_auth_o_without_oscore_returns_403` | 5.3.12.1 |
+| | `test_5_3_12_1_get_auth_o_link_format` | 5.3.12.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestReplayWindowSize** | `test_get_replwdo_without_oscore_returns_403` | 5.3.13.1 |
+| | `test_get_replwdo` | 5.3.13.1 |
+| **TestOscoreDelay** | `test_get_osndelay_without_oscore_returns_403` | 5.3.15.1 |
+| | `test_get_osndelay` | 5.3.15.1 |
+| | `test_put_osndelay` | 5.3.16.1 |
+| **TestAntiReplayWindow** | `test_old_ssn_within_window_accepted` | 5.3.17.1 |
+| **TestGroupAntiReplayWindow** | `test_group_anti_replay_window` | 5.3.17.3 |
+| **TestSyncDelayEcho** | `test_sync_delay_echo` | 5.3.17.4 |
+| **TestInvalidEchoReply** | `test_invalid_echo_reply` | 5.3.17.5 |
+| **TestGroupOscoreMulticast** | `test_receive_device_multicast` | 5.3.17.6 |
+| **TestEchoChallenge** | `test_echo_on_new_context` | 5.3.17.7 |
+| **TestEchoPaseToken** | `test_echo_on_pase_at_post` | 5.3.17.8 |
+| **TestMessageIntegrity** | `test_corrupted_auth_tag_rejected` | 5.3.18.1 |
+| | `test_different_auth_tag_rejected` | 5.3.18.1 |
+| **TestEmptyMessageIsNotOscore** | `test_empty_message_with_oscore_option_rejected` (3 params: CON/NON/ACK) | 5.3.18.2 |
+| | `test_empty_reset_does_not_break_oscore` | 5.3.18.2 |
+| | `test_empty_reset_with_token_rejected` | 5.3.18.2 |
+| **TestOscoreEncryption32ByteMs** | `test_oscore_with_32_byte_master_secret` | 5.3.19.1 |
+| | `test_5_3_19_1_oscore_with_16_byte_master_secret` | 5.3.19.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestOscoreMasterSalt** | `test_5_3_19_2_oscore_with_master_salt` | 5.3.19.2 *(replaced by the EITT template case — eitt tier)* |
+| **TestGroupOscoreMasterSaltCtxId** | `test_group_oscore_with_salt_and_ctx_id` | 5.3.19.5 |
+| **TestOscoreContextId** | `test_context_ids_with_master_salt` | 5.3.19.6 |
+| **TestAccessControlByScope** | `test_5_3_20_1_limited_scope_can_access_matching_resource` | 5.3.20.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_limited_scope_rejected_for_post_auth_at` | 5.3.20.1 |
+| | `test_limited_scope_rejected_for_dev_pm` | 5.3.20.1 |
+| | `test_if_p_scope_can_access_dev_pm` | 5.3.20.1 |
+| | `test_if_d_scope_can_read_device_info` | 5.3.20.1 |
 
 ---
 
-### test_5_4_group_comm.py — Group Communication (31 tests)
+### test_group_comm.py — Group Communication (31 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestUnicastWrite** | `test_5_4_1_1_unicast_write_updates_value` | 5.4.1.1 |
-| **TestUnicastWriteUnauthorized** | `test_5_4_1_1b_unauthorized_ga_returns_forbidden` | 5.4.1.1b |
-| **TestMulticastWrite** | `test_5_4_1_2_multicast_write_updates_value` | 5.4.1.2 |
-| **TestMulticastRead** | `test_5_4_1_3_multicast_read_gets_answer` | 5.4.1.3 |
-| **TestUnicastRead** | `test_5_4_1_4_unicast_read_gets_answer` | 5.4.1.4 |
-| **TestUnicastWriteMultipleGO** | `test_5_4_1_5_write_updates_both_datapoints` | 5.4.1.5 |
-| **TestTriggerMulticastWrite** | `test_5_4_1_6_trigger_multicast_write` | 5.4.1.6 |
-| **TestTriggerFirstGA** | `test_5_4_1_7_sends_first_ga` | 5.4.1.7 |
-| **TestNotSendingInLoadingState** | `test_5_4_1_8_no_send_in_loading` | 5.4.1.8 |
-| **TestInitFlagStartup** | `test_5_4_1_9_init_flag_sends_read_on_restart` | 5.4.1.9 |
+| **TestUnicastWrite** | `test_5_4_1_1_unicast_write_updates_value` | 5.4.1.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestUnicastWriteUnauthorized** | `test_unauthorized_ga_returns_forbidden` | 5.4.1.1b |
+| **TestMulticastWrite** | `test_5_4_1_2_multicast_write_updates_value` | 5.4.1.2 *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastRead** | `test_multicast_read_gets_answer` | 5.4.1.3 |
+| **TestUnicastRead** | `test_unicast_read_gets_answer` | 5.4.1.4 |
+| **TestUnicastWriteMultipleGO** | `test_5_4_1_5_write_updates_both_datapoints` | 5.4.1.5 *(replaced by the EITT template case — eitt tier)* |
+| **TestTriggerMulticastWrite** | `test_trigger_multicast_write` | 5.4.1.6 |
+| **TestTriggerFirstGA** | `test_5_4_1_7_sends_first_ga` | 5.4.1.7 *(replaced by the EITT template case — eitt tier)* |
+| **TestNotSendingInLoadingState** | `test_5_4_1_8_no_send_in_loading` | 5.4.1.8 *(replaced by the EITT template case — eitt tier)* |
+| **TestInitFlagStartup** | `test_init_flag_sends_read_on_restart` | 5.4.1.9 |
 | **TestReadOnInitNetworkGate** | `test_read_on_init_up_from_start_sends_read` | 5.4.1.9b (non-EITT) |
 | | `test_read_on_init_withheld_while_down` | 5.4.1.9b (non-EITT) |
 | | `test_read_on_init_released_after_network_up` | 5.4.1.9b (non-EITT) |
 | | `test_read_on_init_abandoned_after_max_retries` | 5.4.1.9b (non-EITT) |
-| **TestMulticastResponseUpdate** | `test_5_4_1_10_multicast_answer_updates_value` | 5.4.1.10 |
-| **TestMulticastResponseUpdateOnly** | `test_5_4_1_10b_answer_updateonly_go` | 5.4.1.10b (non-EITT) |
-| **TestMulticastWriteIgnoredLoading** | `test_5_4_1_11_write_ignored_in_loading` | 5.4.1.11 |
-| **TestOwnGroupObjectUpdate** | `test_5_4_1_12_self_update_on_transmit` | 5.4.1.12 |
-| **TestLongGAReceive** | `test_5_4_1_13_long_ga_write_ga0` | 5.4.1.13 |
-| | `test_5_4_1_13_long_ga_write_ga256` | 5.4.1.13 |
-| | `test_5_4_1_13_long_ga_write_ga65535` | 5.4.1.13 |
-| | `test_5_4_1_13_long_ga_write_ga_max32` | 5.4.1.13 |
-| **TestLongGASend** | `test_5_4_1_14_sends_long_ga` | 5.4.1.14 |
-| **TestUnicastConfirmable** | `test_5_4_1_15_unicast_sends_con` | 5.4.1.15 |
-| **TestUnicastDiscoveryMalformedLengths** | `test_5_4_1_15_bonus_iid_too_long` | non-EITT |
-| | `test_5_4_1_15_bonus_iid_too_short` | non-EITT |
-| | `test_5_4_1_15_bonus_ia_too_long` | non-EITT |
-| | `test_5_4_1_15_bonus_ia_too_short` | non-EITT |
-| | `test_5_4_1_15_bonus_sn_too_long` | non-EITT |
-| | `test_5_4_1_15_bonus_sn_too_short` | non-EITT |
+| **TestMulticastResponseUpdate** | `test_5_4_1_10_multicast_answer_updates_value` | 5.4.1.10 *(replaced by the EITT template case — eitt tier)* |
+| **TestMulticastResponseUpdateOnly** | `test_answer_updates_update_only_go` | 5.4.1.10b (non-EITT) |
+| **TestMulticastWriteIgnoredLoading** | `test_5_4_1_11_write_ignored_in_loading` | 5.4.1.11 *(replaced by the EITT template case — eitt tier)* |
+| **TestOwnGroupObjectUpdate** | `test_self_update_on_transmit` | 5.4.1.12 |
+| **TestLongGAReceive** | `test_5_4_1_13_long_ga_write_ga0` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_4_1_13_long_ga_write_ga256` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_4_1_13_long_ga_write_ga65535` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_4_1_13_long_ga_write_ga_max32` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
+| **TestLongGASend** | `test_sends_long_ga` | 5.4.1.14 |
+| **TestUnicastConfirmable** | `test_unicast_sends_con` | 5.4.1.15 |
+| **TestUnicastDiscoveryMalformedLengths** | `test_unicast_discovery_iid_too_long` | non-EITT |
+| | `test_unicast_discovery_iid_too_short` | non-EITT |
+| | `test_unicast_discovery_ia_too_long` | non-EITT |
+| | `test_unicast_discovery_ia_too_short` | non-EITT |
+| | `test_unicast_discovery_sn_too_long` | non-EITT |
+| | `test_unicast_discovery_sn_too_short` | non-EITT |
 | **TestUnicastNonReResolution** | `test_unicast_non_re_resolution` | non-EITT |
 
 ---
 
-### test_5_4_observe.py — CoAP Observe / Notifications (19 tests)
+### test_observe.py — CoAP Observe / Notifications (19 tests)
 
 > **Spec-backed approximation, NOT an EITT replication.** There is no EITT
 > (08_10_5) observe section and `EittProject.xml` has no observe telegrams;
@@ -1436,130 +1464,130 @@ correct, the client was not).
 
 | Group | Test | Spec/ref |
 |-------|------|----------|
-| **A — Subscription lifecycle** | `test_5_4_2_1_obs_a1_register_returns_current_value` | 2.6.10.1 |
-| | `test_5_4_2_2_obs_a2_value_change_notifies` | 2.6.10.1 |
-| | `test_5_4_2_3_obs_a3_deregister_stops_notifications` | 2.6.10.1 |
-| | `test_5_4_2_4_obs_a3b_delete_sub_removes_subscription` | 2.6.10.1 |
-| | `test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
-| **B — lt validation** | `test_5_4_3_1_obs_b1_missing_lt_rejected` | 2.5.9.3 / 2.5.11.6 |
-| | `test_5_4_3_2_obs_b2_lt_zero_rejected` | 2.5.9.3 / 2.5.11.6 |
-| | `test_5_4_3_3_obs_b3_expired_lt_stops_notifications` | 2.5.9.3 / 2.5.11.6 |
-| **C — CON/NON** | `test_5_4_4_1_obs_c1_default_confirmable` | 2.5.9.4 |
-| | `test_5_4_4_2_obs_c2_non_true_non_confirmable` | 2.5.9.4 |
-| **D — /k S-Mode** | `test_5_4_5_1_obs_d1_first_k_notification_sia_only` | 2.5.9.1 |
-| | `test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object` | 2.5.9.1 |
-| | `test_5_4_5_3_obs_d3_k_deregister_stops_notifications` | 2.5.9.1 / 2.6.10.1 |
-| | `test_5_4_5_4_obs_d4_inbound_post_k_not_echoed` | 2.5.9.1 |
-| | `test_5_4_5_5_obs_d5_plain_get_k_no_subsequent` | 2.5.9.1 |
-| **E — OSCORE notifications** | `test_5_4_6_1_obs_e1_encrypted_notifications_decrypt` | RFC 8613 |
-| | `test_5_4_6_2_obs_e2_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
-| **F — Multi-observer** | `test_5_4_7_1_obs_f1_independent_seq_per_observer` | 2.6.10.1 |
-| | `test_5_4_7_2_obs_f2_stale_observer_pruned` | RFC 7641 |
+| **A — Subscription lifecycle** | `test_observe_register_returns_current_value` | 2.6.10.1 |
+| | `test_observe_value_change_notifies` | 2.6.10.1 |
+| | `test_observe_deregister_stops_notifications` | 2.6.10.1 |
+| | `test_observe_delete_sub_removes_subscription` | 2.6.10.1 |
+| | `test_observe_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
+| **B — lt validation** | `test_observe_missing_lt_rejected` | 2.5.9.3 / 2.5.11.6 |
+| | `test_observe_lt_zero_rejected` | 2.5.9.3 / 2.5.11.6 |
+| | `test_observe_expired_lt_stops_notifications` | 2.5.9.3 / 2.5.11.6 |
+| **C — CON/NON** | `test_observe_default_confirmable` | 2.5.9.4 |
+| | `test_observe_non_true_non_confirmable` | 2.5.9.4 |
+| **D — /k S-Mode** | `test_observe_first_k_notification_sia_only` | 2.5.9.1 |
+| | `test_observe_subsequent_k_notification_has_s_object` | 2.5.9.1 |
+| | `test_observe_k_deregister_stops_notifications` | 2.5.9.1 / 2.6.10.1 |
+| | `test_observe_inbound_post_k_not_echoed` | 2.5.9.1 |
+| | `test_observe_plain_get_k_no_subsequent` | 2.5.9.1 |
+| **E — OSCORE notifications** | `test_observe_encrypted_notifications_decrypt` | RFC 8613 |
+| | `test_observe_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
+| **F — Multi-observer** | `test_observe_independent_seq_per_observer` | 2.6.10.1 |
+| | `test_observe_stale_observer_pruned` | RFC 7641 |
 
 ---
 
-### test_5_5_fp_tables.py — FP Table CRUD (38 tests)
+### test_fp_tables.py — FP Table CRUD (38 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestGroupObjectTableWrite** | `test_5_5_1_1_write_single_go_read_flag` | 5.5.1.1 |
-| | `test_5_5_1_2_write_single_go_input_flags` | 5.5.1.2 |
-| | `test_5_5_1_3_write_single_go_output_flags` | 5.5.1.3 |
-| | `test_5_5_1_4_write_multiple_gos_input` | 5.5.1.4 |
-| | `test_5_5_1_5_write_multiple_gos_output` | 5.5.1.5 |
-| | `test_5_5_1_6_update_single_go` | 5.5.1.6 |
-| | `test_5_5_1_6b_update_nonexisting_go` | 5.5.1.6b |
-| | `test_5_5_1_7_update_single_go_output` | 5.5.1.7 |
-| | `test_5_5_1_8_delete_go_via_post` | 5.5.1.8 |
-| | `test_5_5_1_9_invalid_write_go_empty_ga` | 5.5.1.9 |
-| | `test_5_5_1_9b_invalid_update_go_empty_ga` | 5.5.1.9b |
-| **TestGroupObjectTableReadList** | `test_5_5_2_1_read_go_list` | 5.5.2.1 |
-| **TestGroupObjectTableReadSingle** | `test_5_5_3_1_read_single_go` | 5.5.3.1 |
-| **TestGroupObjectTableDelete** | `test_5_5_4_1_delete_single_go` | 5.5.4.1 |
-| **TestRecipientTableWrite** | `test_5_5_5_1_write_single_mc_recipient` | 5.5.5.1 |
-| | `test_5_5_5_3_write_single_uc_recipient` | 5.5.5.3 |
-| | `test_5_5_5_4_write_multiple_recipients` | 5.5.5.4 |
-| | `test_5_5_5_5_update_multiple_recipients` | 5.5.5.5 |
-| | `test_5_5_5_5a_update_partial_recipients` | 5.5.5.5a |
-| | `test_5_5_5_5b_update_nonexisting_recipient` | 5.5.5.5b |
-| | `test_5_5_5_6_delete_recipient_via_post` | 5.5.5.6 |
-| | `test_5_5_5_7a_write_empty_ga_list` | 5.5.5.7a |
-| | `test_5_5_5_8a_write_large_ga_list` | 5.5.5.8a |
-| **TestRecipientTableReadList** | `test_5_5_6_1_read_recipient_list` | 5.5.6.1 |
-| **TestRecipientTableReadSingle** | `test_5_5_7_1_read_single_recipient` | 5.5.7.1 |
-| **TestRecipientTableDelete** | `test_5_5_8_1_delete_single_recipient` | 5.5.8.1 |
-| **TestPublisherTableWrite** | `test_5_5_9_1_write_single_mc_publisher` | 5.5.9.1 |
-| | `test_5_5_9_3_write_single_uc_publisher` | 5.5.9.3 |
-| | `test_5_5_9_4_write_multiple_publishers` | 5.5.9.4 |
-| | `test_5_5_9_5_update_multiple_publishers` | 5.5.9.5 |
-| | `test_5_5_9_5b_update_nonexisting_publisher` | 5.5.9.5b |
-| | `test_5_5_9_6_delete_publisher_via_post` | 5.5.9.6 |
-| | `test_5_5_9_7a_write_empty_ga_list` | 5.5.9.7a |
-| | `test_5_5_9_8a_write_large_ga_list` | 5.5.9.8a |
-| **TestPublisherTableReadList** | `test_5_5_10_1_read_publisher_list` | 5.5.10.1 |
-| **TestPublisherTableReadSingle** | `test_5_5_11_1_read_single_publisher` | 5.5.11.1 |
-| **TestPublisherTableDeleteSingle** | `test_5_5_12_1_delete_single_publisher` | 5.5.12.1 |
-| | `test_5_5_12_2_delete_nonexisting_publisher` | 5.5.12.2 |
+| **TestGroupObjectTableWrite** | `test_5_5_1_1_write_single_go_read_flag` | 5.5.1.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_2_write_single_go_input_flags` | 5.5.1.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_3_write_single_go_output_flags` | 5.5.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_4_write_multiple_gos_input` | 5.5.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_5_write_multiple_gos_output` | 5.5.1.5 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_6_update_single_go` | 5.5.1.6 *(replaced by the EITT template case — eitt tier)* |
+| | `test_post_nonexisting_go_creates_entry` | 5.5.1.6b |
+| | `test_5_5_1_7_update_single_go_output` | 5.5.1.7 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_8_delete_go_via_post` | 5.5.1.8 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_9_invalid_write_go_empty_ga` | 5.5.1.9 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_1_9b_invalid_update_go_empty_ga` | 5.5.1.9b *(replaced by the EITT template case — eitt tier)* |
+| **TestGroupObjectTableReadList** | `test_5_5_2_1_read_go_list` | 5.5.2.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestGroupObjectTableReadSingle** | `test_5_5_3_1_read_single_go` | 5.5.3.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestGroupObjectTableDelete** | `test_5_5_4_1_delete_single_go` | 5.5.4.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestRecipientTableWrite** | `test_5_5_5_1_write_single_mc_recipient` | 5.5.5.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_3_write_single_uc_recipient` | 5.5.5.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_4_write_multiple_recipients` | 5.5.5.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_5_update_multiple_recipients` | 5.5.5.5 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_5a_update_partial_recipients` | 5.5.5.5a *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_5b_update_nonexisting_recipient` | 5.5.5.5b *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_6_delete_recipient_via_post` | 5.5.5.6 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_7a_write_empty_ga_list` | 5.5.5.7a *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_5_8a_write_large_ga_list` | 5.5.5.8a *(replaced by the EITT template case — eitt tier)* |
+| **TestRecipientTableReadList** | `test_5_5_6_1_read_recipient_list` | 5.5.6.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestRecipientTableReadSingle** | `test_5_5_7_1_read_single_recipient` | 5.5.7.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestRecipientTableDelete** | `test_5_5_8_1_delete_single_recipient` | 5.5.8.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestPublisherTableWrite** | `test_5_5_9_1_write_single_mc_publisher` | 5.5.9.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_9_3_write_single_uc_publisher` | 5.5.9.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_9_4_write_multiple_publishers` | 5.5.9.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_update_multiple_publishers` | 5.5.9.5 |
+| | `test_post_nonexisting_publisher_creates_entry` | 5.5.9.5b |
+| | `test_5_5_9_6_delete_publisher_via_post` | 5.5.9.6 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_9_7a_write_empty_ga_list` | 5.5.9.7a *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_9_8a_write_large_ga_list` | 5.5.9.8a *(replaced by the EITT template case — eitt tier)* |
+| **TestPublisherTableReadList** | `test_5_5_10_1_read_publisher_list` | 5.5.10.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestPublisherTableReadSingle** | `test_5_5_11_1_read_single_publisher` | 5.5.11.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestPublisherTableDeleteSingle** | `test_5_5_12_1_delete_single_publisher` | 5.5.12.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_5_12_2_delete_nonexisting_publisher` | 5.5.12.2 *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_6_app_program.py — Load State Machine (9 tests)
+### test_load_state_machine.py — Load State Machine (9 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestLsmTransitions** | `test_5_6_1_1_start_loading` | 5.6.1.1 |
-| | `test_5_6_1_2_load_complete` | 5.6.1.2 |
-| | `test_5_6_1_3_unload` | 5.6.1.3 |
-| | `test_5_6_1_4_lsm_persist_loading` | 5.6.1.4 |
-| | `test_5_6_1_4_lsm_persist_loaded` | 5.6.1.4 |
-| | `test_5_6_1_4_lsm_persist_unloaded` | 5.6.1.4 |
-| **TestLsmRead** | `test_5_6_2_1_read_lsm_all_states` | 5.6.2.1 |
-| **TestAppProgramList** | `test_5_6_3_1_read_ap_list` | 5.6.3.1 |
-| **TestProgramVersion** | `test_5_6_4_1_write_read_pv` | 5.6.4.1 |
+| **TestLsmTransitions** | `test_5_6_1_1_start_loading` | 5.6.1.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_6_1_2_load_complete` | 5.6.1.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_6_1_3_unload` | 5.6.1.3 *(replaced by the EITT template case — eitt tier)* |
+| | `test_lsm_persist_loading` | 5.6.1.4 |
+| | `test_lsm_persist_loaded` | 5.6.1.4 |
+| | `test_lsm_persist_unloaded` | 5.6.1.4 |
+| **TestLsmRead** | `test_read_lsm_all_states` | 5.6.2.1 |
+| **TestAppProgramList** | `test_5_6_3_1_read_ap_list` | 5.6.3.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestProgramVersion** | `test_5_6_4_1_write_read_pv` | 5.6.4.1 *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_7_functional_blocks.py — Functional Blocks (2 tests)
+### test_functional_blocks.py — Functional Blocks (2 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestFunctionalBlockList** | `test_5_7_1_1_read_fb_list` | 5.7.1.1 |
-| **TestFunctionalBlockDatapoints** | `test_5_7_2_1_read_fb_datapoints` | 5.7.2.1 |
+| **TestFunctionalBlockList** | `test_read_fb_list` | 5.7.1.1 |
+| **TestFunctionalBlockDatapoints** | `test_read_fb_datapoints` | 5.7.2.1 |
 
 ---
 
-### test_5_8_parameters.py — Parameters (7 tests)
+### test_parameters.py — Parameters (7 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestParameterPostWrite** | `test_5_8_1_1_write_parameter_via_post` | 5.8.1.1 |
-| **TestParameterList** | `test_5_8_2_1_read_parameter_list` | 5.8.2.1 |
-| **TestParameterRead** | `test_5_8_3_1_read_parameter` | 5.8.3.1 |
-| **TestParameterMetadata** | `test_5_8_3_2_read_all_metadata` | 5.8.3.2 |
-| | `test_5_8_3_2_read_metadata_id` | 5.8.3.2 |
-| | `test_5_8_3_2_read_metadata_value` | 5.8.3.2 |
-| **TestParameterWrite** | `test_5_8_4_1_write_parameter` | 5.8.4.1 |
+| **TestParameterPostWrite** | `test_5_8_1_1_write_parameter_via_post` | 5.8.1.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestParameterList** | `test_read_parameter_list` | 5.8.2.1 |
+| **TestParameterRead** | `test_5_8_3_1_read_parameter` | 5.8.3.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestParameterMetadata** | `test_5_8_3_2_read_all_metadata` | 5.8.3.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_read_metadata_id` | 5.8.3.2 |
+| | `test_read_metadata_value` | 5.8.3.2 |
+| **TestParameterWrite** | `test_5_8_4_1_write_parameter` | 5.8.4.1 *(replaced by the EITT template case — eitt tier)* |
 
 ---
 
-### test_5_10_generic.py — Generic Protocol Behavior (14 tests, 26 collected)
+### test_generic_resources.py — Generic Protocol Behavior (14 tests, 26 collected)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
-| **TestPaginationPageNumber** | `test_5_10_1_1_page_zero_returns_entries` | 5.10.1.1 |
-| | `test_5_10_1_1_page_beyond_range_returns_400` | 5.10.1.1 |
-| **TestPaginationPageSize** | `test_5_10_1_2_first_page_with_ps1` | 5.10.1.2 |
-| | `test_5_10_1_2_second_page_with_ps2` | 5.10.1.2 |
-| | `test_5_10_1_2_beyond_range` | 5.10.1.2 |
-| **TestListMetadata** | `test_5_10_1_4_total_fpg` | 5.10.1.4 |
-| | `test_5_10_1_4_total_p` | 5.10.1.4 |
-| | `test_5_10_1_4_total_auth_at` | 5.10.1.4 |
-| **TestInvalidListMetadata** | `test_5_10_1_5_invalid_list_metadata` | 5.10.1.5 |
-| **TestPaginationNextPage** | `test_5_10_1_6_follow_next_links` | 5.10.1.6 |
-| **TestDptMetadata** | `test_5_10_4_1_read_dpt` | 5.10.4.1 |
-| **TestDefaultOptions** | `test_5_10_5_1_accept_omitted` | 5.10.5.1 |
-| | `test_5_10_5_2_content_format_omitted` | 5.10.5.2 |
-| | `test_5_10_5_3_unknown_critical_option` | 5.10.5.3 |
+| **TestPaginationPageNumber** | `test_5_10_1_1_page_zero_returns_entries` | 5.10.1.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_1_1_page_beyond_range_returns_400` | 5.10.1.1 *(replaced by the EITT template case — eitt tier)* |
+| **TestPaginationPageSize** | `test_5_10_1_2_first_page_with_ps1` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_1_2_second_page_with_ps2` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_1_2_beyond_range` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
+| **TestListMetadata** | `test_5_10_1_4_total_fpg` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_1_4_total_p` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_1_4_total_auth_at` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
+| **TestInvalidListMetadata** | `test_invalid_list_metadata_query_returns_404` | 5.10.1.5 |
+| **TestPaginationNextPage** | `test_5_10_1_6_follow_next_links` | 5.10.1.6 *(replaced by the EITT template case — eitt tier)* |
+| **TestDptMetadata** | `test_read_dpt_metadata_of_datapoint` | 5.10.4.1 |
+| **TestDefaultOptions** | `test_5_10_5_1_accept_omitted` | 5.10.5.1 *(replaced by the EITT template case — eitt tier)* |
+| | `test_5_10_5_2_content_format_omitted` | 5.10.5.2 *(replaced by the EITT template case — eitt tier)* |
+| | `test_unknown_critical_option_returns_bad_option` | 5.10.5.3 |
 
 ---
 
@@ -1643,9 +1671,9 @@ always sends an explicit Accept, so the `CONTENT_NONE` branch is never entered a
 round-trip test `CoapTest.ContentFormat_NoneIsNotSerialized` is what pins that behaviour.
 
 All 5 skips are by design, not failures:
-`test_5_3_1_6d_unblocks_after_timeout` is behind a static `skipif` that needs
-`-RunSlowTests`, `test_5_4_1_9_init_flag_sends_read_on_restart` is conditional, and the
-three `test_5_4_1_15_bonus_*` malformed-length cases stand down under cumulative suite
+`test_spake_lockout_unblocks_after_timeout` is behind a static `skipif` that needs
+`-RunSlowTests`, `test_init_flag_sends_read_on_restart` is conditional, and the
+three `test_unicast_discovery_*` malformed-length cases stand down under cumulative suite
 load exactly as `tests/runtime/README.md` describes. No stack C code was changed to
 make any test pass.
 
@@ -1712,7 +1740,7 @@ clause 4.1: an EMPTY message (code 0.00) is rejected outright unless it is a RST
 and a RST that announces a token is rejected as well, so a forged
 `RST, code 0.00, TKL=8` can no longer be classified as a reset while carrying 8
 attacker-chosen token bytes. The five tests in `TestEmptyMessageIsNotOscore`
-(`test_5_3_security.py`: CON/NON/ACK forged, the legal EMPTY-RST regression
+(`test_security.py`: CON/NON/ACK forged, the legal EMPTY-RST regression
 guard, and the EMPTY RST with a token) passed, and the rest of the suite was
 unchanged, confirming no regression in block-wise transfer, discovery, group
 communication, observe or security.
@@ -1742,15 +1770,15 @@ to the default block size in `api/oc_main.c`, the RFC 7959 legality guards added
 to `coap_set_header_block1()` / `coap_set_header_block2()` (reject reserved SZX 7
 and any non-power-of-two size), and the new `coap_floor_block_size()` helper
 applied to the peer-influenced Size1 path in `messaging/coap/engine.c`. All
-block-wise traffic (`test_5_2_swu.py`, `test_5_5_fp_tables.py`,
-`test_5_6_app_program.py`) passed unchanged, confirming no regression in live
+block-wise traffic (`test_swu.py`, `test_fp_tables.py`,
+`test_load_state_machine.py`) passed unchanged, confirming no regression in live
 block-wise transfer, discovery, group communication, observe or security.
 
 This run was the first complete verification of the DNS-SD TXT record conformance
-fix. Before the fix, five tests in `test_5_1_discovery_mdns.py` failed
-deterministically (`test_5_1_2_1_srv_resolution`, `test_5_1_2_1_aaaa_resolution`,
-`test_5_1_2_2_full_chain_configured`, `test_5_1_2_3_ia_full_chain`,
-`test_5_1_2_4_pm_full_chain`), all with
+fix. Before the fix, five tests in `test_discovery_mdns.py` failed
+deterministically (`test_srv_resolution_of_unconfigured_device`, `test_aaaa_resolution_of_unconfigured_device`,
+`test_full_chain_by_serial_when_configured`, `test_full_chain_by_individual_address`,
+`test_full_chain_via_programming_mode_subtype`), all with
 `Could not resolve service info for <sn>._knx._udp.local.`. The cause was not a
 code regression: `tests/runtime/requirements.txt` pinned `zeroconf>=0.100.0` with
 no upper bound, so runs silently picked up 0.151.3, which enforces RFC 6763
@@ -1768,9 +1796,9 @@ expectations were changed. The `state_sync` snapshot tests still report
 confirming the empty TXT record is read as absence of an `SP` key rather than as
 a spurious value.
 
-Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
-multicast-provisioning path), the full `test_5_4_observe.py` module, and
-`test_5_5_fp_tables.py`. The **intermittent** DUT hang observed in an earlier
+Every section passed, including `test_group_comm.py` (the trigger and
+multicast-provisioning paths), the full `test_observe.py` module, and
+`test_fp_tables.py`. The **intermittent** DUT hang observed in an earlier
 session (a `set_lsm cmd=2` LSM -> loaded timeout in the `TestTriggerFirstGA`
 setup fixture that cascaded into the rest of `5_4` and `5_5`) did **not**
 reproduce on this run, confirming it was DUT instability under cumulative load
@@ -1778,19 +1806,19 @@ rather than a code regression.
 
 This run was the first to exercise the `/swu/lastupdate` lifecycle work: the
 DUT-side RTC simulation in `swu_upgrade_complete_cb()`, the flipped
-`test_5_2_9_1_swu_firmware_update` step-4 assertion (timestamp must CHANGE after
+`test_push_based_firmware_update` step-4 assertion (timestamp must CHANGE after
 an update), and the new `TestSwuLastUpdateLifecycle` class. Result:
 `test_lastupdate_changes_after_swu_update` PASSED,
 `test_lastupdate_survives_reboot` PASSED, and
-`test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` was renamed after that
+`test_lastupdate_is_mfg_date_before_any_update` was renamed after that
 run so conftest's numeric sort places it immediately before
-`test_5_2_9_1_swu_firmware_update`; it now asserts the manufacturing date
+`test_push_based_firmware_update`; it now asserts the manufacturing date
 instead of skipping. Verified in an isolated Docker run
 (`-IncludeUncommitted -k lastupdate`): **3 passed, 0 skipped**, meaning the
 full-suite skip count drops from 6 to 5 on the next complete run.
 
-Also added after that run: `test_5_1_902_7_state_sync_mdns_alive_in_unloaded`
-in `test_5_1_discovery_mdns.py`, covering the removal of the `knx_dns_sd_stop()`
+Also added after that run: `test_state_sync_mdns_alive_in_unloaded`
+in `test_discovery_mdns.py`, covering the removal of the `knx_dns_sd_stop()`
 call on the LSM UNLOADED transition. Verified in an isolated Docker run
 (`-IncludeUncommitted -k 902_7`): **1 passed**, 37.50s. Measured evidence:
 the unload transition captured `goodbyes=0 announces=0`, and the snapshot was
@@ -1801,7 +1829,7 @@ byte-for-byte identical before and after
 Of the 5 skips recorded above, all were subsequently run in isolation to
 establish whether they represent unverified behaviour. Four pass when run alone
 (the three `bonus_*` malformed-length cases, and `6d_unblocks` once
-`-RunSlowTests` is passed). Only `test_5_4_1_9_init_flag_sends_read_on_restart`
+`-RunSlowTests` is passed). Only `test_init_flag_sends_read_on_restart`
 remains genuinely unexercised. See "Skipped tests" below.
 
 This run was also the first complete verification of the integer-parsing
@@ -1835,11 +1863,11 @@ configuration gap that has now been closed.
 
 | Test | Skip mechanism | Verified outcome when run in isolation |
 |------|----------------|----------------------------------------|
-| `test_5_3_1_6d_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **PASSES.** Waits out the full 10 x 6 s brute-force lockout (~60 s). The runner had no way to set the variable, so it never ran; `run-in-docker.ps1` now takes `-RunSlowTests`. Measured: `1 passed in 70.21s` via `-RunSlowTests -k 6d_unblocks` |
-| `test_5_4_1_15_bonus_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **PASSES alone** (`1 passed in 15.33s`). The rejection logic is correct; the skip in a full run is load-related, not a defect |
-| `test_5_4_1_15_bonus_sn_too_long` | Conditional, same helper | **PASSES alone** (`1 passed in 15.41s`) |
-| `test_5_4_1_15_bonus_sn_too_short` | Conditional, same helper | **PASSES alone** (`1 passed in 9.58s`) |
-| `test_5_4_1_9_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone.** Reported reason: `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. This one remains genuinely unverified |
+| `test_spake_lockout_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **PASSES.** Waits out the full 10 x 6 s brute-force lockout (~60 s). The runner had no way to set the variable, so it never ran; `run-in-docker.ps1` now takes `-RunSlowTests`. Measured: `1 passed in 70.21s` via `-RunSlowTests -k 6d_unblocks` |
+| `test_unicast_discovery_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **PASSES alone** (`1 passed in 15.33s`). The rejection logic is correct; the skip in a full run is load-related, not a defect |
+| `test_unicast_discovery_sn_too_long` | Conditional, same helper | **PASSES alone** (`1 passed in 15.41s`) |
+| `test_unicast_discovery_sn_too_short` | Conditional, same helper | **PASSES alone** (`1 passed in 9.58s`) |
+| `test_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone.** Reported reason: `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. This one remains genuinely unverified |
 
 **Corrected earlier assessment.** A previous revision of this section claimed the
 three `bonus_*` tests were skipped because of a "DUT/transport configuration"
@@ -1848,7 +1876,7 @@ skips were masking possibly-broken behaviour. Isolated runs disprove that for
 three of them: they pass. The full-suite skips are a timing artefact - the
 `bonus_*` tests wait up to 20 s for a discovery GET, and under cumulative suite
 load the DUT does not always answer inside that window. Only
-`test_5_4_1_9_init_flag_sends_read_on_restart` is genuinely not exercised.
+`test_init_flag_sends_read_on_restart` is genuinely not exercised.
 
 Running the four conditional tests alone:
 
@@ -1872,8 +1900,8 @@ malformed-length rejection cases are therefore **validated**, three of them only
 outside a full-suite run.
 
 **Previously listed here, no longer skipped:**
-`test_5_2_9_0_lastupdate_is_mfg_date_before_any_update` was renamed so conftest's
-numeric sort places it before `test_5_2_9_1_swu_firmware_update`; it now asserts
+`test_lastupdate_is_mfg_date_before_any_update` was renamed so conftest's
+numeric sort places it before `test_push_based_firmware_update`; it now asserts
 the manufacturing date and passes. Its `pytest.skip()` guard remains only for
 partial `-k` runs where an update may precede it.
 

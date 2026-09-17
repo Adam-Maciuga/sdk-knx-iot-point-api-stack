@@ -4,29 +4,63 @@ Python/pytest tests that exercise the full stack over real CoAP/OSCORE on IPv6,
 mimicking EITT certification. A `runtime_test_server` (built from
 `runtime_test_server.c`) is the device under test (DUT).
 
-`test_eitt.py` is the whole suite: it generates one pytest item per EITT
-TestCase directly from
-`data/KnxConformanceTestTemplate-PointAPI.xml` at collection time via
-`pytest_generate_tests`, driven by the interpreter in `eitt/`. See
-`tests/docs/eitt-xml-interpreter.md` for the full design. (A hand-written
-`test_5_*.py` suite used to live here; it has been removed — the
-interpreter replaces it.)
+The tests are split into three tiers, one directory each. The shared
+infrastructure they all build on — `conftest.py`, `transport/`, `eitt/`,
+`gui/`, `data/`, `tools/` — stays at this level.
+
+| Tier | Directory | What it is | Needs a DUT |
+| --- | --- | --- | --- |
+| eitt | `eitt_tests/` | `test_eitt.py`: one generated pytest item per EITT TestCase, read from the conformance template at collection time | yes |
+| runtime | `runtime_tests/` | hand-written device tests for behaviour the template does not cover (CoAP option/payload hardening, SWU edge cases, observe, ...) | yes |
+| harness | `harness_tests/` | tests of the interpreter and the GUI themselves | no |
+
+**The rule for the runtime tier:** a hand-written test exists only for
+behaviour the conformance template does *not* cover. Before adding one, look
+for a covering `TestCase` in `data/KnxConformanceTestTemplate-PointAPI.xml`; if
+one exists, the eitt tier already tests it and the hand-written test must not
+be added. A test that deliberately overlaps a template case — because it
+asserts materially more than the template does (an exact response code where
+the template accepts a class, CBOR field-level read-back, state across a
+reboot) — is kept, but must carry the case id:
+
+```python
+@pytest.mark.eitt_overlap("5.3.8.1")
+def test_write_at_and_verify(self, coap, oscore_ctx):
+    ...
+```
+
+Runtime-tier tests are named by behaviour, never by EITT id; EITT overlaps
+are recorded only with `@pytest.mark.eitt_overlap`. List the current
+overlaps with
+`pytest tests/runtime/runtime_tests -m eitt_overlap --collect-only -q`.
+The per-test classification behind the split is in
+`tests/docs/runtime-test-inventory.md`.
+
+`eitt_tests/test_eitt.py` generates its items directly from
+`data/KnxConformanceTestTemplate-PointAPI.xml` via `pytest_generate_tests`,
+driven by the interpreter in `eitt/`. See `tests/docs/eitt-xml-interpreter.md`
+for the full design.
 
 ## Layout
 
 ```
 conftest.py            pytest fixtures: builds/starts the DUT, CoAP + OSCORE sessions
-test_eitt.py           the suite — one generated test per EITT TestCase
+pytest.ini             puts this directory on sys.path so the tiers can import
+                       conftest / transport / eitt / gui
 runtime_test_server.c  the device under test
+eitt_tests/            EITT tier — test_eitt.py
+runtime_tests/         runtime tier — behaviour-named test modules
+harness_tests/         harness tier — test_events.py, test_comment_scheme.py,
+                       test_project_copy.py, test_gui_*.py
 eitt/                  the EITT XML interpreter (model, runner, provisioning,
                        hooks, content matching, JSON<->CBOR schema, overrides)
+gui/                   the PySide6 runner front-end
 transport/             wire-level clients: CoAP, OSCORE, SPAKE2+, mDNS
 data/                  EITT inputs: the conformance template, EITT's own key
                        maps + comment-command scheme, the variable-values
                        JSON, the SWU firmware dummy, and traces/ (9 reference
                        runs recorded by the real tool)
-tools/                 run scripts (Docker + local CI), the GUI runner, and
-                       SPAKE2+ record helpers
+tools/                 run scripts (Docker + local CI) and SPAKE2+ record helpers
 ```
 
 ## Running in Docker (recommended)
@@ -36,15 +70,20 @@ tools/                 run scripts (Docker + local CI), the GUI runner, and
 Requires Docker Desktop running (Linux engine).
 
 ```powershell
-# Run the whole runtime suite
+# Run the whole runtime suite (all three tiers)
 .\tests\runtime\run-in-docker.ps1
+
+# Run one tier (-Tier all|eitt|runtime|harness, default all)
+.\tests\runtime\run-in-docker.ps1 -Tier eitt
+.\tests\runtime\run-in-docker.ps1 -Tier runtime
+.\tests\runtime\run-in-docker.ps1 -Tier eitt -Section 5.6
 
 # Run a subset (any pytest -k filter)
 .\tests\runtime\run-in-docker.ps1 -PytestArgs "-k","Security::"   # one section
 .\tests\runtime\run-in-docker.ps1 -PytestArgs "-k","5.3.17.6"     # a single TestCase
 
 # Run a specific file, pass extra single-dash args
-.\tests\runtime\run-in-docker.ps1 tests/runtime/test_5_4_observe.py -x
+.\tests\runtime\run-in-docker.ps1 tests/runtime/runtime_tests/test_observe.py -x
 
 # Test uncommitted/untracked changes (default tests only committed HEAD)
 .\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k "5_4"
@@ -72,10 +111,10 @@ Requires Docker Desktop running (Linux engine).
 - A `-k` expression must be a single token. `-k 'a or b'` is split by PowerShell
   before it reaches pytest and collects nothing; run each filter separately.
 - `-RunSlowTests` sets `RUN_SLOW_TESTS=1` in the container. Without it,
-  `test_5_3_1_6d_unblocks_after_timeout` is skipped by a static `skipif` and
+  `test_spake_lockout_unblocks_after_timeout` is skipped by a static `skipif` and
   never runs, even in a full suite.
 - Some conditional tests skip under cumulative suite load rather than failing
-  (e.g. the `test_5_4_1_15_bonus_*` malformed-length cases wait up to 20 s for a
+  (e.g. the `test_unicast_discovery_*` malformed-length cases wait up to 20 s for a
   discovery GET). They pass when run in isolation; a skip there is a timing
   artefact, not a defect.
 - The script builds fresh inside the container's filesystem (no bind mount),

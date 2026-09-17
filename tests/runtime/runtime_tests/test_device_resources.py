@@ -1,10 +1,14 @@
 """
 Runtime conformance tests — EITT 5.2.5 / 5.2.6 / 5.2.7
 
+5.2.7.1 (write /dev/pm) and 5.2.7.1b (read-only PUT rejection) are covered
+by the EITT template and now live in the eitt tier, as are the three
+type-only property reads.  What remains asserts exact configured values,
+exact CBOR types and derived-value relationships that the template's
+single 5.2.6.1 case does not check:
+
 5.2.5.1  Read list of device data property-ids (GET /dev link-format)
 5.2.6.1  Read specific device data for various property-ids
-5.2.7.1  Write specific device data for various property-ids
-5.2.7.1b Invalid PUT on read-only resource for various dev property-ids
 """
 
 import re
@@ -12,7 +16,7 @@ import re
 import cbor2
 import pytest
 
-from transport.coap_client import APPLICATION_CBOR, LINK_FORMAT
+from transport.coap_client import LINK_FORMAT
 
 
 # ===========================================================================
@@ -30,7 +34,8 @@ class TestDevResourceList:
         "dev/pm", "dev/mid",
     ]
 
-    def test_5_2_5_1_dev_link_format(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.5.1")
+    def test_dev_link_format_lists_sub_resources(self, coap, oscore_ctx):
         """GET /dev → 2.05 with link-format listing all sub-resources.
 
         EITT expects application/link-format response containing
@@ -92,7 +97,8 @@ class TestDevResourceRead:
     Values must match runtime_test_server.c configuration.
     """
 
-    def test_5_2_6_1_serial_number(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_serial_number(self, coap, oscore_ctx):
         """GET /dev/sn → serial number 00fa10020800."""
         resp = coap.oscore_get(oscore_ctx, "/dev/sn")
         assert resp is not None and resp.is_successful, (
@@ -101,7 +107,8 @@ class TestDevResourceRead:
         assert data.get(1) == "00fa10020800", (
             f"Serial number mismatch: {data.get(1)}")
 
-    def test_5_2_6_1_firmware_version(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_firmware_version(self, coap, oscore_ctx):
         """GET /dev/fwv → firmware version [0, 0, 1]."""
         resp = coap.oscore_get(oscore_ctx, "/dev/fwv")
         assert resp is not None and resp.is_successful
@@ -112,15 +119,8 @@ class TestDevResourceRead:
         assert fwv == [0, 0, 1], (
             f"FWV should be [0, 0, 1], got {fwv}")
 
-    def test_5_2_6_1_hardware_type(self, coap, oscore_ctx):
-        """GET /dev/hwt → hardware type string."""
-        resp = coap.oscore_get(oscore_ctx, "/dev/hwt")
-        assert resp is not None and resp.is_successful
-        data = cbor2.loads(resp.payload)
-        assert isinstance(data.get(1), str), (
-            f"HWT must be a string, got {type(data.get(1))}")
-
-    def test_5_2_6_1_model(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_model(self, coap, oscore_ctx):
         """GET /dev/model → 'KNX Certification'."""
         resp = coap.oscore_get(oscore_ctx, "/dev/model")
         assert resp is not None and resp.is_successful
@@ -128,7 +128,8 @@ class TestDevResourceRead:
         assert data.get(1) == "KNX Certification", (
             f"Model mismatch: {data.get(1)}")
 
-    def test_5_2_6_1_sna(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_subnet_address(self, coap, oscore_ctx):
         """GET /dev/sna → subnet address 17 (0x1101 >> 8 = 0x11 = 17)."""
         resp = coap.oscore_get(oscore_ctx, "/dev/sna")
         assert resp is not None and resp.is_successful, (
@@ -137,7 +138,8 @@ class TestDevResourceRead:
         assert data.get(1) == 17, (
             f"SNA should be 17, got {data.get(1)}")
 
-    def test_5_2_6_1_da(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_device_address(self, coap, oscore_ctx):
         """GET /dev/da → device address 1 (0x1101 & 0xFF = 0x01 = 1)."""
         resp = coap.oscore_get(oscore_ctx, "/dev/da")
         assert resp is not None and resp.is_successful, (
@@ -146,15 +148,8 @@ class TestDevResourceRead:
         assert data.get(1) == 1, (
             f"DA should be 1, got {data.get(1)}")
 
-    def test_5_2_6_1_iid(self, coap, oscore_ctx):
-        """GET /dev/iid → installation ID."""
-        resp = coap.oscore_get(oscore_ctx, "/dev/iid")
-        assert resp is not None and resp.is_successful
-        data = cbor2.loads(resp.payload)
-        assert isinstance(data.get(1), int), (
-            f"IID must be int, got {type(data.get(1))}")
-
-    def test_5_2_6_1_pm(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_programming_mode(self, coap, oscore_ctx):
         """GET /dev/pm → programming mode boolean."""
         resp = coap.oscore_get(oscore_ctx, "/dev/pm")
         assert resp is not None and resp.is_successful
@@ -162,14 +157,16 @@ class TestDevResourceRead:
         assert isinstance(data.get(1), bool), (
             f"PM must be boolean, got {type(data.get(1))}")
 
-    def test_5_2_6_1_mid(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_manufacturer_id(self, coap, oscore_ctx):
         """GET /dev/mid → manufacturer ID 667."""
         resp = coap.oscore_get(oscore_ctx, "/dev/mid")
         assert resp is not None and resp.is_successful
         data = cbor2.loads(resp.payload)
         assert data.get(1) == 667, f"MID mismatch: {data.get(1)}"
 
-    def test_5_2_6_1_port(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_coap_port(self, coap, oscore_ctx):
         """GET /dev/port → CoAP port integer."""
         resp = coap.oscore_get(oscore_ctx, "/dev/port")
         assert resp is not None and resp.is_successful
@@ -178,7 +175,8 @@ class TestDevResourceRead:
             f"Port must be int, got {type(data.get(1))}")
         assert 1024 <= data[1] <= 65535, f"Port out of range: {data[1]}"
 
-    def test_5_2_6_1_ipv6(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_ipv6_address(self, coap, oscore_ctx):
         """GET /dev/ipv6 → 16-byte IPv6 address."""
         resp = coap.oscore_get(oscore_ctx, "/dev/ipv6")
         assert resp is not None and resp.is_successful
@@ -189,105 +187,11 @@ class TestDevResourceRead:
         assert len(ipv6) == 16, (
             f"IPv6 must be 16 bytes, got {len(ipv6)}")
 
-    def test_5_2_6_1_hname(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.6.1")
+    def test_read_hostname(self, coap, oscore_ctx):
         """GET /dev/hname → hostname 'knx-00fa10020800.local'."""
         resp = coap.oscore_get(oscore_ctx, "/dev/hname")
         assert resp is not None and resp.is_successful
         data = cbor2.loads(resp.payload)
         assert data.get(1) == "knx-00fa10020800.local", (
             f"Hostname should be 'knx-00fa10020800.local', got {data.get(1)}")
-
-    def test_5_2_6_1_fid(self, coap, oscore_ctx):
-        """GET /dev/fid → fabric ID integer."""
-        resp = coap.oscore_get(oscore_ctx, "/dev/fid")
-        assert resp is not None and resp.is_successful
-        data = cbor2.loads(resp.payload)
-        assert isinstance(data.get(1), int), (
-            f"FID must be int, got {type(data.get(1))}")
-
-
-# ===========================================================================
-#  5.2.7.1 — Write specific device data
-# ===========================================================================
-
-class TestDevResourceWrite:
-    """5.2.7.1: Write specific device data for various property-ids.
-
-    EITT only actively tests PUT /dev/pm (Active='Y').
-    """
-
-    def test_5_2_7_1_write_pm(self, coap, oscore_ctx):
-        """PUT /dev/pm {1: true} → 2.04, then verify GET returns true.
-
-        EITT steps:
-        1. PUT /dev/pm {1: true} → 2.04
-        2. GET /dev/pm → {1: true}
-        """
-        try:
-            # Step 1: PUT PM to true
-            payload = cbor2.dumps({1: True})
-            resp = coap.oscore_put(oscore_ctx, "/dev/pm", payload=payload)
-            assert resp is not None, "PUT /dev/pm timed out"
-            assert resp.is_successful, f"PUT /dev/pm failed: {resp.code}"
-
-            # Step 2: Verify
-            resp = coap.oscore_get(oscore_ctx, "/dev/pm")
-            assert resp is not None and resp.is_successful
-            data = cbor2.loads(resp.payload)
-            assert data.get(1) is True, (
-                f"PM should be True after PUT, got {data.get(1)}")
-        finally:
-            # Restore PM to false
-            restore = cbor2.dumps({1: False})
-            coap.oscore_put(oscore_ctx, "/dev/pm", payload=restore)
-
-
-# ===========================================================================
-#  5.2.7.1b — Invalid PUT on read-only /dev resources
-# ===========================================================================
-
-class TestDevReadOnlyPutRejected:
-    """5.2.7.1b: PUT to read-only /dev/* resources must fail.
-
-    EITT step 1: PUT with invalid payload → 4.xx
-    EITT step 2: GET → verify value unchanged
-    """
-
-    # Read-only device resources and their expected types
-    READONLY_RESOURCES = [
-        ("dev/sn", {1: "001caffe1234"}),
-        ("dev/mid", {1: 25}),
-        ("dev/hwv", {1: [1, 0, 1]}),
-        ("dev/fwv", {1: [1, 0, 1]}),
-        ("dev/hwt", {1: "012345ABCDEFG"}),
-        ("dev/model", {1: "ABC123"}),
-        ("dev/sna", {1: 69}),
-        ("dev/da", {1: 6}),
-        ("dev/mport", {1: 55555}),
-    ]
-
-    @pytest.mark.parametrize("path,payload_data",
-                             READONLY_RESOURCES,
-                             ids=[r[0] for r in READONLY_RESOURCES])
-    def test_5_2_7_1b_put_readonly_rejected(self, coap, oscore_ctx,
-                                            path, payload_data):
-        """PUT /{path} → 4.xx (read-only resource must reject write)."""
-        # Read original value first
-        resp_orig = coap.oscore_get(oscore_ctx, f"/{path}")
-        orig_payload = resp_orig.payload if resp_orig and resp_orig.is_successful else None
-
-        # Attempt PUT
-        payload = cbor2.dumps(payload_data)
-        resp = coap.oscore_put(oscore_ctx, f"/{path}", payload=payload)
-        assert resp is not None, f"PUT /{path} timed out"
-        assert not resp.is_successful, (
-            f"PUT /{path} (read-only) should fail, got {resp.code}")
-        assert resp.code_class == 4, (
-            f"Expected 4.xx error for PUT /{path}, got {resp.code}")
-
-        # Verify unchanged
-        if orig_payload is not None:
-            resp_check = coap.oscore_get(oscore_ctx, f"/{path}")
-            assert resp_check is not None and resp_check.is_successful
-            assert resp_check.payload == orig_payload, (
-                f"/{path} value should not change after rejected PUT")

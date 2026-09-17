@@ -15,7 +15,7 @@ This is the piece that ties every other eitt module together:
 What this module deliberately does NOT attempt (documented limitations,
 not silent gaps — each raises or skips loudly rather than guessing):
   - DnsMessage playback (mDNS discovery) — the existing hand-written
-    test_5_1_discovery_mdns.py already covers this well; wiring EITT's
+    test_discovery_mdns.py already covers this well; wiring EITT's
     DnsMessage sequence items to zeroconf is future work.
   - CheckRxKid and SeqNoFn="asinrequest" outside the 4.01-challenge step:
     their general semantics are still unconfirmed, so they are accepted
@@ -2341,7 +2341,7 @@ class SequenceRunner:
         The stack exposes /test/trigger for exactly this
         (oc_test_control.c: "same as EITT GUI 'SOO press me'"), which is
         what overrides.py's action="trigger" and
-        test_5_4_group_comm.py's _trigger_sensor already use.
+        test_group_comm.py's _trigger_sensor already use.
         """
         trigger_ctx = self.provisioning.resolve_context("TokenTest")
         if trigger_ctx is None:

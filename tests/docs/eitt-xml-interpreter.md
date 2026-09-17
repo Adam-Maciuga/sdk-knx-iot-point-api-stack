@@ -4,7 +4,7 @@ Session: July 2026 · Branch: TBD
 
 ## Why this exists
 
-The original approach was a hand-written suite (`tests/runtime/test_5_*.py`,
+The original approach was a hand-written suite (`tests/runtime/runtime_tests/`,
 176/179 EITT test IDs) built by porting each EITT conformance test from
 `tests/runtime/data/KnxConformanceTestTemplate-PointAPI.xml` into Python
 by hand. Every time that XML got a new revision (it is already at
@@ -51,7 +51,7 @@ tests/runtime/
 | `tests/runtime/eitt/overrides.py` | Maintainer exceptions (manual-interaction / not-yet-reliable TestCases) |
 | `tests/runtime/eitt/runner.py` | The sequence player tying all of the above together |
 | `tests/runtime/eitt/overrides.yaml` | The actual override entries (see "Overrides" below) |
-| `tests/runtime/test_eitt.py` | `pytest_generate_tests` hook + the single `test_eitt(eitt_case, ...)` test function |
+| `tests/runtime/eitt_tests/test_eitt.py` | `pytest_generate_tests` hook + the single `test_eitt(eitt_case, ...)` test function |
 | `tests/runtime/data/traces/5_1.xml` … `5_10.xml` | Real EITT-tool-produced trace logs from actual runs against this v40 XML, one per major section — ground truth for cross-checking any inferred behavior (see "Trace-log validation" below) |
 | `tests/runtime/data/2026-02-25_09-36_EittConformanceTestVariableValues.json` | Every `Fields` default value EITT has actually used, across every collection/XML-version it has ever loaded — useful if a `Fields` `DefaultValue` in the XML ever looks stale or wrong |
 
@@ -303,7 +303,7 @@ actually used rather than trusting a reverse lookup.
 
 Historical note: every key originally derived here by hand — from
 `knx-iot-docs`, the traces, and `cbor2.dumps(...)` calls in
-`tests/runtime/test_5_*.py`/`conftest.py` — was later confirmed to match
+`tests/runtime/runtime_tests/`/`conftest.py` — was later confirmed to match
 EITT's file exactly (27/27 default, 15/15 spake, zero mismatches). The
 inference method was sound, but it was slow and left gaps for keys we
 had not yet had reason to hit (`secFlags`, `pkgq`, `fault`, `g`,
@@ -635,7 +635,7 @@ the XML's only hint is things like `Cycles="*"` plus a narrative
 by `TestCase.qualified_name`, supports three actions:
 
 - `trigger` — call a DUT test-only control endpoint instead of waiting
-  for a human (mirrors `test_5_4_group_comm.py`'s `_trigger_sensor`/
+  for a human (mirrors `test_group_comm.py`'s `_trigger_sensor`/
   `_roi_restart`, which already call `POST /test/trigger` and
   `POST /test/restart`).
 - `skip` — excluded from collection with a visible reason.
@@ -1099,10 +1099,10 @@ runtime conformance suite.
      notification also carry their own Partial IV (§4.1.3.5.2 — that PIV
      is how the observe sequence is bound) yet use the ordinary
      construction, with the AAD on the REQUEST's PIV
-     (`test_5_4_observe.py::obs_e2_notification_aad_binds_request_piv`
+     (`test_observe.py::obs_e2_notification_aad_binds_request_piv`
      pins exactly this).
    - Gating it on a non-empty `recipient_id` alone breaks
-     `test_5_4_group_comm.py`: the per-response context it builds for a
+     `test_group_comm.py`: the per-response context it builds for a
      multicast echo challenge has the same shape but needs the baseline,
      because it is keyed on the device's random echo kid_ctx, not on the
      group's own context id.

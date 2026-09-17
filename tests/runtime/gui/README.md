@@ -97,8 +97,8 @@ Headless, no DUT and no Docker needed:
 
 ```sh
 cd tests/runtime
-python -m pytest test_events.py test_comment_scheme.py test_gui_models.py -q
+python -m pytest harness_tests/test_events.py harness_tests/test_comment_scheme.py harness_tests/test_gui_models.py -q
 ```
 
-`test_gui_models.py` sets `QT_QPA_PLATFORM=offscreen` and skips itself when
+`harness_tests/test_gui_models.py` sets `QT_QPA_PLATFORM=offscreen` and skips itself when
 PySide6 is absent, so it is inert inside the Docker image.

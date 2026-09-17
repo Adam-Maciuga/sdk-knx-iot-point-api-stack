@@ -1,14 +1,17 @@
 """
 Runtime conformance tests — EITT 5.10 Generic Tests
 
-5.10.1.1  Pagination via GET specifying Page Number pn
-5.10.1.2  Pagination via GET specifying pn and Page Size ps
-5.10.1.4  List Metadata Query Parameter l
-5.10.1.5  Invalid List Metadata Query Parameter (GET /fp/g?l=xxx → 4.04)
-5.10.1.6  Pagination with Link to next Page
+The well-formed pagination cases (5.10.1.1/.2/.6), the list-metadata reads
+(5.10.1.4) and the two omitted-option defaults (5.10.5.1/.2) are covered by
+the EITT template and now live in the eitt tier.  The template only ever
+sends well-formed pn/ps pairs, so the whole malformed-input family below
+has no template case at all:
+
+5.10.1.2  Pagination hardening: ps=0, negative / non-numeric / trailing-
+          garbage / INT_MAX+1 / USHRT_MAX+1 / leading-zero / overflow pn
+          and ps, plus the in-range last-page boundary
+5.10.1.5  Invalid List Metadata Query Parameter, swept over four lists
 5.10.4.1  Read DPT associated with Group Object (GET /p/1?m=dpt)
-5.10.5.1  Accept Option omitted → default response
-5.10.5.2  Content-Format Option omitted → default
 5.10.5.3  Unknown Critical Option → 4.02 Bad Option
 
 Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
@@ -26,9 +29,6 @@ from conftest import (DUT_IA, DUT_IID, DEVICE_PASSWORD, ALL_SCOPES,
                       set_lsm, parse_link_format)
 
 
-
-
-
 def _provision_go_table(coap, oscore_ctx, count):
     """Create ``count`` group objects in loading state, then set loaded."""
     set_lsm(coap, oscore_ctx, 1)  # loading
@@ -41,102 +41,6 @@ def _provision_go_table(coap, oscore_ctx, count):
     assert resp is not None and resp.is_successful, (
         f"POST /fp/g failed: {resp.code if resp else 'timeout'}")
     set_lsm(coap, oscore_ctx, 2)  # loaded
-
-
-# ===========================================================================
-# 5.10.1.1 — Pagination via GET specifying Page Number pn
-# ===========================================================================
-
-class TestPaginationPageNumber:
-    """EITT 5.10.1.1: GET /fp/g?pn=N returns entries for page N."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self, coap, oscore_ctx):
-        auth_prepare(coap, oscore_ctx)
-        ia_prepare(coap, oscore_ctx)
-        _provision_go_table(coap, oscore_ctx, 4)
-
-    def test_5_10_1_1_page_zero_returns_entries(self, coap, oscore_ctx):
-        """GET /fp/g?pn=0 returns all entries on page 0.
-
-        EITT: pn=0 returns link-format with /fp/g/1.../fp/g/4.
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?pn=0", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /fp/g?pn=0 failed: {resp.code if resp else 'timeout'}")
-        assert resp.payload, "GET /fp/g?pn=0 returned empty payload"
-        links = parse_link_format(resp.payload)
-        # Filter out p.next links
-        entries = [l for l in links if l.get("rt") != "p.next"]
-        assert len(entries) >= 1, "pn=0 should return at least one entry"
-
-    def test_5_10_1_1_page_beyond_range_returns_400(self, coap, oscore_ctx):
-        """GET /fp/g?pn=N beyond range → 4.00 Bad Request.
-
-        EITT: pn=1 and higher for 4 entries with default ps returns 4.00.
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?pn=5", accept=LINK_FORMAT)
-        assert resp is not None, "No response for GET /fp/g?pn=5"
-        assert resp.code == "4.00", (
-            f"Expected 4.00 for out-of-range page, got {resp.code}")
-
-
-# ===========================================================================
-# 5.10.1.2 — Pagination via GET specifying pn and ps
-# ===========================================================================
-
-class TestPaginationPageSize:
-    """EITT 5.10.1.2: GET /fp/g?pn=N&ps=M controls page size."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self, coap, oscore_ctx):
-        # EITT: chains from 5.10.1.1 (no factory reset)
-        _provision_go_table(coap, oscore_ctx, 4)
-
-    def test_5_10_1_2_first_page_with_ps1(self, coap, oscore_ctx):
-        """GET /fp/g?pn=0&ps=1 returns single entry + next link.
-
-        EITT: ps=1, pn=0 → one entry + <fp/g?pn=1>;rt="p.next".
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?pn=0&ps=1", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /fp/g?pn=0&ps=1 failed: {resp.code if resp else 'timeout'}")
-        assert resp.payload, "Empty payload"
-        links = parse_link_format(resp.payload)
-        entries = [l for l in links if l.get("rt") != "p.next"]
-        next_links = [l for l in links if l.get("rt") == "p.next"]
-        assert len(entries) == 1, (
-            f"Expected 1 entry with ps=1, got {len(entries)}")
-        assert len(next_links) >= 1, (
-            "Expected a p.next link when more entries exist")
-
-    def test_5_10_1_2_second_page_with_ps2(self, coap, oscore_ctx):
-        """GET /fp/g?pn=1&ps=2 returns entries 3..4.
-
-        EITT: pn=1 with ps=2 → entries starting at offset 2.
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?pn=1&ps=2", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /fp/g?pn=1&ps=2 failed: {resp.code if resp else 'timeout'}")
-        assert resp.payload, "Empty payload"
-        links = parse_link_format(resp.payload)
-        entries = [l for l in links if l.get("rt") != "p.next"]
-        assert len(entries) >= 1, "pn=1 with ps=2 should have entries"
-
-    def test_5_10_1_2_beyond_range(self, coap, oscore_ctx):
-        """GET /fp/g?pn=2&ps=2 → 4.00 (page 2 with ps=2 exceeds 4 entries).
-
-        EITT: returns 4.00 for out-of-range page with explicit ps.
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?pn=2&ps=2", accept=LINK_FORMAT)
-        assert resp is not None, "No response"
-        assert resp.code == "4.00", (
-            f"Expected 4.00 for beyond-range, got {resp.code}")
 
 
 # ===========================================================================
@@ -154,7 +58,7 @@ class TestPaginationEdgeCases:
         ia_prepare(coap, oscore_ctx)
         _provision_go_table(coap, oscore_ctx, 4)
 
-    def test_5_10_1_2_ps_zero_returns_400(self, coap, oscore_ctx):
+    def test_ps_zero_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=0&ps=0 -> 4.00 (explicit ps=0 is always invalid).
 
         Exercises the `query_ps < 1` branch of the range check directly,
@@ -166,7 +70,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for ps=0, got {resp.code}")
 
-    def test_5_10_1_2_last_valid_page_exact_boundary(self, coap, oscore_ctx):
+    def test_last_valid_page_exact_boundary(self, coap, oscore_ctx):
         """GET /fp/g?pn=3&ps=1 → last entry, no p.next link.
 
         EITT: total=4, ps=1, pn=3 → first_entry=3 (last valid index).
@@ -187,7 +91,7 @@ class TestPaginationEdgeCases:
         assert len(next_links) == 0, (
             "Did not expect a p.next link on the last page")
 
-    def test_5_10_1_2_negative_pn_returns_400(self, coap, oscore_ctx):
+    def test_negative_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=-1&ps=2 -> 4.00 (a negative page number is invalid).
 
         `evaluate_query_px()` validates the query value with strtol() and
@@ -202,7 +106,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for negative pn, got {resp.code}")
 
-    def test_5_10_1_2_negative_ps_returns_400(self, coap, oscore_ctx):
+    def test_negative_ps_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=0&ps=-1 -> 4.00 (a negative page size is invalid).
 
         A negative ps must be rejected by the query parser, never used as
@@ -215,7 +119,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for negative ps, got {resp.code}")
 
-    def test_5_10_1_2_non_numeric_pn_returns_400(self, coap, oscore_ctx):
+    def test_non_numeric_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=abc&ps=2 -> 4.00 (a non-numeric page number is invalid).
 
         atoi() silently converted garbage to 0 and served page 0; the
@@ -227,7 +131,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for non-numeric pn, got {resp.code}")
 
-    def test_5_10_1_2_trailing_garbage_ps_returns_400(self, coap, oscore_ctx):
+    def test_trailing_garbage_ps_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=0&ps=2abc -> 4.00 (trailing garbage is invalid).
 
         strtol() alone would convert '2abc' to 2 and report no error; only
@@ -239,7 +143,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for trailing garbage in ps, got {resp.code}")
 
-    def test_5_10_1_2_out_of_int_range_pn_returns_400(self, coap, oscore_ctx):
+    def test_out_of_int_range_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=2147483648&ps=2 -> 4.00 (INT_MAX + 1 is invalid).
 
         On a 64-bit target `long` is wider than `int`, so strtol() reports
@@ -252,7 +156,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for out-of-int-range pn, got {resp.code}")
 
-    def test_5_10_1_2_overflow_pn_ps_returns_400(self, coap, oscore_ctx):
+    def test_overflow_pn_ps_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=100000&ps=100000 -> 4.00 (pn * ps overflows int).
 
         Regression guard for the signed multiplication in
@@ -265,7 +169,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for overflowing pn*ps, got {resp.code}")
 
-    def test_5_10_1_2_leading_zero_ps_is_accepted(self, coap, oscore_ctx):
+    def test_leading_zero_ps_is_accepted(self, coap, oscore_ctx):
         """GET /fp/g?pn=0&ps=00001 -> 1 entry (a leading zero is still a valid number).
 
         The query value length limit allows 5 digits plus one sign or
@@ -281,7 +185,7 @@ class TestPaginationEdgeCases:
         assert len(entries) == 1, (
             f"Expected exactly 1 entry for ps=00001, got {len(entries)}")
 
-    def test_5_10_1_2_negative_five_digit_pn_returns_400(self, coap, oscore_ctx):
+    def test_negative_five_digit_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=-12345&ps=2 -> 4.00 (a signed 6 char value is still negative).
 
         '-12345' is exactly at the accepted length limit, so it is parsed
@@ -294,7 +198,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for negative 5 digit pn, got {resp.code}")
 
-    def test_5_10_1_2_above_uint16_ps_returns_400(self, coap, oscore_ctx):
+    def test_above_uint16_ps_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=0&ps=65536 -> 4.00 (one above the 16 bit unsigned range).
 
         Boundary complement of the accepted maximum 65535: the explicit
@@ -306,7 +210,7 @@ class TestPaginationEdgeCases:
         assert resp.code == "4.00", (
             f"Expected 4.00 for ps above USHRT_MAX, got {resp.code}")
 
-    def test_5_10_1_2_huge_pn_returns_400(self, coap, oscore_ctx):
+    def test_huge_pn_returns_400(self, coap, oscore_ctx):
         """GET /fp/g?pn=999999&ps=2 → 4.00 (huge page number, still 4 entries).
 
         Regression guard for `first_entry = pn * ps` overflow: with a
@@ -321,119 +225,6 @@ class TestPaginationEdgeCases:
 
 
 # ===========================================================================
-# 5.10.1.4 — List Metadata Query Parameter l
-# ===========================================================================
-
-class TestListMetadata:
-    """EITT 5.10.1.4: GET /resource?l=total returns total count."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self, coap, oscore_ctx):
-        auth_prepare(coap, oscore_ctx)
-        ia_prepare(coap, oscore_ctx)
-        _provision_go_table(coap, oscore_ctx, 4)
-
-    def test_5_10_1_4_total_fpg(self, coap, oscore_ctx):
-        """GET /fp/g?l=total → link-format with ;total=4.
-
-        EITT: Response is <path>;total=N for each table resource.
-        """
-        resp = coap.oscore_get(
-            oscore_ctx, "/fp/g?l=total", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /fp/g?l=total failed: {resp.code if resp else 'timeout'}")
-        assert resp.payload, "Empty payload"
-        links = parse_link_format(resp.payload)
-        assert len(links) >= 1, "Expected at least one link"
-        # The link should contain total=<N>
-        assert any("total" in l for l in links), (
-            f"Expected total= attribute in response: "
-            f"{resp.payload.decode('utf-8', errors='replace')}")
-
-    def test_5_10_1_4_total_p(self, coap, oscore_ctx):
-        """GET /p?l=total → link-format with ;total=N."""
-        resp = coap.oscore_get(
-            oscore_ctx, "/p?l=total", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /p?l=total failed: {resp.code if resp else 'timeout'}")
-        assert resp.payload, "Empty payload"
-        links = parse_link_format(resp.payload)
-        assert len(links) >= 1, "Expected at least one link"
-        assert any("total" in l for l in links), (
-            f"Expected total= attribute: "
-            f"{resp.payload.decode('utf-8', errors='replace')}")
-
-    def test_5_10_1_4_total_auth_at(self, coap, oscore_ctx):
-        """GET /auth/at?l=total → link-format with ;total=N."""
-        resp = coap.oscore_get(
-            oscore_ctx, "/auth/at?l=total", accept=LINK_FORMAT)
-        assert resp is not None and resp.is_successful, (
-            f"GET /auth/at?l=total failed: "
-            f"{resp.code if resp else 'timeout'}")
-        assert resp.payload, "Empty payload"
-        links = parse_link_format(resp.payload)
-        assert len(links) >= 1, "Expected at least one link"
-        assert any("total" in l for l in links), (
-            f"Expected total= attribute: "
-            f"{resp.payload.decode('utf-8', errors='replace')}")
-
-
-# ===========================================================================
-# 5.10.1.6 — Pagination with Link to next Page
-# ===========================================================================
-
-class TestPaginationNextPage:
-    """EITT 5.10.1.6: Follow p.next links to iterate all entries."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self, coap, oscore_ctx):
-        # EITT: chains from 5.10.1.4 (no factory reset)
-        # Create 5 group objects so pagination with ps=2 gives 3 pages
-        _provision_go_table(coap, oscore_ctx, 5)
-
-    def test_5_10_1_6_follow_next_links(self, coap, oscore_ctx):
-        """GET /fp/g?pn=0&ps=2, follow p.next links until last page.
-
-        EITT: First page has 2 entries + p.next, second page has 2 +
-        p.next, third page has 1 entry (no p.next).
-
-        Note: The server's p.next link may omit ps.  Per EITT behavior,
-        we preserve the original ps when following next links.
-        """
-        all_entries = []
-        ps = 2
-        url = f"/fp/g?pn=0&ps={ps}"
-        max_pages = 10  # safety limit
-
-        for page in range(max_pages):
-            resp = coap.oscore_get(
-                oscore_ctx, url, accept=LINK_FORMAT)
-            assert resp is not None and resp.is_successful, (
-                f"GET {url} failed: {resp.code if resp else 'timeout'}")
-            assert resp.payload, f"GET {url} empty payload"
-
-            links = parse_link_format(resp.payload)
-            entries = [l for l in links if l.get("rt") != "p.next"]
-            next_links = [l for l in links if l.get("rt") == "p.next"]
-            all_entries.extend(entries)
-
-            if not next_links:
-                break
-            # Follow the next link; append ps if not already present
-            next_url = next_links[0]["href"]
-            if f"ps=" not in next_url:
-                sep = "&" if "?" in next_url else "?"
-                next_url = f"{next_url}{sep}ps={ps}"
-            url = next_url
-        else:
-            pytest.fail(f"Exceeded {max_pages} pages — infinite loop?")
-
-        assert len(all_entries) == 5, (
-            f"Expected 5 entries total, got {len(all_entries)}: "
-            f"{[e['href'] for e in all_entries]}")
-
-
-# ===========================================================================
 # 5.10.1 — Invalid List Metadata Query Parameter
 # ===========================================================================
 
@@ -445,7 +236,8 @@ class TestInvalidListMetadata:
         # EITT: chains from 5.10.1.4 (no factory reset)
         pass
 
-    def test_5_10_1_5_invalid_list_metadata(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.10.1.5")
+    def test_invalid_list_metadata_query_returns_404(self, coap, oscore_ctx):
         """GET /fp/g?l=xxx (invalid metadata param) → 4.04 Not Found.
 
         The spec says both 4.04 and 2.xx are acceptable implementations.
@@ -476,7 +268,8 @@ class TestDptMetadata:
         auth_prepare(coap, oscore_ctx)
         ia_prepare(coap, oscore_ctx)
 
-    def test_5_10_4_1_read_dpt(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.10.4.1")
+    def test_read_dpt_metadata_of_datapoint(self, coap, oscore_ctx):
         """GET /p/1?m=dpt → {"dpt": ":dpt.switch"}."""
         resp = coap.oscore_get(oscore_ctx, "/p/1?m=dpt")
         assert resp is not None and resp.is_successful, (
@@ -504,37 +297,8 @@ class TestDefaultOptions:
         # EITT: chains from 5.10.4.1 (no factory reset)
         pass
 
-    def test_5_10_5_1_accept_omitted(self, coap, oscore_ctx):
-        """GET /dev/sn without Accept → still returns valid CBOR response."""
-        # oscore_get with accept=None → no Accept option in inner message
-        resp = coap.oscore_get(oscore_ctx, "/dev/sn", accept=None)
-        assert resp is not None and resp.is_successful, (
-            f"GET /dev/sn (no Accept) failed: "
-            f"{resp.code if resp else 'timeout'}")
-        assert resp.payload, "GET /dev/sn (no Accept) returned empty payload"
-        # Should still be valid CBOR
-        data = cbor2.loads(resp.payload)
-        assert data is not None
-
-    def test_5_10_5_2_content_format_omitted(self, coap, oscore_ctx):
-        """POST /a/lsm without Content-Format → still processed.
-
-        When Content-Format is omitted, the stack should still accept
-        valid CBOR payload and process it.
-        """
-        # Send startLoading without explicit Content-Format
-        resp = coap.oscore_post(
-            oscore_ctx, "/a/lsm",
-            payload=cbor2.dumps({2: 1}),
-            content_format=None)
-        # The device should either accept it (2.04) or reject gracefully
-        assert resp is not None, (
-            "No response to POST /a/lsm without Content-Format")
-        # Accept either success or a well-formed error
-        assert resp.code_class in (2, 4), (
-            f"Expected 2.xx or 4.xx, got {resp.code}")
-
-    def test_5_10_5_3_unknown_critical_option(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.10.5.3")
+    def test_unknown_critical_option_returns_bad_option(self, coap, oscore_ctx):
         """Send request with unknown critical CoAP option → 4.02 Bad Option.
 
         We send a plain (non-OSCORE) GET to a non-secured resource with

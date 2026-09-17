@@ -18,7 +18,7 @@ Session: May 2026 · Branch: `unit_tests_claude`
 | `coap_client.py` | Minimal sync CoAP client with OSCORE + Echo retry support |
 | `knx_oscore.py` | OSCORE AES-CCM-16-64-128 encryption/decryption for KNX IoT |
 | `knx_spake2plus.py` | SPAKE2+ handshake client (3-step at `POST /.well-known/knx/spake`) |
-| `test_5_1_discovery.py` | Discovery tests for `/.well-known/core` |
+| `test_discovery_pagination.py` | Discovery tests for `/.well-known/core` |
 
 ### Provisioning Flow
 1. Start server subprocess, detect listening port via stdout
@@ -57,12 +57,12 @@ if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)message->mcast_dest.address)) {
 ```
 With this fix, `::1` messages get `flags=IPV6` and flow through the correct unicast paths (echo, OSCORE encryption, buffer routing) throughout the entire stack.
 
-### 3. Discovery Regex for Empty Href (test_5_1_discovery.py)
+### 3. Discovery Regex for Empty Href (test_discovery_pagination.py)
 **Symptom**: `parse_link_format()` failed to parse `<>;ep="..."` (empty href).
 **Root cause**: Regex `<([^>]+)>` requires 1+ chars; server returns `<>` with empty href.
 **Fix**: Changed to `<([^>]*)>` (zero or more chars).
 
-### 4. Discovery Test Expectations (test_5_1_discovery.py)
+### 4. Discovery Test Expectations (test_discovery_pagination.py)
 **Symptom**: `test_contains_required_resources` and `test_contains_functional_block` failed.
 **Root cause**: Server returns only root entry `<>;ep="knx://sn.00fa10020800 knx://ia.0.ffff"` (45 bytes) for unfiltered `.well-known/core` — no individual resource paths in unfiltered response.
 **Fix**: Use `rt=` filtered queries to verify each resource type exists instead of expecting them in unfiltered response.
@@ -136,7 +136,7 @@ POST to `/k` with the same group OSCORE context. The unicast path uses
 `oc_replay_add_client()` creates a replay record. Subsequent multicast POSTs with the
 same kid/kid_ctx will be `SYNCED` and reach the `/k` handler.
 
-Helper function `_sync_group_context()` in `test_5_4_5_3_multicast.py` implements this.
+Helper function `_sync_group_context()` in `test_group_comm.py` implements this.
 
 ### Nonce/AAD Construction for Echo Response
 - **Nonce**: `AEAD_nonce(sender_id, inbound_piv, common_iv)` — uses server's sender_id and the PIV from the inbound request
@@ -195,11 +195,11 @@ Helper function `_sync_group_context()` in `test_5_4_5_3_multicast.py` implement
 - The EITT trace shows the test tool always re-adds `ps=` when following next links
 - Test code must append `ps=N` to next links if not already present
 
-## CoAP Observe / Notifications (June 2026 - test_5_4_observe.py)
+## CoAP Observe / Notifications (June 2026 - test_observe.py)
 
 ### Status: spec-backed approximation, NOT an EITT replication
 - There is no EITT (08_10_5) observe section and no observe telegrams in
-  `EittProject.xml`. `test_5_4_observe.py` is anchored to spec clauses
+  `EittProject.xml`. `test_observe.py` is anchored to spec clauses
   (2.5.9.x, 2.6.10.1) and RFC 7641/8613, but the `5.4.x` / `OBS-x` numbering
   is a placeholder. The file header carries a prominent APPROXIMATION notice.
 

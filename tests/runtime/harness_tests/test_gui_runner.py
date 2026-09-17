@@ -26,7 +26,7 @@ except ImportError as exc:
 from eitt.model import parse_eitt_xml                          # noqa: E402
 from gui.runner_thread import ConnectionProfile, RunController  # noqa: E402
 
-TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data", "KnxConformanceTestTemplate-PointAPI.xml")
 
 

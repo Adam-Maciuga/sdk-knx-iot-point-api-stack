@@ -24,7 +24,7 @@ from eitt.project_copy import cases_in                       # noqa: E402
 from gui.main_window import PropertiesPane, _unescape        # noqa: E402
 from gui.theme import grid_theme                             # noqa: E402
 
-TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data", "KnxConformanceTestTemplate-PointAPI.xml")
 
 # Greyed on a response, live on a request: these ask the TOOL to do

@@ -15,9 +15,6 @@ from conftest import (DEVICE_PASSWORD, ALL_SCOPES,
                       parse_link_format)
 
 
-
-
-
 # ===========================================================================
 # 5.7.1 — List Functional Block Instances
 # ===========================================================================
@@ -30,7 +27,8 @@ class TestFunctionalBlockList:
         # EITT: no factory reset between 5.7 tests
         pass
 
-    def test_5_7_1_1_read_fb_list(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.7.1.1")
+    def test_read_fb_list(self, coap, oscore_ctx):
         """GET /f returns link-format with at least two FB instances.
 
         DUT has FB 417 (LSAB) and FB 421 (LSSB).  Response should list
@@ -76,7 +74,8 @@ class TestFunctionalBlockDatapoints:
         # EITT: no factory reset between 5.7 tests
         pass
 
-    def test_5_7_2_1_read_fb_datapoints(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.7.2.1")
+    def test_read_fb_datapoints(self, coap, oscore_ctx):
         """GET /f/417_1 returns link-format with datapoints /p/1 and /p/2.
 
         DUT's FB 417, instance 1 (LSAB) has:

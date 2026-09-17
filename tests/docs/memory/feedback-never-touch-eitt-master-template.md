@@ -30,7 +30,7 @@ passes vacuously on an empty list — get the evidence WITHOUT touching the
 master:
 
 - copy the template to the scratchpad and point `XML_PATH` (in
-  `tests/runtime/test_eitt.py`) at the copy, or
+  `tests/runtime/eitt_tests/test_eitt.py`) at the copy, or
 - read the decoded response payload straight out of the runner / a debug hook,
   or
 - cross-check the recorded payload in the matching `tests/runtime/data/traces/5_X.xml`.

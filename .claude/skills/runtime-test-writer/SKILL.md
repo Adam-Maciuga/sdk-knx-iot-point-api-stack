@@ -35,7 +35,7 @@ You are a specialized runtime-test-generation agent for the KNX-IoT Point API St
 │  coap_client.py (CoAP)   │   CI: veth-test ↔ veth-dut      │  LSSB (FB 421) /p/3,/p/4│
 │  knx_oscore.py (OSCORE)  │                                  │  Param         /p/p1    │
 │  knx_spake2plus.py       │                                  │  Password: "LETTUCE"    │
-│  test_5_*.py             │                                  │  SN: 00fa10020800       │
+│  test_<topic>.py         │                                  │  SN: 00fa10020800       │
 └──────────────────────────┘                                  └──────────────────────────┘
 ```
 
@@ -194,7 +194,8 @@ mcp_knx-iot-rag_search_knx_iot_point_api_spec(query="/auth/at CBOR format")
 
 ### Step 1: Identify Target
 
-Determine which EITT spec section to test. Map to file naming: `test_5_N_<topic>.py`
+Determine which EITT spec section to test. Name the file for the behaviour
+it covers: `test_<topic>.py` — never for the EITT id.
 
 ### Step 2: Analyze Requirements (parallel)
 
@@ -209,7 +210,7 @@ Determine which EITT spec section to test. Map to file naming: `test_5_N_<topic>
 
 ### Step 3: Generate the Test File
 
-Create `tests/runtime/test_5_N_<topic>.py` following the conventions below.
+Create `tests/runtime/runtime_tests/test_<topic>.py` following the conventions below.
 
 ### Step 4: Run Tests
 
@@ -217,7 +218,7 @@ Create `tests/runtime/test_5_N_<topic>.py` following the conventions below.
 # Windows (local)
 cd d:\Repos\knx-iot-point-api-stack
 $env:RUNTIME_TEST_SERVER="build\windows-test-gcc\tests\runtime_test_server.exe"
-py -3.13 -m pytest tests/runtime/test_5_N_topic.py -v --tb=short
+py -3.13 -m pytest tests/runtime/runtime_tests/test_<topic>.py -v --tb=short
 ```
 
 If the server isn't built yet:
@@ -289,7 +290,10 @@ class TestTopicAuthenticated:
 
 ### DO
 
-- Name test methods after the EITT test ID: `test_5_3_8_1_write_at()`
+- Name test methods after the behaviour: `test_write_at_and_verify()`.
+  Never encode an EITT id in a name; record overlap with
+  `@pytest.mark.eitt_overlap("5.3.8.1")` and, if useful, a docstring
+  starting "Overlaps EITT 5.3.8.1: ..."
 - Start with an `Unauthenticated` class verifying 4.03 for protected resources
 - Use `pytest.skip()` when the server times out (avoids false CI failures)
 - Use `cbor2.dumps()` / `cbor2.loads()` for all CBOR encoding/decoding
@@ -718,26 +722,29 @@ $env:RUNTIME_TEST_SERVER="build\windows-test-gcc\tests\runtime_test_server.exe"
 py -3.13 -m pytest tests/runtime/ -v --tb=short
 
 # Run a single test file
-py -3.13 -m pytest tests/runtime/test_5_3_security.py -v --tb=short
+py -3.13 -m pytest tests/runtime/runtime_tests/test_security.py -v --tb=short
 
 # Run a single test
-py -3.13 -m pytest tests/runtime/test_5_3_security.py::TestAuthAt::test_5_3_8_1_write_at -v
+py -3.13 -m pytest tests/runtime/runtime_tests/test_security.py::TestWriteAccessToken::test_write_at_and_verify -v
 ```
 
 ---
 
 ## Test File Naming Convention
 
-### Active test files (`test_5_*`)
+### Active test files
 
-Picked up by pytest and listed explicitly in CI. To see the current list:
+The whole `tests/runtime/runtime_tests/` directory is collected by pytest and
+run by CI, so a new file needs no CI change. To see the current list:
 
 ```bash
-ls tests/runtime/test_5_*.py          # all active test files
-grep 'test_5_' .gitlab-ci.yml         # files registered in CI
+ls tests/runtime/runtime_tests/test_*.py   # all active test files
 ```
 
-Naming convention: `test_5_{section}_{topic}.py` — e.g., `test_5_4_group_comm.py` for EITT 5.4.
+Naming convention: `test_<topic>.py`, named for the behaviour under test —
+e.g. `test_group_comm.py`, `test_observe.py`, `test_discovery_mdns.py`.
+EITT ids never appear in a file or function name; overlaps live only in
+`@pytest.mark.eitt_overlap`.
 
 ### Disabled test files (`disabled_test_*`)
 
@@ -745,7 +752,10 @@ Renamed to exclude from pytest collection. These are **NOT EITT-compliant** — 
 
 ### Test ordering
 
-`conftest.py` contains `pytest_collection_modifyitems` that sorts ALL tests by their numeric EITT ID (e.g., `test_5_3_17_6_...` → `(5,3,17,6,0,0)`). Reset tests naturally sort to the end.
+`conftest.py` contains `pytest_collection_modifyitems`. eitt-tier items sort by
+their numeric EITT ID; runtime-tier modules run in the order declared by
+`RUNTIME_MODULE_ORDER` in `conftest.py`, and within a module in definition
+order. Add a new module to that list in the position it should run.
 
 ### Coverage tracking
 

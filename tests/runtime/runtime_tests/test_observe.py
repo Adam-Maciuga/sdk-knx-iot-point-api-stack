@@ -57,9 +57,9 @@ above), and the wire behaviour mirrors what a certifier would observe, but the
 exact numbering (5.4.2.x+) and the test IDs (OBS-x) are placeholders pending an
 official EITT observe section.
 
-Function names use the test_5_4_<g>_<n>_ convention purely so conftest's EITT
-sort key orders them immediately after the real 5.4.1 group-communication
-section; they do NOT correspond to real EITT IDs.
+Function names describe the observed behaviour (test_observe_*); none of the
+scenarios below corresponds to a real EITT TestCase, so none of them carries
+an @pytest.mark.eitt_overlap marker.
 
 The datapoints /p/2 (dpa.417.62) and /p/3 (dpa.421.61) are output Points and
 are marked OC_OBSERVABLE in runtime_test_server.c. POST /test/trigger emulates
@@ -83,8 +83,7 @@ import cbor2
 import pytest
 
 from transport.coap_client import CoapClient, APPLICATION_CBOR
-from conftest import (auth_prepare, ia_prepare, set_lsm, DUT_IA,
-                      _eitt_sort_key)  # noqa: F401  (sort key documented above)
+from conftest import auth_prepare, ia_prepare, set_lsm, DUT_IA
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +91,7 @@ from conftest import (auth_prepare, ia_prepare, set_lsm, DUT_IA,
 # ---------------------------------------------------------------------------
 OBS_DP = "/p/2"          # dpa.417.62, IF_O output, OC_OBSERVABLE
 OBS_DP_ALT = "/p/3"      # dpa.421.61, IF_O output, OC_OBSERVABLE
-GROUP_GRPID = 0x80000001  # ULA-style multicast group id (matches test_5_4)
+GROUP_GRPID = 0x80000001  # ULA-style group id (matches test_group_comm.py)
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +179,7 @@ def _install_rcp_table(coap, oscore_ctx, entries):
 # Group A — Subscription lifecycle on a /p datapoint (OSCORE-protected)
 # ===========================================================================
 
-def test_5_4_2_1_obs_a1_register_returns_current_value(
+def test_observe_register_returns_current_value(
         coap, oscore_ctx, make_observer):
     """OBS-A1: a valid observe registration yields the current value.
 
@@ -205,7 +204,7 @@ def test_5_4_2_1_obs_a1_register_returns_current_value(
     obs.observe_deregister(sub)
 
 
-def test_5_4_2_2_obs_a2_value_change_notifies(
+def test_observe_value_change_notifies(
         coap, oscore_ctx, make_observer):
     """OBS-A2: each value change pushes a notification with an advanced seq.
 
@@ -246,7 +245,7 @@ def test_5_4_2_2_obs_a2_value_change_notifies(
     obs.observe_deregister(sub)
 
 
-def test_5_4_2_3_obs_a3_deregister_stops_notifications(
+def test_observe_deregister_stops_notifications(
         coap, oscore_ctx, make_observer):
     """OBS-A3: GET Observe=1 (same token) ends the relationship."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -266,7 +265,7 @@ def test_5_4_2_3_obs_a3_deregister_stops_notifications(
         f"expected no notifications after deregister, got {extra}")
 
 
-def test_5_4_2_4_obs_a3b_delete_sub_removes_subscription(
+def test_observe_delete_sub_removes_subscription(
         coap, oscore_ctx, make_observer):
     """OBS-A3b: DELETE /sub is a third deregistration path.
 
@@ -295,7 +294,7 @@ def test_5_4_2_4_obs_a3b_delete_sub_removes_subscription(
         f"expected no notifications after DELETE /sub, got {extra}")
 
 
-def test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port(
+def test_observe_resubscribe_replaces_by_ip_port(
         coap, oscore_ctx, make_observer):
     """OBS-A4: re-registering from the same IP+port replaces the prior sub.
 
@@ -331,7 +330,7 @@ def test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port(
 # Group B — Lifetime (lt)
 # ===========================================================================
 
-def test_5_4_3_1_obs_b1_missing_lt_rejected(
+def test_observe_missing_lt_rejected(
         coap, oscore_ctx, make_observer):
     """OBS-B1: an observe registration without lt is rejected with 4.00."""
     obs = make_observer()
@@ -342,7 +341,7 @@ def test_5_4_3_1_obs_b1_missing_lt_rejected(
         f"missing lt should give 4.00, got {resp.code}")
 
 
-def test_5_4_3_2_obs_b2_lt_zero_rejected(
+def test_observe_lt_zero_rejected(
         coap, oscore_ctx, make_observer):
     """OBS-B2: lt=0 is rejected with 4.00 (valid range is 1..86400)."""
     obs = make_observer()
@@ -353,7 +352,7 @@ def test_5_4_3_2_obs_b2_lt_zero_rejected(
         f"lt=0 should give 4.00, got {resp.code}")
 
 
-def test_5_4_3_3_obs_b3_expired_lt_stops_notifications(
+def test_observe_expired_lt_stops_notifications(
         coap, oscore_ctx, make_observer):
     """OBS-B3: once the observe lifetime (lt) elapses the subscription is
     pruned, so a later value change yields no notification.
@@ -404,7 +403,7 @@ def test_5_4_3_3_obs_b3_expired_lt_stops_notifications(
 # Group C — Confirmable vs non-confirmable (non)
 # ===========================================================================
 
-def test_5_4_4_1_obs_c1_default_confirmable(
+def test_observe_default_confirmable(
         coap, oscore_ctx, make_observer):
     """OBS-C1: default notifications are confirmable (CON)."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -423,7 +422,7 @@ def test_5_4_4_1_obs_c1_default_confirmable(
     obs.observe_deregister(sub)
 
 
-def test_5_4_4_2_obs_c2_non_true_non_confirmable(
+def test_observe_non_true_non_confirmable(
         coap, oscore_ctx, make_observer):
     """OBS-C2: non=true yields non-confirmable (NON) notifications."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -449,7 +448,7 @@ def test_5_4_4_2_obs_c2_non_true_non_confirmable(
 def _provision_k_sender(coap, oscore_ctx, href=OBS_DP_ALT):
     """Install a sending GO + recipient entry so a trigger emits s-mode w.
 
-    Mirrors test_5_4's multicast trigger setup: GO cflag=0x40 (transmit) with
+    Mirrors test_group_comm.py's multicast trigger setup: GO cflag=0x40 (transmit) with
     a recipient table mapping the GA to a multicast grpid. The physical
     multicast send may go nowhere on a single host, but oc_issue_s_mode_message
     still runs coap_notify_k_observers, which is the behaviour under test.
@@ -463,7 +462,7 @@ def _provision_k_sender(coap, oscore_ctx, href=OBS_DP_ALT):
     set_lsm(coap, oscore_ctx, 2)
 
 
-def test_5_4_5_1_obs_d1_first_k_notification_sia_only(
+def test_observe_first_k_notification_sia_only(
         coap, oscore_ctx, make_observer):
     """OBS-D1: first /k notification is exactly {sia: <ia>} (2.5.9.1)."""
     obs = make_observer()
@@ -482,7 +481,7 @@ def test_5_4_5_1_obs_d1_first_k_notification_sia_only(
     obs.observe_deregister(sub)
 
 
-def test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object(
+def test_observe_subsequent_k_notification_has_s_object(
         coap, oscore_ctx, make_observer):
     """OBS-D2: after an outbound s-mode w, the /k notification has the s obj.
 
@@ -516,7 +515,7 @@ def test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object(
     obs.observe_deregister(sub)
 
 
-def test_5_4_5_3_obs_d3_k_deregister_stops_notifications(
+def test_observe_k_deregister_stops_notifications(
         coap, oscore_ctx, make_observer):
     """OBS-D3: deregistering a /k observe returns 2.05 and stops notifications.
 
@@ -547,7 +546,7 @@ def test_5_4_5_3_obs_d3_k_deregister_stops_notifications(
         f"expected no /k notifications after deregister, got {extra}")
 
 
-def test_5_4_5_4_obs_d4_inbound_post_k_not_echoed(
+def test_observe_inbound_post_k_not_echoed(
         coap, oscore_ctx, make_observer):
     """OBS-D4: an inbound s-mode POST /k is not echoed to /k observers.
 
@@ -584,7 +583,7 @@ def test_5_4_5_4_obs_d4_inbound_post_k_not_echoed(
     obs.observe_deregister(sub)
 
 
-def test_5_4_5_5_obs_d5_plain_get_k_no_subsequent(
+def test_observe_plain_get_k_no_subsequent(
         coap, oscore_ctx, make_observer):
     """OBS-D5: a plain GET /k (no Observe option) returns { sia } once and
     never produces subsequent push notifications; a repeated GET behaves
@@ -633,7 +632,7 @@ def test_5_4_5_5_obs_d5_plain_get_k_no_subsequent(
 # Group E — OSCORE-protected notifications (drives the AAD-for-observe fix)
 # ===========================================================================
 
-def test_5_4_6_1_obs_e1_encrypted_notifications_decrypt(
+def test_observe_encrypted_notifications_decrypt(
         coap, oscore_ctx, make_observer):
     """OBS-E1: OSCORE notifications decrypt and the sequence advances."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -664,7 +663,7 @@ def test_5_4_6_1_obs_e1_encrypted_notifications_decrypt(
     obs.observe_deregister(sub)
 
 
-def test_5_4_6_2_obs_e2_notification_aad_binds_request_piv(
+def test_observe_notification_aad_binds_request_piv(
         coap, oscore_ctx, make_observer):
     """OBS-E2: a notification's AAD binds the original request PIV (regression).
 
@@ -761,7 +760,7 @@ def _capture_raw(client, token, timeout=5.0):
 # Group F — Robustness / multiple observers
 # ===========================================================================
 
-def test_5_4_7_1_obs_f1_independent_seq_per_observer(
+def test_observe_independent_seq_per_observer(
         coap, oscore_ctx, make_observer):
     """OBS-F1: two observers each get their own notification + own seq."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -789,7 +788,7 @@ def test_5_4_7_1_obs_f1_independent_seq_per_observer(
     obs2.observe_deregister(sub2)
 
 
-def test_5_4_7_2_obs_f2_stale_observer_pruned(
+def test_observe_stale_observer_pruned(
         coap, oscore_ctx, make_observer):
     """OBS-F2: a silent (CON, never-ACKing) observer is pruned, the other
     keeps receiving notifications.

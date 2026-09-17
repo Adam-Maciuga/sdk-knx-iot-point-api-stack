@@ -1,6 +1,13 @@
 """
 Runtime conformance tests — EITT 5.3 Security
 
+The plain replications of template cases were removed with the tier
+split; they run in the eitt tier now.  Tests that remain under an id the
+template also has carry @pytest.mark.eitt_overlap and assert materially
+more (exact codes on unsecured access, CBOR field-level read-back,
+forged datagrams, state across reboot).  The 5.3.8.7x, 5.3.18.2,
+5.3.1.5x and 5.3.1.6x families have no template case at all.
+
 5.3.1.1   SPAKE2+ authenticated key exchange sequence
 5.3.1.2   SPAKE2+ with wrong password (confirmV verification fails)
 5.3.1.2b  SPAKE2+ with correct password, wrong confirmP → 4.00
@@ -137,9 +144,6 @@ def _make_multi_at_payload(at_entries):
     return cbor2.dumps(items)
 
 
-
-
-
 # ---------------------------------------------------------------------------
 # AT cleanup fixture — deletes all AT entries except "RuntimeTest"
 # ---------------------------------------------------------------------------
@@ -168,31 +172,14 @@ def _cleanup_at_entries(coap, oscore_ctx):
 class TestAuthResourceList:
     """5.3.4.1: GET /auth → link-format listing auth sub-resources."""
 
-    def test_5_3_4_1_get_auth_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.4.1")
+    def test_get_auth_without_oscore_returns_403(self, coap):
         """GET /auth without OSCORE must return 4.03 Forbidden."""
         resp = coap.get("auth", accept=LINK_FORMAT)
         if resp is None:
             pytest.skip("Server did not respond to GET /auth (timeout)")
         assert resp.is_forbidden, (
             f"GET /auth without OSCORE should return 4.03, got {resp.code}")
-
-    def test_5_3_4_1_get_auth_link_format(self, coap, oscore_ctx):
-        """GET /auth with OSCORE → 2.05 with link-format listing.
-
-        EITT expects: </auth/o>;if=":if.ll";ct=40,</auth/at>;if=":if.ll :if.sec";ct=40
-        """
-        resp = coap.oscore_get(oscore_ctx, "/auth",
-                               accept=LINK_FORMAT)
-        assert resp is not None, "GET /auth timed out"
-        assert resp.is_successful, f"GET /auth failed: {resp.code}"
-        body = resp.payload
-        if isinstance(body, bytes):
-            body = body.decode("utf-8", errors="replace")
-        # Must contain both /auth/o and /auth/at
-        assert "/auth/o" in body, (
-            f"GET /auth missing /auth/o in response: {body}")
-        assert "/auth/at" in body, (
-            f"GET /auth missing /auth/at in response: {body}")
 
 
 # ===========================================================================
@@ -202,18 +189,8 @@ class TestAuthResourceList:
 class TestWriteAccessToken:
     """5.3.8.1: Write entry to the access token list."""
 
-    def test_5_3_8_1b_post_auth_at_without_oscore_fails(self, coap):
-        """POST /auth/at without OSCORE must fail (4.03 or non-success)."""
-        payload = cbor2.dumps([{0: "NoSec", 9: ["if.sec"], 38: 2,
-                                8: {4: {0: b"nosec", 2: os.urandom(16)}}}])
-        resp = coap.post("auth/at", payload=payload,
-                         content_format=APPLICATION_CBOR)
-        if resp is None:
-            pytest.skip("Server did not respond to POST /auth/at (timeout)")
-        assert not resp.is_successful, (
-            f"POST /auth/at without OSCORE should fail, got {resp.code}")
-
-    def test_5_3_8_1_write_at_and_verify(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.8.1")
+    def test_write_at_and_verify(self, coap, oscore_ctx):
         """POST /auth/at with a valid AT → 2.01, then verify via GET."""
         token_id = "Test531"
         sender_id = b"\x53\x31"
@@ -255,7 +232,8 @@ class TestWriteAccessToken:
         assert isinstance(at_scope, list), (
             f"AT scope should be a list, got {type(at_scope)}")
 
-    def test_5_3_8_1_write_at_with_group_scope(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.8.1")
+    def test_write_at_with_group_scope(self, coap, oscore_ctx):
         """POST /auth/at with integer (group) scope → 2.01.
 
         EITT 5.3.8.1 step 2: scope=[1, 2, 3] (group addresses).
@@ -282,21 +260,8 @@ class TestWriteAccessToken:
         assert at_scope == [1, 2, 3], (
             f"Group scope mismatch: expected [1, 2, 3], got {at_scope}")
 
-    def test_5_3_8_1c_put_auth_at_without_oscore_fails(self, coap):
-        """PUT /auth/at without OSCORE must return 4.05 Method Not Allowed.
-
-        EITT 5.3.8.1c: PUT is never valid for /auth/at.
-        """
-        payload = cbor2.dumps([{0: "PutNo", 9: ["if.sec"], 38: 2,
-                                8: {4: {0: b"putno", 2: os.urandom(16)}}}])
-        resp = coap.put("auth/at", payload=payload,
-                        content_format=APPLICATION_CBOR)
-        if resp is None:
-            pytest.skip("Server did not respond to PUT /auth/at (timeout)")
-        assert not resp.is_successful, (
-            f"PUT /auth/at without OSCORE should fail, got {resp.code}")
-
-    def test_5_3_8_1d_post_at_without_if_sec_scope_fails(
+    @pytest.mark.eitt_overlap("5.3.8.1d")
+    def test_post_at_without_if_sec_scope_fails(
             self, coap, oscore_ctx):
         """POST /auth/at with OSCORE but without if.sec scope → 4.03.
 
@@ -343,96 +308,8 @@ class TestWriteAccessToken:
         assert not resp.is_successful, (
             "AT 'ShouldFail' should not exist after rejected POST")
 
-    def test_5_3_8_1e_put_at_without_if_sec_scope_fails(
-            self, coap, oscore_ctx):
-        """PUT /auth/at with OSCORE but without if.sec scope → 4.05.
-
-        EITT 5.3.8.1e: PUT is never valid, regardless of scope.
-        """
-        # Create an AT without if.sec scope
-        no_sec_id = "NoSec43"
-        no_sec_sender = b"\xab\x43"
-        no_sec_ms = os.urandom(16)
-        no_sec_scope = ["if.i", "if.o", "if.g.s", "if.p", "if.d",
-                        "if.a", "if.s", "if.c", "if.swu"]
-
-        payload = _make_at_payload(
-            no_sec_id, no_sec_scope, no_sec_sender, no_sec_ms)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None and resp.is_successful
-
-        no_sec_ctx = OscoreContext(
-            master_secret=no_sec_ms,
-            sender_id=no_sec_sender,
-            recipient_id=b"",
-        )
-
-        # PUT with no-if.sec context → 4.05
-        bad_payload = cbor2.dumps([{
-            0: "PutFail", 9: ["if.sec"], 38: 2,
-            8: {4: {0: b"\xba\xd2", 2: os.urandom(16)}},
-        }])
-        resp = coap.oscore_put(no_sec_ctx, "/auth/at", payload=bad_payload)
-        assert resp is not None, (
-            "PUT /auth/at with no-if.sec context timed out")
-        assert not resp.is_successful, (
-            f"PUT /auth/at without if.sec scope should fail, "
-            f"got {resp.code}")
-
-    def test_5_3_8_1f_put_at_with_if_sec_scope_still_fails(
-            self, coap, oscore_ctx):
-        """PUT /auth/at with OSCORE + if.sec scope → still 4.05.
-
-        EITT 5.3.8.1f: PUT method is never allowed on /auth/at even with
-        proper credentials and scope.
-        """
-        payload = cbor2.dumps([{
-            0: "PutSec", 9: ["if.sec"], 38: 2,
-            8: {4: {0: b"\xba\xd3", 2: os.urandom(16)}},
-        }])
-        resp = coap.oscore_put(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None, (
-            "PUT /auth/at with if.sec scope timed out")
-        assert not resp.is_successful, (
-            f"PUT /auth/at should fail even with if.sec scope, "
-            f"got {resp.code}")
-
-    def test_5_3_8_2_mixed_scope_rejected(self, coap, oscore_ctx):
-        """POST /auth/at with mixed interface + group scope → 4.00.
-
-        EITT 5.3.8.2: scope=["if.sec", 5] mixes interface scopes with
-        group address integers — must be rejected.
-        """
-        payload = _make_at_payload(
-            "MixedScope", ["if.sec", 5], b"\xbb\x01", os.urandom(16),
-            context_id=b"\x11\x01\x01\x65\xfc\x05")
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None, (
-            "POST /auth/at (mixed scope) timed out")
-        assert not resp.is_successful, (
-            f"POST /auth/at with mixed scope should fail, "
-            f"got {resp.code}")
-
-    def test_5_3_8_3_multi_group_scope(self, coap, oscore_ctx):
-        """POST /auth/at with multiple group addresses → 2.01.
-
-        EITT 5.3.8.3: scope=[5, 6, 7, 8] with contextid.
-        """
-        token_id = "MGA"
-        sender_id = b"\x00\x01"
-        master_secret = os.urandom(16)
-        context_id = b"\x11\x01\x01\x65\xfc\x05"
-
-        payload = _make_at_payload(
-            token_id, [5, 6, 7, 8], sender_id, master_secret,
-            context_id=context_id)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None, (
-            "POST /auth/at (multi-group) timed out")
-        assert resp.is_successful, (
-            f"POST /auth/at (multi-group scope) failed: {resp.code}")
-
-    def test_5_3_8_4_overwrite_existing_at(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.8.4")
+    def test_overwrite_existing_at(self, coap, oscore_ctx):
         """POST /auth/at with same id but new scope overwrites entry.
 
         EITT 5.3.8.4: Create AT "OW1" with scope [5,6,7,8], then
@@ -471,7 +348,8 @@ class TestWriteAccessToken:
             f"Overwritten scope mismatch: expected [9,10,11,12], "
             f"got {data.get(9)}")
 
-    def test_5_3_8_5_create_multiple_ats_single_write(
+    @pytest.mark.eitt_overlap("5.3.8.5")
+    def test_create_multiple_ats_single_write(
             self, coap, oscore_ctx):
         """POST /auth/at with array of 2 ATs → 2.01.
 
@@ -501,7 +379,8 @@ class TestWriteAccessToken:
         assert "Multi1" in body, f"Multi1 not in AT list: {body}"
         assert "Multi2" in body, f"Multi2 not in AT list: {body}"
 
-    def test_5_3_8_6_update_multiple_ats(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.8.6")
+    def test_update_multiple_ats(self, coap, oscore_ctx):
         """POST /auth/at to update 2 existing ATs → 2.04.
 
         EITT 5.3.8.6: Update scope of previously created ATs.
@@ -581,7 +460,7 @@ class TestWriteAccessTokenMandatoryProperties:
             pytest.skip(f"GET /auth/at/{token_id} timed out")
         return not resp.is_successful
 
-    def test_5_3_8_7a_create_with_id_only_rejected(self, coap, oscore_ctx):
+    def test_at_mandatory_create_with_id_only_rejected(self, coap, oscore_ctx):
         """POST /auth/at with only the id -> 4.00, no entry created.
 
         Case (a): a new entry needs all 5 mandatory properties.
@@ -595,7 +474,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' must not exist after a rejected create")
 
-    def test_5_3_8_7b_create_without_scope_rejected(self, coap, oscore_ctx):
+    def test_at_mandatory_create_without_scope_rejected(self, coap, oscore_ctx):
         """POST /auth/at without scope (9) -> 4.00, no entry created."""
         token_id = "NoScope"
         payload = cbor2.dumps([{
@@ -610,7 +489,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' must not exist after a rejected create")
 
-    def test_5_3_8_7c_create_without_sender_id_rejected(self, coap, oscore_ctx):
+    def test_at_mandatory_create_without_sender_id_rejected(self, coap, oscore_ctx):
         """POST /auth/at without cnf:osc:id (8:4:0) -> 4.00, no entry."""
         token_id = "NoSndId"
         payload = cbor2.dumps([{
@@ -627,7 +506,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' must not exist after a rejected create")
 
-    def test_5_3_8_7d_create_without_master_secret_rejected(
+    def test_at_mandatory_create_without_master_secret_rejected(
             self, coap, oscore_ctx):
         """POST /auth/at without cnf:osc:ms (8:4:2) -> 4.00, no entry."""
         token_id = "NoMs"
@@ -645,7 +524,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' must not exist after a rejected create")
 
-    def test_5_3_8_7e_create_with_empty_scope_array_rejected(
+    def test_at_mandatory_create_with_empty_scope_array_rejected(
             self, coap, oscore_ctx):
         """POST /auth/at with an empty scope array -> 4.00, no entry.
 
@@ -667,7 +546,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' must not exist after a rejected create")
 
-    def test_5_3_8_7f_empty_scope_array_does_not_delete_entry(
+    def test_at_mandatory_empty_scope_array_does_not_delete_entry(
             self, coap, oscore_ctx):
         """POST [{id, 9: []}] on an existing AT must NOT delete it.
 
@@ -697,7 +576,7 @@ class TestWriteAccessTokenMandatoryProperties:
             f"An empty scope array must leave the stored scope untouched, "
             f"got {at_scope}")
 
-    def test_5_3_8_7g_id_only_deletes_existing_entry(self, coap, oscore_ctx):
+    def test_at_mandatory_id_only_deletes_existing_entry(self, coap, oscore_ctx):
         """POST [{id}] on an existing AT deletes it.
 
         Case (c): changed + id only -> delete.
@@ -719,7 +598,7 @@ class TestWriteAccessTokenMandatoryProperties:
         assert self._at_absent(coap, oscore_ctx, token_id), (
             f"AT '{token_id}' still exists after an id only POST")
 
-    def test_5_3_8_7h_update_of_existing_entry_accepted(
+    def test_at_mandatory_update_of_existing_entry_accepted(
             self, coap, oscore_ctx):
         """POST [{id, 9: [...]}] on an existing AT updates the scope.
 
@@ -754,7 +633,7 @@ class TestWriteAccessTokenMandatoryProperties:
         (["if.ll"], "interface that is not a scope"),
         (["if.unknown"], "unknown name"),
     ])
-    def test_5_3_8_7i_invalid_scope_names_rejected(
+    def test_at_mandatory_invalid_scope_names_rejected(
             self, coap, oscore_ctx, scope, label):
         """POST /auth/at with an invalid scope name -> 4.00, no entry.
 
@@ -778,7 +657,7 @@ class TestWriteAccessTokenMandatoryProperties:
         (["if.o", ""], "valid plus empty name"),
         (["if.o", "if.ll"], "valid plus a non-scope interface"),
     ])
-    def test_5_3_8_7j_mixed_scope_keeps_only_the_valid_names(
+    def test_at_mandatory_mixed_scope_keeps_only_valid_names(
             self, coap, oscore_ctx, scope, label):
         """POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored.
 
@@ -812,7 +691,8 @@ class TestWriteAccessTokenMandatoryProperties:
 class TestReadAccessTokenList:
     """5.3.9: Read list of access tokens."""
 
-    def test_5_3_9_3a_get_auth_at_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.9.3a")
+    def test_get_auth_at_without_oscore_returns_403(self, coap):
         """GET /auth/at without OSCORE must return 4.03."""
         resp = coap.get("auth/at", accept=LINK_FORMAT)
         if resp is None:
@@ -821,29 +701,8 @@ class TestReadAccessTokenList:
             f"GET /auth/at without OSCORE should return 4.03, "
             f"got {resp.code}")
 
-    def test_5_3_9_3b_get_auth_at_without_oscore_configured_device(
-            self, coap, oscore_ctx):
-        """GET /auth/at without OSCORE on configured device → 4.03.
-
-        EITT 5.3.9.3b: Same as 5.3.9.3a but after provisioning ATs,
-        the unsecured request is still rejected.
-        """
-        # Provision a group AT to make it "configured"
-        payload = _make_at_payload(
-            "CfgTok", [5, 6, 7, 8], b"\xcf\x01", os.urandom(16),
-            context_id=b"\x11\x01\x01\x65\xfc\x05")
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None and resp.is_successful
-
-        # Unsecured GET must still fail
-        resp = coap.get("auth/at", accept=LINK_FORMAT)
-        if resp is None:
-            pytest.skip("Server did not respond (timeout)")
-        assert not resp.is_successful, (
-            f"GET /auth/at without OSCORE on configured device should "
-            f"fail, got {resp.code}")
-
-    def test_5_3_9_1_get_auth_at_link_format(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.9.1")
+    def test_get_auth_at_link_format(self, coap, oscore_ctx):
         """GET /auth/at → 2.05 with link-format listing.
 
         Must contain at least the RuntimeTest token provisioned by conftest.
@@ -867,7 +726,8 @@ class TestReadAccessTokenList:
 class TestReadAccessTokenById:
     """5.3.10: Read a specific access token by its token id."""
 
-    def test_5_3_10_2a_get_at_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.10.2a")
+    def test_get_at_by_id_without_oscore_returns_403(self, coap):
         """GET /auth/at/{id} without OSCORE → 4.03.
 
         EITT 5.3.10.2a: stack returns 4.03 (EITT planned 4.01 but accepts
@@ -880,7 +740,8 @@ class TestReadAccessTokenById:
             f"GET /auth/at/RuntimeTest without OSCORE should return 4.03, "
             f"got {resp.code}")
 
-    def test_5_3_10_1_get_at_by_id(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.10.1")
+    def test_get_at_by_id(self, coap, oscore_ctx):
         """GET /auth/at/RuntimeTest → 2.05 with CBOR AT details.
 
         Response should contain: profile(38)=2, id(0)="RuntimeTest",
@@ -906,48 +767,14 @@ class TestReadAccessTokenById:
         assert 2 in osc, (
             f"AT cnf.osc should contain master secret (key 2): {osc}")
 
-    def test_5_3_10_1_get_nonexistent_at_returns_error(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.10.1")
+    def test_get_nonexistent_at_returns_error(self, coap, oscore_ctx):
         """GET /auth/at/nonexistent → 4.xx error (stack returns 4.00)."""
         resp = coap.oscore_get(oscore_ctx, "/auth/at/DoesNotExist",
                                accept=APPLICATION_CBOR)
         assert resp is not None, "GET /auth/at/DoesNotExist timed out"
         assert not resp.is_successful, (
             f"GET /auth/at/DoesNotExist should fail, got {resp.code}")
-
-    def test_5_3_10_2b_get_at_with_wrong_scope_returns_403(
-            self, coap, oscore_ctx):
-        """GET /auth/at/{id} with OSCORE but without if.sec scope → 4.03.
-
-        EITT 5.3.10.2b: Create AT "NoSec44" without if.sec scope, use
-        that context to read another AT → rejected.
-        """
-        # Create AT without if.sec scope
-        no_sec_id = "NoSec44"
-        no_sec_sender = b"\xab\x44"
-        no_sec_ms = os.urandom(16)
-        no_sec_scope = ["if.i", "if.o", "if.g.s", "if.p", "if.d",
-                        "if.a", "if.s", "if.c", "if.swu"]
-
-        payload = _make_at_payload(
-            no_sec_id, no_sec_scope, no_sec_sender, no_sec_ms)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None and resp.is_successful
-
-        # Create limited OSCORE context
-        no_sec_ctx = OscoreContext(
-            master_secret=no_sec_ms,
-            sender_id=no_sec_sender,
-            recipient_id=b"",
-        )
-
-        # Try to read RuntimeTest AT using limited context → 4.03
-        resp = coap.oscore_get(no_sec_ctx, "/auth/at/RuntimeTest",
-                               accept=APPLICATION_CBOR)
-        assert resp is not None, (
-            "GET /auth/at/RuntimeTest with wrong scope timed out")
-        assert not resp.is_successful, (
-            f"GET /auth/at with wrong scope should fail, "
-            f"got {resp.code}")
 
 
 # ===========================================================================
@@ -957,7 +784,8 @@ class TestReadAccessTokenById:
 class TestDeleteAccessToken:
     """5.3.11.1: Delete a specific access token by its token id."""
 
-    def test_5_3_11_1_delete_at(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.11.1")
+    def test_delete_at(self, coap, oscore_ctx):
         """Create an AT, delete it, verify it's gone."""
         token_id = "DelMe"
         sender_id = b"\xde\x01"
@@ -992,7 +820,8 @@ class TestDeleteAccessToken:
             f"GET /auth/at/{token_id} after delete should fail, "
             f"got {resp.code}")
 
-    def test_5_3_11_1_delete_nonexistent_at(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.11.1")
+    def test_delete_nonexistent_at(self, coap, oscore_ctx):
         """DELETE /auth/at/nonexistent → 4.xx error (stack returns 4.00)."""
         resp = coap.oscore_delete(oscore_ctx, "/auth/at/DoesNotExist")
         assert resp is not None, "DELETE /auth/at/DoesNotExist timed out"
@@ -1007,7 +836,8 @@ class TestDeleteAccessToken:
 class TestOscoreResourceList:
     """5.3.12.1: GET /auth/o → link-format listing OSCORE sub-resources."""
 
-    def test_5_3_12_1_get_auth_o_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.12.1")
+    def test_get_auth_o_without_oscore_returns_403(self, coap):
         """GET /auth/o without OSCORE must return 4.03."""
         resp = coap.get("auth/o", accept=LINK_FORMAT)
         if resp is None:
@@ -1015,24 +845,6 @@ class TestOscoreResourceList:
         assert resp.is_forbidden, (
             f"GET /auth/o without OSCORE should return 4.03, "
             f"got {resp.code}")
-
-    def test_5_3_12_1_get_auth_o_link_format(self, coap, oscore_ctx):
-        """GET /auth/o → 2.05 with link-format.
-
-        EITT expects: </auth/o/replwdo>;if=":if.d";ct=60,
-                      </auth/o/osndelay>;if=":if.d :if.sec";ct=60
-        """
-        resp = coap.oscore_get(oscore_ctx, "/auth/o",
-                               accept=LINK_FORMAT)
-        assert resp is not None, "GET /auth/o timed out"
-        assert resp.is_successful, f"GET /auth/o failed: {resp.code}"
-        body = resp.payload
-        if isinstance(body, bytes):
-            body = body.decode("utf-8", errors="replace")
-        assert "/auth/o/replwdo" in body, (
-            f"GET /auth/o missing /auth/o/replwdo: {body}")
-        assert "/auth/o/osndelay" in body, (
-            f"GET /auth/o missing /auth/o/osndelay: {body}")
 
 
 # ===========================================================================
@@ -1042,7 +854,8 @@ class TestOscoreResourceList:
 class TestReplayWindowSize:
     """5.3.13.1: GET /auth/o/replwdo → CBOR integer value."""
 
-    def test_5_3_13_1_get_replwdo_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.13.1")
+    def test_get_replwdo_without_oscore_returns_403(self, coap):
         """GET /auth/o/replwdo without OSCORE must return 4.03."""
         resp = coap.get("auth/o/replwdo", accept=APPLICATION_CBOR)
         if resp is None:
@@ -1051,7 +864,8 @@ class TestReplayWindowSize:
             f"GET /auth/o/replwdo without OSCORE should return 4.03, "
             f"got {resp.code}")
 
-    def test_5_3_13_1_get_replwdo(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.13.1")
+    def test_get_replwdo(self, coap, oscore_ctx):
         """GET /auth/o/replwdo → 2.05 with CBOR integer.
 
         The replay window size is a positive integer (typically 32 or 64).
@@ -1077,7 +891,8 @@ class TestReplayWindowSize:
 class TestOscoreDelay:
     """5.3.15.1 / 5.3.16.1: Read and write the OSCORE delay."""
 
-    def test_5_3_15_1_get_osndelay_without_oscore_returns_403(self, coap):
+    @pytest.mark.eitt_overlap("5.3.15.1")
+    def test_get_osndelay_without_oscore_returns_403(self, coap):
         """GET /auth/o/osndelay without OSCORE must return 4.03."""
         resp = coap.get("auth/o/osndelay", accept=APPLICATION_CBOR)
         if resp is None:
@@ -1086,7 +901,8 @@ class TestOscoreDelay:
             f"GET /auth/o/osndelay without OSCORE should return 4.03, "
             f"got {resp.code}")
 
-    def test_5_3_15_1_get_osndelay(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.15.1")
+    def test_get_osndelay(self, coap, oscore_ctx):
         """GET /auth/o/osndelay → 2.05 with CBOR integer value."""
         resp = coap.oscore_get(oscore_ctx, "/auth/o/osndelay",
                                accept=APPLICATION_CBOR)
@@ -1098,7 +914,8 @@ class TestOscoreDelay:
         assert isinstance(value, int), (
             f"osndelay should be an integer, got {type(value)}: {data}")
 
-    def test_5_3_16_1_put_osndelay(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.16.1")
+    def test_put_osndelay(self, coap, oscore_ctx):
         """PUT /auth/o/osndelay with a new value → 2.04, then verify.
 
         EITT 5.3.16.1: Write the OSCORE delay value.
@@ -1153,7 +970,8 @@ class TestOscoreEncryption32ByteMs:
     = true → expects 2.04.
     """
 
-    def test_5_3_19_1_oscore_with_32_byte_master_secret(
+    @pytest.mark.eitt_overlap("5.3.19.1")
+    def test_oscore_with_32_byte_master_secret(
             self, coap, oscore_ctx):
         """Create AT with 32-byte MS, use its OSCORE context to PUT dev/pm."""
         token_id = "ConfPro"
@@ -1200,37 +1018,6 @@ class TestOscoreEncryption32ByteMs:
         assert resp.is_successful, (
             f"PUT /dev/pm with 32-byte MS context failed: {resp.code}")
 
-    def test_5_3_19_1_oscore_with_16_byte_master_secret(
-            self, coap, oscore_ctx):
-        """Baseline: 16-byte MS also works (standard case).
-
-        Creates AT with standard 16-byte MS and verifies PUT dev/pm
-        succeeds, ensuring the 32-byte test above is a meaningful
-        comparison.
-        """
-        token_id = "Std16"
-        sender_id = b"\x16\x01"
-        master_secret = os.urandom(16)
-        scope = ["if.p"]
-
-        payload = _make_at_payload(
-            token_id, scope, sender_id, master_secret)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None and resp.is_successful
-
-        std_ctx = OscoreContext(
-            master_secret=master_secret,
-            sender_id=sender_id,
-            recipient_id=b"",
-        )
-
-        pm_payload = cbor2.dumps({1: True})
-        resp = coap.oscore_put(std_ctx, "/dev/pm", payload=pm_payload)
-        assert resp is not None, (
-            "PUT /dev/pm with 16-byte MS context timed out")
-        assert resp.is_successful, (
-            f"PUT /dev/pm with 16-byte MS context failed: {resp.code}")
-
 
 # ===========================================================================
 # 5.3.20.1 — Access control via interface scope
@@ -1245,44 +1032,8 @@ class TestAccessControlByScope:
     "if.sec", PUT /dev/pm requires "if.p").
     """
 
-    def test_5_3_20_1_limited_scope_can_access_matching_resource(
-            self, coap, oscore_ctx):
-        """AT with scope=["if.c"] can GET /.well-known/knx.
-
-        EITT 5.3.20.1: AccCtrl AT with scope=["if.c"] accesses
-        /.well-known/knx which is accessible with if.c scope.
-        """
-        token_id = "AccCtrl"
-        sender_id = b"AccCtrl"
-        master_secret = bytes.fromhex(
-            "5bdde0238ed8744b0a181bf350d4f76b")
-        scope = ["if.c"]
-
-        # Provision the limited-scope AT
-        payload = _make_at_payload(
-            token_id, scope, sender_id, master_secret)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None, "POST /auth/at (AccCtrl) timed out"
-        assert resp.is_successful, (
-            f"POST /auth/at (AccCtrl) failed: {resp.code}")
-
-        # Build OSCORE context with limited scope
-        acl_ctx = OscoreContext(
-            master_secret=master_secret,
-            sender_id=sender_id,
-            recipient_id=b"",
-        )
-
-        # Access /.well-known/knx with if.c scope → should succeed
-        resp = coap.oscore_get(acl_ctx, "/.well-known/knx",
-                               accept=APPLICATION_CBOR)
-        assert resp is not None, (
-            "GET /.well-known/knx with if.c scope timed out")
-        assert resp.is_successful, (
-            f"GET /.well-known/knx with if.c scope should succeed, "
-            f"got {resp.code}")
-
-    def test_5_3_20_1_limited_scope_rejected_for_post_auth_at(
+    @pytest.mark.eitt_overlap("5.3.20.1")
+    def test_limited_scope_rejected_for_post_auth_at(
             self, coap, oscore_ctx):
         """AT with scope=["if.c"] cannot POST /auth/at (requires if.sec).
 
@@ -1320,7 +1071,8 @@ class TestAccessControlByScope:
             f"POST /auth/at with if.c-only scope should be rejected, "
             f"got {resp.code}")
 
-    def test_5_3_20_1_limited_scope_rejected_for_dev_pm(
+    @pytest.mark.eitt_overlap("5.3.20.1")
+    def test_limited_scope_rejected_for_dev_pm(
             self, coap, oscore_ctx):
         """AT with scope=["if.c"] cannot PUT /dev/pm (requires if.p).
 
@@ -1352,7 +1104,8 @@ class TestAccessControlByScope:
             f"PUT /dev/pm with if.c-only scope should be rejected, "
             f"got {resp.code}")
 
-    def test_5_3_20_1_if_p_scope_can_access_dev_pm(
+    @pytest.mark.eitt_overlap("5.3.20.1")
+    def test_if_p_scope_can_access_dev_pm(
             self, coap, oscore_ctx):
         """AT with scope=["if.p"] can PUT /dev/pm → 2.04.
 
@@ -1383,7 +1136,8 @@ class TestAccessControlByScope:
             f"PUT /dev/pm with if.p scope should succeed, "
             f"got {resp.code}")
 
-    def test_5_3_20_1_if_d_scope_can_read_device_info(
+    @pytest.mark.eitt_overlap("5.3.20.1")
+    def test_if_d_scope_can_read_device_info(
             self, coap, oscore_ctx):
         """AT with scope=["if.d"] can GET /dev/da → 2.05.
 
@@ -1430,7 +1184,8 @@ class TestAntiReplayWindow:
     4. After each PUT, verify value with reader AT GET
     """
 
-    def test_5_3_17_1_old_ssn_within_window_accepted(
+    @pytest.mark.eitt_overlap("5.3.17.1")
+    def test_old_ssn_within_window_accepted(
             self, coap, oscore_ctx):
         """PUTs with old SSNs within replay window are accepted."""
         # --- Create writer AT ("TestCon") ---
@@ -1538,7 +1293,8 @@ class TestMessageIntegrity:
     reject it.
     """
 
-    def test_5_3_18_1_corrupted_auth_tag_rejected(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.18.1")
+    def test_corrupted_auth_tag_rejected(self, coap, oscore_ctx):
         """OSCORE message with corrupted auth tag is rejected."""
         import time
 
@@ -1593,7 +1349,8 @@ class TestMessageIntegrity:
             # server may silently drop the message
             pass
 
-    def test_5_3_18_1_different_auth_tag_rejected(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.18.1")
+    def test_different_auth_tag_rejected(self, coap, oscore_ctx):
         """OSCORE message with completely different auth tag is rejected."""
         token_id = "IntTst2"
         sender_id = b"\x69\x02"
@@ -1678,7 +1435,7 @@ class TestEmptyMessageIsNotOscore:
         (1, "NON"),
         (2, "ACK"),
     ])
-    def test_5_3_18_2_empty_message_with_oscore_option_rejected(
+    def test_empty_message_with_oscore_option_rejected(
             self, coap, oscore_ctx, msg_type, type_name):
         """EMPTY CON/NON/ACK carrying an OSCORE option is never processed."""
         pm_payload = cbor2.dumps({1: True})
@@ -1711,7 +1468,7 @@ class TestEmptyMessageIsNotOscore:
             f"with OSCORE option: "
             f"{resp.code if resp else 'timeout'}")
 
-    def test_5_3_18_2_empty_reset_does_not_break_oscore(
+    def test_empty_reset_does_not_break_oscore(
             self, coap, oscore_ctx):
         """An EMPTY RST stays valid and must not disturb the OSCORE path."""
         import struct
@@ -1732,7 +1489,7 @@ class TestEmptyMessageIsNotOscore:
             f"device stopped serving OSCORE after an EMPTY RST: "
             f"{resp.code if resp else 'timeout'}")
 
-    def test_5_3_18_2_empty_reset_with_token_rejected(
+    def test_empty_reset_with_token_rejected(
             self, coap, oscore_ctx):
         """An EMPTY RST that announces a token is refused.
 
@@ -1778,55 +1535,6 @@ class TestEmptyMessageIsNotOscore:
 
 
 # ===========================================================================
-# 5.3.19.2 — Master Salt gets applied correctly
-# ===========================================================================
-
-class TestOscoreMasterSalt:
-    """5.3.19.2: OSCORE with master salt in the AT.
-
-    EITT creates AT "ConfPro" with osc map containing key 5 (salt),
-    then uses that context (with master_salt in HKDF) to PUT dev/pm
-    → expects 2.04.
-    """
-
-    def test_5_3_19_2_oscore_with_master_salt(self, coap, oscore_ctx):
-        """Create AT with master salt, use its OSCORE context to PUT dev/pm."""
-        token_id = "ConfPro"
-        sender_id = b"confpro"
-        master_secret = bytes.fromhex(
-            "9bd22c0e89a0619a9ac30b28358ed28e")
-        master_salt = bytes.fromhex(
-            "4fba67b7b69387768e10cd8e18e55b4b")
-        scope = ["if.p"]
-
-        # Step 1: Provision AT with master salt (osc key 5)
-        payload = _make_at_payload(
-            token_id, scope, sender_id, master_secret,
-            master_salt=master_salt)
-        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
-        assert resp is not None, "POST /auth/at (ConfPro+salt) timed out"
-        assert resp.is_successful, (
-            f"POST /auth/at (ConfPro+salt) failed: {resp.code}")
-
-        # Step 2: Build OSCORE context WITH master salt
-        salt_ctx = OscoreContext(
-            master_secret=master_secret,
-            sender_id=sender_id,
-            recipient_id=b"",
-            master_salt=master_salt,
-        )
-
-        # Step 3: PUT dev/pm = true using salted context
-        pm_payload = cbor2.dumps({1: True})
-        resp = coap.oscore_put(salt_ctx, "/dev/pm", payload=pm_payload)
-        assert resp is not None, (
-            "PUT /dev/pm with salted OSCORE context timed out")
-        assert resp.is_successful, (
-            f"PUT /dev/pm with salted OSCORE context failed: "
-            f"{resp.code}")
-
-
-# ===========================================================================
 # 5.3.17.7 — Echo challenge on first unicast request (new context)
 # ===========================================================================
 
@@ -1840,7 +1548,8 @@ class TestEchoChallenge:
     echo occurred by checking that SSN advanced by 2 (initial + retry).
     """
 
-    def test_5_3_17_7_echo_on_new_context(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.17.7")
+    def test_echo_on_new_context(self, coap, oscore_ctx):
         """New security context gets echo-challenged on first request."""
         token_id = "token2"
         sender_id = b"token2"
@@ -1913,7 +1622,8 @@ class TestOscoreContextId:
         bytes.fromhex("1a2b3c"),  # repeat first to verify re-derivation
     ]
 
-    def test_5_3_19_6_context_ids_with_master_salt(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.19.6")
+    def test_context_ids_with_master_salt(self, coap, oscore_ctx):
         """PUT dev/pm succeeds with each context ID + master salt."""
         token_id = "CtxIdTs"
         sender_id = b"ctxidts"
@@ -1965,7 +1675,8 @@ class TestSecondarySpake:
     (with password field) should be rejected with 4.00.
     """
 
-    def test_5_3_1_4a_secured_spake_post_rejected(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.1.4a")
+    def test_secured_spake_post_rejected(self, coap, oscore_ctx):
         """Secured POST to /.well-known/knx/spake with pw field → 4.00."""
         # Send a SPAKE2+ parameter request using OSCORE (secured)
         spake_payload = cbor2.dumps({"pw": "11CNIWZN97A0ZZ2D"})
@@ -2077,9 +1788,10 @@ class TestGroupOscoreMulticast:
         coap.oscore_post(
             oscore_ctx, "/a/lsm", payload=cbor2.dumps({2: 4}))
 
-    def test_5_3_17_6_receive_device_multicast(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.3.17.6")
+    def test_receive_device_multicast(self, coap, oscore_ctx,
                                                 device_iface):
-        """5.3.17.6: Trigger sensor → receive multicast s-mode message.
+        """Overlaps EITT 5.3.17.6: Trigger sensor → receive multicast s-mode message.
 
         Verifies:
         - Device sends a NON POST /k to the correct multicast address
@@ -2162,7 +1874,7 @@ class TestGroupOscoreMulticast:
 
 
 class TestGroupOscoreMasterSaltCtxId:
-    """5.3.19.5: OSCORE with master salt + context ID for group messages.
+    """Overlaps EITT 5.3.19.5: OSCORE with master salt + context ID for group messages.
 
     Same as 5.3.17.6 but provisions with master salt to verify the
     key derivation includes the salt parameter.
@@ -2186,9 +1898,10 @@ class TestGroupOscoreMasterSaltCtxId:
         coap.oscore_post(
             oscore_ctx, "/a/lsm", payload=cbor2.dumps({2: 4}))
 
-    def test_5_3_19_5_group_oscore_with_salt_and_ctx_id(
+    @pytest.mark.eitt_overlap("5.3.19.5")
+    def test_group_oscore_with_salt_and_ctx_id(
             self, coap, oscore_ctx, device_iface):
-        """5.3.19.5: Multicast s-mode with master salt + context ID."""
+        """Overlaps EITT 5.3.19.5: Multicast s-mode with master salt + context ID."""
         mcast_addr = knx_group_multicast_address(
             _GROUP_GRPID, _GROUP_IID, scope=MC_SCOPE)
 
@@ -2414,7 +2127,7 @@ def _sync_group_rx(coap, device_iface, master_secret=_RX_MS,
 
 
 class TestGroupAntiReplayWindow:
-    """5.3.17.3: Group message anti-replay window (device as receiver).
+    """Overlaps EITT 5.3.17.3: Group message anti-replay window (device as receiver).
 
     Provisions group communication so device receives multicast writes
     to /p/1. Sends OSCORE-protected multicast messages with controlled
@@ -2459,9 +2172,10 @@ class TestGroupAntiReplayWindow:
             interface=device_iface,
             collect_timeout=0.5)
 
-    def test_5_3_17_3_group_anti_replay_window(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.3.17.3")
+    def test_group_anti_replay_window(self, coap, oscore_ctx,
                                                 device_iface):
-        """5.3.17.3: Verify anti-replay window for group messages.
+        """Overlaps EITT 5.3.17.3: Verify anti-replay window for group messages.
 
         Flow (simplified from EITT trace):
         1. Send multicast SSN=1 → sync (echo/accept)
@@ -2539,7 +2253,7 @@ _RX_CTX_ID_NEW = b"\x10\x2a\x3c"
 
 
 class TestSyncDelayEcho:
-    """5.3.17.4: Sync delay jitter and echo option for multicast.
+    """Overlaps EITT 5.3.17.4: Sync delay jitter and echo option for multicast.
 
     After syncing with the original context ID, changes context ID
     and sends a new multicast message. Device should echo-challenge
@@ -2583,9 +2297,10 @@ class TestSyncDelayEcho:
             collect_timeout=2.0,
             echo=echo)
 
-    def test_5_3_17_4_sync_delay_echo(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.3.17.4")
+    def test_sync_delay_echo(self, coap, oscore_ctx,
                                        device_iface):
-        """5.3.17.4: Change context ID → echo challenge → valid reply.
+        """Overlaps EITT 5.3.17.4: Change context ID → echo challenge → valid reply.
 
         Flow from EITT trace:
         1. Sync with original context ID: SSN=1 → echo → SSN=2
@@ -2667,7 +2382,7 @@ class TestSyncDelayEcho:
 
 
 class TestInvalidEchoReply:
-    """5.3.17.5: Invalid echo option reply for multicast synchronization.
+    """Overlaps EITT 5.3.17.5: Invalid echo option reply for multicast synchronization.
 
     After syncing and changing context ID, device sends echo challenge.
     Test replies with an invalid echo value (0xFF). Device must reject
@@ -2710,9 +2425,10 @@ class TestInvalidEchoReply:
             collect_timeout=2.0,
             echo=echo)
 
-    def test_5_3_17_5_invalid_echo_reply(self, coap, oscore_ctx,
+    @pytest.mark.eitt_overlap("5.3.17.5")
+    def test_invalid_echo_reply(self, coap, oscore_ctx,
                                           device_iface):
-        """5.3.17.5: Invalid echo value rejected by device.
+        """Overlaps EITT 5.3.17.5: Invalid echo value rejected by device.
 
         Flow from EITT trace:
         1. Sync with original context ID: SSN=1 → echo → SSN=2
@@ -2843,7 +2559,8 @@ class TestSpake2PlusResetTypes:
         return OscoreContext(
             master_secret=new_ms, sender_id=new_sid, recipient_id=b"")
 
-    def test_5_3_1_3_spake_across_reset_types(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.3.1.3")
+    def test_spake_across_reset_types(self, coap, oscore_ctx):
         """Walk through all 5 steps of 5.3.1.3 sequentially."""
 
         # ── Step 1: Restart → SPAKE rejected (device not in default state)
@@ -2929,7 +2646,8 @@ class TestEchoPaseToken:
         auth_prepare(coap, oscore_ctx)
         ia_prepare(coap, oscore_ctx)
 
-    def test_5_3_17_8_echo_on_pase_at_post(self, coap):
+    @pytest.mark.eitt_overlap("5.3.17.8")
+    def test_echo_on_pase_at_post(self, coap):
         """Factory reset → SPAKE2+ → POST auth/at with PASE key → echo."""
         # ── Step 1: Factory reset (unsecured, no OSCORE needed)
         resp = coap.post("/test/factory-reset", timeout=5)
@@ -3018,7 +2736,8 @@ class TestSpake2PlusProtocol:
             f"Factory reset failed: {resp.code if resp else 'timeout'}")
         time.sleep(1)
 
-    def test_5_3_1_2_wrong_password_spake(self, coap):
+    @pytest.mark.eitt_overlap("5.3.1.2")
+    def test_spake_wrong_password_fails_verification(self, coap):
         """SPAKE2+ with wrong password: confirmV verification fails."""
         spake = Spake2PlusClient(password="WRONGPW", sender_id="TmpTok")
 
@@ -3042,7 +2761,8 @@ class TestSpake2PlusProtocol:
         with pytest.raises(ValueError, match="confirmV"):
             spake.process_key_exchange_response(cbor2.loads(resp2.payload))
 
-    def test_5_3_1_2b_wrong_confirm_p(self, coap):
+    @pytest.mark.eitt_overlap("5.3.1.2b")
+    def test_spake_wrong_confirm_p_rejected(self, coap):
         """SPAKE2+ with correct password but wrong confirmP → 4.00."""
         spake = Spake2PlusClient(
             password=DEVICE_PASSWORD, sender_id="TmpTok")
@@ -3071,7 +2791,8 @@ class TestSpake2PlusProtocol:
         assert resp3.code_class == 4, (
             f"Expected 4.xx error for wrong confirmP, got {resp3.code}")
 
-    def test_5_3_1_1_full_handshake(self, coap):
+    @pytest.mark.eitt_overlap("5.3.1.1")
+    def test_spake_full_handshake(self, coap):
         """SPAKE2+ full handshake succeeds, temp key works."""
         spake = Spake2PlusClient(
             password=DEVICE_PASSWORD, sender_id="TmpTok")
@@ -3186,7 +2907,7 @@ class TestSpake2PlusStateMachine:
             f"SPAKE2+ step 3 failed: {resp.code if resp else 'timeout'}")
         return resp
 
-    def test_5_3_1_5a_credential_before_parameter(self, coap):
+    def test_spake_state_credential_before_parameter(self, coap):
         """Credential request (step 2) in IDLE state → 4.00."""
         # shareP is a fixed-size point; use a plausibly-sized random value.
         share_p = b"\x04" + os.urandom(64)
@@ -3196,7 +2917,7 @@ class TestSpake2PlusStateMachine:
             f"Credential request before parameter request should return "
             f"4.00, got {resp.code}")
 
-    def test_5_3_1_5b_verification_before_parameter(self, coap):
+    def test_spake_state_verification_before_parameter(self, coap):
         """Verification request (step 3) in IDLE state → 4.00."""
         resp = self._post_spake(coap, {14: os.urandom(32)})
         assert resp is not None, "SPAKE2+ verification request timed out"
@@ -3204,7 +2925,7 @@ class TestSpake2PlusStateMachine:
             f"Verification request before parameter request should return "
             f"4.00, got {resp.code}")
 
-    def test_5_3_1_5c_repeated_parameter_mid_handshake(self, coap):
+    def test_spake_state_repeated_parameter_mid_handshake(self, coap):
         """A second parameter request after step 1 is a legal restart of step 1.
 
         The handshake ordering table treats an S1 parameter request in the
@@ -3235,7 +2956,7 @@ class TestSpake2PlusStateMachine:
             "Restarted step 1 should return a fresh server rnd, but the device "
             "returned the same value as the first parameter request")
 
-    def test_5_3_1_5d_parameter_missing_id(self, coap):
+    def test_spake_state_parameter_missing_id(self, coap):
         """Parameter request carrying only rnd (no id) → 4.00 (cardinality)."""
         spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
         req = spake.create_parameter_request()
@@ -3246,7 +2967,7 @@ class TestSpake2PlusStateMachine:
             f"Parameter request missing id should return 4.00, "
             f"got {resp.code}")
 
-    def test_5_3_1_5e_parameter_missing_rnd(self, coap):
+    def test_spake_state_parameter_missing_rnd(self, coap):
         """Parameter request carrying only id (no rnd) → 4.00 (cardinality)."""
         spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
         req = spake.create_parameter_request()
@@ -3257,7 +2978,7 @@ class TestSpake2PlusStateMachine:
             f"Parameter request missing rnd should return 4.00, "
             f"got {resp.code}")
 
-    def test_5_3_1_5f_ordered_handshake_completes(self, coap):
+    def test_spake_state_ordered_handshake_completes(self, coap):
         """Ordered step 1→2→3 is accepted end-to-end and yields a working key.
 
         The factory_reset fixture leaves the AT table empty (KNX Default
@@ -3289,7 +3010,7 @@ class TestSpake2PlusStateMachine:
         assert resp.is_successful, (
             f"GET /.well-known/knx with temp key failed: {resp.code}")
 
-    def test_5_3_1_5g_parameter_restart_then_completes(self, coap):
+    def test_spake_state_parameter_restart_then_completes(self, coap):
         """A restarted step 1 (S1 in PARAMS_SENT) can drive a full handshake.
 
         The S1-in-PARAMS_SENT self-transition is not just acknowledged: the
@@ -3322,7 +3043,7 @@ class TestSpake2PlusStateMachine:
         assert resp.is_successful, (
             f"GET /.well-known/knx after restarted handshake failed: {resp.code}")
 
-    def test_5_3_1_5h_parameter_after_credential_restarts(self, coap):
+    def test_spake_state_parameter_after_credential_restarts(self, coap):
         """A parameter request (S1) in CREDENTIALS_SENT restarts step 1.
 
         The handshake ordering table treats an S1 parameter request as legal in
@@ -3353,7 +3074,7 @@ class TestSpake2PlusStateMachine:
         assert spake2.server_rnd, (
             "Restarted step 1 from CREDENTIALS_SENT must return a server rnd")
 
-    def test_5_3_1_5i_repeated_credential_request(self, coap):
+    def test_spake_state_repeated_credential_request(self, coap):
         """A second credential request (S2) in CREDENTIALS_SENT → 4.00.
 
         A credential request is only legal from PARAMS_SENT.  After step 2 the
@@ -3373,7 +3094,7 @@ class TestSpake2PlusStateMachine:
         assert resp.is_bad_request, (
             f"Repeated credential request should return 4.00, got {resp.code}")
 
-    def test_5_3_1_5j_verification_after_parameter(self, coap):
+    def test_spake_state_verification_after_parameter(self, coap):
         """A verification request (S3) in PARAMS_SENT → 4.00 (skips step 2).
 
         A verification request is only legal from CREDENTIALS_SENT.  Sending it
@@ -3392,7 +3113,7 @@ class TestSpake2PlusStateMachine:
             f"Verification request after the parameter request should return "
             f"4.00, got {resp.code}")
 
-    def test_5_3_1_5k_restart_from_credentials_completes(self, coap):
+    def test_spake_state_restart_from_credentials_completes(self, coap):
         """A restart from CREDENTIALS_SENT (S1 in CREDS) drives a full handshake.
 
         The CREDS → PARAMS self-transition is not just acknowledged: the device
@@ -3548,7 +3269,7 @@ class TestSpake2PlusBruteForce:
             f"{resp.code if resp else 'timeout'}")
         return spake
 
-    def test_5_3_1_6a_block_after_ten_failures(self, coap):
+    def test_spake_lockout_block_after_ten_failures(self, coap):
         """10 failed attempts arm the block; the next attempt returns 5.03."""
         # The first BLOCK_THRESHOLD failures are each rejected with 4.00.
         for i in range(self.BLOCK_THRESHOLD):
@@ -3566,7 +3287,7 @@ class TestSpake2PlusBruteForce:
             f"Request after {self.BLOCK_THRESHOLD} failures should be blocked "
             f"with 5.03, got {resp.code}")
 
-    def test_5_3_1_6b_factory_reset_clears_block(self, coap):
+    def test_spake_lockout_factory_reset_clears_block(self, coap):
         """A factory reset clears the brute-force block and counter.
 
         After the device is blocked (10 failures), returning it to its KNX
@@ -3602,7 +3323,7 @@ class TestSpake2PlusBruteForce:
             f"SPAKE2+ step 1 after factory reset should succeed, "
             f"got {resp.code}")
 
-    def test_5_3_1_6c_counter_decreases_over_time(self, coap):
+    def test_spake_lockout_counter_decreases_over_time(self, coap):
         """While blocked, the counter ticks down every 6 s (Max-Age shrinks).
 
         The device decrements the brute-force counter once every 6 seconds and
@@ -3643,7 +3364,7 @@ class TestSpake2PlusBruteForce:
     @pytest.mark.skipif(
         os.environ.get("RUN_SLOW_TESTS") is None,
         reason="Slow (~60 s): set RUN_SLOW_TESTS to run the full unblock timer")
-    def test_5_3_1_6d_unblocks_after_timeout(self, coap):
+    def test_spake_lockout_unblocks_after_timeout(self, coap):
         """The counter reaches zero after ~60 s and the device unblocks itself.
 
         After 10 failures the device blocks for 10 * 6 s = 60 s, decrementing
@@ -3677,7 +3398,7 @@ class TestSpake2PlusBruteForce:
             f"SPAKE2+ step 1 should succeed after the block expires, "
             f"got {resp.code}")
 
-    def test_5_3_1_6e_partial_step_does_not_reset_counter(self, coap):
+    def test_spake_lockout_partial_step_does_not_reset_counter(self, coap):
         """A partial PASE step (step 1) does NOT reset the consecutive counter.
 
         By design only a *completed* handshake resets the brute-force counter;
@@ -3717,7 +3438,7 @@ class TestSpake2PlusBruteForce:
             f"block with 5.03 right after the threshold is reached, "
             f"got {resp.code}")
 
-    def test_5_3_1_6f_full_handshake_resets_counter(self, coap):
+    def test_spake_lockout_full_handshake_resets_counter(self, coap):
         """A completed handshake succeeds below the threshold and resets it.
 
         Unlike a partial step (see 6e), a *completed* handshake (steps 1+2+3) is

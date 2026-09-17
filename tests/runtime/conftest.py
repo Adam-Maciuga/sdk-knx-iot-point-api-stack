@@ -32,15 +32,54 @@ from transport.knx_oscore import OscoreContext
 # Test ordering — strict numeric EITT order
 # ---------------------------------------------------------------------------
 
-def _eitt_sort_key(item):
-    """Extract numeric EITT test ID from function name for sorting.
+# The eitt tier generates one item per template TestCase and encodes the
+# EITT ID in the item name; those items are run in strict numeric order.
+#
+# The runtime tier does NOT encode EITT IDs — its tests are named by
+# behaviour and record template overlap with @pytest.mark.eitt_overlap.
+# Its execution order is declared explicitly below, because several of its
+# modules leave device state behind that a later module relies on (the
+# reset / SPAKE2+ modules in particular).  Keep this list in sync with the
+# file list documented in tests/runtime/README.md.
+RUNTIME_MODULE_ORDER = [
+    "test_discovery_multicast",
+    "test_discovery_programming_mode",
+    "test_discovery_pagination",
+    "test_discovery_mdns",
+    "test_reset",
+    "test_ia_assignment",
+    "test_fingerprint",
+    "test_device_resources",
+    "test_swu",
+    "test_security",
+    "test_group_comm",
+    "test_observe",
+    "test_fp_tables",
+    "test_load_state_machine",
+    "test_functional_blocks",
+    "test_parameters",
+    "test_generic_resources",
+    "test_coap_header_budget",
+    "test_coap_payload_limit",
+]
+_RUNTIME_MODULE_RANK = {
+    name: i for i, name in enumerate(RUNTIME_MODULE_ORDER)
+}
 
-    Function names encode EITT IDs as: test_5_X_Y_Z[letter][_stepN]_description
-    Examples:
+
+def _eitt_sort_key(item):
+    """Sort key: EITT ID for the eitt tier, declared order for runtime.
+
+    The eitt tier's item names encode EITT IDs as
+    test_5_X_Y_Z[letter][_stepN]_description:
       test_5_1_1_1_site_local     → (5, 1, 1, 1, 0, 0)
       test_5_1_1_3_step2_rt       → (5, 1, 1, 3, 0, 2)
       test_5_1_1_3b_invalid       → (5, 1, 1, 3, 2, 0)
       test_5_3_17_6_receive       → (5, 3, 17, 6, 0, 0)
+
+    Runtime-tier tests carry no ID; they are ordered by their module's
+    position in RUNTIME_MODULE_ORDER, and within a module by definition
+    order (Python's sort is stable).  Anything else sorts to the end.
     """
     m = re.match(
         r'test_(\d+)_(\d+)_(\d+)_(\d+)([a-z]?)(?:_step(\d+))?_',
@@ -54,7 +93,10 @@ def _eitt_sort_key(item):
             ord(m.group(5)) - ord('a') + 1 if m.group(5) else 0,
             int(m.group(6)) if m.group(6) else 0,
         )
-    # Tests without EITT ID in name sort to the end
+    rank = _RUNTIME_MODULE_RANK.get(item.module.__name__)
+    if rank is not None:
+        return (900, rank, 0, 0, 0, 0)
+    # Everything else sorts to the very end
     return (999, 999, 999, 999, 999, 999)
 
 
@@ -69,12 +111,13 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(items):
-    """Sort ALL tests by their numeric EITT ID.
+    """Order the collected items.
 
-    Enforces strict numeric execution order matching the EITT reference
-    project. Tests are sorted by their parsed ID: (major, section,
-    subsection, number, letter_suffix, step). Python's sort is stable,
-    so tests with identical keys preserve their definition order.
+    eitt-tier items run in strict numeric EITT order, matching the EITT
+    reference project.  runtime-tier items run in the declared
+    RUNTIME_MODULE_ORDER, which preserves the inter-module state
+    dependencies the suite has always relied on.  Python's sort is
+    stable, so items with identical keys keep their definition order.
     """
     items.sort(key=_eitt_sort_key)
 

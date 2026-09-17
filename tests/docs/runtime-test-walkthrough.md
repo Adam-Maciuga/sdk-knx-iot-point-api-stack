@@ -2,7 +2,7 @@
 
 How the runtime conformance tests work, end to end.
 
-Uses `test_5_2_6_1_serial_number` as the running example.
+Uses `test_read_serial_number` as the running example.
 
 ## Phase 1: Server Startup
 
@@ -107,10 +107,10 @@ matching the EITT configuration.
 
 ## Phase 3: Test Execution
 
-Now `test_5_2_6_1_serial_number` runs:
+Now `test_read_serial_number` runs:
 
 ```python
-def test_5_2_6_1_serial_number(self, coap, oscore_ctx):
+def test_read_serial_number(self, coap, oscore_ctx):
     resp = coap.oscore_get(oscore_ctx, "/dev/sn")
     assert resp is not None and resp.is_successful
     data = cbor2.loads(resp.payload)
@@ -209,4 +209,4 @@ exits, `oc_main_shutdown()` cleans up.
 | `tests/runtime/knx_oscore.py` | OSCORE context: encrypt/decrypt, key derivation |
 | `tests/runtime/knx_spake2plus.py` | SPAKE2+ client for password-authenticated key exchange |
 | `tests/runtime/run-in-docker.ps1` | Runs the full suite in Docker with veth pairs |
-| `tests/runtime/test_5_*.py` | The actual test cases, organized by EITT section |
+| `tests/runtime/runtime_tests/test_*.py` | The actual test cases, named by behaviour |

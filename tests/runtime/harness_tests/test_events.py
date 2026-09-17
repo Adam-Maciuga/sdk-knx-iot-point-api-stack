@@ -26,7 +26,7 @@ from transport.coap_client import ACK, CoapResponse
 
 # Resolved against THIS file, not the cwd: the Docker harness invokes
 # pytest from the repo root, where a bare "data/..." does not exist.
-TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data", "KnxConformanceTestTemplate-PointAPI.xml")
 
 

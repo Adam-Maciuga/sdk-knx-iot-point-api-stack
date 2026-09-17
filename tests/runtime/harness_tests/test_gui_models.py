@@ -35,7 +35,7 @@ from gui.models import (CaseBreak, CopiesTreeModel,  # noqa: E402
                         ProjectTreeModel, SequenceTableModel)
 
 # Relative to THIS file — pytest may be invoked from the repo root.
-TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data", "KnxConformanceTestTemplate-PointAPI.xml")
 
 

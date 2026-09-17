@@ -124,7 +124,8 @@ def _re_authenticate(coap):
 class TestFactoryReset:
     """5.2.2.1: Factory reset clears all device state."""
 
-    def test_5_2_2_1_factory_reset(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.2.1")
+    def test_factory_reset_clears_all_state(self, coap, oscore_ctx):
         """POST /.well-known/knx {2:'reset', 1:2} → full factory reset.
 
         EITT steps:
@@ -170,7 +171,8 @@ class TestFactoryReset:
         assert new_ctx is not None, (
             "Failed to re-authenticate after factory reset")
 
-        # Save context for test_5_2_2_2 (SPAKE2+ won't work again
+        # Save context for test_reset_code_7_preserves_network_info
+        # (SPAKE2+ won't work again
         # because device is no longer in default config state)
         global _shared_reset_ctx
         _shared_reset_ctx = new_ctx
@@ -275,7 +277,8 @@ class TestFactoryReset:
 class TestResetCode7:
     """5.2.2.2: Reset code 7 clears tables, preserves network info."""
 
-    def test_5_2_2_2_reset_code_7(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.2.2")
+    def test_reset_code_7_preserves_network_info(self, coap, oscore_ctx):
         """POST /.well-known/knx {2:'reset', 1:7} → selective reset.
 
         EITT steps:

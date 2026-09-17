@@ -575,7 +575,7 @@ class OscoreContext:
         #     the observe sequence (RFC 8613 §4.1.3.5.2) — but they are
         #     signed with the ordinary request-sender construction: nonce
         #     uses our sender_id and AAD reuses the REQUEST's PIV.
-        #     test_5_4_observe.py's obs_e2_notification_aad_binds_request_piv
+        #     test_observe.py's test_observe_notification_aad_binds_request_piv
         #     pins that contract explicitly.
         #
         # Both shapes occur on contexts with an empty recipient_id (PASE's
@@ -614,7 +614,7 @@ class OscoreContext:
         # those two shapes.
         #
         # Selecting this by inspecting the context alone is not possible: the
-        # multicast echo-challenge context test_5_4_group_comm.py builds per
+        # multicast echo-challenge context test_group_comm.py builds per
         # response has the SAME shape (non-empty recipient_id, response with
         # its own PIV) yet needs the baseline, because it is keyed on the
         # random echo kid_ctx the device generated rather than the group's

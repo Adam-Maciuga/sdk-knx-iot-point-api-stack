@@ -15,14 +15,14 @@
 # passed straight through to pytest.
 #
 # Examples:
-#   # Run only test_5_4_group_comm.py:
-#   ./run-local-ci-zephyr.sh test_5_4_group_comm.py
+#   # Run only runtime_tests/test_group_comm.py:
+#   ./run-local-ci-zephyr.sh runtime_tests/test_group_comm.py
 #
 #   # Run a single test class, verbose:
-#   ./run-local-ci-zephyr.sh 'test_5_4_group_comm.py::TestOwnGroupObjectUpdate' -v
+#   ./run-local-ci-zephyr.sh 'runtime_tests/test_group_comm.py::TestOwnGroupObjectUpdate' -v
 #
 #   # Point at the virtual EITT GUI instead of the default device:
-#   DEVICE_HOST=<virtual-ipv6> ./run-local-ci-zephyr.sh test_5_1_discovery.py
+#   DEVICE_HOST=<virtual-ipv6> ./run-local-ci-zephyr.sh runtime_tests/test_discovery_pagination.py
 #
 # NOTE: Run this in a Python virtual environment with requirements.txt installed.
 #       Connection and multicast parameters (DEVICE_HOST, DEVICE_IFACE,
@@ -31,25 +31,10 @@
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Default test files (same as CI) — override by passing args
+# Default: the whole runtime tier (same as CI); conftest.py orders the
+# modules.  Override by passing args.
 if [ $# -eq 0 ]; then
-  set -- \
-    test_5_1_discovery.py \
-    test_5_1_discovery_multicast.py \
-    test_5_1_discovery_extended.py \
-    test_5_2_wellknown_knx.py \
-    test_5_2_fingerprint.py \
-    test_5_2_device_resources.py \
-    test_5_2_swu.py \
-    test_5_3_security.py \
-    test_5_4_group_comm.py \
-    test_5_5_fp_tables.py \
-    test_5_6_app_program.py \
-    test_5_7_functional_blocks.py \
-    test_5_8_parameters.py \
-    test_5_10_generic.py \
-    test_5_1_discovery_mdns.py \
-    test_5_2_reset.py
+  set -- runtime_tests/
 fi
 
 # Parameters. All are overridable as environment variables. No positional
@@ -74,7 +59,7 @@ fi
 #
 # Command-line arguments go straight to pytest, for example:
 #   DEVICE_IFACE=eth0 ./run-local-ci-alex.sh -rs -k multicast
-#   KNX_MULTICAST_SCOPE=2 ./run-local-ci-alex.sh test_5_1_discovery_multicast.py
+#   KNX_MULTICAST_SCOPE=2 ./run-local-ci-alex.sh runtime_tests/test_discovery_multicast.py
 #
 # NOTE: Set the following environment variables to override the defaults which are hardware dependent.
 DEVICE_HOST="${DEVICE_HOST:-fd09:f0fd:a40b:1:5ae6:c5ff:fe01:1364}"	# Zephyr Device

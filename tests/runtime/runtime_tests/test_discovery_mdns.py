@@ -1,19 +1,23 @@
 ﻿"""
 Runtime conformance tests -- 5.1.2 Discovery via mDNS/DNS-SD
 
-Covers:
-  5.1.2.1:  Discovery using serial number for unconfigured device
-  5.1.2.2:  Discovery using serial number for configured device
-  5.1.2.3:  Discovery using individual address for configured device
-  5.1.2.3a: Discovery for individual address 0 for configured device
+The plain subtype-presence checks for 5.1.2.1/.2/.3/.3a/.4 are covered by
+the EITT template and now live in the eitt tier.  What remains here either
+asserts materially more than the template (marked @pytest.mark.eitt_overlap)
+or has no template case at all:
+
+  5.1.2.1:  full SRV/AAAA/CoAP resolution chain for the unconfigured device
+  5.1.2.2:  full chain for the configured device
+  5.1.2.3:  full chain for the individual address
   5.1.2.3b: Discovery using individual address for unconfigured device
-  5.1.2.4:  Discovery using programming mode
+  5.1.2.4:  full chain, plus the negative "PM disabled" case
   5.1.2.5a: Unsolicited mDNS responses on Programming mode change
   5.1.2.5b: Unsolicited mDNS responses on Individual Address change
 
-Non-EITT state-sync additions (5.1.901.x / 5.1.902.x) verify that what the
-DUT advertises stays consistent with its internal state across PM, SP,
-restart, factory reset and LSM unload.
+Non-EITT additions (sleep-period TXT, the goodbye/re-announce transition
+audit and the state-sync checks) verify that what the DUT advertises stays
+consistent with its internal state across PM, SP, restart, factory reset
+and LSM unload.
 
 Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
 
@@ -914,7 +918,8 @@ def _verify_discovery_chain(mdns, coap, service_type, expected_instance):
 class TestMdnsDiscoverySerialUnconfigured:
     """5.1.2.1: Discovery using serial number is possible for unconfigured device."""
 
-    def test_5_1_2_1_browse_knx_service(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.1")
+    def test_browse_knx_service_by_serial(self, mdns, coap, oscore_ctx):
         """Step 1-2: PTR query for _knx._udp.local -> find device by SN."""
         _provoke_reannounce(coap, oscore_ctx)
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
@@ -923,18 +928,8 @@ class TestMdnsDiscoverySerialUnconfigured:
         assert expected in found, (
             f"Device '{expected}' not found. Found: {found}")
 
-    def test_5_1_2_1_browse_serial_subtype(self, mdns, coap, oscore_ctx):
-        """Step 3-4: PTR query for _{sn}._sub._knx._udp.local -> find device."""
-        _provoke_reannounce(coap, oscore_ctx)
-        subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
-        expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-        found = _browse_service(mdns, subtype)
-        assert len(found) > 0, (
-            f"No services found browsing serial subtype {subtype}")
-        assert expected in found, (
-            f"Device not found via serial subtype. Found: {found}")
-
-    def test_5_1_2_1_srv_resolution(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.1")
+    def test_srv_resolution_of_unconfigured_device(self, mdns, coap, oscore_ctx):
         """Step 5-6: SRV query -> hostname + port."""
         _provoke_reannounce(coap, oscore_ctx)
         instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
@@ -946,7 +941,8 @@ class TestMdnsDiscoverySerialUnconfigured:
             f"Hostname: {info.server} != {expected_hostname}")
         assert info.port > 0, f"Invalid port: {info.port}"
 
-    def test_5_1_2_1_aaaa_resolution(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.1")
+    def test_aaaa_resolution_of_unconfigured_device(self, mdns, coap, oscore_ctx):
         """Step 7-8: AAAA query -> IPv6 address."""
         _provoke_reannounce(coap, oscore_ctx)
         instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
@@ -956,7 +952,8 @@ class TestMdnsDiscoverySerialUnconfigured:
         ipv6_addrs = info.parsed_addresses(version=IPVersion.V6Only)
         assert len(ipv6_addrs) > 0, "No IPv6 (AAAA) addresses resolved"
 
-    def test_5_1_2_1_coap_reachability(self, mdns, coap):
+    @pytest.mark.eitt_overlap("5.1.2.1")
+    def test_coap_reachability_of_unconfigured_device(self, mdns, coap):
         """Step 9-10: CoAP GET .well-known/core at discovered address → 2.05."""
         # The four preceding tests ran Zeroconf ServiceBrowsers for ~20 s total,
         # flooding the DUT's single-threaded CoAP+mDNS event loop with mDNS queries.
@@ -982,20 +979,8 @@ class TestMdnsDiscoverySerialUnconfigured:
 class TestMdnsDiscoverySerialConfigured:
     """5.1.2.2: Discovery using serial number is possible for configured device."""
 
-    def test_5_1_2_2_serial_subtype_configured(self, mdns, coap, oscore_ctx):
-        """Configured device (IA set) is still discoverable by serial number."""
-        # Device is already configured with IID/IA by conftest oscore_ctx
-        _provoke_reannounce(coap, oscore_ctx)
-        subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
-        expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-
-        found = _browse_service(mdns, subtype)
-        assert len(found) > 0, (
-            f"Configured device not found via serial subtype {subtype}")
-        assert expected in found, (
-            f"Device not in results. Found: {found}")
-
-    def test_5_1_2_2_full_chain_configured(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.2")
+    def test_full_chain_by_serial_when_configured(self, mdns, coap, oscore_ctx):
         """Full PTR -> SRV -> AAAA -> CoAP chain for configured device."""
         _provoke_reannounce(coap, oscore_ctx)
         subtype = f"_{DUT_SERIAL}._sub.{KNX_SERVICE_TYPE}"
@@ -1010,22 +995,8 @@ class TestMdnsDiscoverySerialConfigured:
 class TestMdnsDiscoveryIA:
     """5.1.2.3: Discovery using individual address for configured device."""
 
-    def test_5_1_2_3_ia_subtype_discovery(self, mdns, coap, oscore_ctx):
-        """Browse _ia{iid}-{ia}._sub._knx._udp.local → find device."""
-        # IID and IA set by conftest: IID=0x1199887766, IA=0x1101
-        _provoke_reannounce(coap, oscore_ctx)
-        iid_hex = format(DUT_IID, "x")
-        ia_hex = format(DUT_IA, "x")
-        subtype = f"_ia{iid_hex}-{ia_hex}._sub.{KNX_SERVICE_TYPE}"
-        expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-
-        found = _browse_service(mdns, subtype)
-        assert len(found) > 0, (
-            f"Device not found via IA subtype {subtype}")
-        assert expected in found, (
-            f"Device not in results. Found: {found}")
-
-    def test_5_1_2_3_ia_full_chain(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.3")
+    def test_full_chain_by_individual_address(self, mdns, coap, oscore_ctx):
         """Full discovery chain using IA subtype."""
         _provoke_reannounce(coap, oscore_ctx)
         iid_hex = format(DUT_IID, "x")
@@ -1033,41 +1004,6 @@ class TestMdnsDiscoveryIA:
         subtype = f"_ia{iid_hex}-{ia_hex}._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
         _verify_discovery_chain(mdns, coap, subtype, expected)
-
-
-# ===========================================================================
-# 5.1.2.3a -- Discovery for individual address 0 for configured device
-# ===========================================================================
-
-class TestMdnsDiscoveryIAZero:
-    """5.1.2.3a: Discovery for IA=0 on configured device."""
-
-    def test_5_1_2_3a_ia_zero_subtype(self, mdns, coap, oscore_ctx):
-        """Set IA=0, IID=0 then browse _ia0-0._sub._knx._udp.local."""
-        # POST new IA=0, IID=0
-        ia_payload = cbor2.dumps({12: 0, 26: 0})
-        resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
-                                payload=ia_payload, timeout=COAP_TIMEOUT)
-        if resp is None or not resp.is_successful:
-            pytest.skip("Could not set IA=0, IID=0")
-
-        # Wait for mDNS re-announcement
-        time.sleep(MDNS_ANNOUNCE_WAIT_S)
-
-        subtype = f"_ia0-0._sub.{KNX_SERVICE_TYPE}"
-        expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-
-        found = _browse_service(mdns, subtype)
-        assert len(found) > 0, (
-            f"Device not found via _ia0-0 subtype")
-        assert expected in found, (
-            f"Device not in results. Found: {found}")
-
-        # Restore IID/IA to EITT values
-        restore = cbor2.dumps({12: DUT_IA, 26: DUT_IID})
-        coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
-                         payload=restore, timeout=COAP_TIMEOUT)
-        time.sleep(MDNS_ANNOUNCE_WAIT_S)
 
 
 # ===========================================================================
@@ -1087,7 +1023,8 @@ class TestMdnsDiscoveryIAUnconfigured:
     the session OSCORE context for subsequent tests.
     """
 
-    def test_5_1_2_3b_ia_unconfigured_subtype(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.3b")
+    def test_unconfigured_device_advertises_default_ia_subtype(self, mdns, coap, oscore_ctx):
         """Factory-reset device should advertise _ia0-ffff subtype."""
         subtype = f"_ia0-ffff._sub.{KNX_SERVICE_TYPE}"
         expected_instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
@@ -1223,34 +1160,26 @@ class TestMdnsDiscoveryIAUnconfigured:
 class TestMdnsDiscoveryPM:
     """5.1.2.4: Discovery using programming mode."""
 
-    def test_5_1_2_4_pm_subtype_enabled(self, mdns, coap, oscore_ctx):
-        """Enable PM, browse _pm._sub._knx._udp.local → find device."""
-        # Enable programming mode (CBOR map {1: true})
+    @pytest.mark.eitt_overlap("5.1.2.4")
+    def test_full_chain_via_programming_mode_subtype(self, mdns, coap, oscore_ctx):
+        """Full discovery chain via _pm subtype."""
+        # Enable programming mode, then wait for the mDNS re-announcement.
+        # This used to be left behind by a sibling test that enabled the
+        # _pm subtype, removed as covered by EITT template case 5.1.2.4; the
+        # chain test must not depend on a sibling test having run first.
         pm_payload = cbor2.dumps({1: True})
         resp = coap.oscore_put(oscore_ctx, "/dev/pm",
                                payload=pm_payload, timeout=COAP_TIMEOUT)
         assert resp is not None and resp.is_successful, (
             f"PUT /dev/pm=true failed: {resp}")
-
-        # Wait for mDNS re-announcement
         time.sleep(MDNS_ANNOUNCE_WAIT_S)
 
         subtype = f"_pm._sub.{KNX_SERVICE_TYPE}"
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
-
-        found = _browse_service(mdns, subtype)
-        assert len(found) > 0, (
-            f"Device not found via _pm subtype after enabling PM")
-        assert expected in found, (
-            f"Device not in _pm results. Found: {found}")
-
-    def test_5_1_2_4_pm_full_chain(self, mdns, coap, oscore_ctx):
-        """Full discovery chain via _pm subtype."""
-        subtype = f"_pm._sub.{KNX_SERVICE_TYPE}"
-        expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
         _verify_discovery_chain(mdns, coap, subtype, expected)
 
-    def test_5_1_2_4_pm_subtype_disabled(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.4")
+    def test_programming_mode_subtype_withdrawn_when_disabled(self, mdns, coap, oscore_ctx):
         """Disable PM → _pm subtype should no longer be advertised."""
         # Disable programming mode (CBOR map {1: false})
         pm_payload = cbor2.dumps({1: False})
@@ -1277,7 +1206,8 @@ class TestMdnsDiscoveryPM:
 class TestMdnsUnsolicitedPM:
     """5.1.2.5a: Unsolicited mDNS responses on Programming mode change."""
 
-    def test_5_1_2_5a_pm_toggle_announcements(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.5a")
+    def test_programming_mode_toggle_announcements(self, mdns, coap, oscore_ctx):
         """Toggle PM on→off→on and verify mDNS announcements appear."""
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
 
@@ -1328,7 +1258,8 @@ class TestMdnsUnsolicitedPM:
 class TestMdnsUnsolicitedIA:
     """5.1.2.5b: Unsolicited mDNS responses on Individual Address change."""
 
-    def test_5_1_2_5b_ia_change_announcement(self, mdns, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.1.2.5b")
+    def test_individual_address_change_announcement(self, mdns, coap, oscore_ctx):
         """Change IA and verify new IA subtype appears in mDNS."""
         expected = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
 
@@ -1520,25 +1451,25 @@ class TestMdnsSleepPeriod:
             pytest.skip("DEVICE_IFACE not set — passive mDNS capture not possible")
         self._iface_idx = _iface_name_to_index(iface)
 
-    def test_5_1_900_1_sp_not_present_by_default(self, coap, oscore_ctx):
+    def test_sleep_period_not_present_by_default(self, coap, oscore_ctx):
         """SP TXT record is absent when sleep period is 0 (default)."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 0)
         assert sp_val is None, (
             f"Expected no SP TXT record when sp=0, got SP={sp_val!r}")
 
-    def test_5_1_900_2_sp_200(self, coap, oscore_ctx):
+    def test_sleep_period_200_appears_in_txt(self, coap, oscore_ctx):
         """SP=200 appears in the TXT record after setting sp=200."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 200)
         assert sp_val == "200", (
             f"Expected SP=200 in TXT, got SP={sp_val!r}")
 
-    def test_5_1_900_3_sp_20000(self, coap, oscore_ctx):
+    def test_sleep_period_20000_appears_in_txt(self, coap, oscore_ctx):
         """SP=20000 appears in the TXT record after setting sp=20000."""
         sp_val = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 20000)
         assert sp_val == "20000", (
             f"Expected SP=20000 in TXT, got SP={sp_val!r}")
 
-    def test_5_1_900_4_sp_cleared(self, coap, oscore_ctx):
+    def test_sleep_period_cleared_removes_txt(self, coap, oscore_ctx):
         """Setting sp=0 after a non-zero value removes the TXT record."""
         # First set a value so the TXT record is present
         sp_before = _set_sp_and_get_txt(coap, oscore_ctx, self._iface_idx, 30)
@@ -1665,7 +1596,7 @@ class TestMdnsTransitionAudit:
     # IA / IID change
     # ------------------------------------------------------------------
 
-    def test_5_1_901_1_transition_ia_change(self, coap, oscore_ctx):
+    def test_transition_ia_change(self, coap, oscore_ctx):
         """IA/IID change: old _ia subtype in goodbye, new _ia subtype in
         re-announcement; SN, AAAA, and gap all verified."""
         old_iid_hex = format(DUT_IID, "x")
@@ -1712,7 +1643,7 @@ class TestMdnsTransitionAudit:
     # PM enable
     # ------------------------------------------------------------------
 
-    def test_5_1_901_2_transition_pm_enable(self, coap, oscore_ctx):
+    def test_transition_pm_enable(self, coap, oscore_ctx):
         """PM enabled: _pm subtype appears in re-announcement but not goodbye;
         SN, AAAA, and gap all verified."""
         # Ensure PM starts disabled
@@ -1753,7 +1684,7 @@ class TestMdnsTransitionAudit:
     # PM disable
     # ------------------------------------------------------------------
 
-    def test_5_1_901_3_transition_pm_disable(self, coap, oscore_ctx):
+    def test_transition_pm_disable(self, coap, oscore_ctx):
         """PM disabled: _pm subtype present in goodbye, absent in
         re-announcement; SN, AAAA, and gap all verified."""
         # Ensure PM starts enabled
@@ -1789,7 +1720,7 @@ class TestMdnsTransitionAudit:
     # SP set (0 → 500)
     # ------------------------------------------------------------------
 
-    def test_5_1_901_4_transition_sp_set(self, coap, oscore_ctx):
+    def test_transition_sleep_period_set(self, coap, oscore_ctx):
         """SP set from 0 to 500: no goodbye expected (nothing to retract);
         SP=500 appears in re-announcement TXT; SN, AAAA, and gap verified."""
         # Ensure SP starts at 0
@@ -1833,7 +1764,7 @@ class TestMdnsTransitionAudit:
     # SP clear (500 → 0): standalone TXT goodbye + re-announcement
     # ------------------------------------------------------------------
 
-    def test_5_1_901_5_transition_sp_clear(self, coap, oscore_ctx):
+    def test_transition_sleep_period_clear(self, coap, oscore_ctx):
         """SP cleared from 500 to 0: re-announcement without SP TXT;
         SN and AAAA verified."""
         # Ensure SP starts at 500
@@ -2049,7 +1980,7 @@ class TestMdnsStateSync:
     # PM on/off sequence
     # ------------------------------------------------------------------
 
-    def test_5_1_902_1_state_sync_pm_sequence(self, coap, oscore_ctx):
+    def test_state_sync_pm_sequence(self, coap, oscore_ctx):
         """PM state is reflected correctly in mDNS across on/off cycle.
 
         Sequence:
@@ -2116,7 +2047,7 @@ class TestMdnsStateSync:
     # SP set / clear sequence
     # ------------------------------------------------------------------
 
-    def test_5_1_902_2_state_sync_sp_sequence(self, coap, oscore_ctx):
+    def test_state_sync_sleep_period_sequence(self, coap, oscore_ctx):
         """Sleep-period TXT record stays in sync across set / clear cycle.
 
         Sequence:
@@ -2174,7 +2105,7 @@ class TestMdnsStateSync:
     # Restart: IA preserved (stored), PM cleared (spec mandate)
     # ------------------------------------------------------------------
 
-    def test_5_1_902_3_state_sync_restart_preserves_state(self, coap, oscore_ctx):
+    def test_state_sync_restart_preserves_state(self, coap, oscore_ctx):
         """IA survives a restart; PM is always cleared by restart (spec).
 
         POST /.well-known/knx/ia writes IA+IID to persistent storage
@@ -2280,7 +2211,7 @@ class TestMdnsStateSync:
     # SP cleared; SN survives (hardware-fixed)
     # ------------------------------------------------------------------
 
-    def test_5_1_902_4_state_sync_factory_reset_clears_state(self, coap, oscore_ctx):
+    def test_state_sync_factory_reset_clears_state(self, coap, oscore_ctx):
         """Factory reset (erase_code=2) resets IA/IID to defaults, clears PM and SP.
 
         oc_knx_device_storage_reset(2) sets ia=0xFFFF, iid=0, pm=false and
@@ -2401,7 +2332,7 @@ class TestMdnsStateSync:
     # reachable after a restart, regardless of whether IPv6/port changed.
     # ------------------------------------------------------------------
 
-    def test_5_1_902_5_state_sync_restart_address_stability(self, coap, oscore_ctx):
+    def test_state_sync_restart_address_stability(self, coap, oscore_ctx):
         """mDNS endpoint announced after restart is reachable by a fresh client.
 
         Key invariant: an mDNS-aware client that re-queries after a device
@@ -2546,10 +2477,10 @@ class TestMdnsStateSync:
     # IPv6/port changed.
     # ------------------------------------------------------------------
 
-    def test_5_1_902_6_state_sync_factory_reset_address_stability(self, coap, oscore_ctx):
+    def test_state_sync_factory_reset_address_stability(self, coap, oscore_ctx):
         """mDNS endpoint announced after factory reset (erase_code=2) is reachable.
 
-        Identical invariant to test_5_1_902_5_state_sync_restart_address_stability, but
+        Identical invariant to test_state_sync_restart_address_stability, but
         the device lifecycle event is a factory reset rather than a plain
         restart.  A factory reset wipes the AT table, so full re-provisioning
         (auth_prepare + ia_prepare) is required before any OSCORE request can
@@ -2711,7 +2642,7 @@ class TestMdnsStateSync:
     # LSM unload: mDNS advertisement MUST survive
     # ------------------------------------------------------------------
 
-    def test_5_1_902_7_state_sync_mdns_alive_in_unloaded(self, coap, oscore_ctx):
+    def test_state_sync_mdns_alive_in_unloaded(self, coap, oscore_ctx):
         """mDNS keeps advertising when the LSM enters UNLOADED.
 
         Entering UNLOADED drops the group multicast memberships and deletes
@@ -2807,4 +2738,3 @@ class TestMdnsStateSync:
         set_lsm(coap, oscore_ctx, 1)
         set_lsm(coap, oscore_ctx, 2)
         time.sleep(MDNS_ANNOUNCE_WAIT_S)
-

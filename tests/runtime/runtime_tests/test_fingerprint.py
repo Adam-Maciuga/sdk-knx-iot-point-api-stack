@@ -1,17 +1,17 @@
 """
 Runtime conformance tests — EITT 5.2.4 Fingerprint
 
+5.2.4.2 and 5.2.4.3 (fingerprint in loading / unloaded state) are covered
+by the EITT template and now live in the eitt tier.
+
 5.2.4.1  Reading fingerprint; fingerprint changes through state changes
 5.2.4.1b Invalid POST to fingerprint → 4.05
 5.2.4.1c Invalid PUT to fingerprint → 4.05
-5.2.4.2  Read fingerprint in loading state → 5.03
-5.2.4.3  Read fingerprint in unloaded state → 5.03
 """
 
 import cbor2
 import pytest
 
-from transport.coap_client import APPLICATION_CBOR
 from conftest import set_lsm
 
 
@@ -46,7 +46,8 @@ class TestFingerprintChanges:
     - Writing parameters
     """
 
-    def test_5_2_4_1_fingerprint_changes(self, coap, oscore_ctx):
+    @pytest.mark.eitt_overlap("5.2.4.1")
+    def test_fingerprint_changes_after_each_modification(self, coap, oscore_ctx):
         """Fingerprint value must change after each table/param modification.
 
         EITT steps:
@@ -152,8 +153,9 @@ class TestFingerprintChanges:
 class TestFingerprintInvalidWrite:
     """5.2.4.1b/c: Fingerprint cannot be written by client."""
 
-    def test_5_2_4_1b_post_fingerprint_rejected(self, coap, oscore_ctx):
-        """5.2.4.1b: POST /.well-known/knx/f → 4.05 Method Not Allowed.
+    @pytest.mark.eitt_overlap("5.2.4.1b")
+    def test_post_fingerprint_rejected(self, coap, oscore_ctx):
+        """Overlaps EITT 5.2.4.1b: POST /.well-known/knx/f → 4.05 Method Not Allowed.
 
         EITT steps:
         1. POST /.well-known/knx/f {1: 99} → 4.05
@@ -179,8 +181,9 @@ class TestFingerprintInvalidWrite:
         assert resp.payload == original_fp, (
             "Fingerprint should not change after rejected POST")
 
-    def test_5_2_4_1c_put_fingerprint_rejected(self, coap, oscore_ctx):
-        """5.2.4.1c: PUT /.well-known/knx/f → 4.05 Method Not Allowed.
+    @pytest.mark.eitt_overlap("5.2.4.1c")
+    def test_put_fingerprint_rejected(self, coap, oscore_ctx):
+        """Overlaps EITT 5.2.4.1c: PUT /.well-known/knx/f → 4.05 Method Not Allowed.
 
         EITT steps:
         1. PUT /.well-known/knx/f {1: 99} → 4.05
@@ -204,56 +207,3 @@ class TestFingerprintInvalidWrite:
         assert resp is not None and resp.is_successful
         assert resp.payload == original_fp, (
             "Fingerprint should not change after rejected PUT")
-
-
-# ===========================================================================
-#  5.2.4.2 — Fingerprint in loading state
-# ===========================================================================
-
-class TestFingerprintLoadingState:
-    """5.2.4.2: Reading fingerprint in loading state → 5.03."""
-
-    def test_5_2_4_2_fingerprint_loading(self, coap, oscore_ctx):
-        """GET /.well-known/knx/f in loading state → 5.03 Service Unavailable."""
-        try:
-            resp_lsm = set_lsm(coap, oscore_ctx, 1)  # startLoading
-            # EITT verifies LSM POST response contains status:2 (loading)
-            if resp_lsm is not None and resp_lsm.is_successful:
-                lsm_data = cbor2.loads(resp_lsm.payload)
-                assert lsm_data.get(3) == 2, (
-                    f"LSM status after startLoading should be 2, "
-                    f"got {lsm_data.get(3)}")
-
-            resp = coap.oscore_get(oscore_ctx, "/.well-known/knx/f")
-            assert resp is not None, "GET fingerprint in loading state timed out"
-            assert resp.code == "5.03", (
-                f"Fingerprint in loading state should return 5.03, "
-                f"got {resp.code}")
-        finally:
-            set_lsm(coap, oscore_ctx, 4)  # unload
-            _ensure_loaded(coap, oscore_ctx)
-
-
-# ===========================================================================
-#  5.2.4.3 — Fingerprint in unloaded state
-# ===========================================================================
-
-class TestFingerprintUnloadedState:
-    """5.2.4.3: Reading fingerprint in unloaded state → 5.03."""
-
-    def test_5_2_4_3_fingerprint_unloaded(self, coap, oscore_ctx):
-        """GET /.well-known/knx/f in unloaded state → 5.03."""
-        try:
-            set_lsm(coap, oscore_ctx, 4)  # unload
-            # EITT verifies LSM status is 0 (unloaded) before reading fingerprint
-            status = _get_lsm_status(coap, oscore_ctx)
-            assert status == 0, (
-                f"LSM status after unload should be 0, got {status}")
-
-            resp = coap.oscore_get(oscore_ctx, "/.well-known/knx/f")
-            assert resp is not None, "GET fingerprint in unloaded state timed out"
-            assert resp.code == "5.03", (
-                f"Fingerprint in unloaded state should return 5.03, "
-                f"got {resp.code}")
-        finally:
-            _ensure_loaded(coap, oscore_ctx)

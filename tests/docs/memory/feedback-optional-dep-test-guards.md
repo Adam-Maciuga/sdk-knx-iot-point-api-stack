@@ -43,6 +43,6 @@ This cost a full 9-minute Docker run that reported 5 ERRORs — which look
 alarming next to a green suite but were pure path breakage.
 
 **How to apply:** after adding any test file, run it BOTH ways before
-trusting it — `pytest tests/runtime/test_x.py` from the repo root, and via
+trusting it — `pytest tests/runtime/<tier>/test_x.py` from the repo root, and via
 [[feedback-eitt-always-run-in-docker]]. A local-only pass proves nothing
 about the harness. Related: [[project-eitt-gui-plan]].

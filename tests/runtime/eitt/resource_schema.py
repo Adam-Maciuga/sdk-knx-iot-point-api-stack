@@ -15,7 +15,7 @@ data, and not in knx-iot-docs as anything more than scattered per-
 resource markdown tables. This module is our replacement for that
 missing piece: one schema per resource path, hand-authored from
 knx-iot-docs' resource tables and cross-checked against every
-cbor2.dumps(...)/cbor2.loads(...) call in tests/runtime/test_5_*.py and
+cbor2.dumps(...)/cbor2.loads(...) call in tests/runtime/runtime_tests/test_*.py and
 conftest.py (see git history/PR description for the audit).
 
 Extend this table as new TestCases from a fresh XML revision exercise a
@@ -324,35 +324,35 @@ RESOURCE_SCHEMAS: dict[str, ResourceSchema] = {
     "/auth/at": _AT_ENTRY_SCHEMA,
 
     # .well-known/knx/ia — set Individual Address / Installation ID
-    # (+ optional Fabric ID). conftest.py:644,805; test_5_2_wellknown_knx.py:192.
+    # (+ optional Fabric ID). conftest.py:644,805; test_ia_assignment.py:192.
     ".well-known/knx/ia": ResourceSchema({
         "ia": 12, "iid": 26, "fid": 25,
     }),
 
     # .well-known/knx (device restart / programming mode / factory reset
-    # command envelope). test_5_2_wellknown_knx.py:78,91;
-    # test_5_2_reset.py:144,314 (`{2: "reset", 1: <code>}`).
+    # command envelope). test_ia_assignment.py:78,91;
+    # test_reset.py:144,314 (`{2: "reset", 1: <code>}`).
     ".well-known/knx": ResourceSchema({
         "value": 1,     # e.g. programming-mode boolean payload {1: true}
         "cmd": 2,       # "restart" | "reset"
     }),
 
-    # /a/lsm — Load State Machine command. test_5_1_discovery_extended.py:171
+    # /a/lsm — Load State Machine command. test_discovery_programming_mode.py:171
     # (`{2: <cmd>}`); 1=loading,2=loadComplete,4=unload per set_lsm() docstring.
     "/a/lsm": ResourceSchema({
         "cmd": 2,
         "status": 3,
     }),
 
-    # /fp/g — Group Object table entry. test_5_5_fp_tables.py:160
+    # /fp/g — Group Object table entry. test_fp_tables.py:160
     # (`[{0: id, 7: ga, 8: cflag, 11: href}]`); id-only entry ({0: id})
-    # is the POST-empty-element delete form (test_5_5_fp_tables.py:211).
+    # is the POST-empty-element delete form (test_fp_tables.py:211).
     "/fp/g": ResourceSchema({
         "id": 0, "ga": 7, "cflag": 8, "href": 11,
     }),
 
     # /fp/r, /fp/p — Recipient / Publisher table entry, same field
-    # shape. test_5_5_fp_tables.py:480 (`[{0: id, 13: grpid, 7: ga}]`);
+    # shape. test_fp_tables.py:480 (`[{0: id, 13: grpid, 7: ga}]`);
     # a unicast-address entry uses "ia"/"iid" instead of "grpid" — see
     # tests/docs/eitt-xml-interpreter.md's JSON<->CBOR mapping research
     # (5.5.5.3/5.5.9.3 unicast recipient/publisher entries).
@@ -373,11 +373,11 @@ RESOURCE_SCHEMAS: dict[str, ResourceSchema] = {
     # {0: "knx://sn.<serial>/<path>"} — confirmed against
     # traces/5_3.xml TelNo 1185/1186, RawContent "BF 00 78 1A ... FF" =
     # {0: "knx://sn:00fa10020800/p/p1"}.
-    # test_5_8_parameters.py:200; test_5_2_fingerprint.py:169.
+    # test_parameters.py:200; test_fingerprint.py:169.
     "/p": ResourceSchema({"id": 0, "value": 1, "href": 11}),
 
     # /dev/{name} — device data property value. Same {1: <value>} shape
-    # as /p/* (test_5_2_device_resources.py:117,127,133: `data.get(1)`).
+    # as /p/* (test_device_resources.py:117,127,133: `data.get(1)`).
     "/dev": ResourceSchema({"value": 1}),
 
     # /ap/pv — Application Program "PEI value"/parameter-value datapoint.
@@ -400,7 +400,7 @@ RESOURCE_SCHEMAS: dict[str, ResourceSchema] = {
     ".well-known/knx/f": ResourceSchema({"value": 1}),
 
     # /a/swu (Software Update) state/control resources.
-    # test_5_2_swu.py:197 (`{1: 0}` = update trigger with value 0).
+    # test_swu.py:197 (`{1: 0}` = update trigger with value 0).
     "/a/swu": ResourceSchema({"value": 1}),
     "swu/update": ResourceSchema({"value": 1}),
     "swu/state": ResourceSchema({"value": 1}),
@@ -409,7 +409,7 @@ RESOURCE_SCHEMAS: dict[str, ResourceSchema] = {
     # /test/trigger — test-only DUT control endpoint (not part of the
     # real KNX IoT spec; used by overrides.py action="trigger" to
     # automate steps EITT expects a human to perform manually).
-    # test_5_3_security.py:1719,1818 (`{11: "/p/3"}` — href to trigger).
+    # test_security.py:1719,1818 (`{11: "/p/3"}` — href to trigger).
     "/test/trigger": ResourceSchema({"href": 11, "value": 1}),
 }
 

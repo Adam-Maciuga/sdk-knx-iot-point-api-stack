@@ -71,7 +71,7 @@ a `RunSink` Protocol, and an `EventBus` that fans out to zero or more sinks.
 `SequenceRunner(..., sink=...)` is the opt-in; the default is `NullBus`,
 whose `active` is `False`, so a pytest run builds no records at all.
 
-Three properties are pinned by `test_events.py` (headless, no DUT):
+Three properties are pinned by `harness_tests/test_events.py` (headless, no DUT):
 
 - constructing a runner the way `test_eitt.py` does leaves telemetry off;
 - the same TestCase run with and without a sink drives the CoAP client
@@ -106,13 +106,13 @@ painful.
 
 `gui/models.py` (`ProjectTreeModel`, `SequenceTableModel`) + `gui/main_window.py`,
 launched with `python -m gui.eitt_gui`. Everything below was built as
-specified; `test_gui_models.py` covers it offscreen.
+specified; `harness_tests/test_gui_models.py` covers it offscreen.
 
 Two things worth recording from the build:
 
 - **Qt is NOT in `tests/runtime/requirements.txt`.** That file is what the
   Docker conformance image installs, and it must stay Qt-free — the GUI
-  dependency lives in `gui/requirements.txt`. `test_gui_models.py`
+  dependency lives in `gui/requirements.txt`. `harness_tests/test_gui_models.py`
   `importorskip`s PySide6, so it is inert in the image.
 - **The comment-command grammar got its own reader**, `eitt/comment_scheme.py`,
   because the properties pane needs it and it is useful without Qt (it is
@@ -311,7 +311,7 @@ behind pale text.
 
 `gui/theme.py` detects the theme from `QPalette.Base` and returns a matching
 palette; both variants keep the same MEANING per colour and move only
-luminance. `test_gui_theme.py` computes real WCAG ratios for every tint
+luminance. `harness_tests/test_gui_theme.py` computes real WCAG ratios for every tint
 against BOTH the base and the alternating-row background, in BOTH themes —
 `inactive` failed at 3.15:1 (dark) and 2.74:1 (light) before being lifted;
 everything now clears 4.5:1 AA. Tests must compare against the THEME, never
