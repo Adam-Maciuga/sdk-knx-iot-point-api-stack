@@ -1,12 +1,23 @@
 """
-Minimal CoAP client using raw UDP sockets.
+CoAP client for the runtime conformance tests, on raw UDP sockets.
 
-Replaces aiocoap for the runtime conformance tests because aiocoap's
-Context management exhausts after ~11 requests in a shared session.
+WHY NOT A LIBRARY (aiocoap): conformance testing has to be able to put
+DELIBERATELY NON-CONFORMANT frames on the wire — a corrupted OSCORE auth
+tag (InvalidAuthTag), a replayed or offset sequence number (SeqNoOffset),
+an unknown critical option, a mismatched token. A correctness-enforcing
+library actively prevents exactly those, which is the point of the test.
+KNX-IoT's OSCORE profile also deviates from RFC 8613 (see
+tests/docs/knx-protocol-deviations.md). The original reason for dropping
+aiocoap — its Context management exhausting after ~11 requests in a
+shared session — still holds, but it is no longer the main one.
 
-This client is synchronous and stateless — each request is a single
-UDP send/recv pair with no retransmission, which is fine for localhost
-testing where packet loss doesn't occur.
+The client is SYNCHRONOUS but NOT stateless: it keeps a Message-ID
+counter, a token counter, per-request correlation state and a buffer of
+unsolicited requests from the DUT. Requests are retried (3 attempts; 1
+when sending an adversarial frame, where a retry would corrupt the test).
+Beyond plain request/response it also does CON/NON/ACK/RST handling,
+piggybacked vs separate responses, OSCORE protect/unprotect, the echo
+challenge, multicast group join/capture and observe.
 """
 
 import os
@@ -15,6 +26,12 @@ import struct
 import time
 from dataclasses import dataclass, replace
 from typing import Optional
+
+# The only crypto import in this module. It is here rather than in a local
+# import because it names an EXPECTED outcome on the multicast path — a
+# group telegram encrypted for a different context — and catching it by
+# name is what keeps `except Exception` out of the receive loop.
+from cryptography.exceptions import InvalidTag
 
 # CoAP message types
 CON = 0
@@ -27,6 +44,16 @@ GET = (0, 1)
 POST = (0, 2)
 PUT = (0, 3)
 DELETE = (0, 4)
+
+# UDP receive buffer. Linux DISCARDS the remainder of an oversized datagram
+# with no error, so an undersized buffer truncates silently — the failure
+# then looks like a content mismatch. 64 KiB is the largest a UDP datagram
+# can be, so nothing can be lost. (Was 4096: not reachable with the current
+# template — largest observed payload is ~829 bytes and 5.2 chunks its
+# firmware upload at PREP_BLOCK_SIZE=500 via ?ps=/?po= rather than RFC 7959
+# blockwise — but a GET /.well-known/core from a resource-rich device is the
+# realistic way to exceed it. See finding T9.)
+_RECV_BUF = 65535
 
 # Common content formats
 LINK_FORMAT = 40
@@ -227,39 +254,92 @@ def _encode_option(delta: int, value: bytes) -> bytes:
     return struct.pack("B", (d << 4) | l) + d_ext + l_ext + value
 
 
-def _parse_options(data: bytes, offset: int) -> tuple[dict, int]:
-    """Parse CoAP options from raw bytes. Returns (options_dict, payload_offset)."""
-    options = {}
+class CoapFormatError(ValueError):
+    """A received datagram is not well-formed CoAP (RFC 7252 §3).
+
+    Raised instead of returning half-parsed data: a caller that cannot
+    trust the option set cannot trust the payload offset either, and
+    silently truncating a malformed option would hand the test suite a
+    plausible-looking but wrong value. Every receive loop catches this and
+    skips the datagram.
+    """
+
+
+def _parse_options(data: bytes, offset: int,
+                   repeated: Optional[dict] = None) -> tuple[dict, int]:
+    """Parse CoAP options. Returns ({option_number: value}, payload_offset).
+
+    The returned dict holds ONE value per option number (the last seen),
+    which is what every caller here wants for the non-repeatable options
+    they read: Content-Format (12), OSCORE (9), Observe (6), Echo (252).
+
+    Several CoAP options are repeatable, though — Uri-Path (11) and
+    Uri-Query (15) in particular, where "a/b/c" is three separate option
+    instances. Pass a dict as `repeated` to collect every instance
+    ({option_number: [v1, v2, ...]}); the flat return value alone would
+    silently reduce that path to "c".
+
+    Raises CoapFormatError on anything malformed rather than guessing:
+    a truncated extension byte, an option whose length runs past the end
+    of the datagram, or the reserved 15 nibble (RFC 7252 §3.1 — "MUST be
+    processed as a message format error").
+    """
+    options: dict[int, bytes] = {}
     opt_num = 0
-    while offset < len(data):
-        if data[offset] == 0xFF:
-            # Payload marker
-            offset += 1
-            break
+    end = len(data)
+
+    while offset < end:
         byte = data[offset]
+        if byte == 0xFF:
+            # Payload marker. RFC 7252 §3: it MUST be followed by a
+            # non-empty payload.
+            offset += 1
+            if offset >= end:
+                raise CoapFormatError(
+                    "payload marker (0xFF) with no payload following")
+            break
+
         delta = (byte >> 4) & 0x0F
         length = byte & 0x0F
         offset += 1
 
+        if delta == 15 or length == 15:
+            raise CoapFormatError(
+                f"reserved nibble 15 in option header at offset {offset - 1}")
+
         if delta == 13:
+            if offset + 1 > end:
+                raise CoapFormatError("truncated option delta extension")
             delta = data[offset] + 13
             offset += 1
         elif delta == 14:
+            if offset + 2 > end:
+                raise CoapFormatError("truncated option delta extension")
             delta = struct.unpack("!H", data[offset:offset + 2])[0] + 269
             offset += 2
 
         if length == 13:
+            if offset + 1 > end:
+                raise CoapFormatError("truncated option length extension")
             length = data[offset] + 13
             offset += 1
         elif length == 14:
+            if offset + 2 > end:
+                raise CoapFormatError("truncated option length extension")
             length = struct.unpack("!H", data[offset:offset + 2])[0] + 269
             offset += 2
 
-        opt_num += delta
-        opt_val = data[offset:offset + length]
-        offset += length
+        if offset + length > end:
+            raise CoapFormatError(
+                f"option {opt_num + delta} declares {length} byte(s) but only "
+                f"{end - offset} remain")
 
-        options[opt_num] = opt_val
+        opt_num += delta
+        value = data[offset:offset + length]
+        options[opt_num] = value
+        if repeated is not None:
+            repeated.setdefault(opt_num, []).append(value)
+        offset += length
 
     return options, offset
 
@@ -323,6 +403,13 @@ class CoapClient:
         # one socket permanently open; this list is our equivalent.
         self._pending_requests: list[tuple[dict, tuple]] = []
 
+        # Why the last _recv_response returned None: one entry per datagram
+        # that arrived but was NOT usable as the response. Empty means the
+        # device really was silent. See T10 in eitt-interpreter-findings.md —
+        # without this a token/MID correlation bug is indistinguishable from
+        # a dead device.
+        self._last_discards: list[str] = []
+
     def close(self):
         self._sock.close()
 
@@ -332,9 +419,23 @@ class CoapClient:
         return mid
 
     def _next_token(self) -> bytes:
-        token = struct.pack("!H", self._token_counter & 0xFFFF)
+        """A fresh 8-byte token, unique for the life of the process.
+
+        Was a 2-byte counter starting at 0 for EVERY new CoapClient, which
+        made tokens both predictable and REPEATED across client instances:
+        a delayed reply to a previous client's first request carried token
+        0x0000 and would be accepted as the answer to the new client's
+        first request. Correlation is token-only here (see `_recv_response`),
+        so that is the whole of the protection.
+
+        The random half makes a collision with an in-flight stale response
+        negligible; the counter half guarantees no two tokens from this
+        process are equal even if os.urandom repeats. RFC 7252 §5.3.1 wants
+        tokens that are not trivially guessable.
+        """
         self._token_counter += 1
-        return token
+        return (os.urandom(4)
+                + struct.pack("!I", self._token_counter & 0xFFFFFFFF))
 
     def _build_request(self, method: tuple, uri_path: str,
                        payload: bytes = b"",
@@ -425,24 +526,36 @@ class CoapClient:
         return msg
 
     def drain_socket(self, timeout: float = 0.1):
-        """Drain any pending messages from the socket.
+        """Discard stale inbound state: the socket AND the pending-request
+        buffer.
 
         Useful after factory reset or test failures to clear stale
         retransmissions from the DUT.
+
+        Clearing `_pending_requests` matters as much as draining the socket.
+        Entries there carry no timestamp, so a DUT-originated telegram
+        buffered during TestCase N is indistinguishable from a fresh one and
+        would be handed to TestCase N+5's UnicastTelegramListener as though
+        it had just arrived. Callers invoke this to mean "forget anything
+        the device said before now", and a telegram already lifted off the
+        socket is exactly that. See finding T8.
         """
         old_timeout = self._sock.gettimeout()
         self._sock.settimeout(timeout)
         drained = 0
         try:
             while True:
-                self._sock.recvfrom(4096)
+                self._sock.recvfrom(_RECV_BUF)
                 drained += 1
         except socket.timeout:
             pass
         finally:
             self._sock.settimeout(old_timeout)
-        if drained:
-            _dbg_coap(f"[coap] drained {drained} stale message(s)")
+        buffered = len(self._pending_requests)
+        self._pending_requests.clear()
+        if drained or buffered:
+            _dbg_coap(f"[coap] drained {drained} stale message(s) and "
+                      f"discarded {buffered} buffered request(s)")
 
     def request(self, method: tuple, path: str,
                 payload: bytes = b"",
@@ -461,9 +574,10 @@ class CoapClient:
         """
         msg = self._build_request(method, path, payload, accept,
                                   content_format, block2=block2)
-        # Extract expected token from built message
+        # Extract expected token and message ID from the built message
         tkl = msg[0] & 0x0F
         expected_token = msg[4:4 + tkl]
+        expected_mid = struct.unpack("!H", msg[2:4])[0]
 
         old_timeout = self._sock.gettimeout()
         effective_timeout = timeout if timeout is not None else self.timeout
@@ -471,21 +585,33 @@ class CoapClient:
 
         try:
             self._sock.sendto(msg, (self.host, self.port, 0, 0))
-            return self._recv_response(effective_timeout, expected_token)
+            return self._recv_response(effective_timeout, expected_token,
+                                       expected_mid)
         except socket.timeout:
             return None
         finally:
             self._sock.settimeout(old_timeout)
 
     def _recv_response(self, timeout: float,
-                       expected_token: bytes = None) -> Optional[CoapResponse]:
+                       expected_token: bytes = None,
+                       expected_mid: Optional[int] = None
+                       ) -> Optional[CoapResponse]:
         """Receive a CoAP response, handling separate response pattern.
 
         Skips messages whose token doesn't match expected_token (stale
         retransmissions from DUT).
+
+        Returning None is ambiguous by nature — it means "no response I could
+        use", which covers both a genuinely silent device and a device that
+        answered in a way we discarded. `self._last_discards` records which
+        happened, so the failure message can tell them apart (T10).
         """
         import time
         deadline = time.monotonic() + timeout
+
+        # Reset per receive attempt, not per datagram: the caller reads this
+        # after we return None to explain WHY nothing came back.
+        self._last_discards = []
 
         while True:
             remaining = deadline - time.monotonic()
@@ -494,11 +620,13 @@ class CoapClient:
             self._sock.settimeout(remaining)
 
             try:
-                data, addr = self._sock.recvfrom(4096)
+                data, addr = self._sock.recvfrom(_RECV_BUF)
             except socket.timeout:
                 return None
 
             if len(data) < 4:
+                self._last_discards.append(
+                    f"runt datagram ({len(data)} bytes, min 4)")
                 continue
 
             byte0 = data[0]
@@ -515,19 +643,59 @@ class CoapClient:
             if msg_type == ACK and code_byte == 0:
                 continue
 
-            # If server sent a CON response, ACK it.
-            if msg_type == CON:
-                ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
-                self._sock.sendto(ack, (self.host, self.port, 0, 0))
-
-            # Skip messages with wrong token (stale retransmissions)
+            # Skip messages with wrong token (stale retransmissions).
+            #
+            # This MUST come before the CON-ACK below. A CON that is not
+            # ours is very often a telegram the DUT originated and is
+            # waiting on — 5.4.1 asserts on the DUT's RETRANSMISSION of an
+            # unACKed telegram (see runner._send_echo_challenge). ACKing it
+            # here would satisfy the device, the retransmission would never
+            # come, and the test would fail with "no telegram arrived":
+            # a false FAIL that only shows up when a response read happens
+            # to overlap a DUT-originated telegram, i.e. as flakiness.
             if expected_token is not None and token != expected_token:
                 _dbg_coap(f"[coap] skipping stale msg: token={token.hex()}"
                           f" expected={expected_token.hex()}")
+                self._last_discards.append(
+                    f"token mismatch (got {token.hex() or 'empty'}, "
+                    f"expected {expected_token.hex()}, "
+                    f"code {code_class}.{code_detail:02d})")
                 continue
 
+            # A PIGGYBACKED response (RFC 7252 §5.2.1) rides in the ACK to
+            # our request and MUST carry that request's Message ID. A
+            # SEPARATE response arrives later as its own CON with a fresh
+            # MID, so the check applies to ACKs only — matching a CON here
+            # would reject exactly the case the empty-ACK branch above set
+            # up. 1324 of the template's 1457 active response rows are
+            # piggybacked, so this covers the overwhelming majority.
+            if (expected_mid is not None and msg_type == ACK
+                    and mid != expected_mid):
+                _dbg_coap(f"[coap] skipping ACK with wrong mid={mid} "
+                          f"expected={expected_mid}")
+                self._last_discards.append(
+                    f"ACK MID mismatch (got {mid}, expected {expected_mid}, "
+                    f"code {code_class}.{code_detail:02d})")
+                continue
+
+            # Our own CON response: ACK it, to the address it actually came
+            # FROM. The DUT answers from an ephemeral source port, so
+            # replying to (self.host, self.port) can miss it entirely — the
+            # device would then retransmit, and those copies land on the
+            # shared socket during a LATER exchange.
+            if msg_type == CON:
+                ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
+                self._sock.sendto(ack, addr)
+
             offset = 4 + tkl
-            options, payload_offset = _parse_options(data, offset)
+            try:
+                options, payload_offset = _parse_options(data, offset)
+            except CoapFormatError as exc:
+                # Not well-formed CoAP — skip it and keep waiting rather
+                # than letting one bad datagram abort the whole run.
+                _dbg_coap(f"[coap] discarding malformed datagram: {exc}")
+                self._last_discards.append(f"malformed options ({exc})")
+                continue
 
             payload_data = (data[payload_offset:]
                             if payload_offset < len(data) else b"")
@@ -840,7 +1008,7 @@ class CoapClient:
             self._sock.settimeout(remaining)
 
             try:
-                data, addr = self._sock.recvfrom(4096)
+                data, addr = self._sock.recvfrom(_RECV_BUF)
             except socket.timeout:
                 return None
 
@@ -858,10 +1026,13 @@ class CoapClient:
             if msg_type == ACK and code_byte == 0:
                 continue
 
-            # ACK CON responses
-            if msg_type == CON:
-                ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
-                self._sock.sendto(ack, (self.host, self.port, 0, 0))
+            # NOTE: the CON-ACK deliberately happens AFTER the token check
+            # below, not here. A CON carrying someone else's token is very
+            # often a telegram the DUT originated and is waiting on — 5.4.1
+            # asserts on the DUT's RETRANSMISSION of an unACKed telegram.
+            # ACKing it at this point would satisfy the device, the
+            # retransmission would never arrive, and the test would fail
+            # with "no telegram arrived".
 
             # Skip messages with wrong token (stale DUT retransmissions) —
             # but FIRST keep it if it is an unsolicited REQUEST the DUT sent
@@ -890,8 +1061,19 @@ class CoapClient:
                           f" expected={expected_token.hex()}")
                 continue
 
+            # Our own CON response: ACK it, to the address it actually came
+            # FROM (the DUT answers from an ephemeral source port, so
+            # replying to (self.host, self.port) can miss it entirely).
+            if msg_type == CON:
+                ack = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
+                self._sock.sendto(ack, addr)
+
             offset = 4 + tkl
-            options, payload_offset = _parse_options(data, offset)
+            try:
+                options, payload_offset = _parse_options(data, offset)
+            except CoapFormatError as exc:
+                _dbg_coap(f"[coap] discarding malformed datagram: {exc}")
+                continue
 
             outer_payload = data[payload_offset:] if payload_offset < len(
                 data) else b""
@@ -1092,7 +1274,7 @@ class CoapClient:
                     break
                 self._sock.settimeout(remaining)
                 try:
-                    data, _ = self._sock.recvfrom(4096)
+                    data, _ = self._sock.recvfrom(_RECV_BUF)
                 except socket.timeout:
                     break
                 if len(data) < 4:
@@ -1116,7 +1298,11 @@ class CoapClient:
                     continue
 
                 offset = 4 + tkl
-                options, payload_offset = _parse_options(data, offset)
+                try:
+                    options, payload_offset = _parse_options(data, offset)
+                except CoapFormatError as exc:
+                    _dbg_coap(f"[coap] discarding malformed datagram: {exc}")
+                    continue
                 outer_payload = (data[payload_offset:]
                                  if payload_offset < len(data) else b"")
 
@@ -1341,7 +1527,7 @@ class CoapClient:
             mcast_sock.settimeout(remaining)
 
             try:
-                data, addr = mcast_sock.recvfrom(4096)
+                data, addr = mcast_sock.recvfrom(_RECV_BUF)
             except socket.timeout:
                 break
 
@@ -1358,7 +1544,11 @@ class CoapClient:
             token = data[4:4 + tkl]
 
             offset = 4 + tkl
-            options, payload_offset = _parse_options(data, offset)
+            try:
+                options, payload_offset = _parse_options(data, offset)
+            except CoapFormatError as exc:
+                _dbg_coap(f"[coap] discarding malformed datagram: {exc}")
+                continue
 
             payload_data = (data[payload_offset:]
                             if payload_offset < len(data) else b"")
@@ -1606,7 +1796,17 @@ class CoapClient:
             try:
                 result = oscore_ctx.unprotect_request(options[9],
                                                      msg["payload"])
-            except Exception as exc:   # AEAD failure = not for this ctx
+            except (InvalidTag, IndexError, ValueError) as exc:
+                # Not for this context. Broader than the response path
+                # (which only tolerates InvalidTag) ON PURPOSE: this is
+                # multicast, so telegrams for OTHER contexts genuinely
+                # arrive here, and unprotect_request indexes into the
+                # OSCORE option before it ever reaches the AEAD — a
+                # telegram whose option layout belongs to a different
+                # context can raise IndexError/ValueError long before
+                # InvalidTag. Still narrowed from `Exception` so a
+                # TypeError/AttributeError in our own code surfaces
+                # instead of masquerading as a foreign telegram.
                 _dbg_oscore(f"[oscore] group telegram did not decrypt under "
                             f"this Rx context ({exc}); skipping")
                 continue
@@ -1684,7 +1884,7 @@ class CoapClient:
                     break
                 sock.settimeout(remaining)
                 try:
-                    data, addr = sock.recvfrom(4096)
+                    data, addr = sock.recvfrom(_RECV_BUF)
                 except socket.timeout:
                     break
                 msg = self.parse_coap_message(data)
@@ -1883,7 +2083,7 @@ class UnicastTelegramListener:
                     return
                 sock.settimeout(remaining)
                 try:
-                    data, addr = sock.recvfrom(4096)
+                    data, addr = sock.recvfrom(_RECV_BUF)
                 except socket.timeout:
                     return
                 except OSError:

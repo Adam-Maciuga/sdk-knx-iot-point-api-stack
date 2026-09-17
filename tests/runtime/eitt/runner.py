@@ -37,7 +37,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from transport.coap_client import CON, NON
+from transport.coap_client import ACK, CON, NON, RST
 from .content_match import match_content
 from .hooks import HookContext, get_hook
 from .model import CoAPMessage, Comment, DnsMessage, EittProject, TestCase
@@ -110,7 +110,27 @@ _LOOP_INVOKE_RE = re.compile(r'^@>w"([^;"]+);([^"]*)"')
 # beep" (a modal the operator dismisses). The single-`@` form `@!<text>` is
 # informational only ("display comment in toolbar and beep"), so it is NOT
 # matched here and stays a no-op.
-_MANUAL_PROMPT_RE = re.compile(r'^@@!\s*(.+)$', re.S)
+#
+# Bare `@@<text>` is the SAME "display and suspend evaluation" modal, minus
+# the beep, so it routes through the identical manual_actions mechanism.
+# `!` is optional here; `[` is excluded because `@@[<cmd>` is the
+# provisioning-command form, not an operator prompt. (Both are also ordered
+# ahead of this in _run_comment — the exclusion keeps the pattern correct on
+# its own rather than relying on match order.)
+_MANUAL_PROMPT_RE = re.compile(r'^@@(?!\[)!?\s*(.+)$', re.S)
+
+# Display-only comment commands: shown to the operator, no side effect.
+#   @[t<text>   narrative text (2463 uses)
+#   @[<Text>    the same with the 't' omitted by the author — 18 uses, all
+#               plain prose ("Preparation: ...", "Recipient Multicast GRPID
+#               (id=5) ..."), several appearing verbatim elsewhere WITH the
+#               't'. Matched as "@[ + a letter", which cannot collide with
+#               the real @[ subcommand `@[w"..."` because that is claimed by
+#               _WAIT_RE first and always carries its quoted timespan.
+#   @!<text>    display + beep, informational only
+# Anything else starting with '@' is treated as an unimplemented command and
+# fails the step rather than passing silently — see F7/F8.
+_DISPLAY_ONLY_RE = re.compile(r'^(@\[[a-zA-Z]|@!)', re.S)
 
 
 class UnsupportedFeature(Exception):
@@ -196,6 +216,45 @@ def _response_code_tuple(code: Optional[str]) -> Optional[tuple]:
     return int(m.group(1)), int(m.group(2))
 
 
+def _expected_response_codes(code: Optional[str]) -> list[tuple]:
+    """Every response code an `OUT` step accepts, as (class, detail) pairs.
+
+    EITT's `Code` attribute on a response row is usually a single code
+    ("2.05"), but 36 active rows in this template list SEVERAL, comma
+    separated — "4.00,4.04", "4.01,4.05", "4.00,4.01,4.03,4.05". That is
+    the template author saying "any of these is acceptable here", typically
+    because the spec permits more than one rejection code. Each alternative
+    is parsed independently; anything unparseable is dropped, and a row that
+    yields NO parseable code means "do not assert the code" (that is how a
+    method-named `Code` on a DUT-originated telegram, e.g. "POST", behaves).
+    """
+    return [t for t in (_response_code_tuple(part)
+                        for part in (code or "").split(","))
+            if t is not None]
+
+
+_MSG_TYPE_NAMES = {CON: "CON", NON: "NON", ACK: "ACK", RST: "RST"}
+
+# EITT's `Type` spelled back to the CoAP wire value, for asserting what the
+# DUT actually sent on an OUT row. Case-insensitive on purpose: the template
+# contains one "ACk" typo, and _coap_msg_type already absorbs it on the send
+# side. Anything unrecognised yields None = "do not assert the type", so a
+# future spelling degrades to today's behaviour rather than inventing a
+# failure.
+_MSG_TYPE_BY_NAME = {"con": CON, "non": NON, "ack": ACK, "rst": RST}
+
+
+def _coap_msg_type_expected(type_str: Optional[str]) -> Optional[int]:
+    """The CoAP message type an OUT row demands, or None if unspecified."""
+    return _MSG_TYPE_BY_NAME.get((type_str or "").strip().lower())
+
+
+def _format_codes(codes: list) -> str:
+    """Render expected (class, detail) pairs the way EITT words it, e.g.
+    "4.00" or "4.00,4.04"."""
+    return ",".join(f"{c}.{d:02d}" for c, d in codes)
+
+
 def _is_method_code(code: Optional[str]) -> bool:
     """True when `Code` names a METHOD (GET/POST/PUT/DELETE) rather than a
     response code. On an `OUT` step that marks a telegram the DUT ORIGINATES
@@ -270,24 +329,28 @@ def _decode_body(payload: bytes, content_format: Optional[str], path: str):
     Content matching, given the message's declared/expected CF."""
     if not payload:
         return None
+    # Imported up here, not inside the branch, so CBORDecodeError is bound
+    # for the except clause on every path through this function.
+    import cbor2
+
     cf = (content_format or "").lower()
     try:
         if cf in LINK_FORMAT_CONTENT_FORMATS:
             return payload.decode("utf-8", errors="replace")
         if cf in CBOR_CONTENT_FORMATS or not cf:
-            import cbor2
             decoded = cbor2.loads(payload)
-            try:
-                schema = get_schema(path)
-                return schema.decode(decoded)
-            except KeyError:
-                # No schema mapped yet for this path — return the raw
-                # int-keyed structure; field/JSON Content matching will
-                # then visibly fail on the unexpected key names instead
-                # of pretending to succeed.
-                return decoded
+            # get_schema() never raises: it falls back to _DEFAULT_SCHEMA
+            # for an unmapped path, mirroring EITT's own Default="yes"
+            # key-map table. (There used to be an `except KeyError` here
+            # documenting a raise that does not happen — dead code.)
+            return get_schema(path).decode(decoded)
         return payload.decode("utf-8", errors="replace")
-    except Exception:
+    except (cbor2.CBORDecodeError, UnicodeDecodeError, ValueError):
+        # A body we genuinely cannot decode -> None, which Content matching
+        # reports as a mismatch. Deliberately NARROW: a TypeError or
+        # AttributeError from a bug inside resource_schema.decode() must NOT
+        # be laundered into "the device sent something undecodable" — that
+        # is precisely how a real defect would hide as a content mismatch.
         return None
 
 
@@ -371,6 +434,25 @@ class SequenceRunner:
                 time_scale = 1.0
         self.time_scale = max(0.0, time_scale)
         self._last_response: Optional[bytes] = None
+        # (class, detail) of the last response, e.g. (2, 5) — or None when
+        # nothing was received at all. Kept SEPARATE from the payload
+        # because "timed out" and "answered with an empty body" are very
+        # different things and an `OUT` step must be able to tell them
+        # apart: a dead device otherwise satisfies every step whose
+        # expected <Content> is empty.
+        self._last_response_code: Optional[tuple] = None
+        # CoAP message type of the last response (CON/NON/ACK/RST as the
+        # raw 2-bit wire value), or None when nothing was received. Kept
+        # for the same reason as the code: on the OSCORE path the outer
+        # code is ALWAYS 2.04, so type is one of only two outer-layer
+        # facts an OUT step can still assert.
+        self._last_response_type: Optional[int] = None
+        # Whether the last REQUEST was sent OSCORE-protected. Recorded for
+        # a future `Secure` assertion (F6) but NOT yet sufficient for one:
+        # `Secure` on an OUT row describes the RESPONSE, and the two differ
+        # exactly where it matters. See the F6 entry in
+        # tests/docs/eitt-interpreter-findings.md.
+        self._last_request_secured: Optional[bool] = None
         self._last_planned: Optional[str] = None
         self._last_request_path: str = ""
         # Most recent CoAP Echo (option 252) challenge value the DUT sent
@@ -438,6 +520,28 @@ class SequenceRunner:
         # disabled the unicast arming (see _arm_unicast_for_next).
         outer_sequence = self._sequence
         outer_unicast = self._unicast_capture
+
+        # Drop the cached mDNS answer at the TestCase boundary.
+        #
+        # `_dns_records` is filled by an IN query step and read by the
+        # following OUT step. It was cleared ONLY inside
+        # _arm_unsolicited_dns, so a set cached in TestCase N survived into
+        # N+1 — and the unsolicited branch (`if not self._dns_records`)
+        # then never listened at all, matching an announcement step out of
+        # the STALE answer. That is a pass without the device having
+        # announced anything. `_dns_query_name` goes with it, or the
+        # rqcheck pairing compares against a query from an earlier
+        # TestCase. See finding M3.
+        #
+        # Only at the OUTER level: run() recurses for an @#"..." inline
+        # preparation, and clearing on the inner call would discard an
+        # answer the enclosing TestCase legitimately cached before it.
+        # `_sequence` starts as [] and is non-empty only while a TestCase is
+        # already running, so falsiness is the outermost-call test.
+        if not outer_sequence:
+            self._dns_records = []
+            self._dns_query_name = ""
+
         self._sequence = test_case.sequence
         self._unicast_capture = None
         try:
@@ -670,7 +774,7 @@ class SequenceRunner:
         if isinstance(spake_result, SpakeStepFailure):
             resp = spake_result.response
             step_idx = spake_result.step - 1
-            self._last_response = resp.payload if resp else None
+            self._remember_response(resp)
             self._last_planned = requests[step_idx].content
             self._last_request_path = SPAKE_PATH
             expect_result = self._expect_response(responses[step_idx])
@@ -744,10 +848,12 @@ class SequenceRunner:
                 return StepResult(ok=False, item=comment, reason=str(e))
             return StepResult(ok=True, item=comment)
 
-        # `@@!<text>` — "display comment in toolbar, SUSPEND EVALUATION and
-        # beep": a modal the operator dismisses after doing something
-        # PHYSICAL. Checked before the plain-comment fall-through, which is
-        # where these used to land silently.
+        # `@@!<text>` / bare `@@<text>` — "display comment in toolbar,
+        # SUSPEND EVALUATION" (`!` only adds a beep): a modal the operator
+        # dismisses after doing something PHYSICAL. Checked before the
+        # plain-comment fall-through, which is where these used to land
+        # silently — and after the `@@[` branch above, since that prefix is
+        # a provisioning command rather than an operator prompt.
         m = _MANUAL_PROMPT_RE.match(text)
         if m:
             return self._run_manual_prompt(comment, m.group(1))
@@ -760,9 +866,32 @@ class SequenceRunner:
         if m:
             return self._run_loop_invocation(comment, m.group(1), m.group(2))
 
-        # Plain "@[t..." narrative comment, or blank/free text — no
-        # side effect, always a no-op pass.
-        return StepResult(ok=True, item=comment)
+        # Display-only forms: no side effect, always a no-op pass.
+        #
+        #   @[t<text>  narrative text in the toolbar (2463 uses)
+        #   @[<Text>   the same thing with the 't' omitted by the author —
+        #              18 uses, all plain English prose ("Preparation: ...",
+        #              "Check that the device rest was successful ...",
+        #              "Recipient Multicast GRPID (id=5) ..."), several of
+        #              which appear verbatim elsewhere WITH the 't'.
+        #   @!<text>   display + beep, informational only
+        #
+        # Anything else is an @-command this interpreter does not implement.
+        # Passing it silently is how a behavioural command gets mistaken for
+        # a no-op (see F7: bare `@@` sat in this fall-through and two real
+        # 5.4.1.8 steps never ran), so fail loudly and name the text.
+        if not text.startswith("@") or _DISPLAY_ONLY_RE.match(text):
+            return StepResult(ok=True, item=comment)
+
+        return StepResult(
+            ok=False, item=comment,
+            reason=f"unrecognised @-command {text[:60]!r} — this interpreter "
+            f"implements @[t/@[<text>/@! (display only), @[w & @@[w (wait), "
+            f"@@[ (provisioning), @@ & @@! (operator prompt), @# (inline "
+            f"reference) and @>w (loop). Treating an unknown command as a "
+            f"no-op would let the TestCase pass without performing it; look "
+            f"the command up in EITT's comment-command scheme and implement "
+            f"it, or extend _DISPLAY_ONLY_RE if it is display-only.")
 
     def _run_manual_prompt(self, comment: Comment,
                            prompt: str) -> StepResult:
@@ -1010,8 +1139,17 @@ class SequenceRunner:
             # Prefer a listener armed BEFORE the request that provokes the
             # announcement (see _arm_unsolicited_dns); fall back to
             # listening now for a genuinely spontaneous one.
+            #
+            # The fallback needs await_live for exactly the same reason the
+            # armed one does: a state change emits the GOODBYE for the old
+            # advertisement first and the announce after it, so a listener
+            # that stops at the first packet keeps only TTL=0 records and
+            # never sees the announce this step is waiting for. It was set
+            # only on the armed path, so every route that failed to arm
+            # (several early returns in _arm_unsolicited_dns) fell back to
+            # the historical bug. See finding M6.
             listener = self._dns_listener or mdns_client.MdnsListener(
-                timeout=_MDNS_TIMEOUT)
+                timeout=_MDNS_TIMEOUT, await_live=True)
             self._dns_listener = None
             self._dns_records = listener.records()
             _dbg_group(f"[mdns] unsolicited listen -> "
@@ -1055,6 +1193,21 @@ class SequenceRunner:
                     f"{self._dns_query_name!r} — the script must set "
                     f'@@[MDNS"rqcheck=off" to match across services')
 
+        # TTL is deliberately NOT part of the match — see finding M5, which
+        # proposed the opposite and was disproved by the reference trace.
+        #
+        # The idea was that a ttl=0 record is a GOODBYE (RFC 6762 §10.1)
+        # and so cannot satisfy a step asserting the record EXISTS. That
+        # reasoning fails on 5.1.2.5a, which uses the SAME step shape for
+        # both directions of a state change: Step 1 sets pm=false and then
+        # expects a `_pm._sub` PTR — there the goodbye IS the correct
+        # answer — while Step 2 sets pm=true and expects the announce.
+        #
+        # Decisive evidence: in traces/5_1.xml EVERY DnsMessage row carries
+        # TTL="0", including the ones EITT evaluated "OK". EITT does not
+        # discriminate on TTL here at all; the attribute is a display
+        # default, not an observed wire value. Preferring live records made
+        # 5.1.2.5a fail.
         match = None
         for rec in candidates:
             if service and norm(rec.name) != norm(service):
@@ -1107,6 +1260,23 @@ class SequenceRunner:
                 return self._answer_last_rx_request(msg)
             return self._send_request(msg)
         return self._expect_response(msg)
+
+    def _remember_response(self, resp) -> None:
+        """Record the last response's payload, its code AND its message type.
+
+        All three are needed by `_expect_response`: the payload for content
+        matching, the code because most negative TestCases assert nothing
+        else, and the type because 1324 of the template's 1457 active
+        response rows specify one. `None` for code/type means "no response
+        arrived", which is deliberately distinguishable from an empty
+        payload.
+        """
+        self._last_response = resp.payload if resp else None
+        self._last_response_code = (
+            (resp.code_class, resp.code_detail) if resp is not None else None)
+        self._last_response_type = (
+            resp.msg_type if resp is not None else None)
+
 
     def _resolve_path_and_query(self, msg: CoAPMessage) -> str:
         path = self.variables.substitute(msg.path) or ""
@@ -1333,6 +1503,9 @@ class SequenceRunner:
                 f"'{msg.code}'")
 
         timeout = msg.ack_chk_timeout
+        # Which path this REQUEST took. See F6 — not the same thing as the
+        # OUT row's `Secure`, which describes the response.
+        self._last_request_secured = oscore_ctx is not None
         if oscore_ctx is not None:
             seq_no_override, seq_no_offset, invalid_tag, kid_override = \
                 self._resolve_oscore_overrides(msg, oscore_ctx)
@@ -1384,7 +1557,7 @@ class SequenceRunner:
                 else:
                     resp = method(path, **kwargs)
 
-        self._last_response = resp.payload if resp else None
+        self._remember_response(resp)
         self._last_planned = msg.content
         self._last_request_path = path
         if resp is not None and getattr(resp, "echo_value", None):
@@ -1520,8 +1693,15 @@ class SequenceRunner:
         # follows a device RESTART and its TimeToNext is
         # #RESTART_TIME_TO_NEXT (20s), because the device has to come all the
         # way back up before it can send the init read.
+        # substitute() first: TimeToNext is almost always a #VAR here
+        # (1489 #GENERAL_TIME_TO_NEXT / 71 #FACTORY_RESET_TIME_TO_NEXT /
+        # 10 #RESTART_TIME_TO_NEXT in the template), and the raw token
+        # parses to 0.0, which silently collapsed this whole expression to
+        # the 5.0 fallback — including for the 20s restart case the comment
+        # above says this exists to honour. See finding F13.
         timeout = (nxt.ack_chk_timeout
-                   or _parse_time_to_next(nxt.time_to_next)
+                   or _parse_time_to_next(
+                       self.variables.substitute(nxt.time_to_next))
                    or 5.0)
         self._group_capture = self.coap.arm_group_listener(
             oscore_ctx, addr, timeout=max(timeout, 5.0))
@@ -1912,7 +2092,12 @@ class SequenceRunner:
                 f"'{ctx_alias}' context's group address but none "
                 f"arrived")
 
+        # A DUT-originated telegram is a REQUEST (its `Code` is a method
+        # name), so there is no response code to assert — clear it rather
+        # than leaving the previous step's code to be re-checked.
         self._last_response = resp.payload
+        self._last_response_code = None
+        self._last_response_type = None
         self._last_request_path = msg.path or "k"
         if getattr(resp, "echo_value", None):
             self._last_echo = resp.echo_value
@@ -1991,8 +2176,10 @@ class SequenceRunner:
             # DISCOVERY_RESPONSE_MESSAGE_TIMEOUT_SECONDS), so the script's 5s
             # describes the gap to the NEXT step, not how long the telegram
             # may take to appear.
+            # substitute() before parsing — a raw "#VAR" yields 0.0 and
+            # collapses this to the 5.0 fallback (finding F13).
             scripted = msg.ack_chk_timeout or _parse_time_to_next(
-                msg.time_to_next) or 5.0
+                self.variables.substitute(msg.time_to_next)) or 5.0
             listener = self.coap.recv_unicast_telegram(
                 oscore_ctx, timeout=max(scripted, _UNICAST_TELEGRAM_TIMEOUT),
                 path=msg.path or None)
@@ -2007,7 +2194,12 @@ class SequenceRunner:
                 f"{skipped} did not decrypt under the bound context)")
 
         self._last_group_telegram = resp
+        # A DUT-originated telegram is a REQUEST (its `Code` is a method
+        # name), so there is no response code to assert — clear it rather
+        # than leaving the previous step's code to be re-checked.
         self._last_response = resp.payload
+        self._last_response_code = None
+        self._last_response_type = None
         self._last_request_path = msg.path or "k"
         decoded = _decode_body(resp.payload, msg.cf, self._last_request_path)
         _dbg_group(f"[group] unicast telegram code={resp.code_class}."
@@ -2064,6 +2256,82 @@ class SequenceRunner:
             # matched against; see _expect_unicast_telegram.
             return self._expect_unicast_telegram(msg)
 
+        # --- assert the RESPONSE CODE before looking at the body ---------
+        # This has to happen here, not inside match_content: 176 of the
+        # active OUT steps expect a 4.xx/5.xx and EVERY one of them has an
+        # empty or wildcard <Content>, so the code is their only assertion.
+        # Checking it also distinguishes "device answered with an empty
+        # body" from "device never answered" — both reach this point as
+        # b"", and without the code a timed-out request satisfies every
+        # empty-<Content> step.
+        expected_codes = _expected_response_codes(msg.code)
+        if expected_codes:
+            actual = self._last_response_code
+            if actual is None:
+                # "No response" has two very different causes, and saying
+                # "timed out" for both sends you hunting a device bug when
+                # the fault is our own correlation logic (T10). If any
+                # datagram DID arrive and we rejected it, name it.
+                discards = getattr(self.coap, "_last_discards", None) or []
+                if discards:
+                    detail = ("no USABLE response: "
+                              f"{len(discards)} datagram(s) arrived but were "
+                              f"discarded [" + "; ".join(discards[:4])
+                              + ("; ..." if len(discards) > 4 else "") + "]")
+                else:
+                    detail = "no response was received (request timed out)"
+                return StepResult(
+                    ok=False, item=msg,
+                    reason=f"expected response code "
+                    f"{_format_codes(expected_codes)} but {detail}")
+            if actual not in expected_codes:
+                # A code the certification body accepts in place of the
+                # planned one (see overrides.yaml accepted_response_codes)
+                # is not a failure — the reference runs record exactly
+                # these substitutions and were accepted.
+                actual_str = f"{actual[0]}.{actual[1]:02d}"
+                accepted = self.overrides.accepted_response_codes
+                if not any(actual_str in accepted.get(
+                        f"{c}.{d:02d}", ()) for c, d in expected_codes):
+                    return StepResult(
+                        ok=False, item=msg,
+                        reason=f"Message code differs, planned: "
+                        f"{_format_codes(expected_codes)}, received: "
+                        f"{actual_str}")
+
+        # --- assert the RESPONSE TYPE (ACK/NON/CON) ----------------------
+        # 1324 of the 1457 active OUT rows say Type="ACK" — a piggybacked
+        # response (RFC 7252 5.2.1) — plus 130 NON and 2 CON, and the traces
+        # confirm the DUT really answers that way. Without this a device
+        # replying NON where the script demands a piggybacked ACK passes:
+        # an ACK also discharges the request's reliability obligation, a NON
+        # does not. EITT asserts type and code in ONE evaluation — see
+        # traces/5_4_1.xml: "Message code differs, planned: 4.00, received:
+        # 4.03  Message type differs, planned: NON, received: ACK" — so the
+        # wording below deliberately mirrors it. See finding F12.
+        expected_type = _coap_msg_type_expected(msg.type)
+        actual_type = self._last_response_type
+        if (expected_type is not None and actual_type is not None
+                and actual_type != expected_type
+                # A planned ACK satisfied by a CON is the SEPARATE-response
+                # pattern (RFC 7252 §5.2.2): the device could not answer
+                # within the ACK timeout, so it sent an empty ACK first and
+                # the real response later as its own CON — which our client
+                # handles correctly (empty ACK skipped, CON taken and
+                # ACKed). That is a legitimate, spec-permitted way to answer
+                # a CON request; the template writes "ACK" because that is
+                # what the reference device happened to do, not because the
+                # separate form is a defect. Observed once, on 5.3.1.2b's
+                # deliberately-wrong confirmP, where the device does the
+                # expensive SPAKE2+ verification before rejecting.
+                and not (expected_type == ACK and actual_type == CON)):
+            return StepResult(
+                ok=False, item=msg,
+                reason=f"Message type differs, planned: "
+                f"{_MSG_TYPE_NAMES.get(expected_type, expected_type)}, "
+                f"received: "
+                f"{_MSG_TYPE_NAMES.get(actual_type, actual_type)}")
+
         response_payload = self._last_response or b""
         # An 'OUT' message has no Path of its own — the schema lookup
         # keys on the immediately preceding request's path instead.
@@ -2110,7 +2378,12 @@ class SequenceRunner:
         three steps alone were 18s of that test's 25s, and by construction
         we have ALREADY received the telegram by the time we get here.
         """
-        if not msg.wait:
+        # Comments carry neither Wait nor TimeToNext — an operator prompt's
+        # pause is expressed as the separate `@[w"..."` step that follows it
+        # (5.4.1.8 item 9). _run_manual_prompt calls this for an
+        # observation-only prompt, so accept and ignore those rather than
+        # AttributeError on Comment.wait.
+        if not getattr(msg, "wait", None):
             return
         ttn = self.variables.substitute(msg.time_to_next)
         seconds = _parse_time_to_next(ttn) * self.time_scale

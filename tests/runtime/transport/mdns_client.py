@@ -128,6 +128,15 @@ def parse_records(data: bytes) -> list[DnsRecord]:
         rtype, _rclass, ttl, rdlen = struct.unpack("!HHIH", data[off:off + 10])
         off += 10
         rdata = data[off:off + rdlen]
+        # RDLENGTH is what the sender CLAIMS; `rdata` is what actually
+        # remains. A record whose declared length overruns the datagram is
+        # malformed — stop rather than decode a short value as if it were
+        # whole. (Checking rdlen instead of len(rdata) is how a truncated
+        # AAAA used to reach inet_ntop and raise ValueError, which then
+        # propagated out of the listener thread and discarded every record
+        # already captured — a good discovery turned into an exception.)
+        if len(rdata) != rdlen:
+            break
         rec_name = name.rstrip(".")
         if rtype == DNS_TYPE_PTR:
             target, _ = decode_dns_name(data, off)
@@ -138,7 +147,7 @@ def parse_records(data: bytes) -> list[DnsRecord]:
             host, _ = decode_dns_name(data, off + 6)
             out.append(DnsRecord("SRV", rec_name, host.rstrip("."),
                                  port=port, ttl=ttl))
-        elif rtype == DNS_TYPE_AAAA and rdlen == 16:
+        elif rtype == DNS_TYPE_AAAA and len(rdata) == 16:
             addr = socket.inet_ntop(socket.AF_INET6, rdata)
             out.append(DnsRecord("AAAA", rec_name, addr, ttl=ttl))
         elif rtype == DNS_TYPE_TXT:
@@ -203,9 +212,17 @@ class MdnsListener:
         time.sleep(0.15)          # let the bind/join settle
 
     def _listen(self) -> None:
-        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM,
-                             socket.IPPROTO_UDP)
+        # M20: socket() must be INSIDE the try. Constructing it outside meant
+        # a failure here escaped _listen entirely — self._error stayed None
+        # (so records() reported an innocent empty set instead of the real
+        # OSError), self._ready was never set (so every construction burned
+        # the full 2s wait), and the finally block referenced an unbound
+        # `sock`. That is precisely the "thread died silently" case _error
+        # exists to prevent.
+        sock = None
         try:
+            sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM,
+                                 socket.IPPROTO_UDP)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if hasattr(socket, "SO_REUSEPORT"):
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -253,7 +270,33 @@ class MdnsListener:
                     continue
                 except OSError:
                     break
-                for rec in parse_records(data):
+                try:
+                    parsed = parse_records(data)
+                except (struct.error, ValueError, IndexError,
+                        UnicodeDecodeError) as exc:
+                    # M2: a per-packet parse failure must NOT be fatal.
+                    # ff02::fb is a shared group — anything else on the link
+                    # (a printer, another rig, a _companion-link browser)
+                    # multicasts here too and this listener does not filter
+                    # by source. Letting one such packet escape to the outer
+                    # handler would store it in self._error, and records()
+                    # raises that BEFORE returning, so a good result set
+                    # already collected would be thrown away and reported as
+                    # a device failure. Skip the packet, keep the records.
+                    #
+                    # Narrowed rather than bare `Exception` (same reasoning as
+                    # O3/T1): these four are what a malformed DATAGRAM can
+                    # actually produce out of parse_records — struct.error on
+                    # a short header, ValueError from inet_ntop, IndexError
+                    # on an overrun, UnicodeDecodeError on a bad label. A
+                    # TypeError/AttributeError means OUR parser is broken and
+                    # must not be silently swallowed as "foreign traffic".
+                    # (RecursionError is not in the list: decode_dns_name
+                    # already breaks compression-pointer loops via `seen`.)
+                    _dbg(f"[mdns] skipping unparseable packet "
+                         f"({len(data)} bytes): {type(exc).__name__}: {exc}")
+                    continue
+                for rec in parsed:
                     self._records.append(rec)
                     _dbg(f"[mdns] rx {rec.rtype} {rec.name!r} -> "
                          f"{rec.target!r} port={rec.port} ttl={rec.ttl}")
@@ -285,10 +328,11 @@ class MdnsListener:
             _dbg(f"[mdns] listener failed: {type(exc).__name__}: {exc}")
         finally:
             self._ready.set()
-            try:
-                sock.close()
-            except OSError:
-                pass
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
     def repeat_query(self, qname: str, rtype: str,
                      every: float = 0.75) -> None:

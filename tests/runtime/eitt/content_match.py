@@ -68,6 +68,17 @@ def _match_line_against_entries(pattern: str, entries: list[str],
     matches = [e for e in entries if rx.search(e)]
 
     if mode == "all":
+        # An 'all:' rule over an EMPTY entry list is vacuously true, and a
+        # device answering 2.05 with an empty body would therefore satisfy
+        # every link-format assertion in the template. EITT's 'all:' means
+        # "the response is a list of links and every one of them looks like
+        # this" — a response with no links at all does not satisfy that, it
+        # fails to be the thing being described. So require at least one.
+        if not entries:
+            return MatchResult(
+                False,
+                f"'all:' rule {pattern!r} — response contained no "
+                f"link-format entries at all (empty body)")
         non_matching = [e for e in entries if not rx.search(e)]
         if non_matching:
             return MatchResult(
@@ -77,7 +88,18 @@ def _match_line_against_entries(pattern: str, entries: list[str],
         return MatchResult(True)
 
     if mode == "opt":
-        return MatchResult(True)  # optional — presence or absence both ok
+        # 'opt:' marks a manufacturer-OPTIONAL resource: absent is fine, and
+        # so (today) is present-but-malformed. See finding F4 in
+        # tests/docs/eitt-interpreter-findings.md — tightening this to
+        # "if present it must match" needs the resource's IDENTITY, and the
+        # only identity available is the pattern itself. The template's 35
+        # active 'opt:' patterns embed the link target behind arbitrary
+        # lookaheads (e.g. '^(?=.*;ct=40)<.*\\/auth>.*'), so extracting it
+        # means heuristically parsing a regex — fragile enough to risk
+        # inventing failures the template never asked for. Left permissive
+        # ON PURPOSE until there is a non-guessing way to identify the
+        # target; documented rather than silently weak.
+        return MatchResult(True)
 
     # mandatory existence
     if not matches:
@@ -214,9 +236,19 @@ def _value_matches(expected: str, actual: Any) -> MatchResult:
 
     # Fall back to regex match (covers e.g. '\d*[1-9]\d*', '^[1-9][0-9]*$',
     # and the "h'<regex>'" byte-string-with-embedded-regex convention).
+    #
+    # FULLMATCH, not search: every expected value in this template describes
+    # the WHOLE field, so an unanchored search turns each one into a substring
+    # test — '/value: 1' would accept 21, '/value: 0' would accept 304, 'true'
+    # would accept 'untrue', and '2.05' would accept '12.056' (the '.' is a
+    # wildcard too). Checked against all 105 distinct expected values in the
+    # template: every genuine regex among them ('[0-9]{1,5}', '\d*[1-9]\d*',
+    # "h'[0-9a-fA-F]{32}'", the '^\[(?:,\s*|(?:1)|...)*\]' array forms) is
+    # self-contained and still matches under fullmatch. See finding F3 in
+    # tests/docs/eitt-interpreter-findings.md.
     try:
         rx = re.compile(expected)
-        if rx.search(actual_str) or rx.search(str(actual)):
+        if rx.fullmatch(actual_str) or rx.fullmatch(str(actual)):
             return MatchResult(True)
     except re.error:
         pass

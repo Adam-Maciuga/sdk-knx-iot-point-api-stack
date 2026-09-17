@@ -40,6 +40,10 @@ class VariableTable:
     def __init__(self, fields: list[FieldDef]):
         self._table: dict[str, str] = {}
         self._locked: set[str] = set()
+        # F5: names seen by substitute() with no value in the table. A
+        # #VAR left unresolved matches itself, so this is the only trace
+        # that an assertion degraded into a tautology.
+        self.unresolved: set[str] = set()
         for f in fields:
             self._table[f.name] = f.default_value
             if f.locked:
@@ -102,7 +106,23 @@ class VariableTable:
         value from the table. Unresolved names are left as-is (with a
         leading '#') rather than raising, so a missing/renamed variable
         surfaces as a visible mismatch in the resulting request/match
-        instead of aborting the whole sequence."""
+        instead of aborting the whole sequence.
+
+        F5: that docstring promise does NOT hold on its own. An unresolved
+        token left in place is compared against an expectation containing the
+        SAME unresolved token, so it matches itself and the step passes
+        vacuously:
+
+            substitute('/value: #MISSING')  -> '/value: #MISSING'
+            match vs {'value': '#MISSING'}  -> ok=True
+
+        Raising here is too blunt — `substitute` has 25 call sites spanning
+        paths, bodies, CBOR, match text and timing, and not all of them should
+        abort a run. Instead every unresolved name is recorded in
+        `self.unresolved`, which the test layer reports at the end of a
+        TestCase. A renamed Field in a future XML revision then shows up as a
+        named failure rather than silently degrading the suite.
+        """
         if text is None:
             return None
         if "#" not in text:
@@ -111,6 +131,9 @@ class VariableTable:
         def _replace(m: re.Match) -> str:
             name = m.group(1)
             value = self._table.get(name)
-            return value if value is not None else m.group(0)
+            if value is None:
+                self.unresolved.add(name)
+                return m.group(0)
+            return value
 
         return _VAR_RE.sub(_replace, text)

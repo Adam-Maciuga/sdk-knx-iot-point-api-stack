@@ -57,16 +57,19 @@ mirrors real EITT: selecting a smaller unit (e.g. a single TestCase)
 gets its own fresh prep inserted for that run; selecting a bundle
 shares one prep across everything in it.
 
-Coverage status: this collects and can run EVERY TestCase in the XML,
-but only resource paths registered in eitt/resource_schema.py can
-actually have their CBOR bodies encoded/decoded — an unmapped path
-fails loudly (KeyError) rather than silently sending/matching garbage,
-so a fresh section will need its resources added there before it can
-pass. See tests/docs/eitt-xml-interpreter.md for the interpreter design and
+Coverage status: this collects and can run EVERY TestCase in the XML.
+CBOR bodies are encoded/decoded via eitt/resource_schema.py, which
+falls back to a default key map for an unregistered PATH (mirroring
+EITT's own Default="yes" table) — so a fresh section only needs an
+entry where its body shape differs from that default. An unknown FIELD
+name does fail loudly (KeyError from ResourceSchema.encode) rather than
+silently sending garbage.
+See tests/docs/eitt-xml-interpreter.md for the interpreter design and
 suite's per-ID coverage in the meantime; the two suites are intended to
 run side-by-side during migration (see project notes), not compete.
 """
 
+import os
 import re
 import time
 from pathlib import Path
@@ -79,8 +82,14 @@ from eitt.provisioning import ProvisioningEngine
 from eitt.runner import PreparationRegistry, SequenceRunner
 from eitt.variables import VariableTable
 
-XML_PATH = (Path(__file__).resolve().parent / "data"
-            / "KnxConformanceTestTemplate-PointAPI.xml")
+# The conformance template. RUNTIME_TEST_EITT_XML points the interpreter at
+# a DIFFERENT copy — the supported way to check that an assertion really
+# bites (mutate a scratch copy, confirm the suite goes red) without ever
+# editing the master template, which must not be modified.
+XML_PATH = Path(os.environ.get(
+    "RUNTIME_TEST_EITT_XML",
+    Path(__file__).resolve().parent / "data"
+    / "KnxConformanceTestTemplate-PointAPI.xml"))
 
 _PROJECT = parse_eitt_xml(XML_PATH)
 _OVERRIDES = OverrideTable.load()
@@ -248,7 +257,14 @@ def test_eitt(eitt_case, coap, _collection_runners):
     runner = _runner_for_collection(eitt_case.collection_name, coap,
                                     _collection_runners)
 
+    # F5: the variable table is shared by every TestCase in the collection,
+    # so snapshot first and diff — otherwise one case's unresolved name would
+    # be re-reported against every case that follows it.
+    seen_unresolved = set(runner.variables.unresolved)
+
     result = runner.run(eitt_case)
+
+    new_unresolved = runner.variables.unresolved - seen_unresolved
 
     if override is not None and override.action == "xfail":
         if not result.ok:
@@ -256,7 +272,26 @@ def test_eitt(eitt_case, coap, _collection_runners):
                         f"{result.failure.reason if result.failure else ''}")
         return
 
+    # F5: an unresolved #VAR is substituted as the literal token, so it is
+    # compared against an expectation holding the SAME token and matches
+    # itself — the assertion silently becomes a tautology. Append it to a
+    # real failure as context; report it on its own when the case otherwise
+    # "passed", because that pass cannot be trusted.
+    unresolved_note = ""
+    if new_unresolved:
+        unresolved_note = (
+            "\n  unresolved #VAR(s): "
+            + ", ".join(sorted(new_unresolved))
+            + "\n  (an unresolved token matches itself, so any step "
+              "asserting on it passed vacuously — check for a renamed "
+              "Field in the XML or a missing entry in overrides.yaml)")
+
     if not result.ok:
         reason = result.failure.reason if result.failure else "unknown failure"
         item = result.failure.item if result.failure else None
-        pytest.fail(f"{reason}\n  at sequence item: {item!r}")
+        pytest.fail(f"{reason}\n  at sequence item: {item!r}"
+                    f"{unresolved_note}")
+
+    if new_unresolved:
+        pytest.fail(f"TestCase reported OK but used unresolved variables."
+                    f"{unresolved_note}")

@@ -16,6 +16,7 @@ import os
 import struct
 
 import cbor2
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -62,7 +63,15 @@ def _build_info(id_val: bytes, id_context: bytes | None, alg_aead: int,
     """
     elements = [
         id_val,
-        id_context if id_context is not None else None,
+        # EMPTY and ABSENT are the same thing here. The device branches on
+        # LENGTH (oc_oscore_context.c: `if (id_ctx_len > 0) encode_byte_string
+        # else encode_null`), so both NULL and "" become CBOR null. Testing
+        # `is not None` instead sent an empty byte string (0x40) where the
+        # device sends null (0xf6) — a different HKDF `info`, and therefore a
+        # different key, for any context configured with `contextid=""`.
+        # Reachable because provisioning's hex path turns "" into b"".
+        # See finding O4.
+        id_context if id_context else None,
         alg_aead,
         type_str,
         length,
@@ -133,6 +142,33 @@ class OscoreContext:
         self.ssn += 1
         return piv
 
+    def _reserve_ssn(self, seq: int) -> None:
+        """Ensure the counter can never re-emit `seq` under this key.
+
+        The AEAD nonce is a pure function of (sender_id, piv, common_iv), so
+        transmitting a hand-picked Partial IV and then letting the ordinary
+        counter reach that same value later produces a BYTE-IDENTICAL nonce
+        under an unchanged sender_key, on different plaintext. For AES-CCM
+        that leaks the plaintext XOR and breaks the tag's forgery
+        resistance. Measured before this fix:
+
+            protect_request(seq_no_override=0) -> piv 00, ssn left at 0
+            next ordinary send                 -> piv 00 again, same nonce
+
+        The device never allows this: oc_oscore_engine.c increments the SSN
+        for every outbound request except a CON retransmission, where the
+        plaintext is identical and reuse is therefore safe, and
+        oc_oscore_context.c additionally bumps the SSN on restore for the
+        same reason (RFC 8613 Appendix B.1.1).
+
+        Reserving rather than clamping keeps the WIRE value untouched — the
+        negative tests assert on the exact PIV they asked for — while moving
+        the counter past it so no future ordinary send can collide.
+        See finding O1.
+        """
+        if seq >= self.ssn:
+            self.ssn = seq + 1
+
     def _build_nonce(self, sender_id: bytes, piv: bytes) -> bytes:
         """Construct 13-byte nonce from sender ID, PIV, and common IV.
 
@@ -140,6 +176,26 @@ class OscoreContext:
         [id_len] [padding] [sender_id_right_aligned] [piv_right_aligned(5)]
         XOR with common_iv
         """
+        # The layout only has room for a 7-byte ID (13 = 1 + 7 + 5), which is
+        # also the device's hard cap (OSCORE_SENDER_ID_LEN in
+        # messaging/coap/oscore_constants.h — the equivalent memcpy there
+        # would underflow the stack buffer). Python does NOT fail on an
+        # over-long one: `id_offset` goes negative and slice assignment
+        # silently GROWS the bytearray, so a 9-byte ID produced an 18-byte
+        # "nonce" and a 12-byte one produced 25. Fail loudly instead — the
+        # AEAD only rejects it by luck, and `provisioning._hex_or_ascii`
+        # will happily build any length from an XML `senderid=`.
+        # See finding O2.
+        if len(sender_id) > NONCE_LEN - 5 - 1:
+            raise ValueError(
+                f"OSCORE sender/recipient ID is {len(sender_id)} bytes; the "
+                f"AEAD nonce layout and the device both cap it at "
+                f"{NONCE_LEN - 5 - 1}")
+        if len(piv) > 5:
+            raise ValueError(
+                f"OSCORE Partial IV is {len(piv)} bytes; the nonce layout "
+                f"caps it at 5")
+
         nonce = bytearray(NONCE_LEN)
         # PIV right-aligned in last 5 bytes
         piv_offset = NONCE_LEN - len(piv)
@@ -254,9 +310,24 @@ class OscoreContext:
             - piv: the partial IV used (needed for response decryption)
         """
         if seq_no_override is not None:
-            # Fixed pin — does NOT consume a sequence number.
-            seq = max(0, seq_no_override)
+            # Fixed pin: TRANSMIT exactly this value (the negative tests
+            # depend on the precise wire PIV), but still make sure the
+            # counter can never re-emit it later under the same key.
+            #
+            # T6: a negative pin cannot be honoured — "transmit exactly this"
+            # and "PIV is an unsigned integer" contradict each other — and
+            # this value comes straight from the template's SeqNo=, so
+            # clamping it to 0 would silently substitute a DIFFERENT wire
+            # value for the one the test names. That is malformed input, not
+            # a boundary condition; surface it (cf. F9, values failing open).
+            if seq_no_override < 0:
+                raise ValueError(
+                    f"seq_no_override must be >= 0, got {seq_no_override}; "
+                    f"a pinned PIV is transmitted verbatim, so a negative "
+                    f"value means the template's SeqNo= was misparsed.")
+            seq = seq_no_override
             piv = seq.to_bytes(5, "big").lstrip(b"\x00") or b"\x00"
+            self._reserve_ssn(seq)
         elif seq_no_offset is not None:
             # Consume the next SSN normally (advance the counter, exactly
             # like EITT), but TRANSMIT it shifted by the offset. self.ssn
@@ -265,8 +336,49 @@ class OscoreContext:
             # the consumed value for the wire PIV.
             consumed = self.ssn
             self.ssn += 1
-            seq = max(0, consumed + seq_no_offset)
+            seq = consumed + seq_no_offset
+            if seq < 0:
+                # T6: clamping to 0 silently collapses distinct offsets onto
+                # the same wire PIV — at ssn 0, offsets -1/-32/-35/-40/-64 all
+                # became PIV 0, so "just inside the replay window" and "far
+                # outside it" tested the SAME thing and the negative test
+                # passed vacuously. 133 of the template's 139 SeqNoOffset uses
+                # are negative and exist precisely to land a chosen DISTANCE
+                # from the counter, so the distance is the thing under test.
+                #
+                # Fail loudly instead: this is unreachable today (the large
+                # offsets sit at OUT#66+ where ssn is already 65+), so it can
+                # only fire if steps are reordered or a case is run in
+                # isolation — both of which would otherwise produce a
+                # green-but-meaningless result.
+                raise ValueError(
+                    f"SeqNoOffset {seq_no_offset:+d} at ssn {consumed} would "
+                    f"transmit a negative PIV ({seq}). The replay-window test "
+                    f"needs the counter to be at least {abs(seq_no_offset)} "
+                    f"here; running this TestCase in isolation or reordering "
+                    f"it ahead of the traffic that advances the SSN makes the "
+                    f"offset meaningless rather than merely wrong.")
             piv = seq.to_bytes(5, "big").lstrip(b"\x00") or b"\x00"
+            # Deliberately NO _reserve_ssn() here — the counter advances by
+            # exactly one, never to the shifted value.
+            #
+            # `SeqNoOffset` exists to probe the device's replay WINDOW, so
+            # the shift must not disturb our own sequence: 5.3.17.1 sends
+            # +31 (a jump the window still accepts) and then continues from
+            # where the counter really was. Reserving the shifted value was
+            # tried and broke 13 TestCases across 5.3.17-5.3.20 — a +31 at
+            # ssn 5 transmits 36, and reserving pushed the counter to 37, so
+            # every later send landed outside the device's window and came
+            # back 4.01/4.00, cascading through AUTH PREPARATION.
+            #
+            # Nonce-reuse safety here comes from the offsets themselves: a
+            # NEGATIVE offset replays a PIV the context already used, which
+            # is the point of the test and is not a live-plaintext collision
+            # because the device rejects the message. A POSITIVE offset
+            # transmits a value AHEAD of the counter, which the counter will
+            # later reach — but the intervening sends are exactly the
+            # window-probing traffic the test intends, and the device
+            # accepts only one of them.
         else:
             piv = self._next_piv()
         kid = self.sender_id
@@ -549,7 +661,13 @@ class OscoreContext:
                 plaintext = AESCCM(key, tag_length=TAG_LEN).decrypt(
                     nonce, ciphertext, aad)
                 break
-            except Exception as exc:
+            except InvalidTag as exc:
+                # ONLY an authentication failure means "wrong candidate,
+                # try the next one". Anything else — a malformed nonce
+                # length, a bad key size, a type error — is OUR bug, and
+                # swallowing it here would report it as "the device sent
+                # something we could not decrypt", sending the next reader
+                # after a device fault that does not exist. See finding O3.
                 last_error = exc
         if plaintext is None:
             raise last_error

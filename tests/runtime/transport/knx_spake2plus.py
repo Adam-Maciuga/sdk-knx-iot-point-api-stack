@@ -74,6 +74,43 @@ def _p256_point_from_uncompressed(data: bytes) -> ec.EllipticCurvePublicKey:
     return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), data)
 
 
+def _validate_peer_point(data: bytes, what: str) -> None:
+    """Reject a peer-supplied point before it reaches raw integer arithmetic.
+
+    Mirrors what the device does (S1). `spake2plus.c` parses `shareP` with
+    `ecp_point_from_bytes` FIRST, purely to reject a bad point, and only then
+    runs `calculate_ZV` — the comment there says so explicitly ("Verify shareP
+    is not the point at infinity by attempting to parse it").
+
+    Without this, `_p256_point_sub` consumed `shareV` as raw slices with no
+    length and no curve check, so three distinct bad inputs all got through:
+
+    - a TRUNCATED share (`b"\\x04\\x01\\x02"`) — the slices zero-pad and it
+      silently became a full 65-byte "point";
+    - an OFF-CURVE point — caught only by accident one step later inside
+      `_p256_scalar_mult`, surfacing as a confusing `ValueError: Invalid EC
+      key` from a layer that had nothing to do with the bad input;
+    - `shareV == w0*N`, making `base` the point at infinity, where
+      `_p256_point_add` returns `(None, None)` and the caller crashed with
+      `AttributeError: 'NoneType' object has no attribute 'to_bytes'`.
+
+    P-256 has cofactor 1, so there is no small-subgroup check to add here —
+    the absence of cofactor handling is correct, not an omission.
+    """
+    if not data:
+        raise ValueError(f"{what} is empty")
+    if len(data) != 65 or data[0] != 0x04:
+        raise ValueError(
+            f"{what} is not a 65-byte uncompressed P-256 point "
+            f"(got {len(data)} bytes, first byte 0x{data[0]:02x})")
+    try:
+        _p256_point_from_uncompressed(data)
+    except ValueError as exc:
+        # from_encoded_point rejects both off-curve points and the zero
+        # point, exactly like the device's ecp_point_read_binary.
+        raise ValueError(f"{what} is not a valid P-256 point: {exc}") from exc
+
+
 def _p256_point_to_uncompressed(key: ec.EllipticCurvePublicKey) -> bytes:
     return key.public_bytes(
         serialization.Encoding.X962,
@@ -110,7 +147,20 @@ def _p256_scalar_mult(scalar: int, point_bytes: bytes) -> bytes:
 
 
 def _ec_scalar_mult(k: int, Px: int, Py: int, a: int, p: int, n: int) -> tuple:
-    """Scalar multiplication on a Weierstrass curve using double-and-add."""
+    """Scalar multiplication on a Weierstrass curve using double-and-add.
+
+    **NOT CONSTANT TIME — TEST-CLIENT USE ONLY. NEVER REUSE AS PRODUCTION
+    CODE.** (S2) The `if k & 1` branch below makes the running time depend on
+    the bits of `k`, and `k` is a secret here: this routine is called with the
+    long-term `w1` and with the ephemeral `x_priv`. An attacker who can time it
+    can recover those bits.
+
+    Acceptable in this file for one reason only: it runs in a Python
+    conformance-test client on an isolated lab link, where the attacker being
+    modelled is the DUT and no timing oracle is exposed. The device does its
+    own scalar multiplication with mbedTLS, which IS hardened; this is not a
+    reimplementation of that and must not be treated as one.
+    """
     k = k % n
     if k == 0:
         raise ValueError("Zero scalar")
@@ -169,6 +219,15 @@ def _p256_point_add(a_bytes: bytes, b_bytes: bytes) -> bytes:
     by = int.from_bytes(b_bytes[33:65], "big")
 
     rx, ry = _ec_point_add(ax, ay, bx, by, a_coeff, p)
+    if rx is None or ry is None:
+        # _ec_point_add signals the point at infinity as (None, None).
+        # Reaching to_bytes on that raised a bare AttributeError three frames
+        # from the real cause; name it here instead (S1). The live path is
+        # shareV == w0*N in process_key_exchange_response, where the
+        # subtraction cancels — a degenerate share the peer should never send.
+        raise ValueError(
+            "P-256 point addition produced the point at infinity "
+            "(the operands cancel)")
     return b"\x04" + rx.to_bytes(32, "big") + ry.to_bytes(32, "big")
 
 
@@ -270,6 +329,11 @@ class Spake2PlusClient:
         self.shareV = resp[11]
         self.confirmV = resp[13]
 
+        # S1: validate the peer's share BEFORE any arithmetic touches it,
+        # which is the order the device uses (spake2plus.c parses shareP
+        # solely to reject a bad point, then calls calculate_ZV).
+        _validate_peer_point(self.shareV, "shareV")
+
         # Compute Z and V as initiator:
         # Z = x * (shareV - w0 * N)
         # V = w1 * (shareV - w0 * N)
@@ -277,7 +341,15 @@ class Spake2PlusClient:
         w1_int = int.from_bytes(self.w1, "big")
 
         w0N = _p256_scalar_mult(w0_int, N_POINT)
-        base = _p256_point_sub(self.shareV, w0N)  # shareV - w0*N = pub_y
+        try:
+            base = _p256_point_sub(self.shareV, w0N)  # shareV - w0*N = pub_y
+        except ValueError as exc:
+            # The pre-check above cannot catch this one: whether the
+            # subtraction cancels depends on w0, which is derived from the
+            # password. Re-raise naming the actual protocol condition.
+            raise ValueError(
+                f"shareV - w0*N is degenerate (shareV == w0*N): {exc}"
+            ) from exc
 
         Z = _p256_scalar_mult(self.x_priv, base)
         V = _p256_scalar_mult(w1_int, base)

@@ -41,6 +41,15 @@ def _attr(el: ET.Element, name: str, default: str = "") -> str:
     return el.attrib.get(name, default)
 
 
+class UnsupportedSequenceItem(Exception):
+    """A <Sequence> contains a child element this interpreter cannot run.
+
+    Raised at PARSE time (so it surfaces during pytest collection, naming
+    the tag) rather than letting the unknown step be dropped and the
+    TestCase report a pass it never earned.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Fields (variable declarations)
 # ---------------------------------------------------------------------------
@@ -279,6 +288,19 @@ def _parse_sequence(seq_el: ET.Element) -> list[SequenceItem]:
             items.append(CoAPMessage.from_xml(child))
         elif child.tag == _tag("DnsMessage"):
             items.append(DnsMessage.from_xml(child))
+        else:
+            # Refuse to silently drop a step. Without this, a sequence item
+            # type introduced by a future EITT revision would vanish from the
+            # run and the TestCase would PASS having never executed it — the
+            # worst possible failure mode for a conformance tool.
+            # Today's template contains only the three tags above (measured:
+            # 3409 Comment / 3109 CoAPMessage / 41 DnsMessage, no others).
+            raise UnsupportedSequenceItem(
+                f"unsupported <Sequence> child <{child.tag}> — this "
+                f"interpreter only implements Comment, CoAPMessage and "
+                f"DnsMessage. Skipping it would let the TestCase pass "
+                f"without running the step, so parsing stops here. Add "
+                f"support in eitt/model.py and eitt/runner.py.")
     return items
 
 

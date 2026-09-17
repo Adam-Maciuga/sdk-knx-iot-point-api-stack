@@ -131,6 +131,27 @@ class OverrideTable:
         self._variables: dict = {}
         self._manual_actions: list[ManualAction] = []
         self._message_activation: list[MessageActivation] = []
+        self._accepted_response_codes: dict[str, set] = {}
+
+    @property
+    def accepted_response_codes(self) -> dict:
+        """Response-code substitutions the certification body accepts.
+
+        Maps a PLANNED code ("4.01") to the set of codes that may stand in
+        for it ({"4.03"}). This exists because the KSG "IoT" class agreed
+        that where a test asks for "Unauthorized" a device answering
+        "Forbidden" is also correct — and the reference certification runs
+        record exactly that: traces/5_3.xml has five
+        "Message code differs, planned: 4.01, received: 4.03" evaluations
+        and traces/5_4_1.xml one "planned: 4.00, received: 4.03", and both
+        runs were ACCEPTED.
+
+        Deliberately global rather than per-TestCase: it is a property of
+        the device's error-reporting, not of any one test, and EITT's own
+        telegram numbering (which the certification notes use to identify
+        the affected steps) does not survive template regeneration.
+        """
+        return self._accepted_response_codes
 
     @property
     def variables(self) -> dict:
@@ -210,6 +231,20 @@ class OverrideTable:
                 reason=spec.get("reason", ""),
             ))
 
+        # "accepted_response_codes:" is not a TestCase key either — see the
+        # property above. Shape: {planned: [accepted, ...]}.
+        codes_raw = raw.pop("accepted_response_codes", None) or {}
+        if not isinstance(codes_raw, dict):
+            raise ValueError(
+                "eitt/overrides.yaml 'accepted_response_codes' must be a "
+                "mapping of planned-code -> list of accepted codes")
+        accepted_codes = {}
+        for planned, accepted in codes_raw.items():
+            if isinstance(accepted, str):
+                accepted = [accepted]
+            accepted_codes[str(planned).strip()] = {
+                str(a).strip() for a in accepted}
+
         overrides = {}
         for qualified_name, spec in raw.items():
             if not isinstance(spec, dict) or "action" not in spec:
@@ -226,6 +261,7 @@ class OverrideTable:
         table._variables = {k: str(v) for k, v in variables.items()}
         table._manual_actions = manual_actions
         table._message_activation = message_activation
+        table._accepted_response_codes = accepted_codes
         return table
 
     def apply_message_activation(self, project) -> list[str]:

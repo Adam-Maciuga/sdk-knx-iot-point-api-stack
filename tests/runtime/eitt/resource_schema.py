@@ -19,9 +19,20 @@ cbor2.dumps(...)/cbor2.loads(...) call in tests/runtime/test_5_*.py and
 conftest.py (see git history/PR description for the audit).
 
 Extend this table as new TestCases from a fresh XML revision exercise a
-resource path that isn't mapped yet — get_schema() raises rather than
-guessing, so a gap surfaces as a clear collection/runtime error instead
-of silently sending a malformed body.
+resource path that isn't mapped yet.
+
+An unmapped PATH does not raise: get_schema() falls back to
+_DEFAULT_SCHEMA, mirroring EITT's own key map, which applies a
+Default="yes" table to every path without a specific entry (see
+tests/runtime/data/EITT_KnxPointAPIResourceKeyMaps.xml). A path-specific
+entry is therefore only needed where the shape genuinely DIFFERS from
+that default — auth/at's RFC-8392 token map, .well-known/knx/spake — not
+for every new resource.
+
+What DOES raise is an unknown FIELD name inside a body:
+ResourceSchema.encode() rejects it rather than guessing a key, so a real
+gap still surfaces as a clear error instead of silently sending a
+malformed body.
 """
 
 from __future__ import annotations

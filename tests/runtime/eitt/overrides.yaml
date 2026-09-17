@@ -72,6 +72,31 @@ variables:
   action: skip
   reason: "Optional feature (suite title '(Optional)', template Hitem V34 'marked as optional') not implemented by the stack (no PUT handler, oc_knx_sec.c:258, g_oscore_replay_window_size hardcoded 32); the reference certification run never executed it either (traces/5_3.xml contains GETs to auth/o/replwdo but no PUT)"
 
+# --- Accepted response-code substitutions ------------------------------------
+# Where a test PLANS one error code but the device answers another, and the
+# certification body accepts it. Per the Tests Spec / KSG "IoT" class meeting
+# of 2025.12.12: where a test asks for "Unauthorized", a device answering
+# "Forbidden" is also correct.
+#
+# This is not a shortcut to make tests pass — it is recorded in the reference
+# certification runs themselves, which were ACCEPTED with these very
+# evaluations present:
+#   data/traces/5_3.xml    x5  "Message code differs, planned: 4.01, received: 4.03"
+#   data/traces/5_4_1.xml  x1  "Message code differs, planned: 4.00, received: 4.03"
+#
+# Global rather than per-TestCase on purpose: it is a property of how this
+# device reports authorization errors, not of any single test. (EITT's own
+# telegram NUMBERS, which the certification notes use to point at the affected
+# steps, do not survive template regeneration — see the project notes.)
+#
+# Without this the code assertion added for finding F1 fails 5.2.2.1 step 2 at
+# the point where it checks that a post-factory-reset request is rejected; that
+# failure then prevents the following @#"Copy of AUTH PREPARATION" from running
+# and cascades into 17 further failures.
+accepted_response_codes:
+  "4.01": ["4.03"]   # Unauthorized planned, Forbidden accepted
+  "4.00": ["4.03"]   # Bad Request planned, Forbidden accepted (traces/5_4_1.xml)
+
 # --- 5.4.2: out of scope, whole suite ----------------------------------------
 # "5.4.2. GET & OBSERVE /.knx" is labelled "(Preliminary - Not for Certification)"
 # in the template's own suite name, and the /.knx Observe feature it exercises is
@@ -181,19 +206,22 @@ variables:
 # // for device handover, not implemented yet") — but that is untested by
 # these three, so an xfail here asserted a gap the suite never exercises.
 
-# --- @@! operator prompts -> DUT control endpoints ------------------------
+# --- @@ / @@! operator prompts -> DUT control endpoints -------------------
 # `@@!<text>` is EITT's "display comment in toolbar, SUSPEND EVALUATION and
 # beep" command (EITT_KnxCommentCommandsScheme.xml) — a modal the operator
 # dismisses after doing something PHYSICAL that no CoAP request can express.
+# Bare `@@<text>` is the same modal WITHOUT the beep, so both route here.
 #
-# Matched by TEXT, first match wins, because `@@!` on its own says only "a
-# human does something" — not what. The template has exactly 4 uses today
-# (grep the template for '@@!' after any XML update):
-#   5.3.1.3 x2  real device actions   -> control endpoints below
-#   5.2.9.1     human observation     -> nothing to do
-#   5.2.10.1b   human observation     -> nothing to do
+# Matched by TEXT, first match wins, because `@@` on its own says only "a
+# human does something" — not what. The template has exactly 6 uses today
+# (grep the template for '@@' after any XML update; note `@@[` is the
+# unrelated provisioning-command prefix and is dispatched before these):
+#   5.3.1.3 x2  @@!  real device actions   -> control endpoints below
+#   5.2.9.1     @@!  human observation     -> nothing to do
+#   5.2.10.1b   @@!  human observation     -> nothing to do
+#   5.4.1.8 x2  @@   sensor trigger + ack  -> below
 #
-# An `@@!` that matches NOTHING here is a hard failure, not a silent skip:
+# An `@@`/`@@!` that matches NOTHING here is a hard failure, not a silent skip:
 # the test would otherwise "pass" while the physical step it depends on
 # never happened. That is exactly what used to occur — @@! was ignored
 # entirely, so 5.3.1.3's SPAKE2+-after-power-cycle step actually ran against
@@ -230,6 +258,31 @@ manual_actions:
   # it is left out rather than invented.
   - match: "check LAST UPDATE value"
     reason: "human observation only (operator reads the value) — nothing automatable, and no later telegram re-checks it"
+
+  # 5.4.1.8 "Trigger sensor during next 10 seconds after pressing OK" and
+  # "Test Finished, Press OK" — two bare `@@` prompts (same modal as `@@!`,
+  # no beep). BOTH are acknowledge-only, deliberately WITHOUT an endpoint.
+  #
+  # It is tempting to map the first onto POST /test/trigger, the way
+  # _trigger_sensor does for 5.4.1.15. That is WRONG here, and the reference
+  # certification run proves it: in traces/5_4_1.xml the window between
+  # `pahmcast"…join=true"` (element 1591) and `Setup: Set LSM to 'loaded'`
+  # (1593) contains exactly ONE empty comment and NO telegram at all. The
+  # real operator did not make the device send anything — this TestCase
+  # asserts the device does NOT transmit while LSM is 'loading', so a
+  # trigger here injects traffic the certification run never had.
+  # (Measured: doing so took the suite from 177 passed to 23 failed and the
+  # runtime from ~9 to ~33 minutes.)
+  #
+  # The 10-second `@[w` countdown between them is the window itself and is
+  # honoured as an ordinary wait. The trace records TimeToNext=22:27:29.8 on
+  # the telegram after the second prompt — the operator left the modal open
+  # overnight — which confirms nothing downstream depends on its duration.
+  - match: "trigger sensor during"
+    reason: "operator presses a PHYSICAL sensor; the test asserts nothing is transmitted in loading state, and traces/5_4_1.xml records no telegram in this window — injecting /test/trigger would test the opposite"
+
+  - match: "test finished"
+    reason: "end-of-window acknowledgement only — no device action; the 'nothing was sent' check is the surrounding steps"
 
 
 # ---------------------------------------------------------------------------
