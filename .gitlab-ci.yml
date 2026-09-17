@@ -149,6 +149,46 @@ unit-asan:
   dependencies: []
 
 # ----------------------------------------------------------
+# test: unit line coverage (gcov via gcovr)
+# The same GoogleTest suite built with --coverage -O0 (ENABLE_COVERAGE). The
+# filters keep the number honest: this project's own code under api/,
+# messaging/, security/ and util/, not tests/, not the fetched dependencies,
+# not the vendored api/c-timestamp parser. The percentage shows on the job
+# and in the merge request; the HTML report is an artifact.
+# ----------------------------------------------------------
+unit-coverage-gcc:
+  stage: test
+  script:
+    - !reference [.python-deps, script]
+    - python3 -m pip install --break-system-packages --quiet gcovr
+    - cmake --preset=linux-coverage-gcc
+    - cmake --build --preset=linux-coverage-gcc
+    - ctest --preset=linux-coverage-gcc --output-junit report.xml
+    - mkdir -p build/linux-coverage-gcc/coverage-html
+    - >
+      gcovr --root .
+      --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/'
+      --exclude 'api/c-timestamp/.*'
+      --cobertura build/linux-coverage-gcc/coverage.xml
+      --html-details build/linux-coverage-gcc/coverage-html/index.html
+      --print-summary
+      build/linux-coverage-gcc
+  # gcovr --print-summary writes "lines: 52.5% (5645 out of 10759)"; the
+  # TOTAL line only exists in its default table report, which is not printed here.
+  coverage: '/^lines:\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    when: always
+    paths:
+      - build/linux-coverage-gcc/coverage-html/
+    reports:
+      junit: build/linux-coverage-gcc/report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: build/linux-coverage-gcc/coverage.xml
+    expire_in: 4 weeks
+  dependencies: []
+
+# ----------------------------------------------------------
 # test: harness (no device)
 # The interpreter's own tests (template parsing, event bus, project copy, comment
 # scheme) and the GUI tests. The GUI tests skip themselves when PySide6 is not
@@ -220,7 +260,9 @@ fuzz-seed-replay:
       --html-details build/linux-fuzz-coverage-clang/coverage-html/index.html
       --print-summary
       build/linux-fuzz-coverage-clang
-  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  # gcovr --print-summary writes "lines: 52.5% (5645 out of 10759)"; the
+  # TOTAL line only exists in its default table report, which is not printed here.
+  coverage: '/^lines:\s+(\d+(?:\.\d+)?)%/'
   artifacts:
     when: always
     paths:

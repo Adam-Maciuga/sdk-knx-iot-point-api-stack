@@ -103,6 +103,26 @@ ctest --preset linux-test-gcc
 
 Replace the preset name with the matching GCC or Linux test preset as needed.
 
+#### Line coverage
+
+The `*-coverage-gcc` presets build the same unit suite with gcov instrumentation
+(`--coverage -O0`, CMake option `ENABLE_COVERAGE`). Run it, then let
+[gcovr](https://gcovr.com) (`pip install gcovr`) turn the `.gcda` files into a
+report; the filters restrict it to the stack's own code, leaving out tests,
+fetched dependencies and the vendored `api/c-timestamp` parser:
+
+```bash
+cmake --preset linux-coverage-gcc          # windows-coverage-gcc on MSYS2/MinGW
+cmake --build --preset linux-coverage-gcc
+ctest --preset linux-coverage-gcc
+gcovr --root . --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' \
+      --exclude 'api/c-timestamp/.*' --print-summary \
+      --html-details build/linux-coverage-gcc/coverage-html/index.html build/linux-coverage-gcc
+```
+
+In CI the `unit-coverage-gcc` job does this on every push; GitLab shows the line
+percentage on the job and the merge request, and the HTML report is an artifact.
+
 ### Runtime Conformance Tests
 
 Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: `tests/eitt/` interprets KNX's conformance template directly, and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. The recommended path is the Docker-based runner; see `tests/README.md` for the map.

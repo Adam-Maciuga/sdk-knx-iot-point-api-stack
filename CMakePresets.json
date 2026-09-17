@@ -134,6 +134,16 @@
       "description": "Debug build with unit tests enabled (GCC)."
     },
     {
+      "name": "windows-coverage-gcc",
+      "inherits": "windows-test-gcc",
+      "displayName": "Windows Coverage (MinGW GCC)",
+      "description": "Debug build with unit tests and gcov source coverage (--coverage -O0). Report with: gcovr -r . --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' --exclude 'api/c-timestamp/.*' <builddir> (MSYS2 gcov + pip gcovr)",
+      "cacheVariables": {
+        "BUILD_TESTING": true,
+        "ENABLE_COVERAGE": true
+      }
+    },
+    {
       "name": "linux-test-gcc",
       "inherits": ["linux-debug-gcc", "test-common-config"],
       "displayName": "Linux Test (GCC)",
@@ -147,6 +157,16 @@
       "cacheVariables": {
         "BUILD_TESTING": true,
         "ENABLE_SANITIZERS": true
+      }
+    },
+    {
+      "name": "linux-coverage-gcc",
+      "inherits": "linux-test-gcc",
+      "displayName": "Linux Coverage (GCC)",
+      "description": "Debug build with unit tests and gcov source coverage (--coverage -O0). Report with: gcovr -r . --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' --exclude 'api/c-timestamp/.*' <builddir>",
+      "cacheVariables": {
+        "BUILD_TESTING": true,
+        "ENABLE_COVERAGE": true
       }
     },
     {
@@ -275,6 +295,18 @@
       "inherits": "linux-common-config",
       "displayName": "Linux Fuzz Coverage (clang + libFuzzer)",
       "configurePreset": "linux-fuzz-coverage-clang"
+    },
+    {
+      "name": "linux-coverage-gcc",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Coverage (GCC)",
+      "configurePreset": "linux-coverage-gcc"
+    },
+    {
+      "name": "windows-coverage-gcc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Coverage (MinGW GCC)",
+      "configurePreset": "windows-coverage-gcc"
     }
   ],
   "testPresets": [
@@ -309,6 +341,16 @@
       "configurePreset": "linux-fuzz-coverage-clang",
       "output": { "outputOnFailure": true },
       "filter": { "include": { "label": "fuzz" } }
+    },
+    {
+      "name": "linux-coverage-gcc",
+      "configurePreset": "linux-coverage-gcc",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "windows-coverage-gcc",
+      "configurePreset": "windows-coverage-gcc",
+      "output": { "outputOnFailure": true }
     }
   ]
 }
