@@ -23,9 +23,10 @@
  * Four symbols are redirected with the GNU linker --wrap facility, see
  * tests/unit/CMakeLists.txt:
  *   sendto                    - records every packet, nothing leaves the host
- *   recvfrom                  - hands the listener thread the queries the test
- *                               queued, and an empty socket otherwise, so no
- *                               real query of the host network reaches it
+ *   recvmsg                   - hands the listener thread the queries the test
+ *                               queued, as received on loopback (IPV6_PKTINFO),
+ *                               and an empty socket otherwise, so no real query
+ *                               of the host network reaches it
  *   get_ip_context_for_device - one fake unicast IPv6 endpoint on loopback, so
  *                               collect_if_indices() finds an interface without
  *                               oc_connectivity_init()
@@ -265,8 +266,7 @@ extern "C" ssize_t __wrap_sendto(int, const void *buf, size_t len, int,
   return (ssize_t)len;
 }
 
-extern "C" ssize_t __wrap_recvfrom(int, void *buf, size_t len, int,
-                                   struct sockaddr *from, socklen_t *fromlen)
+extern "C" ssize_t __wrap_recvmsg(int, struct msghdr* msg, int)
 {
   std::lock_guard<std::mutex> guard(g_lock);
   if (g_queries.empty()) {
@@ -275,19 +275,37 @@ extern "C" ssize_t __wrap_recvfrom(int, void *buf, size_t len, int,
   }
   const std::vector<uint8_t> q = g_queries.front();
   g_queries.erase(g_queries.begin());
-  if (q.size() > len) {
+  if (msg == nullptr || msg->msg_iovlen < 1 || q.size() > msg->msg_iov[0].iov_len) {
     errno = EMSGSIZE;
     return -1;
   }
-  memcpy(buf, q.data(), q.size());
-  if (from && fromlen && *fromlen >= sizeof(struct sockaddr_in6)) {
+  memcpy(msg->msg_iov[0].iov_base, q.data(), q.size());
+  if (msg->msg_name && msg->msg_namelen >= sizeof(struct sockaddr_in6)) {
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
     addr.sin6_port = htons(MDNS_PORT);
     addr.sin6_addr.s6_addr[15] = 1;
-    memcpy(from, &addr, sizeof(addr));
-    *fromlen = sizeof(addr);
+    memcpy(msg->msg_name, &addr, sizeof(addr));
+    msg->msg_namelen = sizeof(addr);
+  }
+  /* The receive interface, as the kernel delivers it with IPV6_RECVPKTINFO:
+   * the query arrived on loopback, addressed to FF02::FB. */
+  msg->msg_flags = 0;
+  if (msg->msg_control && msg->msg_controllen >= CMSG_SPACE(sizeof(struct in6_pktinfo))) {
+    struct cmsghdr* cm = CMSG_FIRSTHDR(msg);
+    cm->cmsg_level = IPPROTO_IPV6;
+    cm->cmsg_type = IPV6_PKTINFO;
+    cm->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+    struct in6_pktinfo* pi = (struct in6_pktinfo*)CMSG_DATA(cm);
+    memset(pi, 0, sizeof(*pi));
+    pi->ipi6_addr.s6_addr[0] = 0xFF;
+    pi->ipi6_addr.s6_addr[1] = 0x02;
+    pi->ipi6_addr.s6_addr[15] = 0xFB;
+    pi->ipi6_ifindex = if_nametoindex("lo");
+    msg->msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
+  } else {
+    msg->msg_controllen = 0;
   }
   return (ssize_t)q.size();
 }

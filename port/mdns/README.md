@@ -28,6 +28,14 @@ Fixes that were previously carried in `port/mdns.patch`:
   receive buffer (F-024; found by the `fuzz_mdns` harness on `feat/sec-hardening`
   as their F-026).
 
+Changes since the import:
+
+- `mdns_socket_listen()` receives with `recvmsg()` and hands the callback the
+  interface the packet arrived on (`IPV6_PKTINFO`, the `ifindex` parameter of
+  `mdns_record_callback_fn`), so `port/dns-sd_mdns.c` answers on the link the
+  query came from (RFC 6762 section 15, multiple interfaces). Windows keeps
+  `recvfrom()` and reports interface 0.
+
 Cleanup done on import, none of it changes what goes on the wire:
 
 - Removed the client-side API: `mdns_discovery_send/recv`,

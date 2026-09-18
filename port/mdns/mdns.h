@@ -92,10 +92,13 @@ typedef enum mdns_entry_type mdns_entry_type_t;
 typedef enum mdns_class mdns_class_t;
 
 //! Callback invoked by mdns_socket_listen() once per question and per record in a
-//! received packet. Return non-zero to stop parsing the packet.
+//! received packet. ifindex is the interface the packet arrived on (IPV6_PKTINFO), or 0
+//! when the platform does not deliver it (Windows). Return non-zero to stop parsing the
+//! packet.
 typedef int (*mdns_record_callback_fn)(int sock, const struct sockaddr* from, size_t addrlen,
-                                       mdns_entry_type_t entry, uint16_t query_id, uint16_t rtype,
-                                       uint16_t rclass, uint32_t ttl, const void* data, size_t size,
+                                       unsigned int ifindex, mdns_entry_type_t entry,
+                                       uint16_t query_id, uint16_t rtype, uint16_t rclass,
+                                       uint32_t ttl, const void* data, size_t size,
                                        size_t name_offset, size_t name_length, size_t record_offset,
                                        size_t record_length, void* user_data);
 
@@ -196,9 +199,11 @@ mdns_socket_setup_ipv6(int sock, const struct sockaddr_in6* saddr);
 static inline void
 mdns_socket_close(int sock);
 
-//! Receive one packet and pass every question and record to the callback. The socket must
-//! be bound to MDNS_PORT. Buffer must be 32 bit aligned. Parsing stops when the callback
-//! returns non-zero. Returns the number of entries parsed.
+//! Receive one packet and pass every question and record to the callback, together with the
+//! interface the packet arrived on (IPV6_RECVPKTINFO must be enabled on the socket, otherwise
+//! the interface is reported as 0). The socket must be bound to MDNS_PORT. Buffer must be
+//! 32 bit aligned. Parsing stops when the callback returns non-zero. Returns the number of
+//! entries parsed.
 static inline size_t
 mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback_fn callback,
                    void* user_data);
@@ -610,9 +615,10 @@ mdns_string_make(void* buffer, size_t capacity, void* data, const char* name, si
 }
 
 static inline size_t
-mdns_records_parse(int sock, const struct sockaddr* from, size_t addrlen, const void* buffer,
-                   size_t size, size_t* offset, mdns_entry_type_t type, uint16_t query_id,
-                   size_t records, mdns_record_callback_fn callback, void* user_data) {
+mdns_records_parse(int sock, const struct sockaddr* from, size_t addrlen, unsigned int ifindex,
+                   const void* buffer, size_t size, size_t* offset, mdns_entry_type_t type,
+                   uint16_t query_id, size_t records, mdns_record_callback_fn callback,
+                   void* user_data) {
 	size_t parsed = 0;
 	for (size_t i = 0; i < records; ++i) {
 		size_t name_offset = *offset;
@@ -633,7 +639,7 @@ mdns_records_parse(int sock, const struct sockaddr* from, size_t addrlen, const 
 		if (length <= (size - (*offset))) {
 			++parsed;
 			if (callback &&
-			    callback(sock, from, addrlen, type, query_id, rtype, rclass, ttl, buffer, size,
+			    callback(sock, from, addrlen, ifindex, type, query_id, rtype, rclass, ttl, buffer, size,
 			             name_offset, name_length, *offset, length, user_data))
 				break;
 		}
@@ -692,8 +698,41 @@ mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback
 	struct sockaddr_in6 addr;
 	struct sockaddr* saddr = (struct sockaddr*)&addr;
 	socklen_t addrlen = sizeof(addr);
+	unsigned int ifindex = 0;
 	memset(&addr, 0, sizeof(addr));
+#ifdef _WIN32
+	// recvfrom() delivers no ancillary data, the receive interface stays unknown (0)
 	mdns_ssize_t ret = recvfrom(sock, (char*)buffer, (mdns_size_t)capacity, 0, saddr, &addrlen);
+#else
+	// The control buffer must be zero-initialised: Zephyr's recvmsg() takes a cmsg_len of 0 as
+	// the free slot and delivers no IPV6_PKTINFO otherwise (MSG_CTRUNC)
+	unsigned char control[CMSG_SPACE(sizeof(struct in6_pktinfo))] = {0};
+	struct iovec iov;
+	struct msghdr msg;
+	iov.iov_base = buffer;
+	iov.iov_len = capacity;
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = saddr;
+	msg.msg_namelen = addrlen;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = control;
+	msg.msg_controllen = sizeof(control);
+	mdns_ssize_t ret = recvmsg(sock, &msg, 0);
+	if (ret > 0) {
+		addrlen = (socklen_t)msg.msg_namelen;
+		// The interface the packet arrived on, delivered when IPV6_RECVPKTINFO is enabled on the
+		// socket. Without it the interface stays unknown (0)
+		for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+			if ((cmsg->cmsg_level == IPPROTO_IPV6) && (cmsg->cmsg_type == IPV6_PKTINFO)) {
+				struct in6_pktinfo pktinfo;
+				memcpy(&pktinfo, CMSG_DATA(cmsg), sizeof(pktinfo));
+				ifindex = (unsigned int)pktinfo.ipi6_ifindex;
+				break;
+			}
+		}
+	}
+#endif
 	if (ret <= 0)
 		return 0;
 
@@ -743,29 +782,30 @@ mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback
 			continue;
 
 		++total_records;
-		if (callback && callback(sock, saddr, addrlen, MDNS_ENTRYTYPE_QUESTION, query_id, rtype,
+		if (callback && callback(sock, saddr, addrlen, ifindex, MDNS_ENTRYTYPE_QUESTION, query_id, rtype,
 		                         rclass, 0, buffer, data_size, question_offset, length,
 		                         question_offset, length, user_data))
 			return total_records;
 	}
 
 	size_t offset = MDNS_POINTER_DIFF(data, buffer);
-	records = mdns_records_parse(sock, saddr, addrlen, buffer, data_size, &offset,
+	records = mdns_records_parse(sock, saddr, addrlen, ifindex, buffer, data_size, &offset,
 	                             MDNS_ENTRYTYPE_ANSWER, query_id, answer_rrs, callback, user_data);
 	total_records += records;
 	if (records != answer_rrs)
 		return total_records;
 
 	records =
-	    mdns_records_parse(sock, saddr, addrlen, buffer, data_size, &offset,
+	    mdns_records_parse(sock, saddr, addrlen, ifindex, buffer, data_size, &offset,
 	                       MDNS_ENTRYTYPE_AUTHORITY, query_id, authority_rrs, callback, user_data);
 	total_records += records;
 	if (records != authority_rrs)
 		return total_records;
 
-	records = mdns_records_parse(sock, saddr, addrlen, buffer, data_size, &offset,
+	records = mdns_records_parse(sock, saddr, addrlen, ifindex, buffer, data_size, &offset,
 	                             MDNS_ENTRYTYPE_ADDITIONAL, query_id, additional_rrs, callback,
 	                             user_data);
+	total_records += records;
 
 	return total_records;
 }

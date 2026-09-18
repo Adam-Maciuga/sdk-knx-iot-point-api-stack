@@ -187,7 +187,7 @@ kis_add_test(test_oc_log             test_oc_log.cpp)
 # windows-test-gcc preset keeps building.
 #
 # The wraps redirect sendto to a recorder (no packet leaves the host),
-# recvfrom to an empty socket (the listener thread answers no real query),
+# recvmsg to an empty socket (the listener thread answers no real query),
 # get_ip_context_for_device to a fake context with one loopback endpoint
 # (dns-sd_mdns.c runs without oc_connectivity_init()) and oc_clock_time to a
 # test-controlled clock (the one-second repeat needs no real sleep).
@@ -195,7 +195,7 @@ if(UNIX)
     kis_add_test(test_dns_sd_mdns    test_dns_sd_mdns.cpp)
     target_link_options(test_dns_sd_mdns PRIVATE
         -Wl,--wrap=sendto
-        -Wl,--wrap=recvfrom
+        -Wl,--wrap=recvmsg
         -Wl,--wrap=get_ip_context_for_device
         -Wl,--wrap=oc_clock_time
     )

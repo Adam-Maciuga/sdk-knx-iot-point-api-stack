@@ -24,6 +24,16 @@
  *      discover our service at any time.
  */
 
+/*
+ * Linux: struct in6_pktinfo is declared by glibc only under _GNU_SOURCE.
+ *
+ * mdns_socket_listen() reads it from the IPV6_PKTINFO ancillary data. The
+ * define must precede the first system header, see port/linux/ipadapter.c.
+ */
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 // ipadapter.h is resolved via PORT_DIR include path set by CMake. It provides get_ip_context_for_device() -> ip_context_t* with .port member and (via ipcontext.h) the ip_context_t struct with the OC_LIST eps list.
 #ifndef __ZEPHYR__
 #include "ipadapter.h" // get_ip_context_for_device(): Linux/Windows only
@@ -43,6 +53,7 @@
 #include <strings.h> // strncasecmp, used by mdns.h (absent on MSVC)
 #endif
 #include <ctype.h>
+#include <errno.h>
 
 #ifdef _WIN32
   #ifndef WIN32_LEAN_AND_MEAN
@@ -56,7 +67,6 @@
   #include <netinet/in.h>
   #include <unistd.h>
   #include <fcntl.h>
-  #include <errno.h>
   #ifdef __ZEPHYR__
     // Native kernel threads instead of pthreads, the POSIX threads layer is not pulled in. The BSD socket names come from CONFIG_POSIX_NETWORKING.
     #include <zephyr/kernel.h>
@@ -727,6 +737,21 @@ static int open_mdns_listen_socket_ipv6(void)
     return -1;
   }
 
+  #ifndef _WIN32
+  // Deliver the receive interface with every query (IPV6_PKTINFO from recvmsg()), so the answer
+  // leaves on the link the query came from. Without it lwIP (ESP-IDF) refuses to route FF02::FB
+  // from a socket bound to [::] on a host with several interfaces (no zone, no route).
+  const int recvpktinfo = 1;
+  if (setsockopt(sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, (const char *)&recvpktinfo,
+                 sizeof(recvpktinfo)) != 0)
+  {
+    OC_ERR("mDNS: Failed to enable receive packet info (IPV6_RECVPKTINFO) on the listen socket: %d",
+           errno);
+    close(sock);
+    return -1;
+  }
+  #endif
+
   // Bind to [::]:5353
   struct sockaddr_in6 saddr6 = {0};
   saddr6.sin6_family = AF_INET6;
@@ -1054,6 +1079,32 @@ static int send_txt_response(int sock)
 }
 
 /**
+ * @brief Pin the answers of the listen socket to the interface a query arrived on.
+ *
+ * mDNS is link-scoped, an answer belongs on the link the query came from (RFC 6762
+ * section 15, multiple interfaces). IPV6_MULTICAST_IF on the listen socket routes the
+ * multicast answer through that interface, the mechanism send_announcement() uses. An
+ * unknown interface (0, Windows) keeps the platform default route, the behaviour before
+ * the receive interface was available.
+ *
+ * @param sock     The listen socket the answer is sent on.
+ * @param ifindex  The interface index of the received query, 0 when unknown.
+ */
+static void select_answer_interface(int sock, unsigned int ifindex)
+{
+  if (ifindex == 0)
+  {
+    return;
+  }
+
+  if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (const char *)&ifindex,
+                 sizeof(ifindex)) != 0)
+  {
+    OC_ERR("DNS-SD: Failed to pin the answer to interface %u: %d", ifindex, errno);
+  }
+}
+
+/**
  * @brief mdns_socket_listen callback — invoked for each question or record
  *        in a received mDNS packet.
  *
@@ -1067,7 +1118,7 @@ static int send_txt_response(int sock)
  *   - TXT/ANY queries for <sn>._knx._udp.local. (instance → TXT record)
  */
 static int mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
-                               mdns_entry_type_t entry, uint16_t query_id,
+                               unsigned int ifindex, mdns_entry_type_t entry, uint16_t query_id,
                                uint16_t rtype, uint16_t rclass, uint32_t ttl,
                                const void *data, size_t size,
                                size_t name_offset, size_t name_length,
@@ -1127,6 +1178,12 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
   char hostname[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", adv_sn);
+
+  // The answer leaves on the interface the query arrived on (RFC 6762 section 15). errno is
+  // reset so the error lines below report a failure of this answer only, not a stale value
+  // left behind by the non-blocking poll of the listener thread.
+  select_answer_interface(sock, ifindex);
+  errno = 0;
 
   int ret;
 
@@ -1207,7 +1264,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       ret = send_query_response(sock, ptr_name);
       if (ret < 0)
       {
-        OC_ERR("DNS-SD: Failed to send PTR answer (ret=%d)!", ret);
+        OC_ERR("DNS-SD: Failed to send PTR answer (ret=%d, errno=%d)!", ret, errno);
       }
       else
       {
@@ -1226,7 +1283,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       ret = send_srv_response(sock);
       if (ret < 0)
       {
-        OC_ERR("DNS-SD: Failed to send SRV answer (ret=%d)!", ret);
+        OC_ERR("DNS-SD: Failed to send SRV answer (ret=%d, errno=%d)!", ret, errno);
       }
       else
       {
@@ -1245,7 +1302,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       ret = send_aaaa_response(sock);
       if (ret < 0)
       {
-        OC_ERR("DNS-SD: Failed to send AAAA answer (ret=%d)!", ret);
+        OC_ERR("DNS-SD: Failed to send AAAA answer (ret=%d, errno=%d)!", ret, errno);
       }
       else
       {
@@ -1264,7 +1321,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       ret = send_txt_response(sock);
       if (ret < 0)
       {
-        OC_ERR("DNS-SD: Failed to send TXT answer (ret=%d)!", ret);
+        OC_ERR("DNS-SD: Failed to send TXT answer (ret=%d, errno=%d)!", ret, errno);
       }
       else
       {
@@ -1281,7 +1338,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
  * @brief Listener thread entry point.
  *
  * Runs in a loop calling mdns_socket_listen() which does a blocking-ish
- * recvfrom().  The socket is non-blocking (set by mdns_socket_open_ipv6),
+ * recvmsg(), recvfrom() on Windows.  The socket is non-blocking (set by mdns_socket_open_ipv6),
  * so we add a small sleep to avoid busy-looping when no packets arrive.
  */
 #ifdef _WIN32
