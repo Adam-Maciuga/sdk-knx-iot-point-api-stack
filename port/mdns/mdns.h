@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <fcntl.h>
 #ifdef _WIN32
@@ -660,8 +661,10 @@ mdns_multicast_send(int sock, const void* buffer, size_t size) {
 	socklen_t saddrlen = sizeof(struct sockaddr_storage);
 	if (getsockname(sock, saddr, &saddrlen))
 		return -1;
-	if (saddr->sa_family != AF_INET6)
+	if (saddr->sa_family != AF_INET6) {
+		errno = EAFNOSUPPORT;
 		return -1;
+	}
 
 	memset(&addr6, 0, sizeof(addr6));
 	addr6.sin6_family = AF_INET6;
@@ -968,8 +971,10 @@ mdns_answer_multicast_rclass_ttl(int sock, void* buffer, size_t capacity, mdns_r
                                  const mdns_record_t* authority, size_t authority_count,
                                  const mdns_record_t* additional, size_t additional_count,
                                  uint16_t rclass, uint32_t ttl) {
-	if (capacity < (sizeof(struct mdns_header_t) + 32 + 4))
+	if (capacity < (sizeof(struct mdns_header_t) + 32 + 4)) {
+		errno = ENOBUFS;
 		return -1;
+	}
 
 	// Basic answer structure
 	struct mdns_header_t* header = (struct mdns_header_t*)buffer;
@@ -1008,8 +1013,11 @@ mdns_answer_multicast_rclass_ttl(int sock, void* buffer, size_t capacity, mdns_r
 	}
 	data = mdns_answer_add_txt_record(buffer, capacity, data, additional, additional_count,
 	                                  rclass, ttl, &string_table);
-	if (!data)
+	if (!data) {
+		// The records do not fit the buffer, no system call failed
+		errno = ENOBUFS;
 		return -1;
+	}
 
 	size_t tosend = MDNS_POINTER_DIFF(data, buffer);
 	return mdns_multicast_send(sock, buffer, tosend);

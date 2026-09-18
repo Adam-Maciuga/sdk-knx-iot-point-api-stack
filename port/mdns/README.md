@@ -35,6 +35,10 @@ Changes since the import:
   `mdns_record_callback_fn`), so `port/dns-sd_mdns.c` answers on the link the
   query came from (RFC 6762 section 15, multiple interfaces). Windows keeps
   `recvfrom()` and reports interface 0.
+- Every `-1` that is not the result of a failing system call sets `errno`
+  itself: `ENOBUFS` when the answer records do not fit the buffer,
+  `EAFNOSUPPORT` when `mdns_multicast_send()` gets a socket that is not IPv6.
+  A caller's error report after any `-1` is meaningful without a reset.
 
 Cleanup done on import, none of it changes what goes on the wire:
 

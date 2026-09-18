@@ -541,6 +541,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   if (if_count == 0)
   {
     OC_WRN("DNS-SD: No interfaces available for mDNS %s (network not ready?)!",  goodbye ? "goodbye" : "announce");
+    errno = ENETDOWN;
     return -1;
   }
 
@@ -1008,6 +1009,7 @@ static int send_aaaa_response(int sock)
   if (aaaa_count == 0)
   {
     OC_WRN("DNS-SD: No IPv6 addresses to respond with for AAAA query!");
+    errno = EADDRNOTAVAIL;
     return -1;
   }
 
@@ -1126,7 +1128,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
                                void *user_data)
 {
   (void)from; (void)addrlen; (void)query_id; (void)rclass; (void)ttl;
-  (void)record_offset; (void)record_length; (void)user_data;
+  (void)name_length; (void)record_offset; (void)record_length; (void)user_data;
 
   // only interested in questions
   if (entry != MDNS_ENTRYTYPE_QUESTION)
@@ -1179,11 +1181,8 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   char hostname[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", adv_sn);
 
-  // The answer leaves on the interface the query arrived on (RFC 6762 section 15). errno is
-  // reset so the error lines below report a failure of this answer only, not a stale value
-  // left behind by the non-blocking poll of the listener thread.
+  // The answer leaves on the interface the query arrived on (RFC 6762 section 15)
   select_answer_interface(sock, ifindex);
-  errno = 0;
 
   int ret;
 
