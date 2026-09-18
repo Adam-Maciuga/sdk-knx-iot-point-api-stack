@@ -128,23 +128,42 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
                                     int value_size, oc_group_table_t* recipient);
 
 /*
-  re-entrancy guard for the internal group object update ('loopback') below in
+  Re-entrance guard for the internal group object update ('loopback') below in
   oc_send_s_mode_mc_or_uc_message.
 
-  After a write is put on the wire, all GOs carrying the sending GA are updated internally by
-  calling their application PUT handler. A product PUT handler is allowed to answer with a status
-  write of its own (a MaC may legally map an input and its status output onto the SAME GA), which
-  re-enters this function -> sends again -> loops back again -> unbounded recursion, one multicast
-  and one OC_MAX_APP_DATA_SIZE allocation per level until the stack or the message pool is gone.
+  1. After an s-mode write is on the wire, all GOs carrying the sending GA are updated internally by
+     calling their application PUT handler. 
+  
+  2. A product PUT handler is generally allowed (= application developer decision) to issue on a write 
+     a status update (= write) of its own
+     
+  3. A MaC may legally map an input and its status output onto the SAME GA), which
+     re-enters this function -> sends again -> loops back again -> unbounded recursion, one multicast
+     and one OC_MAX_APP_DATA_SIZE allocation per level until the stack or the message pool is gone
 
-  The guard makes the loopback strictly single level: the outermost write still updates every
-  internal GO exactly once (the legitimate case, incl. updating a DIFFERENT input on the same GA),
-  but a write issued from within such an update only transmits - it does not start a second
-  loopback round. A depth flag is used rather than skipping only the originating resource, because
+  MaC/ User Misconfiguration Example:
+
+  -> Inbound  Write GA 20 - GO 0 (I+W) + GA 20, 21 = SOO (switch) - Put Handler -> Write GO Value + Sends IOO 
+  <- Outbound Write GA 21 - GO 1 (O+T) + GA 21     = IOO (status) - stack runs 'loopback' 
+     - finds GO 0 with GA 20, 21 (= misconfiguration), 
+     - calls its PUT handler again 
+     - sends again IOO 
+     - stack runs 'loopback'
+     = unbounded recursion
+  
+  The guard makes the loopback strictly single level
+  
+  - the outermost/first write still updates every internal GO exactly once 
+    (the legitimate case, incl. updating a DIFFERENT input on the same GA)
+  
+  - an s-mode write issued from within such a 'loopback' transmits an s-mode message and informs possible observers, 
+    it does not start a second loopback round 
+  
+  A depth flag is used rather than skipping only the originating resource, because
   the observed cycle runs through a different resource (input -> status output -> input) and would
   therefore survive a per resource exclusion.
 */
-static bool g_in_internal_go_update = false;
+static bool g_iam_in_the_internal_go_update_loopback_mode = false;
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -492,23 +511,28 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         }
       }
 
-      // update internal GOs on any (uc/mc) write request, but only when this write was not itself
-      // triggered from inside an internal GO update (see 'g_in_internal_go_update')
+      /* 
+        
+        (a) we need a local bool copy per call, the call that enters the loopback MUST clear it at the end, 
+            any nested calls must not clear it
+
+        (b) true when this very call was reached FROM a 'loopback' PUT handler that sends a next s-mode message
+            (is legal outside 'loopback' call, but illegal inside the 'loopback' call)
+
+      */
+      const bool nested_write = g_iam_in_the_internal_go_update_loopback_mode;
+
+      // (b) by default, no GO table index is found with the sending GA included
       int go_table_index_where_ga_is_used = -1;
 
-      // true when this very call was reached FROM an internal GO update (a PUT handler that sends)
-      const bool nested_write = g_in_internal_go_update;
+      OC_DBG("internal group object update - %s", nested_write ? "skip, we are in a 'loopback' call" : "run, check/update linked GOs");
 
-      if (nested_write)
+      if (!nested_write)
       {
-        OC_DBG("skipping internal group object update, already inside one (re-entrancy guard)");
-      }
-      else
-      {
-        OC_INF("checking & updating internal group objects");
+        OC_INF("internal group object update - run, check/update linked GOs");
 
-        // block a nested loopback for the whole duration of the update round
-        g_in_internal_go_update = true;
+        // (a))
+        g_iam_in_the_internal_go_update_loopback_mode = true;
 
         // get FIRST GO index with that GA included (one out of 0...max of GO array)
         go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(sending_ga);
@@ -580,10 +604,10 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
       }
 
-      // release the guard only in the frame that took it, nested frames must not clear it
+      // release the guard only in that call that was setting it (first), nested calls must not clear it
       if (!nested_write)
       {
-        g_in_internal_go_update = false;
+        g_iam_in_the_internal_go_update_loopback_mode = false;
       }
 
       /*
