@@ -770,6 +770,24 @@ bool oc_ri_add_resource(oc_resource_t* resource)
     valid = false;
   }
 
+  /*
+    the interface mask is stored per method handler, so the point identity is the union of all handlers,
+    only handlers with a callback are considered, a mask without a callback is not an exposed interface
+  */
+  oc_interface_mask_t resource_interfaces = OC_IF_NONE;
+
+  resource_interfaces |= resource->get_handler.cb    ? resource->get_handler.interface_mask    : OC_IF_NONE;
+  resource_interfaces |= resource->put_handler.cb    ? resource->put_handler.interface_mask    : OC_IF_NONE;
+  resource_interfaces |= resource->post_handler.cb   ? resource->post_handler.interface_mask   : OC_IF_NONE;
+  resource_interfaces |= resource->delete_handler.cb ? resource->delete_handler.interface_mask : OC_IF_NONE;
+
+  // a point is either a logical input or a logical output, never both (see 2.5.3.5 / 2.5.3.6)
+  if (resource_interfaces & OC_IF_I && resource_interfaces & OC_IF_O)
+  {
+    OC_ERR("resource '%s' declares both if.i and if.o, this is not allowed", oc_string_checked(resource->uri));
+    valid = false;
+  }
+
   if (valid)
   {
     oc_list_add(app_resources, resource);
