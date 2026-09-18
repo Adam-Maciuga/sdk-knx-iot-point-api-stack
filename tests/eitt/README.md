@@ -4,7 +4,9 @@
 and generates **one pytest item per `TestCase`** in it, then drives each one
 over real CoAP/OSCORE against the DUT. Nothing here is hand-written per test
 case: adopting a new template revision means dropping in a new XML file, not
-porting tests.
+porting tests. The drop-in and everything around it (companion files,
+overrides, traces, baselines) is the procedure in
+[`tests/docs/eitt-template-update.md`](../docs/eitt-template-update.md).
 
 The full design is in
 [`tests/docs/eitt-xml-interpreter.md`](../docs/eitt-xml-interpreter.md).
