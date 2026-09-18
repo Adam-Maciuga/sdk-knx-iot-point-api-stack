@@ -17,6 +17,9 @@
  *
  * Callers must include the socket headers of their platform before this file
  * if they need to remap close()/fcntl() (Zephyr does, see dns-sd_mdns.c).
+ * On Linux the including file must define _GNU_SOURCE before its first system
+ * header: glibc declares struct in6_pktinfo, read by mdns_socket_listen(),
+ * only then (see dns-sd_mdns.c and tests/fuzz/fuzz_mdns.c).
  */
 
 #pragma once

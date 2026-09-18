@@ -11,6 +11,16 @@
  * away from the responder's real code path when mdns.h changes.
  */
 
+/*
+ * Linux: struct in6_pktinfo is declared by glibc only under _GNU_SOURCE.
+ *
+ * mdns_socket_listen() reads it from the IPV6_PKTINFO ancillary data. The
+ * define must precede the first system header, see port/dns-sd_mdns.c.
+ */
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,14 +76,15 @@ LLVMFuzzerInitialize(int *argc, char ***argv)
 */
 static int
 record_callback(int sock, const struct sockaddr *from, size_t addrlen,
-                mdns_entry_type_t entry, uint16_t query_id, uint16_t rtype,
-                uint16_t rclass, uint32_t ttl, const void *data, size_t size,
-                size_t name_offset, size_t name_length, size_t record_offset,
-                size_t record_length, void *user_data)
+                unsigned int ifindex, mdns_entry_type_t entry, uint16_t query_id,
+                uint16_t rtype, uint16_t rclass, uint32_t ttl, const void *data,
+                size_t size, size_t name_offset, size_t name_length,
+                size_t record_offset, size_t record_length, void *user_data)
 {
   (void)sock;
   (void)from;
   (void)addrlen;
+  (void)ifindex;
   (void)entry;
   (void)query_id;
   (void)rclass;
