@@ -159,9 +159,6 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
   - an s-mode write issued from within such a 'loopback' transmits an s-mode message and informs possible observers, 
     it does not start a second loopback round 
   
-  A depth flag is used rather than skipping only the originating resource, because
-  the observed cycle runs through a different resource (input -> status output -> input) and would
-  therefore survive a per resource exclusion.
 */
 static bool g_iam_in_the_internal_go_update_loopback_mode = false;
 
@@ -548,7 +545,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         // NULL also if res. len = 0, so no need to test this in addition
         if (tmp_resource)
         /*
-          - group object table and application resource definition see above
+          - group object table and application resource definition see oc_knc.c, post handler
           - POST /k with write on GA 39
           - if the first GO href entry does not have a matching application resource
             option 1 :
@@ -565,8 +562,17 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
           if (cflags & OC_CFLAG_WRITE && tmp_resource->put_handler.cb)
-          { // update the resource internally, BUT only all GOs with w-cflag set
+          { /*
             
+            - update the resource internally, BUT only all GOs with w-cflag set
+            
+            - if the original outgoing OUTPUT resource with t flag has also set the INPUT w flag the 'loopback' will also update THIS originator resource,
+              even if the point may have already another value from the application (such as on a high frequent data producer)
+              
+              This is a (wrong or intended) application behavior, set by the mac/user and will NOT be prevented here. 
+
+            */
+
             // copy in CBOR object the CBOR encoded resource data from original write request
             oc_rep_t* cbor_object_ptr;
             
@@ -592,9 +598,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
             };
 
             // call application handler with own interface/user data (it makes no sense to call it with a fix vale)
-            tmp_resource->put_handler.cb(&new_request,
-                                                                 tmp_resource->put_handler.interface_mask,
-                                                                 tmp_resource->put_handler.user_data);
+            tmp_resource->put_handler.cb(&new_request, tmp_resource->put_handler.interface_mask, tmp_resource->put_handler.user_data);
 
             oc_free_rep(cbor_object_ptr);
           }
