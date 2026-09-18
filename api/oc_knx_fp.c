@@ -604,8 +604,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           // b + d
 
           bool do_save = true;
-          // check entry with some additional sanity checks
-          // a "bad" status will stop processing and return a 4.00
+          // check entry with some additional sanity checks, a "bad" status will stop processing and return a 4.00
 
           // note that an empty array ( 7: []) does not end up in setting the GA len, it ends in 4.00
           if (tmp_go_entry.ga_len == 0)
