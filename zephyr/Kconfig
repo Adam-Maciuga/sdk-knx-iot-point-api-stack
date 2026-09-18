@@ -195,6 +195,14 @@ config KNX_RESET_PROCESS_TIME_S
       (e.g., EITT, MaC) so they know how long to wait before issuing
       follow-up requests while the device is resetting locally.
 
+# ── Security ───────────────────────────────────────────────────────────────────
+
+config KNXIOT_ECHO_RING_SIZE
+    int "Echo ring size"
+    default 64
+    help
+      Corresponds to CMake: KNX_ECHO_RING_SIZE.
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 
 config KNXIOT_TEST_CONTROL

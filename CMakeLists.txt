@@ -112,6 +112,7 @@ set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient tab
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/applications per CoAP message" FORCE)
+set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size")
 
 ## KNX payload size (bytes)
 # 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 273 = 1041)
@@ -298,6 +299,7 @@ target_compile_definitions(kis-common INTERFACE
     GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES}     # recipient table size
     G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES}    # access token table size
     PAGE_SIZE=${KNX_PAGE_SIZE}                 # server default page size
+    KNX_ECHO_RING_SIZE=${KNX_ECHO_RING_SIZE}   # echo ring size
 
     ## Network
     # IPv6 unicast port

@@ -153,7 +153,7 @@ rings, and the tables scale linearly with their configured capacity.
 | Publisher table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GPT_MAX_ENTRIES` |
 | Recipient table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GRT_MAX_ENTRIES` |
 | Auth (access token) table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_SEC_MAX_ENTRIES` |
-| OSCORE echo ring | 64 × 48 | 3.0 KiB | fixed (`OC_ECHO_RING_SIZE`) |
+| OSCORE echo ring | 64 × 48 | 3.0 KiB | fixed (`CONFIG_KNXIOT_ECHO_RING_SIZE`) |
 | Request history | 32 × 32 | 1.0 KiB | fixed (`OC_REQUEST_HISTORY_SIZE`) |
 | Replay records | 20 × 56 | 1.1 KiB | fixed |
 | CoAP engine, callbacks, device info | | ~3 KiB | |

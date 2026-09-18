@@ -216,15 +216,15 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
                   send-proof found -> NEW responder, write a seen-responder slot and accept.
 
   Ring size:
-  - OC_ECHO_RING_SIZE (default 64; MUST be a power of two).
+  - KNX_ECHO_RING_SIZE (default 64; MUST be a power of two).
     Roll-over releases the retained plaintext message in whichever slot is reused.
     Both slot kinds share one ring lifetime and are evicted in arrival order.
 
 */
 
-#ifndef OC_ECHO_RING_SIZE
+#ifndef KNX_ECHO_RING_SIZE
 // total ring slots (anchor slots + seen-responder slots); MUST be a power of two
-#define OC_ECHO_RING_SIZE (64)
+#define KNX_ECHO_RING_SIZE (64)
 #endif
 
 /* 
@@ -279,7 +279,7 @@ typedef struct
   } bl;                          // inbound responder (BLACKLIST part)
 } oc_echo_entry_t;
 
-static oc_echo_entry_t g_echo_ring[OC_ECHO_RING_SIZE];
+static oc_echo_entry_t g_echo_ring[KNX_ECHO_RING_SIZE];
 static uint8_t         g_echo_idx;
 
 /*
@@ -297,7 +297,7 @@ static void entry_release(oc_echo_entry_t* e)
 // clear the ring and reset the write index
 void oc_oscore_free_all_echo_records(void)
 {
-  for (oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
+  for (oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + KNX_ECHO_RING_SIZE; e++)
   {
     // frees retained msg, null safe
     entry_release(e);
@@ -318,7 +318,7 @@ void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t k
                                      oc_message_t* msg)
 {
   // power-of-two roll-over, increase anchor before writing 
-  g_echo_idx = (g_echo_idx + 1) & (OC_ECHO_RING_SIZE - 1); 
+  g_echo_idx = (g_echo_idx + 1) & (KNX_ECHO_RING_SIZE - 1); 
   oc_echo_entry_t* e = &g_echo_ring[g_echo_idx];
 
   // frees retained msg, null safe
@@ -360,7 +360,7 @@ oc_message_t* oc_oscore_echo_get_retained_plaintext(const struct coap_packet_t* 
     return NULL;
   }
 
-  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
+  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + KNX_ECHO_RING_SIZE; e++)
   {
     // msg != NULL implies an anchor slot with a retained message (so not an empty ring slot)
     if (e->wl.msg
@@ -392,7 +392,7 @@ bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt)
 
   bool anchor_found = false;
 
-  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
+  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + KNX_ECHO_RING_SIZE; e++)
   {
     // check for anchor
     if (e->wl.kid_len > 0
@@ -419,7 +419,7 @@ bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt)
   }
 
   // 3b:, power-of-two roll-over, increase anchor before writing 
-  g_echo_idx = (g_echo_idx + 1) & (OC_ECHO_RING_SIZE - 1);
+  g_echo_idx = (g_echo_idx + 1) & (KNX_ECHO_RING_SIZE - 1);
   oc_echo_entry_t* b = &g_echo_ring[g_echo_idx];
 
   // frees retained msg, wipes entry, null safe, token and msg are zero/NULL

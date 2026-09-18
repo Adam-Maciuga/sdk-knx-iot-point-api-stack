@@ -212,7 +212,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
 */
 TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
 {
-  static const int RING = 64; /* OC_ECHO_RING_SIZE */
+  static const int RING = 64; /* KNX_ECHO_RING_SIZE */
 
   oc_endpoint_t ep = make_mc_ep();
   oc_message_t *m1 = make_plaintext_smode_msg(&ep);
