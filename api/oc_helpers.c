@@ -428,7 +428,7 @@ int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_
   uint8_t* ptr = oc_byte_string(*out);
   if (ptr != NULL)
   {
-    return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, &size_bytes);
+    return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, (uint8_t*)ptr, &size_bytes);
   }
 
   OC_INF("oc_conv_hex_string_to_oc_string result=%d", return_value);

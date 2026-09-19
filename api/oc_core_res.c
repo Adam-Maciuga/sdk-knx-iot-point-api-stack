@@ -76,8 +76,16 @@ bool oc_core_set_and_store_device_ia(int64_t ia)
 int oc_core_set_device_hwt(const char* hardware_type)
 {
   // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value with MSB = '0' (see KNX specification)
+  // TODO Stack issue #144: The specification requires the MSB "00" (the first two characters),
+  // the check tests only the first one.
   const bool all_ok = hardware_type && strlen(hardware_type) == 12 && oc_charstream_validate_is_upper(hardware_type) && hardware_type[0] == '0';
-  // oc_assert(all_ok == true); // EITT default test template data does not follow the rules
+  if (!all_ok)
+  {
+    // TODO Stack issue #144: EITT default test template data does not follow the rules, so only
+    // a warning until the data is corrected, then oc_assert(all_ok == true) can be enabled.
+    OC_WRN("Hardware type does not follow the KNX specification (12 uppercase hexadecimal "
+           "characters, MSB \"00\").");
+  }
 
   // caller MUST ensure above conditions and keep the string valid for the device lifetime
   oc_device_info.hwt = hardware_type;
@@ -89,7 +97,12 @@ int oc_core_set_device_model(const char* model)
 {
   // fails if NULL, not below/equal len (see KNX specification)
   const bool all_ok = model && strlen(model) <= 10;
-  // oc_assert(all_ok == true); // EITT default test template data does not follow the rules
+  if (!all_ok)
+  {
+    // TODO Stack issue #144: EITT default test template data does not follow the rules, so only
+    // a warning until the data is corrected, then oc_assert(all_ok == true) can be enabled.
+    OC_WRN("Device model does not follow the KNX specification (at most 10 characters).");
+  }
   
 	// caller MUST ensure above conditions and keep the string valid for the device lifetime
   oc_device_info.iot_model = model;
