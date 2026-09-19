@@ -3,7 +3,7 @@
  * Copyright (c) 2024-2026 KNX Association
  * Copyright (c) 2013 Institute for Pervasive Computing, ETH Zurich
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 AND BSD-3-Clause
  *
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,7 @@
  * SUCH DAMAGE.
  */
 
-#ifndef COAP_H
-#define COAP_H
+#pragma once
 
 #include "constants.h"
 #include <stddef.h> // for size_t
@@ -95,7 +94,9 @@ typedef struct coap_packet_t
 {
   // --- 8-byte aligned: pointers and size_t ---
   uint8_t*    buffer;                     // host the serialized (to be sent out) CoAP packet byte stream with header/type/token/...
-  uint8_t*    payload;                    // hosts the coap application payload byte stream (usually in CBOR or LINK format)
+  // read-only view of the payload bytes, the owner of the buffer they live in writes them
+  // (the OSCORE engine for its in-place AEAD in the message buffer it owns)
+  const uint8_t* payload;                 // hosts the coap application payload byte stream (usually in CBOR or LINK format)
   const char* proxy_uri;
   const char* proxy_scheme;
   const char* uri_host;
@@ -435,5 +436,3 @@ int coap_receive(oc_message_t* incoming_message);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

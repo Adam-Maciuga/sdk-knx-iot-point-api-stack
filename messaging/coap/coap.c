@@ -4,7 +4,7 @@
  * Copyright (c) 2024-2026 KNX Association
  * Copyright (c) 2013 Institute for Pervasive Computing, ETH Zurich
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 AND BSD-3-Clause
  *
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
@@ -638,7 +638,9 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         - the buffer holding 'data' is allocated with one byte more than OC_PDU_SIZE (see oc_allocate_message),
           hence the terminator still fits even when the datagram fills the buffer completely
       */
-      coap_pkt->payload[coap_pkt->payload_len] = '\0';
+      // written through the parser's own pointer into the received buffer, the packet holds a
+      // read-only view of the payload (current_options points at the payload since above)
+      current_options[coap_pkt->payload_len] = '\0';
       break;
     }
 

@@ -912,10 +912,31 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   // use recipient key for decryption
   uint8_t* decryption_key = oscore_ctx->recipient_key;
 
-  // verify and decrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
-  int ret = oc_oscore_decrypt(coap_pkt->payload, coap_pkt->payload_len, 
-                              OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN, nonce,
-                              OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
+  int ret = -1;
+
+  // the payload bytes inside the writable message buffer, ciphertext before and plaintext after
+  // the in-place decryption, also handed to the inner message parser below
+  uint8_t* payload_buffer = NULL;
+
+  // the payload lies inside the received message buffer this engine owns, so the in-place
+  // decryption writes through that buffer, not through the read-only payload view of the packet,
+  // a payload outside the buffer is handled like a failed decryption below
+  if (coap_pkt->payload >= msg->data &&
+      coap_pkt->payload + coap_pkt->payload_len <= msg->data + msg->length)
+  {
+    // same address as the payload view, but derived from the writable message buffer, the only
+    // way to get a writable pointer to the payload bytes without casting the const away
+    payload_buffer = msg->data + (coap_pkt->payload - msg->data);
+
+    // verify and decrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
+    ret = oc_oscore_decrypt(coap_pkt->payload, coap_pkt->payload_len,
+                            OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN, nonce,
+                            OSCORE_AEAD_NONCE_LEN, aad, aad_len, payload_buffer);
+  }
+  else
+  {
+    OC_ERR("OSCORE payload lies outside the received message buffer!");
+  }
 
   if (ret != 0)
   {
@@ -969,7 +990,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     oc_oscore_free_context(oscore_ctx);
   }
 
-  if (oscore_parse_inner_message(coap_pkt->payload, coap_pkt->payload_len, coap_pkt) != COAP_NO_ERROR)
+  // parse from the writable plaintext (the parser writes a terminator), payload_buffer is set
+  // here, a payload outside the buffer already returned above
+  if (oscore_parse_inner_message(payload_buffer, coap_pkt->payload_len, coap_pkt) != COAP_NO_ERROR)
   {
     /*
        (outer coap code) response + inner options problem = ignore
@@ -1149,9 +1172,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     uint8_t* encryption_key = oscore_ctx->sender_key;
 
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
+    // the ciphertext goes into the cloned message buffer this engine owns (dst1), not through
+    // the read-only payload view of the packet, which points at the same bytes
     const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
                                       OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN,
-                                      nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
+                                      nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, dst1);
 
     if (ret != 0)
     {
@@ -1657,8 +1682,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   uint8_t* encryption_key = oscore_ctx->sender_key;
 
   // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
+  // the ciphertext goes into the cloned message buffer this engine owns (dst1), not through
+  // the read-only payload view of the packet, which points at the same bytes
   int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN, nonce,
-                              OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
+                              OSCORE_AEAD_NONCE_LEN, aad, aad_len, dst1);
 
   if (ret != 0)
   {
