@@ -17,8 +17,8 @@
 extern const oc_resource_t core_resource_knx_f;
 
 // add application datapoint's to the response
-static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
-                                                  size_t* response_length, const int page_size)
+static bool oc_was_adding_data_points_to_response(const oc_resource_t* resource, size_t* response_length,
+                                                  const int page_size)
 {
   int matches = 0;
 
@@ -94,7 +94,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   const bool more_request_needed = total > first_entry + query_ps;
 
   // add ONLY application datapoint's to response
-  if (oc_was_adding_data_points_to_response(request, my_p1, &response_length, query_ps))
+  if (oc_was_adding_data_points_to_response(my_p1, &response_length, query_ps))
   {
     // add only a page hint if at least one response entry is in
     if (more_request_needed)

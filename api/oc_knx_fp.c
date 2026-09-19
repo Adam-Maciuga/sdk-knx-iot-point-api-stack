@@ -2785,7 +2785,7 @@ static bool is_in_array(uint32_t value, const uint32_t* array, uint16_t array_si
   return false;
 }
 
-bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, uint32_t group_address, size_t* response_length)
+bool oc_add_points_from_group_object_table_to_response(uint32_t group_address, size_t* response_length)
 {
   bool return_value = false;
 

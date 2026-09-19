@@ -622,7 +622,7 @@ int oc_connectivity_get_new_port(void) {
  * all logical devices.
  */
 int oc_network_refresh_endpoints(void) {
-  int ret = 0, i;
+  int ret = 0;
   struct nlmsghdr *response = NULL;
 
   // Check if there's data available on the netlink socket (non-blocking).
@@ -1570,7 +1570,6 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address) {
   }
 
   // For every interface...
-  int ret = 0;
   struct ifaddrs *ifs = NULL, *interface = NULL;
   if (getifaddrs(&ifs) < 0) {
     return;
@@ -1633,7 +1632,6 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address) {
   }
 
   // For every interface...
-  int ret = 0;
   struct ifaddrs *ifs = NULL, *interface = NULL;
   if (getifaddrs(&ifs) < 0) {
     return;

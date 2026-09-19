@@ -530,7 +530,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		OC_DBG("group address: %04" PRIx32, group_address);
 
 		// create the response
-		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(request, group_address, &response_length);
+		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(group_address, &response_length);
 
 		if (at_least_one_added)
 		{
