@@ -25,7 +25,9 @@ Behaviour that genuinely differs, and how it is handled:
 - **`getaddrinfo(interface_name)`** resolves on Linux and macOS but is a
   DNS query on Windows that blocks for seconds per adapter. Never used;
   addresses come from the hostname lookup plus a per-interface route
-  probe instead.
+  probe instead. The hostname lookup is a name query too and can stall
+  just as badly where the hostname has no record (a container in its own
+  network namespace), so it runs under a deadline rather than inline.
 - **`IPV6_MULTICAST_IF`** exists on all three, but the value is an
   interface index everywhere except some BSDs. The probe is wrapped in
   `try/except OSError` so an unsupported combination degrades to "no
@@ -37,7 +39,14 @@ Behaviour that genuinely differs, and how it is handled:
 from __future__ import annotations
 
 import socket
+import threading
 from dataclasses import dataclass, field
+
+#: Seconds the hostname lookup may take before its result is abandoned.
+#:
+#: Short enough that the dialog still feels instant, long enough for a
+#: resolver that answers from cache or hosts file.
+HOST_LOOKUP_TIMEOUT = 1.0
 
 
 @dataclass
@@ -74,6 +83,38 @@ class Interface:
         return f"{self.name} [{self.index}]{suffix}"
 
 
+def _host_addresses(timeout: float = HOST_LOOKUP_TIMEOUT) -> list[tuple[str, int]]:
+    """(address, scope_id) pairs for the host, or [] if the lookup stalls.
+
+    gethostname() is resolvable on a normal desktop, but there is no
+    guarantee: inside a network namespace the container hostname often has
+    no record at all, and getaddrinfo() then blocks for the resolver's full
+    timeout (measured at 4.6 s in the CI container). getaddrinfo() takes no
+    timeout and socket.setdefaulttimeout() does not reach it, so the only
+    way to bound it is to stop waiting for it.
+
+    The thread is a daemon and is never joined without a deadline, so a
+    resolver that never answers costs one parked thread instead of a hung
+    dialog.
+    """
+    result: list[tuple[str, int]] = []
+
+    def resolve() -> None:
+        try:
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
+                result.append((info[4][0].split("%")[0], info[4][3]))
+        except (socket.gaierror, UnicodeError, OSError):
+            pass
+
+    worker = threading.Thread(target=resolve, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    # A live thread means the deadline expired. Its list may still be
+    # appended to afterwards, so copy what is there now rather than
+    # handing out a list another thread still owns.
+    return [] if worker.is_alive() else list(result)
+
+
 def list_interfaces(include_loopback: bool = False) -> list[Interface]:
     """Every interface with at least one IPv6 address.
 
@@ -92,7 +133,8 @@ def list_interfaces(include_loopback: bool = False) -> list[Interface]:
     for index, name in entries:
         found[index] = Interface(index=index, name=name)
 
-    # Resolve the HOST once. Deliberately NOT getaddrinfo(interface_name):
+    # Resolve the HOST once, under a deadline (see _host_addresses).
+    # Deliberately NOT getaddrinfo(interface_name):
     # on Windows the names are GUID-like, that lookup is a DNS query, and it
     # blocks for seconds PER INTERFACE — enough to hang the dialog on a
     # machine with a dozen virtual adapters.
@@ -103,19 +145,14 @@ def list_interfaces(include_loopback: bool = False) -> list[Interface]:
     # did first) silently discarded every routable address and left the
     # picker offering nothing but fe80::. On this machine that was 4 of 6.
     unscoped: list[str] = []
-    try:
-        for info in socket.getaddrinfo(socket.gethostname(), None,
-                                       socket.AF_INET6):
-            address, scope_id = info[4][0].split("%")[0], info[4][3]
-            if scope_id:
-                interface = found.get(scope_id)
-                if interface is not None and \
-                        address not in interface.addresses:
-                    interface.addresses.append(address)
-            elif address not in unscoped:
-                unscoped.append(address)
-    except (socket.gaierror, UnicodeError, OSError):
-        pass
+    for address, scope_id in _host_addresses():
+        if scope_id:
+            interface = found.get(scope_id)
+            if interface is not None and \
+                    address not in interface.addresses:
+                interface.addresses.append(address)
+        elif address not in unscoped:
+            unscoped.append(address)
 
     # Link-local addresses rarely come back from the hostname lookup, but
     # they are what a KNX device is usually reached on. Ask each interface
