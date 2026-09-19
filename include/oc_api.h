@@ -37,8 +37,7 @@
 
 */
 
-#ifndef OC_API_H
-#define OC_API_H
+#pragma once
 #include "messaging/coap/oc_coap.h"
 #include "oc_client_state.h"
 #include "oc_knx.h"
@@ -627,7 +626,7 @@ extern "C"
    *   - The position in the query string of the next key=value string pair
    *   - `-1` if there are no additional query parameters
    */
-  int oc_iterate_query(oc_request_t* request, char** key, size_t* key_len, char** value, size_t* value_len);
+  int oc_iterate_query(oc_request_t* request, const char** key, size_t* key_len, const char** value, size_t* value_len);
 
   /**
    * Iterate though the URI query parameters for a specific key.
@@ -663,7 +662,7 @@ extern "C"
    *
    * @return True if there are more query parameters to iterate through
    */
-  bool oc_iterate_query_get_values(oc_request_t* request, const char* key, char** value, int* value_len);
+  bool oc_iterate_query_get_values(oc_request_t* request, const char* key, const char** value, int* value_len);
 
   /**
    * Get a pointer to the start of the value in a URL query parameter key=value
@@ -681,7 +680,7 @@ extern "C"
    *   - The position in the query string of the next key=value string pair
    *   - `-1` if there are no additional query parameters
    */
-  int oc_get_query_value(oc_request_t* request, const char* key, char** value);
+  int oc_get_query_value(oc_request_t* request, const char* key, const char** value);
 
   /**
    * Checks if a query parameter 'key' exist in the URL query parameter
@@ -978,6 +977,4 @@ extern "C"
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -533,8 +533,8 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  char* key = NULL;
-  char* value = NULL;
+  const char* key = NULL;
+  const char* value = NULL;
   size_t key_len = 0;
   size_t value_len = 0;
 

@@ -10,8 +10,7 @@
   @brief generic helpers
   @file
 */
-#ifndef OC_HELPERS_H
-#define OC_HELPERS_H
+#pragma once
 
 #include "util/oc_list.h"
 #include "util/oc_mmem.h"
@@ -466,7 +465,7 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource,
  * @param size the max size of the string to be searched in (MUST not exceed string total size)
  * @return NULL = not found, otherwise position in string
  */
-char* oc_strnchr(const char* string, char p, int size);
+const char* oc_strnchr(const char* string, char p, int size);
 
 /**
  * @brief converts the NUL terminated input string to lower case
@@ -619,5 +618,3 @@ int oc_conv_uint64_to_hex_string(char* str, uint64_t number);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

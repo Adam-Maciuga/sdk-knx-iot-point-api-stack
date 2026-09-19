@@ -400,7 +400,7 @@ int oc_status_code(oc_status_t key)
   return oc_coap_status_codes[key];
 }
 
-int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key, size_t* key_len, char** value, size_t* value_len, size_t n)
+int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, const char** key, size_t* key_len, const char** value, size_t* value_len, size_t n)
 {
   int next_pos = -1;
 
@@ -483,11 +483,11 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
   return next_pos;
 }
 
-int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value)
+int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, const char** value)
 {
   int next_pos = 0, found = -1;
   size_t kl, vl, pos = 0;
-  char* k;
+  const char* k;
 
   while (pos < query_len)
   {
@@ -509,7 +509,7 @@ int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, 
   return found;
 }
 
-int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n)
+int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char** key, size_t* key_len, size_t n)
 {
   int next_pos = -1;
   size_t i = 0;
@@ -587,7 +587,7 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key)
 {
   int next_pos = 0, found = -1;
   size_t kl, pos = 0;
-  char* k;
+  const char* k;
 
   while (pos < query_len)
   {

@@ -42,7 +42,7 @@ bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
   bool ps_exists = false;
   bool total_exists = false;
 
-  char* value = NULL;
+  const char* value = NULL;
   int value_len = -1;
 
   oc_init_query_iterator();
@@ -295,7 +295,7 @@ bool oc_parse_uint64_from_base16_string(const char* value, int value_len, uint64
 
 int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
 {
-  char* value = NULL;
+  const char* value = NULL;
   int value_len = -1;
 
   if (!oc_query_values_available(request)) 

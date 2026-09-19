@@ -260,10 +260,10 @@ int oc_count_functional_blocks_from_application(void)
 // check if an FB may be added according to the request and its query parameters
 bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
 {
-  char* value = NULL;
+  const char* value = NULL;
   size_t value_len = -1;
 
-  char* key = NULL;
+  const char* key = NULL;
   size_t key_len = -1;
 
   const char* rt_request = NULL;

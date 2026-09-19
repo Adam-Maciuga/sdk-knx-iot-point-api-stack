@@ -251,8 +251,8 @@ const oc_resource_t* oc_core_get_core_resource_by_index(int index)
 
 bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
 {
-	char* value = NULL;
-	char* key;
+	const char* value = NULL;
+	const char* key;
 
 	size_t value_len;
 	size_t key_len;
@@ -272,7 +272,7 @@ bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* reques
 {
 	// pre-assumption that 'rt' key is not part of request
   bool match = true, more_query_params; 
-	char* request_rt_ptr = NULL;
+	const char* request_rt_ptr = NULL;
 	int request_rt_ptr_len = -1;
 
   oc_init_query_iterator();
@@ -339,7 +339,7 @@ bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* reques
 {
   // pre-assumption that 'if' key is not part of request
   bool match = true, more_query_params;
-	char* request_if_ptr = NULL;
+	const char* request_if_ptr = NULL;
 	int request_if_ptr_len = -1;
 
 	oc_init_query_iterator();

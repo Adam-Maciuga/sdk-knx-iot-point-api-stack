@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_RI_H
-#define OC_RI_H
+#pragma once
 
 #ifndef __ZEPHYR__
 #include "ipadapter.h"
@@ -654,7 +653,7 @@ bool oc_ri_delete_resource(oc_resource_t* resource);
  * @param n the position to query
  * @return int the position of the next key value pair in the query or NULL
  */
-int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key, size_t* key_len, char** value, size_t* value_len, size_t n);
+int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, const char** key, size_t* key_len, const char** value, size_t* value_len, size_t n);
 
 /**
  * @brief retrieve the value of the query parameter "key"
@@ -665,7 +664,7 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
  * @param value a pointer to the value
  * @return int the length of the value
  */
-int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value);
+int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, const char** value);
 
 /**
  * @brief checks if key exist in query
@@ -687,7 +686,7 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
  * @param n
  * @return int
  */
-int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n);
+int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char** key, size_t* key_len, size_t n);
 
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       struct oc_blockwise_state_s** request_state,
@@ -746,5 +745,3 @@ oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

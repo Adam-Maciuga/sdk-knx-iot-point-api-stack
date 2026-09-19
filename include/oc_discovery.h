@@ -8,8 +8,7 @@
   @brief CoAP Discovery.
   @file
 */
-#ifndef OC_DISCOVERY_H
-#define OC_DISCOVERY_H
+#pragma once
 
 #include <stddef.h>
 
@@ -123,5 +122,3 @@ bool oc_discovery_sn_matches(const char* ep_request, int ep_len, const char* ser
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

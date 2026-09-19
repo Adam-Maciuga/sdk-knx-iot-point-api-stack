@@ -546,7 +546,7 @@ TEST(AcceptHeader, MismatchIsBadRequest)
 TEST(QueryValue, FirstKey)
 {
   const char *q = "a=1&b=22&c=333";
-  char *v = nullptr;
+  const char *v = nullptr;
   int len = oc_ri_get_query_value(q, strlen(q), "a", &v);
   EXPECT_EQ(len, 1);
   ASSERT_NE(v, nullptr);
@@ -556,7 +556,7 @@ TEST(QueryValue, FirstKey)
 TEST(QueryValue, MiddleKey)
 {
   const char *q = "a=1&b=22&c=333";
-  char *v = nullptr;
+  const char *v = nullptr;
   int len = oc_ri_get_query_value(q, strlen(q), "b", &v);
   EXPECT_EQ(len, 2);
   ASSERT_NE(v, nullptr);
@@ -566,7 +566,7 @@ TEST(QueryValue, MiddleKey)
 TEST(QueryValue, LastKey)
 {
   const char *q = "a=1&b=22&c=333";
-  char *v = nullptr;
+  const char *v = nullptr;
   int len = oc_ri_get_query_value(q, strlen(q), "c", &v);
   EXPECT_EQ(len, 3);
   ASSERT_NE(v, nullptr);
@@ -576,7 +576,7 @@ TEST(QueryValue, LastKey)
 TEST(QueryValue, CaseInsensitiveKey)
 {
   const char *q = "a=1&Bee=22";
-  char *v = nullptr;
+  const char *v = nullptr;
   int len = oc_ri_get_query_value(q, strlen(q), "bee", &v);
   EXPECT_EQ(len, 2);
 }
@@ -584,7 +584,7 @@ TEST(QueryValue, CaseInsensitiveKey)
 TEST(QueryValue, MissingKeyReturnsMinusOne)
 {
   const char *q = "a=1&b=22";
-  char *v = nullptr;
+  const char *v = nullptr;
   EXPECT_EQ(oc_ri_get_query_value(q, strlen(q), "z", &v), -1);
 }
 
@@ -609,7 +609,7 @@ TEST(QueryExists, MissingKeyReturnsMinusOne)
 TEST(QueryNthKeyValue, SecondFragment)
 {
   const char *q = "a=1&b=22&c=333";
-  char *k = nullptr, *v = nullptr;
+  const char *k = nullptr, *v = nullptr;
   size_t kl = 0, vl = 0;
   int next = oc_ri_get_query_nth_key_value(q, strlen(q), &k, &kl, &v, &vl, 2);
   EXPECT_GT(next, 0);
@@ -622,7 +622,7 @@ TEST(QueryNthKeyValue, SecondFragment)
 TEST(QueryNthKeyExists, ThirdFragmentKey)
 {
   const char *q = "a=1&b=22&c=333";
-  char *k = nullptr;
+  const char *k = nullptr;
   size_t kl = 0;
   int next = oc_ri_query_nth_key_exists(q, strlen(q), &k, &kl, 3);
   EXPECT_GT(next, 0);

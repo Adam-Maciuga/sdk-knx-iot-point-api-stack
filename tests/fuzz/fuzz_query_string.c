@@ -23,8 +23,8 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
   const char *query = (const char *)data;
 
-  char *key = NULL;
-  char *value = NULL;
+  const char *key = NULL;
+  const char *value = NULL;
   size_t key_len = 0;
   size_t value_len = 0;
   for (size_t n = 0; n < 8; n++) {
@@ -34,7 +34,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
   }
 
-  char *exists_key = NULL;
+  const char *exists_key = NULL;
   size_t exists_key_len = 0;
   for (size_t n = 0; n < 8; n++) {
     if (oc_ri_query_nth_key_exists(query, size, &exists_key, &exists_key_len,
@@ -46,7 +46,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
   /* Fixed, plausible keys used by real handlers (ga, po, ps, pkgs, if, ep). */
   static const char *const keys[] = { "ga", "po", "ps", "pkgs", "if", "ep" };
   for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-    char *v = NULL;
+    const char *v = NULL;
     oc_ri_get_query_value(query, size, keys[i], &v);
   }
 

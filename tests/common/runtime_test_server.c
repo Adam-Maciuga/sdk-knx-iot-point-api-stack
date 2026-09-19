@@ -141,7 +141,7 @@ static void get_bool_dp(oc_request_t *request,
   bool *val = (bool *)user_data;
   oc_rep_begin_root_object();
   if (oc_query_value_exists(request, "m") != -1) {
-    char *m_value;
+    const char *m_value;
     oc_get_query_value(request, "m", &m_value);
     if (strncmp(m_value, "dpt", 3) == 0 || strncmp(m_value, "*", 1) == 0) {
       oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
@@ -219,8 +219,8 @@ static void get_int_dp(oc_request_t *request,
 
   oc_rep_begin_root_object();
   if (oc_query_value_exists(request, "m") != -1) {
-    char *m_value;
-    char *m_key;
+    const char *m_value;
+    const char *m_key;
     size_t m_value_len = oc_get_query_value(request, "m", &m_value);
     size_t m_key_len;
     const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;

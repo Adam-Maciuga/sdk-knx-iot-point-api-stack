@@ -85,7 +85,7 @@ using ServerApiQuery = ServerApiBase;
 
 TEST_F(ServerApiQuery, GetQueryValueNullRequest)
 {
-  char *value = nullptr;
+  const char *value = nullptr;
   EXPECT_EQ(oc_get_query_value(nullptr, "a", &value), -1);
 }
 
@@ -96,7 +96,7 @@ TEST_F(ServerApiQuery, GetQueryValueFindsValue)
   request.query = (char *)"a=1&bb=22";
   request.query_len = strlen(request.query);
 
-  char *value = nullptr;
+  const char *value = nullptr;
   int len = oc_get_query_value(&request, "bb", &value);
   EXPECT_EQ(len, 2);
   ASSERT_NE(value, nullptr);
@@ -110,7 +110,7 @@ TEST_F(ServerApiQuery, GetQueryValueMissingKey)
   request.query = (char *)"a=1";
   request.query_len = strlen(request.query);
 
-  char *value = nullptr;
+  const char *value = nullptr;
   EXPECT_EQ(oc_get_query_value(&request, "z", &value), -1);
 }
 
@@ -153,8 +153,8 @@ TEST_F(ServerApiQuery, IterateQueryWalksAllPairs)
 
   oc_init_query_iterator();
 
-  char *key = nullptr;
-  char *value = nullptr;
+  const char *key = nullptr;
+  const char *value = nullptr;
   size_t key_len = 0, value_len = 0;
 
   int pos = oc_iterate_query(&request, &key, &key_len, &value, &value_len);
@@ -174,7 +174,7 @@ TEST_F(ServerApiQuery, IterateQueryGetValuesFindsAndMisses)
   request.query = (char *)"href=/p&pn=1";
   request.query_len = strlen(request.query);
 
-  char *value = nullptr;
+  const char *value = nullptr;
   int value_len = 0;
 
   oc_init_query_iterator();

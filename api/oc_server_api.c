@@ -17,7 +17,7 @@
 
 static size_t query_iterator;
 
-int oc_get_query_value(oc_request_t* request, const char* key, char** value)
+int oc_get_query_value(oc_request_t* request, const char* key, const char** value)
 {
   if (!request)
   {
@@ -144,16 +144,16 @@ void oc_init_query_iterator(void)
   query_iterator = 0;
 }
 
-int oc_iterate_query(oc_request_t* request, char** key, size_t* key_len, char** value, size_t* value_len)
+int oc_iterate_query(oc_request_t* request, const char** key, size_t* key_len, const char** value, size_t* value_len)
 {
   query_iterator++;
   return oc_ri_get_query_nth_key_value(request->query, request->query_len,
                                        key, key_len, value, value_len, query_iterator);
 }
 
-bool oc_iterate_query_get_values(oc_request_t* request, const char* key, char** value, int* value_len)
+bool oc_iterate_query_get_values(oc_request_t* request, const char* key, const char** value, int* value_len)
 {
-  char* current_key = 0;
+  const char* current_key = 0;
   size_t key_len = 0, v_len = 0;
   int pos;
 

@@ -704,7 +704,7 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resourc
   return -1;
 }
 
-char* oc_strnchr(const char* string, char p, int size)
+const char* oc_strnchr(const char* string, char p, int size)
 {
   for (int i = 0; i < size; i++)
   {
