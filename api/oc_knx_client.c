@@ -565,11 +565,17 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           { /*
             
             - update the resource internally, BUT only all GOs with w-cflag set
+
+              Note that a GO resource that uses if.i and if.o together, will NOT be able to create, see
+              oc_ri_add_resource(), the stack will reject it. So the originator is always a single point (an input with a transmitting GO),
+              never one resource acting as input and output at once (on interface mask level).
             
-            - if the original outgoing OUTPUT resource with t flag has also set the INPUT w flag the 'loopback' will also update THIS originator resource,
-              even if the point may have already another value from the application (such as on a high frequent data producer)
-              
+            - the w- and t-cflags live in the GO table, NOT IN THE INTERFACE MASK, so the GO of the ORIGINATOR resource may carry both.
+              If it does, the 'loopback' walk finds that GO too and updates THIS originator resource, even if the point may have already
+              another value from the application (such as on a high frequent data producer)
+
               This is a (wrong or intended) application behavior, set by the mac/user and will NOT be prevented here. 
+              
 
             */
 

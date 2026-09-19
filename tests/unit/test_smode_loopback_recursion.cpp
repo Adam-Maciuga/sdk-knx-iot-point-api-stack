@@ -339,7 +339,10 @@ TEST_F(SmodeLoopback, SingleLevelLoopbackStillUpdatesOtherInputs)
   oc_resource_t *r3 = oc_new_resource("/p/3", 1);
   ASSERT_NE(r3, nullptr);
   oc_resource_bind_resource_type(r3, "urn:knx:dpa.417.61");
-  oc_resource_set_request_handler(r3, COAP_GET, get_p2, nullptr, OC_ACL_G, OC_IF_O);
+  /* /p/3 is an INPUT, so both handlers carry if.i: oc_ri_add_resource() rejects a resource whose
+     handlers declare if.i and if.o together (a point is one or the other), and a rejected resource
+     is never found by the loopback lookup. */
+  oc_resource_set_request_handler(r3, COAP_GET, get_p2, nullptr, OC_ACL_G, OC_IF_I);
   oc_resource_set_request_handler(r3, COAP_PUT, put_p3, nullptr, OC_ACL_G, OC_IF_I);
   oc_add_resource(r3);
 
