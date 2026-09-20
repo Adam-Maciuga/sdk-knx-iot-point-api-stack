@@ -39,7 +39,7 @@ static const int core_resources_for_well_known[] =
 
 #define EP_STR_LEN_DOT_SN (9) // knx://sn.
 
-bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber)
+bool oc_discovery_sn_matches(const char* ep_request, int ep_len, const char* serialnumber)
 {
 	/*
 	 * SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn)
@@ -51,7 +51,7 @@ bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnum
 	 * (b) sn.00fa12345678              fits to the SN entirely (useful on mc)
 	 * (c) sn.0* ... sn.00fa1234567*   fits to the SN partly (clause 2.6.1.3.4)
 	 */
-	char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
+	const char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
 	const int ep_sn_len = ep_len - EP_STR_LEN_DOT_SN;
 	const int wildcard_scan_len = ep_sn_len < SN_STR_LEN_MAX ? ep_sn_len : SN_STR_LEN_MAX;
 	const char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', wildcard_scan_len);
@@ -357,22 +357,22 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	(void) iface_mask;
 	(void) data;
 
-	char* key;								// one key pointer for a key=value 'pair' 
+	char* key;								// one key pointer for a key=value 'pair'
 	size_t key_len;
 
-	char* value;							// one value pointer for a key=value 'pair' 
+	char* value;							// one value pointer for a key=value 'pair'
 	size_t value_len;
 
-	char* rt_request = NULL;	// 'rt'
+	const char* rt_request = NULL;	// 'rt'
 	int rt_len = 0;
 
-	char* ep_request = NULL;	// 'ep' 
+	const char* ep_request = NULL;	// 'ep'
 	int ep_len = 0;
 
-	char* if_request = NULL;	// 'if'
+	const char* if_request = NULL;	// 'if'
 	int if_len = 0;
 
-	char* d_request = NULL;		// 'd'
+	const char* d_request = NULL;		// 'd'
 	int d_len = 0;
 
   int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
@@ -616,7 +616,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		*/
 
 		// IID pos is fixed after first '.', IA pos follows after second '.' (max size to be searched for second '.' = max iid + 1)
-    char* ep_iid_start_pos = ep_request + LEN_DOT_IA;
+	const char* ep_iid_start_pos = ep_request + LEN_DOT_IA;
     const int ep_ia_len = ep_len - LEN_DOT_IA;
     const int dot_scan_len = ep_ia_len < IID_STR_LEN_MAX + 1 ? ep_ia_len : IID_STR_LEN_MAX + 1;
     const char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', dot_scan_len);

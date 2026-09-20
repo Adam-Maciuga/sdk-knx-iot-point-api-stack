@@ -370,17 +370,17 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
       const uint16_t tmp_fb_i = resource->fb_data >> 8 & 0xFF;
 
       // the FB number with possible instance as 12345_xyz (9 chars)
-      char fb_number_and_instance_text[9];
+      char fb_number_and_instance_text[10];
 
       if (tmp_fb_i > 0)
       {
         // FB instance > 0, adding instance, e.g. <fb>_<instance> -> example: 417_1
-        (void)snprintf(fb_number_and_instance_text, 9, "%d_%d", tmp_fb_n, tmp_fb_i);
+        (void)snprintf(fb_number_and_instance_text, sizeof(fb_number_and_instance_text), "%d_%d", tmp_fb_n, tmp_fb_i);
       }
       else
       {
         // FB instance = 0, e.g. <fb> -> example: 417
-        (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
+        (void)snprintf(fb_number_and_instance_text, sizeof(fb_number_and_instance_text), "%d", tmp_fb_n);
       }
 
       // added a next matching resource to the response  ...
@@ -396,7 +396,7 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
         *response_length += oc_rep_add_line_to_buffer(">;rt=\"urn:knx:fb.");
 
       // FB number
-      (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
+      (void)snprintf(fb_number_and_instance_text, sizeof(fb_number_and_instance_text), "%d", tmp_fb_n);
       *response_length += oc_rep_add_line_to_buffer(fb_number_and_instance_text);
 
       // close the rt value

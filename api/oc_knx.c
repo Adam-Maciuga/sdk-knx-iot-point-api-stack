@@ -1964,7 +1964,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG("set id : (%zu) ", oc_byte_string_len(g_pase_session.params.id));
     oc_char_println_hex(oc_string(g_pase_session.params.id), oc_byte_string_len(g_pase_session.params.id));
     OC_DBG("set ms : (%zu) ", sizeof(shared_key));
-    oc_char_println_hex(shared_key, sizeof(shared_key));
+    oc_char_println_hex((const char*)shared_key, sizeof(shared_key));
 
     /*
       - create the token & store in at table (usually at position 0)

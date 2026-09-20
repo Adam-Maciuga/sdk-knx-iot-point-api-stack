@@ -425,7 +425,7 @@ int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_
   oc_free_string(out);
 
   oc_alloc_string(out, size_bytes);
-  char* ptr = oc_string(*out);
+  uint8_t* ptr = oc_byte_string(*out);
   if (ptr != NULL)
   {
     return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, &size_bytes);
@@ -704,13 +704,13 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resourc
   return -1;
 }
 
-char* oc_strnchr(char* string, char p, int size)
+char* oc_strnchr(const char* string, char p, int size)
 {
   for (int i = 0; i < size; i++)
   {
     if (string[i] == p)
     {
-      return &string[i];
+      return (char*)&string[i];
     }
   }
 

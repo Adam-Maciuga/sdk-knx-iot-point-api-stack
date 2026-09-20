@@ -733,11 +733,11 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
       const oc_device_info_t* const device = oc_core_get_device_info();
 
       // find first 'i' in 'knx://ia.', assume heading some SN with at least with one char
-      char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA);
+      const char* iid_start_pos = oc_strnchr((const char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA);
       if (iid_start_pos) {iid_start_pos += 3;} // + 3 = 'ia.' -> start of IID, only when the 'i' of 'ia.' was found
 
       // find the '.' between IID and IA, + 1 -> start of IA, only when the IID start and the '.' were found
-      char* ia_start_pos = iid_start_pos ? oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) : NULL;
+      const char* ia_start_pos = iid_start_pos ? oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) : NULL;
       if (ia_start_pos) {ia_start_pos += 1;}  // + 1 = '.' -> start of IA, only when the IID start and the '.' were found
 
       if (iid_start_pos && ia_start_pos)

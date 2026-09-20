@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+struct oc_blockwise_state_s;
 
 /**
  * @brief CoAP observe codes, see https://www.rfc-editor.org/rfc/rfc7641#section-2
@@ -687,6 +688,12 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
  * @return int
  */
 int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n);
+
+bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
+                                      struct oc_blockwise_state_s** request_state,
+                                      struct oc_blockwise_state_s** response_state,
+                                      uint16_t block2_size,
+                                      oc_endpoint_t* endpoint);
 
 /**
  * @brief frame the interface mask in the response, as string in the uri

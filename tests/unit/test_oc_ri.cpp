@@ -35,12 +35,6 @@ extern "C" {
 #include "messaging/coap/coap.h"
 #include "util/oc_mmem.h"
 
-/* Not declared in any public header - engine.c forward-declares it the same
- * way for the same reason (it has external linkage but no prototype). */
-extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
-                                             oc_blockwise_state_t** request_state,
-                                             oc_blockwise_state_t** response_state,
-                                             uint16_t block2_size, oc_endpoint_t* endpoint);
 extern int __real_coap_remove_observer_by_resource(const oc_resource_t* resource);
 }
 

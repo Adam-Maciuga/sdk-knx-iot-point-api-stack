@@ -244,7 +244,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   {oc_core_knx_auth_o_replwdo_get_handler, NULL, OC_ACL_D, OC_IF_D},
-  {NULL, NULL, OC_ACL_NONE, OC_ACL_NONE},
+  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {{NULL}, NULL},
@@ -1673,7 +1673,7 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
       // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
       const int err = oc_parse_rep(buf, bytes_to_read, &rep);
       // tmp copy for later release, rep is iterated...  
-      const oc_rep_t* head = rep;
+      oc_rep_t* head = rep;
 
       if (err == 0)
       {

@@ -117,7 +117,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
  * @param serialnumber the device serial number to compare against
  * @return true when ep_request matches serialnumber (full, partial or wildcard)
  */
-bool oc_discovery_sn_matches(char* ep_request, int ep_len, const char* serialnumber);
+bool oc_discovery_sn_matches(const char* ep_request, int ep_len, const char* serialnumber);
 
 
 #ifdef __cplusplus
