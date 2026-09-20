@@ -1642,6 +1642,9 @@ void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
   oc_rep_to_json(rep, json, json_size + 1, pretty_print);
   OC_DBG("cbor as json: %s", json);
   free(json);
-  
+
+  #else
+  (void)rep;
+  (void)pretty_print;
   #endif
 }

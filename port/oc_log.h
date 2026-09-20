@@ -174,6 +174,12 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
+/* OC_LOG_OFF
+ * A log call whose output is off: Never evaluated, its arguments still count as used and
+ * are format checked. Zephyr (Z_LOG2) and FreeRTOS (ESP_LOG_LEVEL_LOCAL) do the same.
+ */
+#define OC_LOG_OFF(call) do { if (0) { call; } } while (0)
+
 // Note: it is recommended to use a console for the output that allows a 'no word wrap'
 
 #ifdef OC_PRINT
@@ -198,9 +204,9 @@ extern "C" {
     #define PRINTF(...) printf(__VA_ARGS__)
   #endif
 #else
-    // logging to void
-    #define PRINT(...)
-    #define PRINTF(...)
+    // logging off
+    #define PRINT(...)  OC_LOG_OFF(printf(__VA_ARGS__))
+    #define PRINTF(...) OC_LOG_OFF(printf(__VA_ARGS__))
 #endif
 
 /* OC_LOG
@@ -217,6 +223,7 @@ extern "C" {
  * The buffers are sized for exactly that: Characters, the three dots, the terminator.
  */ // TODO 17 Do we want a switch for this in the config?
 #if !defined(__ZEPHYR__) && !defined(KNX_LOG_ESP_IDF_NATIVE)
+#ifdef OC_PRINT
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
   \
@@ -241,6 +248,9 @@ extern "C" {
   \
   PRINTF(__VA_ARGS__);                                          \
   } while (0)
+#else
+#define OC_LOG(level, ...) OC_LOG_OFF(printf(__VA_ARGS__))
+#endif
 
 /* OC_ERR / OC_WRN / OC_INF
  * Platform-specific log macros for error, warning and info messages.
@@ -269,8 +279,9 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
   #define OC_LOGbytes(bytes, length) \
     knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
-  #define OC_DBG(...)
-  #define OC_LOGbytes(bytes, length)
+  #define OC_DBG(...) OC_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_LOGbytes(bytes, length) \
+    OC_LOG_OFF(knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
 #endif
 
 /* OC_DBG_OSCORE / OC_DBG_SPAKE */
@@ -280,9 +291,10 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
   #define OC_LOGbytes_OSCORE(bytes, length) \
     knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
-  #define OC_DBG_OSCORE(...)
-  #define OC_DBG_SPAKE(...)
-  #define OC_LOGbytes_OSCORE(bytes, length)
+  #define OC_DBG_OSCORE(...) OC_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_DBG_SPAKE(...)  OC_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_LOGbytes_OSCORE(bytes, length) \
+    OC_LOG_OFF(knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
 #endif
 
 #endif

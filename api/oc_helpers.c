@@ -460,6 +460,8 @@ size_t oc_char_print_hex(const char* str, size_t str_len)
 
   return str_len;
 #else
+  (void)str;
+  (void)str_len;
   return 0;
 #endif
 }

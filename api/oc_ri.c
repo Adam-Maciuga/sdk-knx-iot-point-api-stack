@@ -309,6 +309,8 @@ void oc_print_acl_scopes(oc_acl_mask_t scope)
       PRINTF("%s ", scope_string_name[i]);
     }
   }
+  #else
+  (void)scope;
   #endif
 }
 

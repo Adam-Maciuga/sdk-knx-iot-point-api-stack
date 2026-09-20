@@ -1513,6 +1513,8 @@ void oc_print_auth_at_entry(const oc_auth_at_t* entry)
       }
     }
   }
+#else
+  (void)entry;
 #endif
 }
 

@@ -406,6 +406,8 @@ void oc_endpoint_print(oc_endpoint_t* ep)
   oc_endpoint_to_string(ep, &ip_str);
   OC_DBG("IP address (ep) to: %s", oc_string_checked(ip_str));
   oc_free_string(&ip_str);
-  
+
+  #else
+  (void)ep;
   #endif
 }

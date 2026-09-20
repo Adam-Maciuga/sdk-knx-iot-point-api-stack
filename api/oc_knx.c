@@ -1874,8 +1874,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 #endif
 
     int ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
+#ifdef OC_DEBUG
     OC_DBG("SPAKE2+ step 2 gen_keypair time: %" PRIu64 " ms.",
            (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
+#endif
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ ephemeral key pair generation failed with code %d!", ret);
@@ -1887,8 +1889,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     spake_calc_t0 = oc_clock_time();
 #endif
     ret = spake2plus_calc_shareV(g_pase_session.params.shareV, spake_data.pub_y, spake_data.w0);
+#ifdef OC_DEBUG
     OC_DBG("SPAKE2+ step 2 calc_shareV time: %" PRIu64 " ms.",
            (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
+#endif
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ shareV computation failed with code %d!", ret);
@@ -1902,8 +1906,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
                                                KNX_IOT_SPAKE2PLUS_ID_PROVER,
                                                KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
                                                KNX_IOT_SPAKE2PLUS_CONTEXT);
+#ifdef OC_DEBUG
     OC_DBG("SPAKE2+ step 2 calc_transcript_responder time: %" PRIu64 " ms.",
            (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
+#endif
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ transcript computation failed with code %d!", ret);
@@ -1914,8 +1920,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     spake_calc_t0 = oc_clock_time();
 #endif
     spake2plus_calc_confirmV(spake_data.K_main, g_pase_session.params.confirmV, g_pase_session.params.shareP);
+#ifdef OC_DEBUG
     OC_DBG("SPAKE2+ step 2 calc_confirmV time: %" PRIu64 " ms.",
            (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
+#endif
 
     // return 2.04 changed, frame shareV (11) & confirmV (13)
 

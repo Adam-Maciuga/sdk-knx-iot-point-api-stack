@@ -2093,6 +2093,8 @@ void oc_print_cflags(const oc_cflag_mask_t cflags)
   {
     PRINTF("u");
   }
+#else
+  (void)cflags;
 #endif
 }
 
@@ -2118,6 +2120,8 @@ void oc_print_group_object_table_entry(int entry)
   }
   PRINTF("]");
 
+  #else
+  (void)entry;
   #endif
 }
 
@@ -2400,6 +2404,10 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   }
   PRINTF("]");
 
+  #else
+  (void)entry;
+  (void)store;
+  (void)table;
   #endif
 }
 

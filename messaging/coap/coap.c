@@ -133,6 +133,9 @@ void print_coap_service(uint8_t code, char* text)
   default:
     break;
   }
+  #else
+  (void)code;
+  (void)text;
   #endif
 }
 
