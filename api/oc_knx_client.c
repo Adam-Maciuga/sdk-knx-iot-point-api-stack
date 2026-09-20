@@ -246,7 +246,7 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
       method are guarded by grpid > 0, hence multicast, hence non-confirmable = true
   */
   const uint32_t grpid = recipient->grpid;
-  const uint64_t iid = recipient->iid >= 0 ? recipient->iid : oc_core_get_device_info()->iid;
+  const uint64_t iid = recipient->iid >= 0 ? (uint64_t)recipient->iid : oc_core_get_device_info()->iid;
   recipient->non = true;
 
   /*
