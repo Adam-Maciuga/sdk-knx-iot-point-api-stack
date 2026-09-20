@@ -101,6 +101,12 @@ kis_add_test(test_oc_ri            test_oc_ri.cpp)
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
 kis_add_test(test_coap_oscore       test_coap_oscore.cpp)
+# --wrap=coap_send_message redirects the network send performed by
+# oscore_send_error() to the recorder __wrap_coap_send_message(), so no real
+# socket I/O runs.
+target_link_options(test_coap_oscore PRIVATE
+    -Wl,--wrap=coap_send_message
+)
 kis_add_test(test_oc_knx_fb         test_oc_knx_fb.cpp)
 kis_add_test(test_oc_timer           test_oc_timer.cpp)
 kis_add_test(test_coap_transactions  test_coap_transactions.cpp)
@@ -167,6 +173,14 @@ kis_add_test(test_oc_buffer_settings test_oc_buffer_settings.cpp)
 kis_add_test(test_oc_buffer          test_oc_buffer.cpp)
 kis_add_test(test_oc_discovery       test_oc_discovery.cpp)
 kis_add_test(test_oc_client_api      test_oc_client_api.cpp)
+# --wrap facility (same pattern as test_smode_send_refcount) lets
+# oc_do_s_mode_message_update / oc_do_well_known_message_update run their real
+# branch logic without a live socket, process loop, or oc_main_init().
+target_link_options(test_oc_client_api PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+)
 kis_add_test(test_oc_knx_client      test_oc_knx_client.cpp)
 kis_add_test(test_oc_network_events  test_oc_network_events.cpp)
 kis_add_test(test_oc_main            test_oc_main.cpp)
@@ -174,6 +188,12 @@ kis_add_test(test_oc_core_res        test_oc_core_res.cpp)
 kis_add_test(test_spake2plus         test_spake2plus.cpp)
 kis_add_test(test_app_precalculated_spake test_app_precalculated_spake.cpp)
 kis_add_test(test_separate           test_separate.cpp)
+# --wrap=coap_send_message redirects the network send performed by the CON
+# path in coap_separate_accept() (via engine.c's empty-ack helper) to the
+# recorder __wrap_coap_send_message(), so no real socket I/O runs.
+target_link_options(test_separate PRIVATE
+    -Wl,--wrap=coap_send_message
+)
 kis_add_test(test_oc_process         test_oc_process.cpp)
 kis_add_test(test_oc_etimer          test_oc_etimer.cpp)
 kis_add_test(test_oc_storage         test_oc_storage.cpp)

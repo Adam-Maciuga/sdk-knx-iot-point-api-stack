@@ -15,7 +15,12 @@
 extern "C" {
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/coap.h"
+#include "messaging/coap/constants.h"
+#include "messaging/coap/oc_coap.h" /* full def of oc_response_buffer_s */
+#include "oc_endpoint.h"
 #include "oc_helpers.h"
+#include "oc_rep.h"
+#include "oc_ri.h"
 #include "port/oc_storage.h"
 #include "util/oc_mmem.h"
 #include <string.h>
@@ -300,3 +305,266 @@ TEST_F(AtSsnStorage, EntryOutsideTableIsSkipped)
   uint64_t ssn = 0;
   EXPECT_LE(oc_storage_read(key, (uint8_t *)&ssn, sizeof(ssn)), 0L);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * /auth, /auth/o, /auth/at and /a/sen resource handlers
+ *
+ * The handlers are static but reachable through the non-static const
+ * oc_resource_t definitions, the same pattern test_oc_knx_dev.cpp and
+ * test_oc_knx_swu.cpp use. Only oc_mmem_init() plus a stack request/response
+ * pair are required.
+ *
+ * The link-format list handlers (/auth, /auth/o, /auth/at) walk the core
+ * resource table via oc_check_request_from_index(), which needs a bootstrapped
+ * device, so only their deterministic guard paths (wrong Accept, invalid
+ * paging) are asserted here; the populated-listing body stays integration-level
+ * per tests/COVERAGE_LEDGER.md.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+extern "C" {
+extern const oc_resource_t core_resource_knx_auth;
+extern const oc_resource_t core_resource_knx_auth_o;
+extern const oc_resource_t core_resource_knx_auth_o_osndelay;
+extern const oc_resource_t core_resource_knx_auth_o_replwdo;
+extern const oc_resource_t core_resource_knx_auth_at;
+extern const oc_resource_t core_resource_knx_auth_at_x;
+extern const oc_resource_t core_resource_a_sen;
+}
+
+class SecHandlers : public ::testing::Test {
+protected:
+  uint8_t buf[2048];
+  oc_request_t request;
+  oc_response_t response;
+  oc_response_buffer_t response_buffer;
+
+  void SetUp() override { oc_mmem_init(); }
+
+  int invoke(const oc_resource_t &res, oc_request_callback_t cb,
+             oc_content_format_t accept, oc_interface_mask_t iface,
+             const char *query = nullptr, const char *uri_path = nullptr,
+             oc_rep_t *payload = nullptr)
+  {
+    memset(&request, 0, sizeof(request));
+    memset(&response, 0, sizeof(response));
+    memset(&response_buffer, 0, sizeof(response_buffer));
+    memset(buf, 0, sizeof(buf));
+    response_buffer.buffer = buf;
+    response_buffer.buffer_size = sizeof(buf);
+    response.response_buffer = &response_buffer;
+    request.response = &response;
+    request.resource = &res;
+    request.accept = accept;
+    request.request_payload = payload;
+    if (query != nullptr) {
+      request.query = query;
+      request.query_len = strlen(query);
+    }
+    if (uri_path != nullptr) {
+      request.uri_path = uri_path;
+      request.uri_path_len = strlen(uri_path);
+    }
+    oc_rep_new(buf, sizeof(buf));
+    cb(&request, iface, nullptr);
+    return response_buffer.code;
+  }
+
+  int get(const oc_resource_t &res, oc_content_format_t accept,
+          const char *query = nullptr, const char *uri_path = nullptr)
+  {
+    return invoke(res, res.get_handler.cb, accept, OC_IF_D, query, uri_path);
+  }
+};
+
+/* ─────────────────────── /auth/o/osndelay GET + PUT ───────────────────── */
+
+TEST_F(SecHandlers, OsnDelayGetWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o_osndelay, APPLICATION_LINK_FORMAT),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, OsnDelayGetReturnsCurrentValue)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o_osndelay, APPLICATION_CBOR),
+            oc_status_code(OC_STATUS_OK));
+  EXPECT_GT(response_buffer.response_length, 0);
+}
+
+TEST_F(SecHandlers, OsnDelayPutWrongAcceptBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_o_osndelay,
+                   core_resource_knx_auth_o_osndelay.put_handler.cb,
+                   APPLICATION_LINK_FORMAT, OC_IF_D),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, OsnDelayPutWithoutPayloadBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_o_osndelay,
+                   core_resource_knx_auth_o_osndelay.put_handler.cb,
+                   APPLICATION_CBOR, OC_IF_D),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, OsnDelayPutStoresValue)
+{
+  const uint16_t original = get_oscore_osn_delay_ms();
+
+  oc_rep_t rep;
+  memset(&rep, 0, sizeof(rep));
+  rep.type = OC_REP_INT;
+  rep.iname = 1;
+  rep.value.integer = 321;
+
+  EXPECT_EQ(invoke(core_resource_knx_auth_o_osndelay,
+                   core_resource_knx_auth_o_osndelay.put_handler.cb,
+                   APPLICATION_CBOR, OC_IF_D, nullptr, nullptr, &rep),
+            oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(get_oscore_osn_delay_ms(), 321);
+
+  set_oscore_osn_delay_ms(original); /* restore the file-static default */
+}
+
+/* ──────────────────────────── /auth/o/replwdo GET ────────────────────────── */
+
+TEST_F(SecHandlers, ReplWdoGetWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o_replwdo, APPLICATION_LINK_FORMAT),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, ReplWdoGetReturnsWindowSize)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o_replwdo, APPLICATION_CBOR),
+            oc_status_code(OC_STATUS_OK));
+  EXPECT_GT(response_buffer.response_length, 0);
+}
+
+/* ─────────────────── link-format list handlers: guard paths ──────────────── */
+
+TEST_F(SecHandlers, AuthOListWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o, APPLICATION_CBOR),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AuthOListInvalidPageSizeBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o, APPLICATION_LINK_FORMAT, "ps=0"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AuthOListInvalidPageNumberBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_o, APPLICATION_LINK_FORMAT, "pn=-1"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AuthListWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth, APPLICATION_CBOR),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AuthListInvalidPageSizeBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth, APPLICATION_LINK_FORMAT, "ps=0"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtListWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_at, APPLICATION_CBOR),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+/* ───────────────────────────── /auth/at DELETE ───────────────────────────── */
+
+TEST_F(SecHandlers, AtDeleteWrongAcceptBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_at,
+                   core_resource_knx_auth_at.delete_handler.cb,
+                   APPLICATION_LINK_FORMAT, OC_IF_SEC),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtDeleteClearsTable)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_at,
+                   core_resource_knx_auth_at.delete_handler.cb,
+                   APPLICATION_CBOR, OC_IF_SEC),
+            oc_status_code(OC_STATUS_DELETED));
+}
+
+/* ──────────────────────── /auth/at/* GET + DELETE ──────────────────────── */
+
+TEST_F(SecHandlers, AtEntryGetWrongAcceptBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_at_x, APPLICATION_LINK_FORMAT, nullptr,
+                "auth/at/tok"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtEntryGetWithoutTokenBadRequest)
+{
+  /* invoked path carries no id after the wildcard -> 4.00 */
+  EXPECT_EQ(get(core_resource_knx_auth_at_x, APPLICATION_CBOR, nullptr,
+                "auth/at/"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtEntryGetUnknownTokenBadRequest)
+{
+  EXPECT_EQ(get(core_resource_knx_auth_at_x, APPLICATION_CBOR, nullptr,
+                "auth/at/nosuchtoken"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtEntryDeleteWrongAcceptBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_at_x,
+                   core_resource_knx_auth_at_x.delete_handler.cb,
+                   APPLICATION_LINK_FORMAT, OC_IF_SEC, nullptr, "auth/at/tok"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, AtEntryDeleteUnknownTokenBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_knx_auth_at_x,
+                   core_resource_knx_auth_at_x.delete_handler.cb,
+                   APPLICATION_CBOR, OC_IF_SEC, nullptr, "auth/at/nosuchtoken"),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+/* ────────────────────────────── /a/sen POST ─────────────────────────────── */
+
+TEST_F(SecHandlers, ASenPostWrongAcceptBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
+                   APPLICATION_LINK_FORMAT, OC_IF_SEC),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, ASenPostWithoutPayloadBadRequest)
+{
+  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
+                   APPLICATION_CBOR, OC_IF_SEC),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(SecHandlers, ASenPostRenewCommandChanged)
+{
+  oc_rep_t rep;
+  memset(&rep, 0, sizeof(rep));
+  rep.type = OC_REP_STRING;
+  rep.iname = 2;
+  oc_new_string(&rep.value.string, "renew", strlen("renew"));
+
+  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
+                   APPLICATION_CBOR, OC_IF_SEC, nullptr, nullptr, &rep),
+            oc_status_code(OC_STATUS_CHANGED));
+
+  oc_free_string(&rep.value.string);
+}
+

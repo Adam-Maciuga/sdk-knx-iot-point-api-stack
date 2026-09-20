@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1460 unit tests** (53 files) + **626 runtime tests** across three tiers = **2086 total**
+> **1591 unit tests** (53 files) + **629 runtime tests** across three tiers = **2220 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -168,7 +168,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_rep.cpp — CBOR Representation (51 tests)
+### test_oc_rep.cpp — CBOR Representation (67 tests)
 
 **Source:** `api/oc_rep.c`
 
@@ -183,7 +183,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `MultipleValues` | 1 | Mixed types in single map |
 | `Arrays` | 3 | Int/bool/double arrays |
 | `StringArray/ByteStringArray truncation` | 5 | Text/byte string array items at exactly the 32-byte slot limit round-trip unmodified; oversized items are truncated (not left as heap-uninitialized garbage) and never overflow the fixed-size slot (F-021 follow-up) |
-| `ToJson` | 3 | JSON serialization (compact, pretty, size query) |
+| `ToJson` | 18 | JSON serialization: compact/pretty/size-query (3, pre-existing) plus per-type coverage of `oc_rep_to_json_format`'s switch: bool-false, double, text string, base64-encoded byte string, nested object, int/float/double/bool/string arrays (compact + pretty for string array), byte-string array (compact + pretty), object array (compact + pretty) |
 | `AddLineToBuffer` | 3 | Buffer append helpers |
 | `EncodeRaw` | 1 | Raw CBOR append |
 | `FreeRep/Parse` | 2 | Cleanup and empty-map parse |
@@ -229,7 +229,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap_oscore.cpp — OSCORE Option (41 tests)
+### test_coap_oscore.cpp — OSCORE Option (44 tests)
 
 **Source:** `messaging/coap/oscore.c`
 
@@ -241,6 +241,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `OscoreOption` | 6 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants) |
 | `OscoreSerialize` | 2 | Serialization to wire format (PIV-only, full round-trip) |
 | `OscoreIsOscoreMessage` | 11 | Detects OSCORE option presence (true, non-OSCORE option, no options, OSCORE followed by extended-delta option, OSCORE after a full 8-byte token) and rejects malformed input without reading past the buffer: truncated 1-/2-byte extended delta, truncated extended length, truncated option value, `length` 0..3 (fixed header incomplete), token nibble 1..8 announcing more bytes than the datagram carries |
+| `OscoreSendError` | 3 | `oscore_send_error` builds+sends a CoAP error response (network send faked via `--wrap=coap_send_message`): CON request → ACK with cleared OSCORE flag, NON request with zero-length token → fresh-mid NON, secured=true leaves the OSCORE flag untouched |
 
 ---
 
@@ -268,7 +269,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (17 tests)
+### test_oc_knx_sec.cpp — Security Credentials (70 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -279,10 +280,14 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `AuthAtEntry` | 3 | AT-table entry access (out-of-bounds NULL, in-bounds entry, positive table size) |
 | `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
 | `AtTable` | 5 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token |
+| `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
+| `SecHandlers` | 23 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*` and `/a/sen`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00), `/a/sen` renew command |
+| `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
+| `SecAtPost` | 2 | `/auth/at` POST mandatory-property check driven with hand-encoded CBOR: id + one scope → 4.00 and no entry created; the same scope key repeated four times is rejected too (F-027 regression — the check counts distinct properties, not occurrences) |
 
 ---
 
-### test_oc_replay.cpp — Replay Protection (11 tests)
+### test_oc_replay.cpp — Replay Protection (12 tests)
 
 **Source:** `api/oc_replay.c`
 
@@ -299,8 +304,10 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `FreeAll_ClearsState` | Free-all resets everything |
 | `EmptyKID_ReturnsEcho` | Empty KID returns echo |
 | `ReAdd_ResetsWindow` | Re-adding client resets window |
+| `FullPool_EvictsOldestRecordOnOverflow` | Filling all 20 record slots then adding one more evicts the oldest record (deterministic: first-added client, ties broken by index) |
 
 ---
+
 
 ### test_oc_oscore_echo_tx.cpp — S-Mode Echo Replay Defence (24 tests)
 
@@ -383,7 +390,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_endpoint.cpp — Endpoint Handling (28 tests)
+### test_oc_endpoint.cpp — Endpoint Handling (38 tests)
 
 **Source:** `api/oc_endpoint.c`
 
@@ -398,22 +405,29 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `EndpointToString` | 3 | coap:// URI formatting, NULL args, non-IPv6 error |
 | `EndpointParsePath` | 5 | Path extraction, query strip, missing scheme/path errors |
 | `EndpointListCopy` | 2 | Multi-node list copy breaks aliasing; NULL source no-op |
+| `Ipv6AddressScope` | 5 | RFC 6724 scope classification: loopback, link-local, deprecated site-local, ULA (fc00::/7), global |
+| `Ipv6EndpointScope` | 3 | Endpoint wrapper: delegates to address scope, NULL endpoint, non-IPv6 endpoint both return 0 |
+| `SetLocalAddress` | 1 | NULL endpoint is a no-op (found-match path needs a live port-layer connectivity list) |
+| `EndpointPrint` | 1 | Smoke test — does not crash on a valid endpoint |
 
 ---
 
-### test_oc_knx_fp.cpp — Group Object & FP Tables (52 tests)
+### test_oc_knx_fp.cpp — Group Object & FP Tables (81 tests)
 
 **Source:** `api/oc_knx_fp.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `CflagsAsString` | 7 | Comm-flag bitmask → "rwitu" string |
+| `PrintCflags` | 1 | Smoke test — does not crash for any cflag mask |
+| `CreateUnicastGroupAddressWithPort` | 1 | Builds a unicast `oc_endpoint_t` from a recipient table entry's stored IPv6 address/port/interface |
 | `GoTableSearch` | 17 | GO-table size/bounds, find-first/next by GA (incl. negative-index underflow guard, commit b677b04f), empty-slot search, cflags/ga-len getters |
 | `FpTableSizes` | 5 | Recipient/publisher table size + entry bounds, no-IID default |
 | `FpFindIdFromPayload` | 5 | id-from-payload lookup (in-range, above-range, negative, no-match, NULL) |
 | `GoTableHref` | 7 | href getter + find-first/next by href, sending-GA lookup |
 | `RecipientTable` | 1 | Recipient index-from-id match/miss |
 | `BelongsHref` | 3 | href ownership check, non-discoverable skipped |
+| `FpHandlers` | 27 | CoAP handlers of `/fp/g`, `/fp/p`, `/fp/r` and their `/*` entry resources: wrong-Accept rejection, empty table → 2.05, invalid paging (`ps`/`pn`) → 4.00, populated link-format listing incl. comma separator and next-page indicator, entry GET (unknown id → 4.04, known id → 2.05 CBOR), entry DELETE outside loading state → 4.00 |
 | `GroupTableStorage` | 7 | Recipient/publisher entry encode-decode round-trip (NON flag as boolean, empty/multiple GA arrays, absent-NON default) |
 
 ---
@@ -747,7 +761,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_blockwise.cpp — Blockwise Transfer (20 tests)
+### test_oc_blockwise.cpp — Blockwise Transfer (25 tests)
 
 **Source:** `api/oc_blockwise.c`
 
@@ -755,8 +769,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `BlockwiseDispatch` | 4 | Outgoing block slicing (offset beyond payload, advances offset, partial/mid slices) |
 | `BlockwiseHandle` | 5 | Incoming block reassembly (sequential append, offset/size overflow, gap, duplicate) |
-| `BlockwiseAlloc` | 6 | Request/response buffer alloc + lookup by href/token/mid/client-cb |
-| `BlockwiseScrub` | 5 | Free/scrub buffers, ref-count-based reclamation, scrub-for-client-cb |
+| `BlockwiseAlloc` | 10 | Request/response buffer alloc + lookup by href/token/mid/client-cb (both request- and response-list variants of each `_by_token`/`_by_mid`/`_by_client_cb` wrapper) |
+| `BlockwiseScrub` | 6 | Free/scrub buffers (incl. NULL-buffer no-op), ref-count-based reclamation, scrub-for-client-cb on both the request and response lists |
 
 ---
 
@@ -778,14 +792,15 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_client_api.cpp — Client API (13 tests)
+### test_oc_client_api.cpp — Client API (19 tests)
 
 **Source:** `api/oc_client_api.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `ClientApiLF` | 9 | Link-format response parsing: entry count, entry URI, rt/if params, missing param |
+| `ClientApiLF` | 12 | Link-format response parsing: entry count, entry URI, rt/if params, missing param, NULL/too-short payload guards, single-record (no trailing comma) fallback |
 | `ClientApiInitMsg` | 4 | s-mode / well-known message init (confirmable + non-confirmable) |
+| `ClientApiDoUpdate` | 3 | `oc_do_s_mode_message_update` / `oc_do_well_known_message_update` real send path (network faked via `--wrap=coap_send_message`/`oc_main_initialized`/`oc_etimer_restart`, same pattern as `test_smode_send_refcount`): payload present → transaction sent, no payload → early false, well-known GET → message sent |
 
 ---
 
@@ -875,7 +890,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (75 tests)
+### test_oc_knx_swu.cpp — Software Update (77 tests)
 
 **Source:** `api/oc_knx_swu.c`
 
@@ -887,7 +902,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
 | `KnxSwuABlock` | 9 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
-| `KnxSwuList` | 1 | List GET wrong-Accept |
+| `KnxSwuList` | 3 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched |
 | `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
 
@@ -942,7 +957,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_process.cpp — Process / Event Loop (13 tests)
+### test_oc_process.cpp — Process / Event Loop (16 tests)
 
 **Source:** `util/oc_process.c`
 
@@ -961,6 +976,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `AllocEventStartsAfterReservedRange` | Allocation starts after the reserved range |
 | `ExitStopsRunningProcess` | Exit stops a running process |
 | `BroadcastEventReachesRunningProcess` | Broadcast event reaches a running process |
+| `ExitOnNeverStartedProcessIsNoOp` | Exiting a process never added to the list is a no-op (`exit_process`'s not-found branch) |
+| `ExitNotifiesSiblingAndUnlinksFromListMiddle` | With two processes running, exiting the list head notifies the surviving sibling with `OC_PROCESS_EVENT_EXITED` and unlinks correctly |
+| `PostBeyondCapacityGrowsQueueAndPreservesOrder` | Posting well past the initial ring capacity forces the realloc + wraparound-copy growth path in `oc_process_post`, preserving FIFO order |
 
 ---
 
@@ -1014,7 +1032,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_separate.cpp — Separate Responses (6 tests)
+### test_separate.cpp — Separate Responses (7 tests)
 
 **Source:** `messaging/coap/separate.c`
 
@@ -1023,6 +1041,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `AcceptNonRequestCreatesStore` | Accepting a non-request creates a store |
 | `AcceptSameTokenAndObserveReusesStore` | Same token + observe reuses the store |
 | `AcceptDifferentObserveCreatesSecondStore` | Different observe creates a second store |
+| `AcceptConRequestSendsEmptyAckAndCreatesStore` | CON request sends the empty ACK (via `--wrap=coap_send_message`) and creates the store |
 | `ResumeInitializesResponsePacket` | Resume initialises the response packet |
 | `ResumeWithObserveZeroSetsObserveHeader` | Resume with observe 0 sets the observe header |
 | `ClearRemovesMiddleStore` | Clear removes a middle store |
@@ -1417,12 +1436,15 @@ correct, the client was not).
 
 ---
 
-### test_group_comm.py — Group Communication (31 tests)
+### test_group_comm.py — Group Communication (34 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
 | **TestUnicastWrite** | `test_5_4_1_1_unicast_write_updates_value` | 5.4.1.1 *(replaced by the EITT template case — eitt tier)* |
 | **TestUnicastWriteUnauthorized** | `test_unauthorized_ga_returns_forbidden` | 5.4.1.1b |
+| **TestUnicastWriteDuplicateGroupAddress** | `test_control_authorized_ga_writes_only_its_own_datapoint` | F-026 (non-EITT) |
+| | `test_duplicate_ga_does_not_bypass_scope` | F-026 (non-EITT) |
+| **TestForeignGaBindingIsLive** | `test_authorized_write_to_ga_one_reaches_p4` | F-026 control (non-EITT) |
 | **TestMulticastWrite** | `test_5_4_1_2_multicast_write_updates_value` | 5.4.1.2 *(replaced by the EITT template case — eitt tier)* |
 | **TestMulticastRead** | `test_multicast_read_gets_answer` | 5.4.1.3 |
 | **TestUnicastRead** | `test_unicast_read_gets_answer` | 5.4.1.4 |

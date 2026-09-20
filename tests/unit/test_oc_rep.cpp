@@ -556,6 +556,264 @@ TEST_F(OcRepTest, ToJson_NullBuf_ReturnsSizeNeeded)
   EXPECT_GT(needed, 0u);
 }
 
+TEST_F(OcRepTest, ToJson_BoolFalse)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_boolean(root, 1, false);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "false"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_Double)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_double(root, 1, 3.5);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "3.5"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_TextString)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_text_string(root, 1, "hello");
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\"hello\""), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_ByteStringIsBase64Encoded)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  const uint8_t data[] = { 'a', 'b', 'c' };
+  oc_rep_i_set_byte_string(root, 1, data, sizeof(data));
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  /* base64("abc") == "YWJj" */
+  EXPECT_NE(strstr(json, "YWJj"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_NestedObject)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_object(root, my_object);
+  oc_rep_i_set_int(my_object, 1, 7);
+  oc_rep_close_object(root, my_object);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\"my_object\""), nullptr);
+  EXPECT_NE(strstr(json, "{"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_IntArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  int64_t values[] = { 1, 2, 3 };
+  oc_rep_i_set_int_array(root, 1, values, 3);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "[1,2,3]"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_FloatArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  float values[] = { 1.5f, 2.5f };
+  oc_rep_i_set_float_array(root, 1, values, 2);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "["), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_DoubleArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  double values[] = { 1.25, 2.25 };
+  oc_rep_i_set_double_array(root, 1, values, 2);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "["), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_BoolArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  bool values[] = { true, false };
+  oc_rep_i_set_bool_array(root, 1, values, 2);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "true"), nullptr);
+  EXPECT_NE(strstr(json, "false"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_StringArray)
+{
+  oc_string_array_t values;
+  oc_new_string_array(&values, (size_t)2);
+  oc_string_array_add_item(values, "a");
+  oc_string_array_add_item(values, "bb");
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_string_array(root, 1, values);
+  int rc = encode_and_parse();
+  oc_free_string_array(&values);
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\"a\""), nullptr);
+  EXPECT_NE(strstr(json, "\"bb\""), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_StringArrayPrettyPrint)
+{
+  /* drives the pretty_print branches inside the array-printing loops that
+     ToJson_StringArray's non-pretty variant does not exercise. */
+  oc_string_array_t values;
+  oc_new_string_array(&values, (size_t)2);
+  oc_string_array_add_item(values, "a");
+  oc_string_array_add_item(values, "bb");
+
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_string_array(root, 1, values);
+  int rc = encode_and_parse();
+  oc_free_string_array(&values);
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), true);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\n"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_ByteStringArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 1);
+  oc_rep_begin_array(&root_map, barr);
+  const uint8_t item[] = { 'a', 'b', 'c' };
+  oc_rep_add_byte_string(barr, item, sizeof(item));
+  oc_rep_end_array(&root_map, barr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  /* base64("abc") == "YWJj" */
+  EXPECT_NE(strstr(json, "YWJj"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_ByteStringArrayPrettyPrint)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 1);
+  oc_rep_begin_array(&root_map, barr);
+  const uint8_t item1[] = { 'a' };
+  const uint8_t item2[] = { 'b' };
+  oc_rep_add_byte_string(barr, item1, sizeof(item1));
+  oc_rep_add_byte_string(barr, item2, sizeof(item2));
+  oc_rep_end_array(&root_map, barr);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), true);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\n"), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_ObjectArray)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_array(root, items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_text_string(items, name, "Dave");
+  oc_rep_object_array_end_item(items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_text_string(items, name, "Frank");
+  oc_rep_object_array_end_item(items);
+  oc_rep_close_array(root, items);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\"Dave\""), nullptr);
+  EXPECT_NE(strstr(json, "\"Frank\""), nullptr);
+}
+
+TEST_F(OcRepTest, ToJson_ObjectArrayPrettyPrint)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_array(root, items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_text_string(items, name, "Dave");
+  oc_rep_object_array_end_item(items);
+  oc_rep_close_array(root, items);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  char json[256] = {};
+  size_t json_len = oc_rep_to_json(rep, json, sizeof(json), true);
+  EXPECT_GT(json_len, 0u);
+  EXPECT_NE(strstr(json, "\n"), nullptr);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_rep_add_line_to_buffer
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -629,6 +887,49 @@ TEST_F(OcRepTest, ParseRep_EmptyMap)
   if (parsed) {
     oc_free_rep(parsed);
   }
+}
+
+TEST_F(OcRepTest, ParseRep_DuplicateIntegerKeyInNestedMap)
+{
+  /*
+    Establishes whether a repeated map key survives parsing, which is the open
+    precondition of F-026: oc_knx_sec_check_acl stops at the first ga (7) of an
+    s map while oc_core_knx_k_post_handler keeps the last one.
+
+    Hand-encoded, because the oc_rep_i_set_* writers cannot emit a duplicate
+    key: { 5: { 7: 1234, 7: 9999 } }
+  */
+  const uint8_t payload[] = {
+    0xa1,                   /* map(1)            */
+    0x05,                   /*   key 5           */
+    0xa2,                   /*   map(2)          */
+    0x07,                   /*     key 7         */
+    0x19, 0x04, 0xd2,       /*     1234          */
+    0x07,                   /*     key 7 again   */
+    0x19, 0x27, 0x0f        /*     9999          */
+  };
+
+  ASSERT_EQ(oc_parse_rep(payload, sizeof(payload), &rep), CborNoError);
+  ASSERT_NE(rep, nullptr);
+  ASSERT_EQ(rep->type, OC_REP_OBJECT);
+  EXPECT_EQ(rep->iname, 5);
+
+  int ga_nodes = 0;
+  int64_t first_ga = -1;
+  int64_t last_ga = -1;
+  for (const oc_rep_t *m = rep->value.object; m != nullptr; m = m->next) {
+    if (m->type == OC_REP_INT && m->iname == 7) {
+      if (ga_nodes == 0) {
+        first_ga = m->value.integer;
+      }
+      last_ga = m->value.integer;
+      ga_nodes++;
+    }
+  }
+
+  EXPECT_EQ(ga_nodes, 2) << "parser collapsed or dropped the duplicate key";
+  EXPECT_EQ(first_ga, 1234);
+  EXPECT_EQ(last_ga, 9999);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

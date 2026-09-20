@@ -245,6 +245,22 @@ TEST_F(BlockwiseAlloc, FindByTokenClient)
             nullptr);
 }
 
+TEST_F(BlockwiseAlloc, FindByTokenClientResponse)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  oc_blockwise_state_t *b = oc_blockwise_alloc_response_buffer(
+    "/tokr", strlen("/tokr"), &ep, COAP_GET, OC_BLOCKWISE_CLIENT);
+  ASSERT_NE(b, nullptr);
+  uint8_t token[4] = { 0xAA, 0xBB, 0xCC, 0xDD };
+  memcpy(b->token, token, sizeof(token));
+  b->token_len = sizeof(token);
+
+  EXPECT_EQ(oc_blockwise_find_response_buffer_by_token(token, sizeof(token)), b);
+  uint8_t other[4] = { 1, 2, 3, 4 };
+  EXPECT_EQ(oc_blockwise_find_response_buffer_by_token(other, sizeof(other)),
+            nullptr);
+}
+
 TEST_F(BlockwiseAlloc, FindByMidClient)
 {
   oc_endpoint_t ep = make_endpoint(5683);
@@ -255,6 +271,18 @@ TEST_F(BlockwiseAlloc, FindByMidClient)
 
   EXPECT_EQ(oc_blockwise_find_response_buffer_by_mid(4242), b);
   EXPECT_EQ(oc_blockwise_find_response_buffer_by_mid(1), nullptr);
+}
+
+TEST_F(BlockwiseAlloc, FindByMidClientRequest)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  oc_blockwise_state_t *b = oc_blockwise_alloc_request_buffer(
+    "/midr", strlen("/midr"), &ep, COAP_GET, OC_BLOCKWISE_CLIENT);
+  ASSERT_NE(b, nullptr);
+  b->mid = 9999;
+
+  EXPECT_EQ(oc_blockwise_find_request_buffer_by_mid(9999), b);
+  EXPECT_EQ(oc_blockwise_find_request_buffer_by_mid(1), nullptr);
 }
 
 TEST_F(BlockwiseAlloc, FindByClientCb)
@@ -269,6 +297,21 @@ TEST_F(BlockwiseAlloc, FindByClientCb)
   EXPECT_EQ(oc_blockwise_find_request_buffer_by_client_cb(&ep, &dummy_cb), b);
   int other_cb = 0;
   EXPECT_EQ(oc_blockwise_find_request_buffer_by_client_cb(&ep, &other_cb),
+            nullptr);
+}
+
+TEST_F(BlockwiseAlloc, FindByClientCbResponse)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  oc_blockwise_state_t *b = oc_blockwise_alloc_response_buffer(
+    "/cbr", strlen("/cbr"), &ep, COAP_GET, OC_BLOCKWISE_CLIENT);
+  ASSERT_NE(b, nullptr);
+  int dummy_cb = 0;
+  b->client_cb = &dummy_cb;
+
+  EXPECT_EQ(oc_blockwise_find_response_buffer_by_client_cb(&ep, &dummy_cb), b);
+  int other_cb = 0;
+  EXPECT_EQ(oc_blockwise_find_response_buffer_by_client_cb(&ep, &other_cb),
             nullptr);
 }
 
@@ -367,4 +410,38 @@ TEST_F(BlockwiseScrub, ScrubForClientCbFreesMatching)
   EXPECT_NE(oc_blockwise_find_request_buffer("/cb", strlen("/cb"), &ep, COAP_GET,
                                              "", 0, OC_BLOCKWISE_CLIENT),
             nullptr);
+}
+
+TEST_F(BlockwiseScrub, ScrubForClientCbFreesMatchingResponse)
+{
+  /* same as above but drives the oc_blockwise_responses list branch of
+     oc_blockwise_scrub_buffers_for_client_cb, previously untested. */
+  oc_endpoint_t ep = make_endpoint(5683);
+  int cb_a = 0;
+  int cb_b = 0;
+  oc_blockwise_state_t *a = oc_blockwise_alloc_response_buffer(
+    "/ra", strlen("/ra"), &ep, COAP_GET, OC_BLOCKWISE_CLIENT);
+  oc_blockwise_state_t *b = oc_blockwise_alloc_response_buffer(
+    "/rb", strlen("/rb"), &ep, COAP_GET, OC_BLOCKWISE_CLIENT);
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+  a->client_cb = &cb_a;
+  b->client_cb = &cb_b;
+
+  oc_blockwise_scrub_buffers_for_client_cb(&cb_a);
+
+  EXPECT_EQ(oc_blockwise_find_response_buffer("/ra", strlen("/ra"), &ep, COAP_GET,
+                                              "", 0, OC_BLOCKWISE_CLIENT),
+            nullptr);
+  EXPECT_NE(oc_blockwise_find_response_buffer("/rb", strlen("/rb"), &ep, COAP_GET,
+                                              "", 0, OC_BLOCKWISE_CLIENT),
+            nullptr);
+}
+
+TEST_F(BlockwiseScrub, FreeNullBufferIsNoOp)
+{
+  /* the static oc_blockwise_free_buffer()'s NULL guard, reached through both
+     public wrappers. */
+  oc_blockwise_free_request_buffer(nullptr);
+  oc_blockwise_free_response_buffer(nullptr);
 }

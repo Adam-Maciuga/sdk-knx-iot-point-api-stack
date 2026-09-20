@@ -7,8 +7,11 @@
  *   coap_set_header_oscore        — populate OSCORE fields in coap_packet_t
  *   coap_parse_inner_oscore_option — parse raw OSCORE option bytes
  *   coap_serialize_oscore_option  — serialize OSCORE option to buffer
+ *   oscore_send_error             — build+send a CoAP error response
+ *                                    (network send faked via --wrap=coap_send_message)
  *
- * All operate on plain structs or scalar values — no stack init required.
+ * All operate on plain structs or scalar values — no stack init required,
+ * except oscore_send_error which needs the message-buffer mutex.
  */
 
 #include <gtest/gtest.h>
@@ -18,7 +21,90 @@ extern "C" {
 #include "messaging/coap/oscore.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/oscore_constants.h"
+#include "oc_buffer.h"
+#include "oc_endpoint.h"
+#include "port/oc_network_events_mutex.h"
 
+}
+
+/*
+ * --wrap=coap_send_message redirects the real network send performed by
+ * oscore_send_error() to this recorder, so no live socket is touched.
+ */
+static int g_wrap_send_calls = 0;
+static oc_message_t *g_wrap_last_message = nullptr;
+
+extern "C" void __wrap_coap_send_message(oc_message_t *message)
+{
+  g_wrap_send_calls++;
+  g_wrap_last_message = message;
+  oc_message_unref(message);
+}
+
+class OscoreSendError : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    oc_network_event_handler_mutex_init();
+    g_wrap_send_calls = 0;
+    g_wrap_last_message = nullptr;
+  }
+  void TearDown() override { oc_network_event_handler_mutex_destroy(); }
+};
+
+TEST_F(OscoreSendError, ConfirmablePlainRequestSendsAck)
+{
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.type = COAP_TYPE_CON;
+  req.mid = 0x55AA;
+  const uint8_t token[] = {0x01, 0x02, 0x03};
+  req.token_len = sizeof(token);
+  memcpy(req.token, token, sizeof(token));
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = OSCORE;
+
+  oscore_send_error(&req, BAD_REQUEST_4_00, &ep, /*secured=*/false);
+
+  ASSERT_EQ(g_wrap_send_calls, 1);
+  /* !secured clears the OSCORE flag on the outgoing endpoint copy */
+  EXPECT_FALSE(ep.flags & OSCORE);
+}
+
+TEST_F(OscoreSendError, NonConfirmableRequestSendsNonWithFreshMid)
+{
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.type = COAP_TYPE_NON;
+  req.mid = 0x1234;
+  req.token_len = 0; /* exercise the token_len == 0 branch too */
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+
+  oscore_send_error(&req, INTERNAL_SERVER_ERROR_5_00, &ep, /*secured=*/false);
+
+  EXPECT_EQ(g_wrap_send_calls, 1);
+}
+
+TEST_F(OscoreSendError, SecuredRequestLeavesOscoreFlagUntouched)
+{
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.type = COAP_TYPE_CON;
+  req.mid = 0x0001;
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = OSCORE;
+
+  oscore_send_error(&req, BAD_REQUEST_4_00, &ep, /*secured=*/true);
+
+  EXPECT_EQ(g_wrap_send_calls, 1);
+  /* secured=true skips the UNSET_BIT/UNSET_OPTION branch entirely */
+  EXPECT_TRUE(ep.flags & OSCORE);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

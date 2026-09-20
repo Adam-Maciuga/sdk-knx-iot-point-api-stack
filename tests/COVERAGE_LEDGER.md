@@ -193,7 +193,7 @@ behaviorally through their public callers:
 | oc_check_if_functional_blocks_need_to_add | DONE (also covers static bounded_strstr) |
 | oc_count_functional_blocks_from_application | DONE (also covers static check_array_for_scanned_fbs_and_add_if_fresh) |
 
-### api/oc_knx_fp.c — DONE (cflags string + GO/recipient/publisher table accessors + payload-id parser + href lookups); table CRUD / handlers / storage / s-mode tx are integration-level
+### api/oc_knx_fp.c — DONE (cflags string + GO/recipient/publisher table accessors + payload-id parser + href lookups + list/entry CoAP handlers); table CRUD / storage / s-mode tx are integration-level
 
 Unit-tested in `test_oc_knx_fp.cpp`. `oc_cflags_as_string` is a pure bitmask
 formatter. The GO/recipient/publisher tables are file-static arrays reached for
@@ -217,17 +217,26 @@ fixtures clear every slot to the empty sentinel and craft deterministic entries:
   (in-range / >65535→-2 / negative→-2 / no-id-int→-1 / NULL→-1).
 - `BelongsHref`: `oc_belongs_href_to_resource` driven with registered app
   resources (discoverable filter honoured).
+- `FpHandlers`: the `/fp/g`, `/fp/p`, `/fp/r` list handlers and their `/*` entry
+  handlers. The handlers are `static` but reachable through the non-static
+  `const oc_resource_t` definitions (`core_resource_knx_fp_g` etc.), so a
+  stack-allocated `oc_request_t` / `oc_response_t` / `oc_response_buffer_t`
+  triple plus `oc_mmem_init()` is enough — no device, RI table or network.
+  Covered: wrong-Accept → 4.00, empty table → 2.05, `first_entry >= total` /
+  `ps < 1` / `pn < 0` → 4.00, populated link-format serialisation incl. the
+  comma separator and `add_next_page_indicator`, entry GET (unknown id → 4.04,
+  known id → 2.05 CBOR) and entry DELETE outside `LSM_S_LOADING` → 4.00.
 
 INTEGRATION (concrete reasons): `oc_core_set_group_object_table` /
 `oc_core_set_recipient_table` / `oc_core_set_publisher_table` and the
 `oc_store_*` / `oc_delete_*` / `oc_print_*` table helpers read/write persistent
 storage (`oc_storage_write`/`oc_storage_read`) and re-register group multicast;
-the `oc_core_fp_*_get_handler` / `oc_core_fp_*_post_handler` and
-`oc_core_fp_gm_*` handlers parse CBOR requests, mutate device state, drive
-group register/unregister and s-mode unicast/multicast CoAP send — all need a
-bootstrapped device + populated RI tables + network.
+the `oc_core_fp_*_post_handler` and `oc_core_fp_gm_*` handlers parse CBOR
+requests, mutate device state, drive group register/unregister and s-mode
+unicast/multicast CoAP send — all need a bootstrapped device + populated RI
+tables + network.
 
-### api/oc_knx_sec.c — DONE (string helper + OSCORE config getters/setter + AT-table slot accessors and content ops); ACL eval / handlers / storage / OSCORE auth are integration-level
+### api/oc_knx_sec.c — DONE (string helper + OSCORE config getters/setter + AT-table slot accessors and content ops + /auth CoAP handlers + ACL gate); storage / OSCORE auth are integration-level
 
 Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`.
 OSCORE config lives
@@ -246,14 +255,38 @@ read/write through the public slot pointer `oc_get_auth_at_entry` plus
   entries, retains OSCORE entries).
 The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
 `oc_delete_at_table_entry` in SetUp/TearDown for determinism.
+- `SecHandlers`: the `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`,
+  `/auth/at`, `/auth/at/*` and `/a/sen` handlers, reached through the non-static
+  `const oc_resource_t` definitions with the same stack request/response harness
+  as `FpHandlers`. Covered: wrong-Accept → 4.00 on every handler, the CBOR GET
+  bodies of `osndelay` and `replwdo`, `osndelay` PUT (no matching int → 4.00,
+  valid → 2.04 and the value is observable via `get_oscore_osn_delay_ms`),
+  `/auth/at` DELETE → 2.02, the wildcard entry GET/DELETE guards (no token in
+  the invoked URI → 4.00, unknown token → 4.00) and `/a/sen` POST (no payload
+  → 4.00, `renew` string → 2.04).
+  The link-format list bodies of `/auth`, `/auth/o` and `/auth/at` walk the core
+  resource table via `oc_check_request_from_index`, so only their deterministic
+  guard paths (wrong Accept, `ps=0`, `pn=-1`) are asserted.
+- `SecAcl`: `oc_knx_sec_check_acl`, the gate every inbound request passes
+  through. All four parameters are plain structs and the helpers it calls
+  (`oc_resource_get_acl_for_method`, `oc_at_get_scope_mask`, the file-static
+  `check_access_token_for_group_address`) only read struct fields, so no device,
+  OSCORE context, storage or network is needed. Every case asserts fail-closed
+  behaviour: NULL resource / unsupported method → deny; per-method handler scope
+  resolution; the `OSCORE|OSCORE_DECRYPTED` mask (each flag alone → deny);
+  disjoint vs. overlapping scopes; missing access token → deny; and the
+  `OC_ACL_GA` payload scan (empty and NULL ga list, ga absent from payload,
+  non-object payload, first/last list entry, broadcast address). The `<ga>`
+  cases are also what covers `check_access_token_for_group_address`.
+  `SecAcl.GaScopeRejectsForeignGaAnywhereInOneSMap` and
+  `SecAcl.GaScopeRejectsForeignGaInASecondSMap` pin the F-026 fix.
 
-INTEGRATION (concrete reasons): `oc_knx_sec_check_acl` evaluates a live request
-against a populated AT table + bootstrapped device; `oc_oscore_set_auth_shared`,
+INTEGRATION (concrete reasons): `oc_oscore_set_auth_shared`,
 `oc_init_oscore_from_storage`, `oc_load_at_table`, `oc_store_at_table_entry`,
 `oc_write_ssn_to_storage` read/write persistent storage and (re)build OSCORE
 sender/recipient contexts; `oc_create_knx_sec_resources` and the
-`oc_core_auth_at_*_handler` resource handlers register RI resources and parse
-CBOR requests — all require oc_main_init + storage + network.
+`oc_core_auth_at_post_handler` CBOR-parsing path register RI resources and build
+OSCORE contexts — all require oc_main_init + storage + network.
 
 ### api/oc_main.c — DONE (callback registry + config accessors); bootstrap/teardown is integration-level
 

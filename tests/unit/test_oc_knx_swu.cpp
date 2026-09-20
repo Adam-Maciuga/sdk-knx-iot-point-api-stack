@@ -1185,6 +1185,32 @@ TEST_F(KnxSwuList, WrongAcceptBadRequest)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
+TEST_F(KnxSwuList, InvalidPageSizeBadRequest)
+{
+  /* query_ps < 1 -> the "first_entry >= last_entry || query_ps < 1 ||
+     query_pn < 0" guard rejects the request before touching the core
+     resource table, so this is unit-testable without full oc_ri init. */
+  RespCtx ctx;
+  char q[] = "ps=0";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  invoke_get(core_resource_knx_swu, ctx, APPLICATION_LINK_FORMAT);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+TEST_F(KnxSwuList, InvalidPageNumberBadRequest)
+{
+  /* "pn" that fails uint16 parsing forces pn_value = -1, hit by the same
+     guard's "query_pn < 0" arm. */
+  RespCtx ctx;
+  char q[] = "pn=-1";
+  ctx.request.query = q;
+  ctx.request.query_len = strlen(q);
+  invoke_get(core_resource_knx_swu, ctx, APPLICATION_LINK_FORMAT);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+
 // ===========================================================================
 // Public setters verified indirectly through GET handlers
 // ===========================================================================

@@ -185,6 +185,63 @@ TEST(IsLinkLocal, NonIPv6_Endpoint)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * oc_ipv6_address_scope / oc_ipv6_endpoint_scope (RFC 6724 section 3.2)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(Ipv6AddressScope, LoopbackIsScope2)
+{
+  uint8_t loopback[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(loopback), 2);
+}
+
+TEST(Ipv6AddressScope, LinkLocalIsScope2)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 2);
+}
+
+TEST(Ipv6AddressScope, DeprecatedSiteLocalIsScope5)
+{
+  uint8_t addr[16] = {0xfe, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 5);
+}
+
+TEST(Ipv6AddressScope, UniqueLocalAddressIsScope5)
+{
+  /* fc00::/7 (RFC 4193): first byte 0xfc or 0xfd */
+  uint8_t fc[16] = {0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  uint8_t fd[16] = {0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(fc), 5);
+  EXPECT_EQ(oc_ipv6_address_scope(fd), 5);
+}
+
+TEST(Ipv6AddressScope, GlobalAddressIsScope14)
+{
+  uint8_t addr[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 14);
+}
+
+TEST(Ipv6EndpointScope, DelegatesToAddressScope)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  EXPECT_EQ(oc_ipv6_endpoint_scope(&ep), 2);
+}
+
+TEST(Ipv6EndpointScope, NullEndpointReturnsZero)
+{
+  EXPECT_EQ(oc_ipv6_endpoint_scope(nullptr), 0);
+}
+
+TEST(Ipv6EndpointScope, NonIpv6EndpointReturnsZero)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV4;
+  EXPECT_EQ(oc_ipv6_endpoint_scope(&ep), 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * oc_new_endpoint / oc_free_endpoint
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -347,3 +404,27 @@ TEST(EndpointListCopy, NullSourceLeavesDstUntouched)
   /* guard: nothing assigned when src is NULL */
   EXPECT_EQ(dst, reinterpret_cast<oc_endpoint_t *>(0x1));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_set_local_address (null guard only — the found-match path
+ * needs a live port-layer connectivity list, see file header)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(SetLocalAddress, NullEndpointIsNoOp)
+{
+  /* must not crash; there is nothing else observable without a live
+     oc_connectivity_get_endpoints() list. */
+  oc_endpoint_set_local_address(nullptr, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_print — smoke test (OC_DEBUG-gated, no return value)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(EndpointPrint, DoesNotCrashOnValidEndpoint)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  oc_endpoint_print(&ep);
+}
+
