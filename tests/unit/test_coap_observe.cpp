@@ -20,6 +20,7 @@ extern "C" {
 #include "messaging/coap/observe.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/oc_coap.h"
+#include "messaging/coap/transactions.h"
 #include "messaging/coap/constants.h"
 #include "port/oc_network_events_mutex.h"
 #include "oc_ri.h"
@@ -99,6 +100,13 @@ static void observe_get_handler(oc_request_t *request, oc_interface_mask_t,
   request->response->response_buffer->response_length = sizeof(payload);
   request->response->response_buffer->code = CONTENT_2_05;
   request->response->response_buffer->content_format = APPLICATION_CBOR;
+}
+
+extern "C" bool __wrap_oc_main_initialized(void) { return true; }
+extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
+extern "C" void __wrap_coap_send_message(oc_message_t *message)
+{
+  oc_message_unref(message);
 }
 
 /* ---------------- fixture ------------------------------------------------ */
@@ -382,6 +390,18 @@ TEST_F(CoapObserve, NotifyObserverCanFilterByEndpoint)
   ASSERT_EQ(add_test_observer(&tr.resource, &ep1, token, 1, "test", 4), 0);
 
   EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, &ep2), 1);
+  coap_free_all_observers();
+}
+
+TEST_F(CoapObserve, NotifyObserverBuildsAndSendsNotification)
+{
+  TestResource tr("/test");
+  tr.resource.get_handler.cb = observe_get_handler;
+  oc_endpoint_t ep = make_endpoint(5683);
+  uint8_t token[] = {0xC4};
+  ASSERT_EQ(add_test_observer(&tr.resource, &ep, token, 1, "test", 4), 0);
+
+  EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 1);
   coap_free_all_observers();
 }
 

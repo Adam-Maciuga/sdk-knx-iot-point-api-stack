@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1637 unit tests** (53 files) + **629 runtime tests** across three tiers = **2266 total**
+> **1650 unit tests** (53 files) + **629 runtime tests** across three tiers = **2279 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1637 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1609 there.
+> Branch: `work_in_progress` | Unit: 1650 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1622 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -310,7 +310,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (37 tests)
+### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (49 tests)
 
 **Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
@@ -343,9 +343,14 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `InvalidOuterVersionIsRejectedAndMessageIsReleased` | Version-0 outer CoAP message is rejected and its event reference released |
 | `OverlongTokenIsRejectedAndMessageIsReleased` | Outer token length beyond COAP_TOKEN_LEN is rejected before copying |
 | `AckWithRequestCodeIsRejectedAndMessageIsReleased` | ACK carrying a request code is not accepted as an OSCORE carrier |
+| `NonResetEmptyMessageIsRejected` | Non-RST empty OSCORE message is rejected |
+| `ResetWithTokenIsRejected` | RST empty message carrying a token is rejected |
 | `UnknownUnicastSenderReceivesUnauthorized` | Unknown unicast OSCORE kid receives an unsecured 4.01 |
 | `MissingOscoreOptionRequestReceivesBadOption` | Request without the mandatory OSCORE option receives 4.02 |
 | `RequestWithoutKidReceivesBadOption` | OSCORE request without a kid receives 4.02 |
+| `RequestWithKidButWithoutPivReceivesBadOption` | OSCORE request with a kid but no PIV receives 4.02 |
+| `ResponseWithoutMatchingContextIsIgnored` | Response without a matching OSCORE context is ignored |
+| `EchoResponseWithoutAccessTokenIsIgnored` | Echo response without a matching access token is ignored |
 | `UnknownMulticastSenderIsSilentlyDropped` | Unknown multicast kid is discarded without a reflection response |
 | `AuthenticatedRequestIsDecryptedAndQueuedForRi` | Valid AEAD request is decrypted, marked OSCORE_DECRYPTED and queued for RI |
 | `TamperedAuthenticatedRequestReceivesBadRequest` | Modified AEAD tag is rejected with 4.00 |
@@ -353,6 +358,13 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `OutboundUnicastRequestIsEncryptedAndSent` | Sender context encrypts a unicast request, advances SSN and dispatches the OSCORE frame |
 | `OutboundMulticastRequestIsEncryptedAndSent` | Sender context encrypts a multicast NON request, advances SSN and dispatches the OSCORE frame |
 | `OutboundResponseIsEncryptedAndSent` | Recipient context encrypts a normal response without consuming a sender SSN |
+| `EmptyDecryptedPayloadReceivesBadRequest` | Authenticated request with an empty inner plaintext receives 4.00 |
+| `OutboundAckRequestIsDropped` | ACK carrying a request code is dropped on the outbound path |
+| `OutboundMulticastWithoutSModeFlagIsDropped` | Multicast message without the S-mode flag is dropped |
+| `OutboundUnicastWithoutContextIsDropped` | Unicast message without an OSCORE context is dropped |
+| `OutboundMalformedCoapIsDropped` | Malformed outbound CoAP is dropped |
+| `OutboundUnicastEchoResponseIsEncryptedAndSent` | Unicast echo response is encrypted and sent |
+| `OutboundMulticastEchoResponseIsEncryptedAndSent` | Multicast-caused echo response is encrypted and sent |
 
 ---
 
@@ -704,7 +716,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (23 tests)
+### test_coap_observe.cpp — Observer Management + Notify (24 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -726,6 +738,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `RegistrationRejectsMissingInvalidAndOverlongLifetime` | Rejects missing, malformed, and overlong `lt` values |
 | `RegistrationAcceptsNonTrue` | Accepts `non=true` observe registration |
 | `NotifyObserverCanFilterByEndpoint` | Endpoint-filtered notification does not notify another endpoint |
+| `NotifyObserverBuildsAndSendsNotification` | Builds and sends a notification for a matching observer |
 | `NotifyKObserversNullPayloadIsSafe` | `coap_notify_k_observers(NULL, …)` is a no-op |
 | `NotifyKObserversZeroLengthIsSafe` | Zero-length payload is a no-op |
 | `NotifyKObserversNoObserversIsSafe` | Empty /k observer list completes safely |

@@ -829,6 +829,22 @@ TEST_F(OscoreEngine, AckWithRequestCodeIsRejectedAndMessageIsReleased)
   dispatch_and_expect_released(message);
 }
 
+TEST_F(OscoreEngine, NonResetEmptyMessageIsRejected)
+{
+  const uint8_t outer[] = { 0x40, EMPTY_0_00, 0, 1 };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+  dispatch_and_expect_released(message);
+}
+
+TEST_F(OscoreEngine, ResetWithTokenIsRejected)
+{
+  const uint8_t outer[] = { 0x71, EMPTY_0_00, 0, 1, 0xAA };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+  dispatch_and_expect_released(message);
+}
+
 TEST_F(OscoreEngine, UnknownUnicastSenderReceivesUnauthorized)
 {
   const uint8_t outer[] = {
@@ -865,6 +881,47 @@ TEST_F(OscoreEngine, RequestWithoutKidReceivesBadOption)
   EXPECT_EQ(g_oscore_send_calls, 1);
 }
 
+TEST_F(OscoreEngine, RequestWithKidButWithoutPivReceivesBadOption)
+{
+  const uint8_t outer[] = {
+    0x40, COAP_POST, 0, 1, /* version 1, CON, no token */
+    0x92, 0x08, 0xAA       /* OSCORE option: no PIV, kid AA */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, ResponseWithoutMatchingContextIsIgnored)
+{
+  const uint8_t outer[] = {
+    0x60, CHANGED_2_04, 0, 1, /* version 1, ACK, no token */
+    0x93, 0x09, 0x01, 0xAA   /* OSCORE option: PIV 1, kid AA */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, EchoResponseWithoutAccessTokenIsIgnored)
+{
+  const uint8_t outer[] = {
+    0x60, CHANGED_2_04, 0, 1,
+    0x9D, 0x01, 0x19, 0x01, 0x0A,
+    0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9,
+    0xAA
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 0);
+}
+
 TEST_F(OscoreEngine, UnknownMulticastSenderIsSilentlyDropped)
 {
   const uint8_t outer[] = {
@@ -877,6 +934,88 @@ TEST_F(OscoreEngine, UnknownMulticastSenderIsSilentlyDropped)
 
   dispatch_and_expect_released(message);
   EXPECT_EQ(g_oscore_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, OutboundAckRequestIsDropped)
+{
+  oc_message_t* message = make_outbound_request(COAP_TYPE_ACK, OSCORE);
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, OutboundMulticastWithoutSModeFlagIsDropped)
+{
+  oc_message_t* message = make_outbound_request(
+    COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST));
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_MC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, OutboundUnicastWithoutContextIsDropped)
+{
+  oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
+  ASSERT_NE(message, nullptr);
+  message->endpoint.group_address = 0x9999;
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, OutboundMalformedCoapIsDropped)
+{
+  const uint8_t malformed[] = { 0x40 };
+  oc_message_t* message = make_owned_message(malformed, sizeof(malformed));
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = OSCORE;
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, OutboundUnicastEchoResponseIsEncryptedAndSent)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = (transport_flags_t)(message->endpoint.flags |
+                                                ECHO_CAUSED_BY_UC_SRC);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, OutboundMulticastEchoResponseIsEncryptedAndSent)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = (transport_flags_t)(message->endpoint.flags |
+                                                ECHO_CAUSED_BY_MC_SRC);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 1);
 }
 
 TEST_F(OscoreEngine, AuthenticatedRequestIsDecryptedAndQueuedForRi)
@@ -895,6 +1034,15 @@ TEST_F(OscoreEngine, AuthenticatedRequestIsDecryptedAndQueuedForRi)
 
   oc_message_unref(message);
   oc_message_unref(message);
+}
+
+TEST_F(OscoreEngine, EmptyDecryptedPayloadReceivesBadRequest)
+{
+  oc_message_t* message = make_encrypted_request(nullptr, 0);
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
 }
 
 TEST_F(OscoreEngine, TamperedAuthenticatedRequestReceivesBadRequest)
