@@ -225,19 +225,46 @@ if(MSVC)
     # W4 = max warn level, WX- = do NOT treat warnings as errors (MSVC default).
     target_compile_options(kis-common INTERFACE /W4 /WX-)
 endif()
+# - the warning policy (warnings as errors) is the same on every build, gcc and clang
+#   here, Zephyr in zephyr/CMakeLists.txt, ESP-IDF in esp-idf/knx_iot/CMakeLists.txt.
+# - the documentation checks of clang stay warnings, the doc comments are a block of their own.
 if(CMAKE_COMPILER_IS_GNUCC)
     target_compile_options(kis-common INTERFACE
+        $<$<COMPILE_LANGUAGE:C>:-Wall>
+        $<$<COMPILE_LANGUAGE:C>:-Wextra>
+        $<$<COMPILE_LANGUAGE:C>:-Werror>
+        $<$<COMPILE_LANGUAGE:C>:-Wshadow>
+        $<$<COMPILE_LANGUAGE:C>:-Wformat=2>
+        $<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>
+        $<$<COMPILE_LANGUAGE:C>:-Wundef>
+        $<$<COMPILE_LANGUAGE:C>:-Wvla>
+        $<$<COMPILE_LANGUAGE:C>:-Wdouble-promotion>
+        $<$<COMPILE_LANGUAGE:C>:-Wnull-dereference>
+        $<$<COMPILE_LANGUAGE:C>:-Wpointer-arith>
         $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
         $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
     )
 endif()
 if(CMAKE_COMPILER_IS_CLANG)
     target_compile_options(kis-common INTERFACE
+        $<$<COMPILE_LANGUAGE:C>:-Wall>
+        $<$<COMPILE_LANGUAGE:C>:-Wextra>
+        $<$<COMPILE_LANGUAGE:C>:-Werror>
+        $<$<COMPILE_LANGUAGE:C>:-Wshadow>
+        $<$<COMPILE_LANGUAGE:C>:-Wformat=2>
+        $<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>
+        $<$<COMPILE_LANGUAGE:C>:-Wundef>
+        $<$<COMPILE_LANGUAGE:C>:-Wvla>
+        $<$<COMPILE_LANGUAGE:C>:-Wdouble-promotion>
+        $<$<COMPILE_LANGUAGE:C>:-Wnull-dereference>
+        $<$<COMPILE_LANGUAGE:C>:-Wpointer-arith>
         $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
         $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
         $<$<COMPILE_LANGUAGE:C>:-Wdocumentation>
         $<$<COMPILE_LANGUAGE:C>:-Wno-documentation-deprecated-sync>
         $<$<COMPILE_LANGUAGE:C>:-Wunreachable-code>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=documentation>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-error=documentation-html>
     )
 endif()
 

@@ -121,6 +121,20 @@ idf_component_register(
         console
 )
 
+# -- Warning policy --
+# Warnings as errors on the stack component. ESP-IDF compiles every component with
+# -Wall -Werror -Wextra and relaxes -Wno-unused-parameter -Wno-sign-compare
+# -Wno-enum-conversion plus -Wno-error= for the unused, deprecated and extra groups
+# (tools/cmake/build.cmake). A later -Wall or -Werror does not undo an explicit -Wno- or
+# -Wno-error= option, so the re-enabled ones are spelled out.
+target_compile_options(${COMPONENT_LIB} PRIVATE
+    -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wundef -Wvla
+    -Wdouble-promotion -Wnull-dereference -Wpointer-arith
+    -Wunused-parameter -Wsign-compare -Wenum-conversion
+    -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable
+    -Werror=deprecated-declarations -Werror=extra
+)
+
 # -- External libraries (mirrors zephyr/CMakeLists.txt) --
 # ESP-IDF's bundled Mbed TLS 4.1.0 is used via REQUIRES above. PSA crypto is
 # configured explicitly, not left to the ESP-IDF defaults: The KNXIOT_LIB config in

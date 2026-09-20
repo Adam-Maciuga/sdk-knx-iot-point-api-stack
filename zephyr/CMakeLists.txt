@@ -263,6 +263,16 @@ zephyr_library_sources(
     ${PORT_SOURCES}
 )
 
+# ── Warning policy ─────────────────────────────────────────────────────────────
+# Warnings as errors on the stack library only, not CONFIG_COMPILER_WARNINGS_AS_ERRORS,
+# which hits the whole Zephyr tree. Zephyr passes -Wno-pointer-sign build-wide and a
+# later -Wall does not re-enable an explicitly disabled warning, so -Wpointer-sign is
+# spelled out.
+zephyr_library_compile_options(
+    -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wundef -Wvla
+    -Wdouble-promotion -Wnull-dereference -Wpointer-arith -Wpointer-sign
+)
+
 # ── Include directories ────────────────────────────────────────────────────────
 # Mirrors KNX_INCLUDE_DIRS from the stack's top-level CMakeLists.txt.
 # Note: some are marked TODO in the stack as not intended to be public.
