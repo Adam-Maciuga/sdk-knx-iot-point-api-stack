@@ -1064,3 +1064,12 @@ Bugs and issues discovered during unit test development.
 - **Not claimed:** end-to-end exploitability over the echo path was not demonstrated - the fix was applied once the bogus match was reproduced.
 - **Pinned by:** the `AtTable` cases in `test_oc_knx_sec.cpp`, including the empty-`kid` probe and `FindByOscIdMatchAndMiss`, which now marks its entry as provisioned rather than setting `osc_id` alone.
 - **Verification:** unit suite **1591 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed**.
+
+## F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints - OPEN
+
+- **Files:** `api/oc_endpoint.c`, `oc_endpoint_print()` and `oc_endpoint_to_string()`.
+- **Severity:** Medium - `OC_DEBUG` builds can abort by freeing a stack address. Release builds compile `oc_endpoint_print()` out.
+- **Description:** `oc_endpoint_print()` passes an uninitialized `oc_string_t` to `oc_endpoint_to_string()`. For endpoints without `IPV6`, that function returns `-1` without initializing the output, after which `oc_endpoint_print()` logs and frees the garbage pointer. Its return value is ignored.
+- **Reachability:** the outbound discovery path in `api/oc_buffer.c` calls `oc_endpoint_print()` for every `DISCOVERY` message. A discovery endpoint without `IPV6` can therefore crash the debug build.
+- **Evidence:** reproduced through `oc_send_message()` with `endpoint.flags = DISCOVERY`; the process aborted with `double free or corruption (out)`, and the backtrace reached `oc_endpoint_print -> oc_free_string` with a stack address passed to `free()`.
+- **Suggested fix:** zero-initialize `ip_str` and only log/free it when `oc_endpoint_to_string()` succeeds. The current test sets `IPV6 | MULTICAST` to avoid masking this production defect.

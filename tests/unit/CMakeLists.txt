@@ -102,6 +102,9 @@ target_link_options(test_oc_oscore_echo_tx PRIVATE
 kis_add_test(test_oc_endpoint       test_oc_endpoint.cpp)
 kis_add_test(test_oc_knx_fp        test_oc_knx_fp.cpp)
 kis_add_test(test_oc_ri            test_oc_ri.cpp)
+target_link_options(test_oc_ri PRIVATE
+    -Wl,--wrap=coap_remove_observer_by_resource
+)
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
 kis_add_test(test_coap_oscore       test_coap_oscore.cpp)
@@ -187,6 +190,12 @@ target_link_options(test_oc_server_api PRIVATE
 kis_add_test(test_oc_clock           test_oc_clock.cpp)
 kis_add_test(test_oc_buffer_settings test_oc_buffer_settings.cpp)
 kis_add_test(test_oc_buffer          test_oc_buffer.cpp)
+target_link_options(test_oc_buffer PRIVATE
+    -Wl,--wrap=oc_send_buffer
+    -Wl,--wrap=oc_send_discovery_request
+    -Wl,--wrap=_oc_signal_event_loop
+    -Wl,--wrap=oc_process_post
+)
 kis_add_test(test_oc_discovery       test_oc_discovery.cpp)
 kis_add_test(test_oc_client_api      test_oc_client_api.cpp)
 # --wrap facility (same pattern as test_smode_send_refcount) lets

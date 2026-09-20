@@ -28,7 +28,9 @@ extern "C" {
 #include "oc_rep.h"
 #include "oc_client_state.h"
 #include "oc_blockwise.h"
+#include "messaging/coap/observe.h"
 #include "port/oc_random.h"
+#include "port/oc_network_events_mutex.h"
 #include "messaging/coap/oc_coap.h"
 #include "messaging/coap/coap.h"
 #include "util/oc_mmem.h"
@@ -39,6 +41,19 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                              oc_blockwise_state_t** request_state,
                                              oc_blockwise_state_t** response_state,
                                              uint16_t block2_size, oc_endpoint_t* endpoint);
+extern int __real_coap_remove_observer_by_resource(const oc_resource_t* resource);
+}
+
+static int g_removed_observer_resources;
+static int g_removed_observers;
+
+extern "C" int __wrap_coap_remove_observer_by_resource(
+  const oc_resource_t* resource)
+{
+  g_removed_observer_resources++;
+  const int removed = __real_coap_remove_observer_by_resource(resource);
+  g_removed_observers += removed;
+  return removed;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -621,6 +636,56 @@ TEST(QueryNthKeyExists, ThirdFragmentKey)
   EXPECT_EQ(0, strncmp(k, "c", 1));
 }
 
+TEST(QueryNthKeyValue, KeyOnlyFragment)
+{
+  const char *q = "flag&a=1";
+  char *k = nullptr, *v = nullptr;
+  size_t kl = 0, vl = 0;
+  EXPECT_EQ(oc_ri_get_query_nth_key_value(q, strlen(q), &k, &kl, &v, &vl, 1), -1);
+}
+
+TEST(QueryNthKeyValue, MissingFragmentReturnsMinusOne)
+{
+  const char *q = "a=1";
+  char *k = nullptr, *v = nullptr;
+  size_t kl = 0, vl = 0;
+  EXPECT_EQ(oc_ri_get_query_nth_key_value(q, strlen(q), &k, &kl, &v, &vl, 2), -1);
+}
+
+TEST(QueryNthKeyValue, ZeroIndexReturnsMinusOne)
+{
+  char *k = nullptr, *v = nullptr;
+  size_t kl = 0, vl = 0;
+  EXPECT_EQ(oc_ri_get_query_nth_key_value("a=1", 3, &k, &kl, &v, &vl, 0), -1);
+}
+
+TEST(QueryValue, KeyOnlyFragmentReturnsMinusOne)
+{
+  char *value = nullptr;
+  EXPECT_EQ(oc_ri_get_query_value("flag", 4, "flag", &value), -1);
+}
+
+TEST(QueryValue, EmptyValueReturnsZero)
+{
+  char *value = nullptr;
+  EXPECT_EQ(oc_ri_get_query_value("a=", 2, "a", &value), 0);
+}
+
+TEST(QueryNthKeyExists, KeyOnlySecondFragment)
+{
+  const char *q = "a=1&flag";
+  char *k = nullptr;
+  size_t kl = 0;
+  EXPECT_GT(oc_ri_query_nth_key_exists(q, strlen(q), &k, &kl, 2), 0);
+  EXPECT_EQ(kl, 4U);
+  EXPECT_EQ(0, strncmp(k, "flag", kl));
+}
+
+TEST(QueryExists, EmptyQueryReturnsMinusOne)
+{
+  EXPECT_EQ(oc_ri_query_exists("", 0, "flag"), -1);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * resource allocators
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -702,6 +767,16 @@ TEST(RiAddResource, ValidResourceIsAdded)
   EXPECT_TRUE(oc_ri_delete_resource(r));
 }
 
+TEST(RiAddResource, InputAndOutputInterfacesAreRejectedTogether)
+{
+  oc_resource_t *r = oc_ri_alloc_resource();
+  ASSERT_NE(r, nullptr);
+  r->get_handler.cb = ri_dummy_handler;
+  r->get_handler.interface_mask = (oc_interface_mask_t)(OC_IF_I | OC_IF_O);
+  EXPECT_FALSE(oc_ri_add_resource(r));
+  free(r);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_ri_delete_resource
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -728,6 +803,56 @@ TEST(RiDeleteResource, RemovesAndFreesAddedResource)
   ASSERT_TRUE(oc_ri_add_resource(r));
   /* deleting an added, non-const resource succeeds (and frees it) */
   EXPECT_TRUE(oc_ri_delete_resource(r));
+}
+
+TEST(RiDeleteResource, RemovesObserversBeforeFreeingResource)
+{
+  oc_resource_t *r = oc_ri_alloc_resource();
+  ASSERT_NE(r, nullptr);
+  oc_mmem_init();
+  oc_network_event_handler_mutex_init();
+  oc_new_string(&r->uri, "/unit", 5);
+  r->runtime_data = oc_ri_alloc_resource_data();
+  ASSERT_NE(r->runtime_data, nullptr);
+
+  coap_packet_t request;
+  coap_packet_t response;
+  memset(&request, 0, sizeof(request));
+  memset(&response, 0, sizeof(response));
+  coap_udp_init_message(&request, COAP_TYPE_CON, COAP_GET, 1);
+  request.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&request, COAP_OPTION_OBSERVE);
+  request.token[0] = 0xA1;
+  request.token_len = 1;
+  request.uri_path = "unit";
+  request.uri_path_len = 4;
+  request.uri_query = "lt=86400";
+  request.uri_query_len = 8;
+  SET_OPTION(&request, COAP_OPTION_URI_QUERY);
+  response.code = CONTENT_2_05;
+
+  oc_endpoint_t endpoint;
+  memset(&endpoint, 0, sizeof(endpoint));
+  endpoint.flags = IPV6;
+  endpoint.addr.ipv6.port = 5683;
+  endpoint.addr.ipv6.address[15] = 1;
+  ASSERT_EQ(coap_observe_handler(&request, &response, r, 0, &endpoint), 0);
+  ASSERT_EQ(r->runtime_data->num_observers, 1);
+  g_removed_observer_resources = 0;
+  g_removed_observers = 0;
+
+  oc_string_t uri = r->uri;
+  EXPECT_TRUE(oc_ri_delete_resource(r));
+  EXPECT_EQ(g_removed_observer_resources, 1);
+  EXPECT_EQ(g_removed_observers, 1);
+  oc_free_string(&uri);
+  oc_network_event_handler_mutex_destroy();
+}
+
+TEST(RiResourceLookup, NullOrEmptyPathReturnsNull)
+{
+  EXPECT_EQ(oc_ri_get_app_resource_by_resource_path(nullptr, 0), nullptr);
+  EXPECT_EQ(oc_ri_get_app_resource_by_resource_path("/unit", 0), nullptr);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -803,6 +928,15 @@ TEST_F(RiClientCb, IsClientCbValidFalseForUnregistered)
 {
   oc_client_cb_t local{};
   EXPECT_FALSE(oc_ri_is_client_cb_valid(&local));
+}
+
+TEST_F(RiClientCb, IsClientCbValidTraversesEarlierCallbacks)
+{
+  oc_client_cb_t *first = make_cb("/first", COAP_GET);
+  oc_client_cb_t *second = make_cb("/second", COAP_GET);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  EXPECT_TRUE(oc_ri_is_client_cb_valid(second));
 }
 
 TEST_F(RiClientCb, GetClientCbMatchesUriEndpointMethod)
@@ -921,5 +1055,194 @@ TEST_F(RiEntityHandlerBlockwiseLifetime,
   EXPECT_EQ(found, req_state)
     << "request buffer for the current request was freed by the handler's "
        "own internal scrub before the caller was done with it";
+}
+
+namespace {
+static int g_ri_get_calls;
+static int g_ri_put_calls;
+static int g_ri_post_calls;
+static int g_ri_delete_calls;
+static bool g_ri_emit_payload;
+
+static void ri_get_handler(oc_request_t *request, oc_interface_mask_t, void *)
+{
+  g_ri_get_calls++;
+  request->response->response_buffer->code = CONTENT_2_05;
+  request->response->response_buffer->content_format = APPLICATION_CBOR;
+  if (g_ri_emit_payload) {
+    request->response->response_buffer->buffer[0] = 0xA0;
+    request->response->response_buffer->response_length = 1;
+  }
+}
+
+static void ri_put_handler(oc_request_t *request, oc_interface_mask_t iface,
+                           void *user_data)
+{
+  g_ri_put_calls++;
+  ri_get_handler(request, iface, user_data);
+}
+
+static void ri_post_handler(oc_request_t *request, oc_interface_mask_t iface,
+                            void *user_data)
+{
+  g_ri_post_calls++;
+  ri_get_handler(request, iface, user_data);
+}
+
+static void ri_delete_handler(oc_request_t *request,
+                              oc_interface_mask_t iface, void *user_data)
+{
+  g_ri_delete_calls++;
+  ri_get_handler(request, iface, user_data);
+}
+
+struct RiEntityResource {
+  oc_resource_t *resource;
+  oc_endpoint_t endpoint;
+
+  RiEntityResource()
+  {
+    resource = oc_ri_alloc_resource();
+    if (resource == nullptr)
+      return;
+    oc_new_string(&resource->uri, "/unit", 5);
+    resource->runtime_data = oc_ri_alloc_resource_data();
+    resource->get_handler.cb = ri_get_handler;
+    resource->get_handler.interface_mask = OC_IF_D;
+    memset(&endpoint, 0, sizeof(endpoint));
+    endpoint.flags = IPV6;
+    endpoint.addr.ipv6.port = 5683;
+    endpoint.addr.ipv6.address[15] = 1;
+    EXPECT_TRUE(oc_ri_add_resource(resource));
+  }
+
+  ~RiEntityResource()
+  {
+    if (resource != nullptr) {
+      oc_string_t uri = resource->uri;
+      oc_ri_delete_resource(resource);
+      oc_free_string(&uri);
+    }
+    oc_blockwise_scrub_buffers(true);
+  }
+};
+
+static bool invoke_entity(oc_resource_t *resource, oc_endpoint_t *endpoint,
+                          coap_method_t method, const uint8_t *payload,
+                          size_t payload_len, int content_format,
+                          int *response_code)
+{
+  coap_packet_t request;
+  coap_packet_t response;
+  memset(&request, 0, sizeof(request));
+  memset(&response, 0, sizeof(response));
+  coap_udp_init_message(&request, COAP_TYPE_CON, method, 1);
+  coap_set_header_uri_path(&request, "unit", 4);
+  if (content_format != CONTENT_NONE)
+    coap_set_header_content_format(&request,
+                     (oc_content_format_t)content_format);
+
+  oc_blockwise_state_t *request_state = nullptr;
+  oc_blockwise_state_t *response_state = nullptr;
+  if (payload_len > 0) {
+    request_state = oc_blockwise_alloc_request_buffer(
+      "unit", 4, endpoint, method, OC_BLOCKWISE_SERVER);
+    if (request_state == nullptr)
+      return false;
+    memcpy(request_state->buffer, payload, payload_len);
+    request_state->payload_size = (uint32_t)payload_len;
+  }
+
+  const bool result = oc_ri_invoke_coap_entity_handler(
+    &request, &response, &request_state, &response_state, 64, endpoint);
+  if (response_code != nullptr)
+    *response_code = response.code;
+  return result;
+}
+} // namespace
+
+TEST(RiEntityHandlerPaths, GetHandlerSuccess)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  g_ri_get_calls = 0;
+  g_ri_emit_payload = false;
+  int response_code = 0;
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET,
+                            nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(g_ri_get_calls, 1);
+  EXPECT_EQ(response_code, CONTENT_2_05);
+}
+
+TEST(RiEntityHandlerPaths, PutPostAndDeleteHandlersDispatch)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  fixture.resource->put_handler.cb = ri_put_handler;
+  fixture.resource->post_handler.cb = ri_post_handler;
+  fixture.resource->delete_handler.cb = ri_delete_handler;
+  g_ri_put_calls = 0;
+  g_ri_post_calls = 0;
+  g_ri_delete_calls = 0;
+  int response_code = 0;
+
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_PUT,
+                            nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, CONTENT_2_05);
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_POST,
+                            nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, CONTENT_2_05);
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_DELETE,
+                            nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, CONTENT_2_05);
+  EXPECT_EQ(g_ri_put_calls, 1);
+  EXPECT_EQ(g_ri_post_calls, 1);
+  EXPECT_EQ(g_ri_delete_calls, 1);
+}
+
+TEST(RiEntityHandlerPaths, InvalidCborReturnsBadRequest)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  const uint8_t invalid[] = { 0xFF };
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET,
+                             invalid, sizeof(invalid), APPLICATION_CBOR,
+                             &response_code));
+  EXPECT_EQ(response_code, BAD_REQUEST_4_00);
+}
+
+TEST(RiEntityHandlerPaths, GetHandlerPayloadSetsResponseLength)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  g_ri_emit_payload = true;
+  int response_code = 0;
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET,
+                            nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, CONTENT_2_05);
+  g_ri_emit_payload = false;
+}
+
+TEST(RiEntityHandlerPaths, UnsupportedMethodReturnsMethodNotAllowed)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_POST,
+                             nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, METHOD_NOT_ALLOWED_4_05);
+}
+
+TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
+{
+  oc_mmem_init();
+  RiEntityResource fixture;
+  const uint8_t malformed[] = { 0xBF, 0x01 };
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET,
+                             malformed, sizeof(malformed), APPLICATION_CBOR,
+                             &response_code));
+  EXPECT_EQ(response_code, REQUEST_ENTITY_TOO_LARGE_4_13);
 }
 

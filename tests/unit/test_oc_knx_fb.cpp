@@ -3,15 +3,20 @@
  */
 
 #include <gtest/gtest.h>
+#include <string>
 #include <vector>
 
 extern "C" {
 #include "oc_ri.h"
+#include "messaging/coap/oc_coap.h"
 #include "api/oc_knx_fb.h"
 #include "util/oc_mmem.h"
 #include <string.h>
 
 }
+
+extern "C" const oc_resource_t core_resource_knx_f;
+extern "C" const oc_resource_t core_resource_knx_f_x;
 
 /*
  * oc_check_if_functional_blocks_need_to_add — public driver that exercises the
@@ -99,22 +104,51 @@ protected:
   void TearDown() override
   {
     for (oc_resource_t *r : added) {
+      oc_free_string(&r->uri);
       oc_ri_delete_resource(r);
     }
     added.clear();
   }
 
-  void add_fb(uint16_t number, uint8_t instance, bool discoverable)
+  void add_fb(uint16_t number, uint8_t instance, bool discoverable,
+              uint8_t datapoint_count = 1)
   {
     oc_resource_t *r = oc_ri_alloc_resource();
     ASSERT_NE(r, nullptr);
+    const std::string uri = "/p/" + std::to_string(added.size() + 1);
+    oc_new_string(&r->uri, uri.c_str(), uri.size());
     r->get_handler.cb = fb_dummy_handler;
-    r->fb_data = ((uint32_t)number << 16) | ((uint32_t)instance << 8);
+    r->fb_data = ((uint32_t)number << 16) | ((uint32_t)instance << 8) |
+                 datapoint_count;
     if (discoverable) {
       r->properties = OC_DISCOVERABLE;
     }
     ASSERT_TRUE(oc_ri_add_resource(r));
     added.push_back(r);
+  }
+
+  std::string invoke_get(const oc_resource_t &resource, const char *uri_path,
+                         const char *query, int *response_code)
+  {
+    uint8_t buffer[512] = {};
+    oc_response_buffer_t response_buffer{};
+    response_buffer.buffer = buffer;
+    response_buffer.buffer_size = sizeof(buffer);
+    oc_response_t response{};
+    response.response_buffer = &response_buffer;
+    oc_request_t request{};
+    request.response = &response;
+    request.resource = (oc_resource_t *)&resource;
+    request.accept = APPLICATION_LINK_FORMAT;
+    request.uri_path = uri_path;
+    request.uri_path_len = strlen(uri_path);
+    request.query = (char *)query;
+    request.query_len = query ? strlen(query) : 0;
+    oc_rep_new(buffer, sizeof(buffer));
+
+    resource.get_handler.cb(&request, OC_IF_LI, nullptr);
+    *response_code = response_buffer.code;
+    return std::string((char *)buffer, response_buffer.response_length);
   }
 };
 
@@ -238,4 +272,42 @@ TEST_F(CountFunctionalBlocks, MoreThanSixtyFourDistinctFbsAreAllCounted)
     add_fb(1000 + i, 0, true);
   }
   EXPECT_EQ(oc_count_functional_blocks_from_application(), 70);
+}
+
+TEST_F(CountFunctionalBlocks, ListHandlerReturnsFunctionalBlocks)
+{
+  add_fb(417, 1, true);
+  add_fb(418, 0, true);
+  int response_code = 0;
+
+  const std::string payload = invoke_get(core_resource_knx_f, "f", nullptr,
+                                         &response_code);
+
+  EXPECT_EQ(response_code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload.find("</f/417_1>"), std::string::npos);
+  EXPECT_NE(payload.find("</f/418>"), std::string::npos);
+}
+
+TEST_F(CountFunctionalBlocks, DatapointHandlerReturnsRequestedPage)
+{
+  add_fb(417, 1, true, 2);
+  add_fb(417, 1, true, 2);
+  int response_code = 0;
+
+  const std::string payload = invoke_get(core_resource_knx_f_x, "f/417_1",
+                                         "pn=0&ps=1", &response_code);
+
+  EXPECT_EQ(response_code, oc_status_code(OC_STATUS_OK));
+  EXPECT_NE(payload.find("</p/"), std::string::npos);
+  EXPECT_NE(payload.find("p.next"), std::string::npos);
+}
+
+TEST_F(CountFunctionalBlocks, DatapointHandlerRejectsUnknownFunctionalBlock)
+{
+  add_fb(417, 1, true);
+  int response_code = 0;
+
+  invoke_get(core_resource_knx_f_x, "f/999_1", nullptr, &response_code);
+
+  EXPECT_EQ(response_code, oc_status_code(OC_STATUS_BAD_REQUEST));
 }

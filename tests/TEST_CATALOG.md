@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1650 unit tests** (53 files) + **629 runtime tests** across three tiers = **2279 total**
+> **1680 unit tests** (53 files) + **629 runtime tests** across three tiers = **2309 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1650 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1622 there.
+> Branch: `work_in_progress` | Unit: 1680 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1652 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -637,16 +637,16 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_fb.cpp — Functional Block Helpers (15 tests)
+### test_oc_knx_fb.cpp — Functional Block Helpers (18 tests)
 
 **Source:** `api/oc_knx_fb.c`
 
-**Functional-block discovery (15 tests)**
+**Functional-block discovery (18 tests)**
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `CheckIfFunctionalBlocksNeedToAdd` | 7 | rt/if query + wildcard matching against `urn:knx:fb`/`ll` |
-| `CountFunctionalBlocks` | 8 | Distinct FB counting (number/instance, duplicates, non-discoverable skipped), the `is_first_occurrence_of_fb()` scan holding for 70 distinct FBs (no capacity ceiling since the array-backed counter was replaced with a resource-list scan), and both directions of the F-020 page-full return-value fix in `oc_add_functional_blocks_from_application_to_response()` |
+| `CountFunctionalBlocks` | 11 | Distinct FB counting, page-full behavior, `/f` listing, and `/f/{id}` datapoint pagination and unknown-block handling |
 
 ---
 
@@ -749,7 +749,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (90 tests)
+### test_oc_ri.cpp — Resource Interface (107 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -768,15 +768,17 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `NewRequestFromInbound` | 1 | Inbound request rewires response and copies buffer |
 | `QueryParsing` | 1 | NULL and empty query input is rejected before pointer arithmetic |
 | `AcceptHeader` | 4 | Accept-header validation (exact, content-none, NULL, mismatch) |
-| `QueryValue` | 5 | Query value lookup (first/middle/last/case-insensitive/missing) |
-| `QueryExists` | 3 | Query key existence (pair, key-only, missing) |
-| `QueryNthKeyValue` | 1 | Nth query fragment key/value |
-| `QueryNthKeyExists` | 1 | Nth query fragment key existence |
+| `QueryValue` | 7 | Query value lookup including key-only and empty-value cases |
+| `QueryExists` | 4 | Query key existence including empty-query handling |
+| `QueryNthKeyValue` | 4 | Nth query fragment, key-only, missing-fragment, and zero-index cases |
+| `QueryNthKeyExists` | 2 | Nth query fragment key including key-only fragments |
 | `RiAlloc` | 2 | Allocated resource/resource-data is zeroed |
-| `RiAddResource` | 5 | Add-resource validation (NULL, const, no handler, zero period, valid) |
-| `RiDeleteResource` | 3 | Delete-resource (NULL, const, removes+frees) |
-| `RiClientCb` | 8 | Client-callback find-by-mid/token, validity, get-by-uri/endpoint/method |
+| `RiAddResource` | 6 | Add-resource validation including mixed input/output interfaces |
+| `RiDeleteResource` | 4 | Delete-resource including observer cleanup |
+| `RiResourceLookup` | 1 | NULL and empty application-resource paths |
+| `RiClientCb` | 9 | Client-callback find-by-mid/token, list traversal, validity, get-by-uri/endpoint/method |
 | `RiEntityHandlerBlockwiseLifetime` | 2 | `oc_ri_invoke_coap_entity_handler`'s own internal blockwise scrub must not free the current request's buffer before the caller (`coap_receive`) is done with it |
+| `RiEntityHandlerPaths` | 6 | Registered-resource GET, PUT, POST, DELETE, malformed payload, and unsupported-method paths |
 
 ---
 
@@ -808,7 +810,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_buffer.cpp — Message Buffer Pool (9 tests)
+### test_oc_buffer.cpp — Message Buffer Pool (17 tests)
 
 **Source:** `api/oc_buffer.c`
 
@@ -823,6 +825,14 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `UnrefDecrementsWithoutFreeingWhenStillReferenced` | Unref decrements without freeing while referenced |
 | `UnrefAtZeroFreesMessage` | Unref at zero frees the message |
 | `UnrefNullIsNoOp` | `oc_message_unref(NULL)` is a no-op |
+| `ReceiveMessageForwardsPlainMessageToCoapEngine` | Inbound plain messages are classified and forwarded to the CoAP engine |
+| `ReceiveMessageForwardsOscoreMessageToOscoreLayer` | Inbound OSCORE messages are classified and forwarded to the OSCORE layer |
+| `SendMessageRoutesPlainUnicastToNetwork` | Plain unicast messages reach the network transport |
+| `SendMessageRoutesDiscoveryToDiscoveryTransport` | Discovery messages use the discovery transport |
+| `SendMessageRoutesUnicastOscoreToOscoreLayer` | Unicast OSCORE messages use the unicast OSCORE event |
+| `SendMessageRoutesMulticastOscoreToOscoreLayer` | Multicast OSCORE messages use the multicast OSCORE event |
+| `EncryptedOscoreMessageIsSentToNetwork` | Encrypted OSCORE messages reach the wrapped network send |
+| `EncryptedEventWithoutOscoreFlagIsDropped` | Encrypted events without the OSCORE flag are not sent |
 
 ---
 
@@ -892,7 +902,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_p.cpp — KNX `/p` Properties Resource (7 tests)
+### test_oc_knx_p.cpp — KNX `/p` Properties Resource (9 tests)
 
 **Source:** `api/oc_knx_p.c`
 
@@ -902,6 +912,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxPGet.WrongAcceptReturnsBadRequest` | GET with wrong Accept → bad request |
 | `KnxPGet.NoAppResourcesReturnsBadRequest` | GET with no app resources → bad request |
 | `KnxPGet.ContentNoneAcceptIsAccepted` | GET with content-none Accept is accepted |
+| `KnxPAppResources.GetReturnsRegisteredDatapointsWithPagination` | GET lists registered datapoints and emits pagination metadata |
+| `KnxPAppResources.PostDispatchesValueToMatchingPutHandler` | POST dispatches a collection value to the matching datapoint PUT handler |
 | `KnxPPost.WrongAcceptReturnsBadRequest` | POST with wrong Accept → bad request |
 | `KnxPPost.EmptyPayloadReturnsOk` | POST with empty payload → OK |
 | `KnxPPost.UnknownHrefReturnsNotFound` | POST to unknown href → not found |
