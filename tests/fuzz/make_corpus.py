@@ -387,6 +387,26 @@ def corpus_oscore_aad_nonce():
     }
 
 
+def corpus_oscore_echo_tx():
+    """Stateful OSCORE echo-ring anchor and responder operations."""
+    def record(operation, ssn, kid_len, kid, kid_ctx_len, kid_ctx):
+        return (bytes([operation]) + struct.pack("<Q", ssn)
+                + bytes([kid_len]) + kid.ljust(7, b"\x00")[:7]
+                + bytes([kid_ctx_len]) + kid_ctx.ljust(10, b"\x00")[:10])
+
+    kid = b"\x01\x02\x03"
+    context = b"\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9"
+    return {
+        "store_then_consume.bin": (record(0, 10, len(kid), kid, len(context), context)
+                                    + record(1, 10, len(kid), kid, len(context), context)),
+        "replay_same_responder.bin": (record(0, 10, len(kid), kid, len(context), context)
+                                       + record(1, 10, len(kid), kid, len(context), context)
+                                       + record(1, 10, len(kid), kid, len(context), context)),
+        "mixed_lengths.bin": record(0, 0, 0, b"", 0, b"") + record(
+            1, 0, 7, b"\xff" * 7, 10, b"\xff" * 10),
+    }
+
+
 def corpus_core_res_wildcard():
     """oc_check_resource_by_rt() / oc_check_resource_by_if(): rt=/if= query."""
     return {
@@ -527,6 +547,7 @@ CORPORA = {
     "oscore_full_decrypt": corpus_oscore_full_decrypt,
     "replay_window": corpus_replay_window,
     "oscore_aad_nonce": corpus_oscore_aad_nonce,
+    "oscore_echo_tx": corpus_oscore_echo_tx,
     "core_res_wildcard": corpus_core_res_wildcard,
     "knx_dev_put": corpus_knx_dev_put,
     "at_x_get_query": corpus_at_x_get_query,

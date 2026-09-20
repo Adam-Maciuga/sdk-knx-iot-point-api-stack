@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1617 unit tests** (53 files) + **629 runtime tests** across three tiers = **2246 total**
+> **1637 unit tests** (53 files) + **629 runtime tests** across three tiers = **2266 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1432 registered and passed (windows-test-gcc, GCC/CTest, ~47s, 100% passed out of 1432). The 28 cases of `test_dns_sd_mdns.cpp` are registered under `if(UNIX)` only and therefore do not appear in the windows-test-gcc run, so `linux-test-gcc` is 1432 + 28 = 1460 (the mdns count itself was not re-verified in this run).
+> Branch: `work_in_progress` | Unit: 1637 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1609 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -704,7 +704,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (18 tests)
+### test_coap_observe.cpp — Observer Management + Notify (23 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -721,6 +721,11 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `FreeAllObservers` | Clears all, count → 0 |
 | `MultipleObserversSameResource` | Multiple tracked on one resource |
 | `DeregisterViaHandler` | OC_OBSERVE_DEREGISTER through handler |
+| `HandlerRejectsMissingObserveOptionAndBadCodes` | Rejects missing Observe option and unsuccessful GET responses |
+| `RemovalByMidNoMatchReturnsZero` | Unmatched MID leaves the observer registered |
+| `RegistrationRejectsMissingInvalidAndOverlongLifetime` | Rejects missing, malformed, and overlong `lt` values |
+| `RegistrationAcceptsNonTrue` | Accepts `non=true` observe registration |
+| `NotifyObserverCanFilterByEndpoint` | Endpoint-filtered notification does not notify another endpoint |
 | `NotifyKObserversNullPayloadIsSafe` | `coap_notify_k_observers(NULL, …)` is a no-op |
 | `NotifyKObserversZeroLengthIsSafe` | Zero-length payload is a no-op |
 | `NotifyKObserversNoObserversIsSafe` | Empty /k observer list completes safely |
@@ -948,7 +953,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_network_events.cpp — Network Events (2 tests)
+### test_oc_network_events.cpp — Network Events (5 tests)
 
 **Source:** `api/oc_network_events.c`
 
@@ -956,6 +961,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |------|-----------------|
 | `EventWhenProcessNotRunningUnrefsMessage` | Event with process not running unrefs the message |
 | `EventWhenProcessNotRunningIsRepeatable` | Repeatable without leaking |
+| `RunningProcessDrainsQueuedMessage` | Running process drains and receives queued messages |
+| `InterfaceEventsArePostedAndDispatched` | Interface up/down events are posted and dispatched |
+| `UnknownInterfaceEventIsIgnored` | Unknown interface event is ignored |
 
 ---
 
@@ -1012,15 +1020,15 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_server_api.cpp — Server API (29 tests)
+### test_oc_server_api.cpp — Server API (41 tests)
 
 **Source:** `api/oc_server_api.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `ServerApiQuery` | 8 | Query value/exists lookups, iterate-query walking, NULL request |
-| `ServerApiResponse` | 7 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, NULL-safe builders |
-| `ServerApiResource` | 14 | Resource new/bind/handler/interfaces/ACL/periodic/properties/DPT/rt, const-respecting mutators |
+| `ServerApiQuery` | 9 | Query value/exists lookups, empty and non-empty iteration, NULL request |
+| `ServerApiResponse` | 9 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, missing-buffer guards |
+| `ServerApiResource` | 23 | Resource allocation failure, separate setup, delayed callbacks, bind/handler/interface/ACL/property and const/null guards |
 
 ---
 

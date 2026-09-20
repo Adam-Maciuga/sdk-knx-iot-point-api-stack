@@ -32,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 #include <cstdlib>
+#include <vector>
 
 extern "C" {
 #include "messaging/coap/oscore.h"
@@ -702,7 +703,7 @@ protected:
     uint8_t aad[OSCORE_AAD_MAX_LEN] = {};
     uint8_t aad_len = 0;
     uint8_t nonce[OSCORE_AEAD_NONCE_LEN] = {};
-    uint8_t ciphertext[OC_PDU_SIZE] = {};
+    std::vector<uint8_t> ciphertext(OC_PDU_SIZE);
 
     if (oc_oscore_compose_AAD(recipient_context_->recipient_id,
                               recipient_context_->recipient_id_len,
@@ -717,7 +718,7 @@ protected:
     if (oc_oscore_encrypt((uint8_t*)plaintext, plaintext_len,
                           OSCORE_AEAD_TAG_LEN, recipient_context_->recipient_key,
                           OSCORE_KEY_LEN, nonce, sizeof(nonce), aad, aad_len,
-                          ciphertext) != 0) {
+                          ciphertext.data()) != 0) {
       return nullptr;
     }
 
@@ -725,16 +726,16 @@ protected:
       0x40, COAP_POST, 0, 1, /* version 1, CON, no token */
       0x93, 0x09, piv[0], recipient_context_->recipient_id[0], 0xFF
     };
-    uint8_t frame[OC_PDU_SIZE];
+    std::vector<uint8_t> frame(OC_PDU_SIZE);
     const size_t frame_len =
       sizeof(outer_header) + plaintext_len + OSCORE_AEAD_TAG_LEN;
-    if (frame_len > sizeof(frame)) {
+    if (frame_len > frame.size()) {
       return nullptr;
     }
-    memcpy(frame, outer_header, sizeof(outer_header));
-    memcpy(frame + sizeof(outer_header), ciphertext,
+    memcpy(frame.data(), outer_header, sizeof(outer_header));
+    memcpy(frame.data() + sizeof(outer_header), ciphertext.data(),
            plaintext_len + OSCORE_AEAD_TAG_LEN);
-    return make_message(frame, frame_len);
+    return make_message(frame.data(), frame_len);
   }
 
   void SetUp() override

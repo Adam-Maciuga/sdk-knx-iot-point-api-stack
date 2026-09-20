@@ -172,6 +172,13 @@ kis_add_test(test_oc_knx_swu         test_oc_knx_swu.cpp)
 kis_add_test(test_oc_blockwise       test_oc_blockwise.cpp)
 kis_add_test(test_oc_test_control    test_oc_test_control.cpp)
 kis_add_test(test_oc_server_api      test_oc_server_api.cpp)
+target_link_options(test_oc_server_api PRIVATE
+    -Wl,--wrap=oc_ri_alloc_resource
+    -Wl,--wrap=oc_ri_alloc_resource_data
+    -Wl,--wrap=oc_ri_add_timed_event_callback_seconds
+    -Wl,--wrap=oc_ri_add_timed_event_callback_ticks
+    -Wl,--wrap=oc_ri_remove_timed_event_callback
+)
 kis_add_test(test_oc_clock           test_oc_clock.cpp)
 kis_add_test(test_oc_buffer_settings test_oc_buffer_settings.cpp)
 kis_add_test(test_oc_buffer          test_oc_buffer.cpp)
@@ -187,6 +194,11 @@ target_link_options(test_oc_client_api PRIVATE
 )
 kis_add_test(test_oc_knx_client      test_oc_knx_client.cpp)
 kis_add_test(test_oc_network_events  test_oc_network_events.cpp)
+target_link_options(test_oc_network_events PRIVATE
+    -Wl,--wrap=oc_receive_message
+    -Wl,--wrap=handle_network_interface_event_callback
+    -Wl,--wrap=_oc_signal_event_loop
+)
 kis_add_test(test_oc_main            test_oc_main.cpp)
 kis_add_test(test_oc_core_res        test_oc_core_res.cpp)
 kis_add_test(test_spake2plus         test_spake2plus.cpp)

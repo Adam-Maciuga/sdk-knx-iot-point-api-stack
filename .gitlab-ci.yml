@@ -163,7 +163,7 @@ unit-asan:
   dependencies: []
 
 # ----------------------------------------------------------
-# test: unit line coverage (gcov via gcovr)
+# test: unit function coverage (gcov via gcovr)
 # The same GoogleTest suite built with --coverage -O0 (ENABLE_COVERAGE). The
 # filters keep the number honest: this project's own code under api/,
 # messaging/, security/ and util/, not tests/, not the fetched dependencies,
@@ -187,9 +187,9 @@ unit-coverage-gcc:
       --html-details build/linux-coverage-gcc/coverage-html/index.html
       --print-summary
       build/linux-coverage-gcc
-  # gcovr --print-summary writes "lines: 52.5% (5645 out of 10759)"; the
+  # gcovr --print-summary writes "functions: 91.2% (83 out of 91)"; the
   # TOTAL line only exists in its default table report, which is not printed here.
-  coverage: '/^lines:\s+(\d+(?:\.\d+)?)%/'
+  coverage: '/^functions:\s+(\d+(?:\.\d+)?)%/'
   artifacts:
     when: always
     paths:
@@ -247,36 +247,37 @@ fuzz-seed-replay:
     - curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
     - python3 /tmp/get-pip.py --break-system-packages --quiet
     - python3 -m pip install --break-system-packages --quiet gcovr
+    - mkdir -p build/linux-fuzz-coverage-clang/coverage-html fuzz-coverage-crashes
     - cmake --preset=linux-fuzz-coverage-clang
     - cmake --build --preset=linux-fuzz-coverage-clang
-    - ctest --preset=linux-fuzz-coverage-clang --output-junit build/linux-fuzz-coverage-clang/fuzz-report.xml
     - |
-      mkdir -p fuzz-coverage-crashes
+      status=0
+      ctest --preset=linux-fuzz-coverage-clang -L fuzz --output-junit build/linux-fuzz-coverage-clang/fuzz-report.xml || status=$?
       cd build/linux-fuzz-coverage-clang/tests/fuzz
       for t in fuzz_coap_parse fuzz_oscore_options fuzz_oc_rep fuzz_mdns \
                fuzz_query_string fuzz_blockwise_reassembly fuzz_hex_and_base64 fuzz_timestamp \
                fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
                fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
-               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce \
+               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce fuzz_oscore_echo_tx \
                fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
                fuzz_knx_lsm_post fuzz_auth_at_post; do
         "./$t" "corpus/${t#fuzz_}" -max_total_time="$FUZZ_COVERAGE_SECONDS" -timeout=10 \
           -rss_limit_mb=2048 -artifact_prefix="../../../../fuzz-coverage-crashes/${t}-" \
-          || echo "warning: $t found a crash during the coverage mutation burst - see fuzz-coverage-crashes/"
+          || { echo "warning: $t found a crash during the coverage mutation burst - see fuzz-coverage-crashes/"; status=1; }
       done
       cd -
-    - mkdir -p build/linux-fuzz-coverage-clang/coverage-html
-    - >
-      gcovr --root . --gcov-executable 'llvm-cov-19 gcov'
-      --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/'
-      --exclude 'api/c-timestamp/.*'
-      --cobertura build/linux-fuzz-coverage-clang/coverage.xml
-      --html-details build/linux-fuzz-coverage-clang/coverage-html/index.html
-      --print-summary
-      build/linux-fuzz-coverage-clang
-  # gcovr --print-summary writes "lines: 52.5% (5645 out of 10759)"; the
+      if ! gcovr --root . --gcov-executable 'llvm-cov-19 gcov' \
+        --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' \
+        --exclude 'api/c-timestamp/.*' \
+        --cobertura build/linux-fuzz-coverage-clang/coverage.xml \
+        --html-details build/linux-fuzz-coverage-clang/coverage-html/index.html \
+        --print-summary build/linux-fuzz-coverage-clang; then
+        status=1
+      fi
+      exit "$status"
+  # gcovr --print-summary writes "functions: 91.2% (83 out of 91)"; the
   # TOTAL line only exists in its default table report, which is not printed here.
-  coverage: '/^lines:\s+(\d+(?:\.\d+)?)%/'
+  coverage: '/^functions:\s+(\d+(?:\.\d+)?)%/'
   artifacts:
     when: always
     paths:
@@ -316,7 +317,7 @@ fuzz-explore:
                fuzz_query_string fuzz_blockwise_reassembly fuzz_hex_and_base64 fuzz_timestamp \
                fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
                fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
-               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce \
+               fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce fuzz_oscore_echo_tx \
                fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
                fuzz_knx_lsm_post fuzz_auth_at_post; do
         seeds="build/linux-fuzz-clang/tests/fuzz/corpus/${t#fuzz_}"
