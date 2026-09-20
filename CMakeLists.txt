@@ -241,6 +241,20 @@ if(CMAKE_COMPILER_IS_CLANG)
     )
 endif()
 
+if(UNIX AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(kis-common INTERFACE
+        $<$<CONFIG:Release>:-fstack-protector-strong>
+        $<$<CONFIG:Release>:-Werror>
+    )
+    target_compile_definitions(kis-common INTERFACE
+        $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>
+    )
+    target_link_options(kis-common INTERFACE
+        $<$<CONFIG:Release>:-pie>
+        $<$<CONFIG:Release>:-Wl,-z,relro,-z,now>
+    )
+endif()
+
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
 endif()
