@@ -198,6 +198,19 @@ TEST_F(BlockwiseAlloc, AllocRequestZeroHrefReturnsNull)
   EXPECT_EQ(b, nullptr);
 }
 
+TEST_F(BlockwiseAlloc, EmptyQueryMatchesWithoutNullPointerUse)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  oc_blockwise_state_t *state = oc_blockwise_alloc_request_buffer(
+    "/empty", strlen("/empty"), &ep, COAP_GET, OC_BLOCKWISE_SERVER);
+  ASSERT_NE(state, nullptr);
+
+  EXPECT_EQ(oc_blockwise_find_request_buffer(
+              "/empty", strlen("/empty"), &ep, COAP_GET, nullptr, 0,
+              OC_BLOCKWISE_SERVER),
+            state);
+}
+
 TEST_F(BlockwiseAlloc, AllocRequestThenFindByHref)
 {
   oc_endpoint_t ep = make_endpoint(5683);

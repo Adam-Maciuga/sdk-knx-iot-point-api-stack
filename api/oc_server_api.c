@@ -154,7 +154,7 @@ int oc_iterate_query(oc_request_t* request, char** key, size_t* key_len, char** 
 bool oc_iterate_query_get_values(oc_request_t* request, const char* key, char** value, int* value_len)
 {
   char* current_key = 0;
-  size_t key_len = 0, v_len;
+  size_t key_len = 0, v_len = 0;
   int pos;
 
   do

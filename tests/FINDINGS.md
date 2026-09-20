@@ -978,7 +978,7 @@ Bugs and issues discovered during unit test development.
   its siblings skip the same way in every run). It exercises CoAP unicast discovery, not the mDNS parser.
 - **Status:** RESOLVED.
 
-## F-025: `memcpy` / `memcmp` / `memchr` called with a NULL pointer and length 0 (UBSan nonnull-attribute) - OPEN
+## F-025: ~~`memcpy` / `memcmp` / `memchr` called with a NULL pointer and length 0 (UBSan nonnull-attribute)~~ - RESOLVED
 
 - **Found by:** the first local run of the new `eitt-asan-memcheck` CI job script (EITT tier against the
   `linux-test-asan` DUT, `UBSAN_OPTIONS=print_stacktrace=1`). The conformance tally was identical to
@@ -1002,8 +1002,22 @@ Bugs and issues discovered during unit test development.
 - **Fix sketch:** guard each `mem*` call with `if (len > 0)` or pass a valid pointer for the empty case;
   the tinycbor one by passing `(const uint8_t*)""` when `id_len == 0`. Then re-run the memcheck job
   script; UBSan must be silent for it to turn green.
-- **Status:** OPEN. The `*-memcheck` jobs in `.gitlab-ci.yml` are red on this until fixed (they are
-  nightly and `allow_failure`, so the push pipeline is not affected).
+- **Fix applied:**
+  - `api/oc_blockwise.c` `oc_blockwise_find_buffer()`: the length equality is compared first and the
+    `memcmp` is short-circuited with `query_len == 0 ||`, so neither argument position is dereferenced
+    for the empty case.
+  - `messaging/coap/transactions.c` `coap_new_transaction()`: `token_len` is assigned unconditionally,
+    the `memcpy` runs only `if (token_len > 0)`; the misleading comment was removed.
+  - `api/oc_ri.c` `oc_ri_get_query_nth_key_value()`: a single guard at function entry rejects
+    `query == NULL`, `query_len == 0` and `n == 0` with `-1`, which covers all three `memchr` sites.
+    `n == 0` was additionally an unsigned underflow in the `i < n - 1` loop bound.
+  - `security/oc_oscore_context.c` `oc_oscore_context_derive_param()`: a local `empty_id` byte is passed
+    to `cbor_encode_byte_string()` when `id_len == 0`, so tinycbor never sees NULL.
+  - `api/oc_server_api.c` `oc_iterate_query_get_values()`: `v_len` was read uninitialised into
+    `*value_len` whenever the iteration returned `-1`; it is now initialised to 0.
+- **Regression tests:** `BlockwiseAlloc.EmptyQueryMatchesWithoutNullPointerUse`,
+  `CoapTransactions.ZeroLengthNullTokenIsSafe`, `QueryParsing.NullOrEmptyQueryIsRejected`.
+- **Status:** RESOLVED.
 
 ## F-026: ~~`<ga>`-scoped access tokens are authorized against a different group address than the one acted upon~~ - RESOLVED
 

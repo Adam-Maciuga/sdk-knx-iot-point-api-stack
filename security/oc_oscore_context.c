@@ -504,6 +504,8 @@ int oc_oscore_context_derive_param(
   uint8_t info[OSCORE_INFO_MAX_LEN];
   CborEncoder e, a;
   CborError err = CborNoError;
+  // stand-in so the encoder never sees a NULL pointer for a zero-length id
+  const uint8_t empty_id = 0;
 
   // From RFC 8613: Section 3.2.1:
   // info = [
@@ -517,7 +519,7 @@ int oc_oscore_context_derive_param(
   // Array of 5 elements
   err |= cbor_encoder_create_array(&e, &a, 5);
   // Sender ID, Recipient ID or empty string for Common IV
-  err |= cbor_encode_byte_string(&a, id, id_len);
+  err |= cbor_encode_byte_string(&a, id_len > 0 ? id : &empty_id, id_len);
   // id_context or null if not provided
   if (id_ctx_len > 0)
   {

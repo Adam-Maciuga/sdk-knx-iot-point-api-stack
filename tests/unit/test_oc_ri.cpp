@@ -310,6 +310,23 @@ TEST(ScopeMask, EmptyNameWithNonZeroLengthIsNone)
   EXPECT_EQ(oc_ri_get_scope_mask("", 1), OC_ACL_NONE);
 }
 
+TEST(QueryParsing, NullOrEmptyQueryIsRejected)
+{
+  char *key = nullptr;
+  char *value = nullptr;
+  size_t key_len = 0;
+  size_t value_len = 0;
+
+  EXPECT_EQ(oc_ri_get_query_nth_key_value(nullptr, 0, &key, &key_len,
+                                           &value, &value_len, 1),
+            -1);
+
+  const char empty[] = "";
+  EXPECT_EQ(oc_ri_get_query_nth_key_value(empty, 0, &key, &key_len, &value,
+                                           &value_len, 1),
+            -1);
+}
+
 TEST(ScopeMask, InterfacesThatAreNotAScopeAreNone)
 {
   // if.ll, if.b, if.pm and if.m.x are valid interfaces but have no scope bit

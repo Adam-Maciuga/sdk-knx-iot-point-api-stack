@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1597 unit tests** (53 files) + **629 runtime tests** across three tiers = **2226 total**
+> **1600 unit tests** (53 files) + **629 runtime tests** across three tiers = **2229 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -661,7 +661,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_transactions.cpp — Transaction Lifecycle (19 tests)
+### test_coap_transactions.cpp — Transaction Lifecycle (20 tests)
 
 **Source:** `messaging/coap/transactions.c`
 
@@ -678,6 +678,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `GetAnyByTokenFindsRegular` | "any" variant includes regular |
 | `ClearRemovesTransaction` | Removes from list and frees |
 | `ClearNullIsSafe` | No crash on NULL |
+| `ZeroLengthNullTokenIsSafe` | A zero-length NULL token is accepted without calling `memcpy` with invalid arguments |
 | `FreeAllClearsEverything` | Empties entire list |
 | `FreeByEndpointSelectiveRemoval` | Only removes matching endpoint |
 | `MultipleTransactionsCoexist` | Multiple tracked simultaneously |
@@ -716,7 +717,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (89 tests)
+### test_oc_ri.cpp — Resource Interface (90 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -733,6 +734,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `RiMask` | 7 | Scope/interface name framing (single/multiple bits, truncated URNs) |
 | `PrintAclScopes` | 1 | ACL scope printer runs without crashing |
 | `NewRequestFromInbound` | 1 | Inbound request rewires response and copies buffer |
+| `QueryParsing` | 1 | NULL and empty query input is rejected before pointer arithmetic |
 | `AcceptHeader` | 4 | Accept-header validation (exact, content-none, NULL, mismatch) |
 | `QueryValue` | 5 | Query value lookup (first/middle/last/case-insensitive/missing) |
 | `QueryExists` | 3 | Query key existence (pair, key-only, missing) |
@@ -761,7 +763,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_blockwise.cpp — Blockwise Transfer (25 tests)
+### test_oc_blockwise.cpp — Blockwise Transfer (26 tests)
 
 **Source:** `api/oc_blockwise.c`
 
@@ -769,7 +771,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `BlockwiseDispatch` | 4 | Outgoing block slicing (offset beyond payload, advances offset, partial/mid slices) |
 | `BlockwiseHandle` | 5 | Incoming block reassembly (sequential append, offset/size overflow, gap, duplicate) |
-| `BlockwiseAlloc` | 10 | Request/response buffer alloc + lookup by href/token/mid/client-cb (both request- and response-list variants of each `_by_token`/`_by_mid`/`_by_client_cb` wrapper) |
+| `BlockwiseAlloc` | 11 | Request/response buffer alloc + lookup by href/token/mid/client-cb (both request- and response-list variants of each `_by_token`/`_by_mid`/`_by_client_cb` wrapper), including a NULL empty-query lookup |
 | `BlockwiseScrub` | 6 | Free/scrub buffers (incl. NULL-buffer no-op), ref-count-based reclamation, scrub-for-client-cb on both the request and response lists |
 
 ---

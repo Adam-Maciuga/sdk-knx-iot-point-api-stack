@@ -404,6 +404,11 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 {
   int next_pos = -1;
 
+  if (query == NULL || query_len == 0 || n == 0)
+  {
+    return -1;
+  }
+
   // number of scanned independent query fragments with '&'
   size_t i = 0;
 

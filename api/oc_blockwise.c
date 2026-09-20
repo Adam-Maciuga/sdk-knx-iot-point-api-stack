@@ -259,7 +259,8 @@ static oc_blockwise_state_t* oc_blockwise_find_buffer(oc_list_t list, const char
   while (buffer)
   {
     if (strncmp(href, oc_string(buffer->href), href_len) == 0 && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 && buffer->method == method &&
-        buffer->role == role && query_len == oc_string_len(buffer->uri_query) && memcmp(query, oc_string(buffer->uri_query), query_len) == 0)
+        buffer->role == role && query_len == oc_string_len(buffer->uri_query) &&
+        (query_len == 0 || memcmp(query, oc_string(buffer->uri_query), query_len) == 0))
     {
       break;
     }

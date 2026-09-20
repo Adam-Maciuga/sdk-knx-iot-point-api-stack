@@ -70,9 +70,11 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
 
       // t is cleared with '0' so set only non-zero values
       t->mid = mid;
-      // memcpy can handle '0' bytes, so no extra check
       t->token_len = token_len;
-      memcpy(t->token, token, token_len);
+      if (token_len > 0)
+      {
+        memcpy(t->token, token, token_len);
+      }
 
       // save client address
       memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));

@@ -197,6 +197,16 @@ TEST_F(CoapTransactions, ClearNullIsSafe)
   /* Should not crash */
 }
 
+TEST_F(CoapTransactions, ZeroLengthNullTokenIsSafe)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  coap_transaction_t *transaction =
+    coap_new_transaction(501, nullptr, 0, &ep);
+
+  ASSERT_NE(transaction, nullptr);
+  EXPECT_EQ(transaction->token_len, 0);
+}
+
 TEST_F(CoapTransactions, FreeAllClearsEverything)
 {
   oc_endpoint_t ep = make_endpoint(5683);
