@@ -98,13 +98,22 @@ extern "C" {
 - At least one error/boundary test
 - Round-trip tests where applicable (encode/decode pairs)
 
-**Measuring line coverage** (to see what a new test actually exercises): build and run the suite
-with the coverage preset, then let gcovr report on the module:
+**Happy-path vs. error-case count**: 1 happy-path test per successful code
+path, 1 test per error/edge branch (null check, each boundary in `0, 1,
+MAX-1, MAX, MAX+1`, each `switch` case). Target thresholds, checked via
+gcovr (see below): **line ≥ 80%, function ≥ 90%, branch ≥ 70%** per module.
+A 1:3-5 happy-path-to-error-case count is typical for reaching these
+numbers — don't flatten it to 1:1.
+
+**Measuring line and branch coverage** (to see what a new test actually exercises): build and run
+the suite with the coverage preset, then let gcovr report on the module:
 ```bash
 cmake --preset windows-coverage-gcc && cmake --build --preset windows-coverage-gcc
 ctest --preset windows-coverage-gcc -R <module>
 gcovr --root . --filter 'api/<module>.c' --print-summary --html-details build/windows-coverage-gcc/coverage-html/index.html build/windows-coverage-gcc
 ```
+`--print-summary` reports lines, functions, AND branches — branch is usually the lowest number and
+the most telling one, since every `if`/`switch`/early-return counts as 2+ branches but only 1 line.
 (`pip install gcovr`; MSYS2 gcov is used automatically. `linux-coverage-gcc` in Docker/CI, where the
 gating `unit-coverage-gcc` job reports the whole suite - 52.5 % lines on 2026-09-17.)
 
