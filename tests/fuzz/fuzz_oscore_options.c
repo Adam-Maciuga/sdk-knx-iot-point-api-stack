@@ -19,17 +19,18 @@
 int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-  if (size < COAP_HEADER_LEN || size > oc_get_pdu_size()) {
+  if (size > oc_get_pdu_size()) {
     return 0;
   }
 
   /* +1: see fuzz_coap_parse.c — the parser NUL-terminates behind the payload. */
-  uint8_t *buf = (uint8_t *)malloc(size + 1);
+  const size_t effective_size = size < COAP_HEADER_LEN ? COAP_HEADER_LEN : size;
+  uint8_t *buf = (uint8_t *)calloc(1, effective_size + 1);
   if (buf == NULL) {
     return 0;
   }
   memcpy(buf, data, size);
-  buf[size] = 0;
+  buf[effective_size] = 0;
 
   coap_packet_t pkt;
   memset(&pkt, 0, sizeof(pkt));
@@ -39,7 +40,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
   /* Bounds the caller enforces before copying the token. */
   if (pkt.token_len > COAP_TOKEN_LEN ||
-      (size_t)COAP_HEADER_LEN + pkt.token_len > size) {
+      (size_t)COAP_HEADER_LEN + pkt.token_len > effective_size) {
     free(buf);
     return 0;
   }
@@ -47,7 +48,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
   uint8_t *current_option = buf + COAP_HEADER_LEN + pkt.token_len;
 
-  coap_oscore_parse_options(&pkt, buf, (uint32_t)size, current_option,
+  coap_oscore_parse_options(&pkt, buf, (uint32_t)effective_size, current_option,
                             /* accept_inner_options  */ false,
                             /* accept_outer_options  */ true,
                             /* accept_oscore_option  */ true);

@@ -120,6 +120,10 @@ def corpus_coap_parse():
 def corpus_oscore_options():
     """coap_oscore_parse_options() in outer mode: the pre-auth OSCORE option."""
     return {
+        "short_empty.bin": b"",
+        "short_one_byte.bin": b"\x40",
+        "short_two_bytes.bin": b"\x40\x02",
+        "short_three_bytes.bin": b"\x40\x02\x10",
         "oscore_min.bin": coap(
             CON, 2, 0x1000, b"\xde\xad", coap_option(9, oscore_option_value()),
             bytes(range(1, 9))),
@@ -442,11 +446,22 @@ def corpus_knx_lsm_post():
 
 def corpus_auth_at_post():
     """oc_core_auth_at_post_handler(): POST /auth/at credential provisioning."""
+    def complete_entry(secret, sender_id=b"\x01"):
+        return bytes([0xA1, 0x00, 0xA4,
+                      0x00, 0x63]) + b"tok" + bytes([0x09, 0x81, 0x66]) + b"if.sec" + bytes([
+                          0x18, 0x26, 0x02,
+                          0x08, 0xA1, 0x04, 0xA2,
+                          0x00, 0x40 + len(sender_id)]) + sender_id + bytes([
+                          0x02, 0x40 + len(secret)]) + secret
+
     return {
         "empty_map.bin": bytes([0xA0]),
         "id_only.bin": bytes([0xA1, 0x00, 0x62]) + b"01",
         "mixed_array_scope.bin": bytes([0xA1, 0x09, 0x9F, 0x01, 0xFF]),
         "nested_object.bin": (bytes([0xA1, 0x00, 0xA1, 0x00, 0x62]) + b"01"),
+        "short_master_secret.bin": complete_entry(bytes(range(1, 16))),
+        "zero_master_secret.bin": complete_entry(bytes(16)),
+        "long_sender_id.bin": complete_entry(bytes(range(1, 17)), bytes(range(8))),
     }
 
 
