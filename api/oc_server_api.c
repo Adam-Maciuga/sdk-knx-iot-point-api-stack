@@ -726,7 +726,23 @@ void oc_send_separate_response(oc_separate_response_t* handle, oc_status_t respo
 
   if (handle->response_state)
   {
-    length = handle->response_state->payload_size != 0 ? handle->response_state->payload_size : oc_rep_get_encoded_payload_size();
+    if (handle->response_state->payload_size != 0)
+    {
+      length = handle->response_state->payload_size;
+    }
+    else
+    {
+      const int encoded_size = oc_rep_get_encoded_payload_size();
+      if (encoded_size < 0)
+      {
+        OC_ERR("Separate response payload encoding failed, sending an internal error instead!");
+        response_code = OC_STATUS_INTERNAL_SERVER_ERROR;
+      }
+      else
+      {
+        length = encoded_size;
+      }
+    }
   }
 
   oc_send_separate_response_with_length(handle, response_code, length);
