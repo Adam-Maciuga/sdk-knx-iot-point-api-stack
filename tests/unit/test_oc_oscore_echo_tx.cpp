@@ -1,8 +1,16 @@
 ﻿/*
- * Unit tests for the echo ring in security/oc_oscore_engine.c
+ * Unit tests for security/oc_oscore_engine.c
  *
- * Covers: oc_oscore_echo_whitelist_append, oc_oscore_echo_check_and_consume,
- *         oc_oscore_echo_get_retained_plaintext, oc_oscore_free_all_echo_records
+ * Part 1 (EchoTxRingTest) covers the echo ring: oc_oscore_echo_whitelist_append,
+ * oc_oscore_echo_check_and_consume, oc_oscore_echo_get_retained_plaintext,
+ * oc_oscore_free_all_echo_records.
+ *
+ * Part 2 (OscoreEngine) drives the OSCORE process thread itself: the inbound
+ * parser/decrypt path and the outbound unicast/multicast protection path. The
+ * transport boundary is cut with --wrap=oc_send_buffer and --wrap=coap_send_message
+ * (see tests/unit/CMakeLists.txt), so the real crypto runs but no socket is touched.
+ *
+ * Echo ring details:
  *         -- defends against replayed S-mode 'unicast echo responses'. Per 3.6.4.1.3
  *         the echo response replays the request's kid + sequence (ssn), while
  *         kid_context is a server-side random that DIFFERS per responder.
@@ -30,6 +38,35 @@ extern "C" {
 #include "messaging/coap/oscore_constants.h"
 #include "messaging/coap/coap.h"
 #include "oc_buffer.h"
+#include "security/oc_oscore.h"
+#include "security/oc_oscore_context.h"
+#include "security/oc_oscore_crypto.h"
+#include "api/oc_events.h"
+#include "oc_ri.h"
+#include "oc_helpers.h"
+#include "port/oc_connectivity.h"
+#include "port/oc_network_events_mutex.h"
+#include "util/oc_process.h"
+#include "psa/crypto.h"
+}
+
+static int g_oscore_send_calls;
+static int g_network_send_calls;
+static size_t g_last_network_length;
+static transport_flags_t g_last_network_flags;
+
+extern "C" void __wrap_coap_send_message(oc_message_t* message)
+{
+  g_oscore_send_calls++;
+  oc_message_unref(message);
+}
+
+extern "C" int __wrap_oc_send_buffer(oc_message_t* message)
+{
+  g_network_send_calls++;
+  g_last_network_length = message->length;
+  g_last_network_flags = message->endpoint.flags;
+  return 0;
 }
 
 /* Ring capacity -- must stay a power of two to match the production macro. */
@@ -585,6 +622,354 @@ TEST_F(EchoTxRingTest, Retain_RingRollOverCleansOldestRetainedMessage)
 
   /* cleanup: ring owns all still-retained messages -> free_all releases them */
   oc_oscore_free_all_echo_records();
+}
+
+class OscoreEngine : public ::testing::Test {
+protected:
+  oc_auth_at_t at_;
+  oc_oscore_context_t* recipient_context_;
+  oc_oscore_context_t* sender_context_;
+  uint32_t group_address_;
+
+  /* ref_count 1 - ownership is handed to the engine, which releases it. */
+  static oc_message_t* make_owned_message(const uint8_t* data, size_t length)
+  {
+    oc_message_t* message = oc_allocate_message();
+    if (message == nullptr) {
+      return nullptr;
+    }
+    memcpy(message->data, data, length);
+    message->length = length;
+    return message;
+  }
+
+  /* ref_count 2 - the extra reference lets a test observe the engine's release. */
+  static oc_message_t* make_message(const uint8_t* data, size_t length)
+  {
+    oc_message_t* message = make_owned_message(data, length);
+    if (message != nullptr) {
+      oc_message_add_ref(message);
+    }
+    return message;
+  }
+
+  static void dispatch_and_expect_released(oc_message_t* message)
+  {
+    ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                              oc_events[INBOUND_OSCORE_EVENT], message),
+              OC_PROCESS_ERR_OK);
+    oc_process_run();
+    EXPECT_EQ(message->ref_count, 1U);
+    oc_message_unref(message);
+  }
+
+  oc_message_t* make_outbound_request(coap_message_type_t type,
+                                      transport_flags_t flags)
+  {
+    const uint8_t plaintext[] = {
+      (uint8_t)(COAP_VERSION << COAP_HEADER_VERSION_POSITION | type << COAP_HEADER_TYPE_POSITION),
+      COAP_POST, 0, 1
+    };
+    oc_message_t* message = make_owned_message(plaintext, sizeof(plaintext));
+    if (message != nullptr) {
+      message->endpoint.flags = flags;
+      message->endpoint.group_address = group_address_;
+    }
+    return message;
+  }
+
+  oc_message_t* make_outbound_response()
+  {
+    const uint8_t plaintext[] = {
+      (uint8_t)(COAP_VERSION << COAP_HEADER_VERSION_POSITION |
+                COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION),
+      CHANGED_2_04, 0, 1
+    };
+    oc_message_t* message = make_owned_message(plaintext, sizeof(plaintext));
+    if (message != nullptr) {
+      message->endpoint.flags = OSCORE;
+      message->endpoint.auth_at_of_inbound_msg = &at_;
+      message->endpoint.piv[0] = 1;
+      message->endpoint.piv_len = 1;
+    }
+    return message;
+  }
+
+  oc_message_t* make_encrypted_request(const uint8_t* plaintext,
+                                       size_t plaintext_len)
+  {
+    const uint8_t piv[] = { 1 };
+    uint8_t aad[OSCORE_AAD_MAX_LEN] = {};
+    uint8_t aad_len = 0;
+    uint8_t nonce[OSCORE_AEAD_NONCE_LEN] = {};
+    uint8_t ciphertext[OC_PDU_SIZE] = {};
+
+    if (oc_oscore_compose_AAD(recipient_context_->recipient_id,
+                              recipient_context_->recipient_id_len,
+                              (uint8_t*)piv, sizeof(piv), aad, &aad_len) != 0) {
+      return nullptr;
+    }
+
+    oc_oscore_AEAD_nonce(recipient_context_->recipient_id,
+                          recipient_context_->recipient_id_len,
+                          (uint8_t*)piv, sizeof(piv),
+                          recipient_context_->common_iv, nonce, sizeof(nonce));
+    if (oc_oscore_encrypt((uint8_t*)plaintext, plaintext_len,
+                          OSCORE_AEAD_TAG_LEN, recipient_context_->recipient_key,
+                          OSCORE_KEY_LEN, nonce, sizeof(nonce), aad, aad_len,
+                          ciphertext) != 0) {
+      return nullptr;
+    }
+
+    const uint8_t outer_header[] = {
+      0x40, COAP_POST, 0, 1, /* version 1, CON, no token */
+      0x93, 0x09, piv[0], recipient_context_->recipient_id[0], 0xFF
+    };
+    uint8_t frame[OC_PDU_SIZE];
+    const size_t frame_len =
+      sizeof(outer_header) + plaintext_len + OSCORE_AEAD_TAG_LEN;
+    if (frame_len > sizeof(frame)) {
+      return nullptr;
+    }
+    memcpy(frame, outer_header, sizeof(outer_header));
+    memcpy(frame + sizeof(outer_header), ciphertext,
+           plaintext_len + OSCORE_AEAD_TAG_LEN);
+    return make_message(frame, frame_len);
+  }
+
+  void SetUp() override
+  {
+    ASSERT_EQ(psa_crypto_init(), PSA_SUCCESS);
+    oc_network_event_handler_mutex_init();
+    oc_process_init();
+    allocate_events();
+    oc_process_start(&oc_oscore_handler, nullptr);
+    oc_process_start(&message_buffer_handler, nullptr);
+    g_oscore_send_calls = 0;
+    g_network_send_calls = 0;
+    g_last_network_length = 0;
+    g_last_network_flags = (transport_flags_t)0;
+
+    memset(&at_, 0, sizeof(at_));
+    const uint8_t master_secret[OSCORE_MASTER_SECRET_LEN] = {
+      0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+      0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
+    };
+    oc_new_byte_string(&at_.osc_ms, (const char*)master_secret,
+                       sizeof(master_secret));
+    const uint8_t token_id[] = { 0xBB };
+    oc_new_byte_string(&at_.osc_id, (const char*)token_id, sizeof(token_id));
+    group_address_ = 0x1234;
+    at_.ga = &group_address_;
+    at_.ga_len = 1;
+
+    const uint8_t recipient_id[] = { 0xBB };
+    oc_oscore_context_params_t params = {};
+    params.recipient_id = recipient_id;
+    params.recipient_id_size = sizeof(recipient_id);
+    params.auth_at = &at_;
+    params.read_ssn_from_storage = false;
+    recipient_context_ = oc_oscore_add_context(&params);
+    ASSERT_NE(recipient_context_, nullptr);
+
+    const uint8_t sender_id[] = { 0xCC };
+    params = {};
+    params.sender_id = sender_id;
+    params.sender_id_size = sizeof(sender_id);
+    params.auth_at = &at_;
+    params.read_ssn_from_storage = false;
+    sender_context_ = oc_oscore_add_context(&params);
+    ASSERT_NE(sender_context_, nullptr);
+  }
+
+  void TearDown() override
+  {
+    oc_oscore_free_all_echo_records();
+    oc_oscore_free_all_contexts();
+    oc_free_string(&at_.osc_id);
+    oc_free_string(&at_.osc_ms);
+    oc_process_exit(&message_buffer_handler);
+    oc_process_exit(&oc_oscore_handler);
+    oc_process_shutdown();
+    oc_network_event_handler_mutex_destroy();
+  }
+};
+
+TEST_F(OscoreEngine, InvalidOuterVersionIsRejectedAndMessageIsReleased)
+{
+  const uint8_t outer[] = { 0x20, COAP_GET, 0, 1 };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+}
+
+TEST_F(OscoreEngine, OverlongTokenIsRejectedAndMessageIsReleased)
+{
+  const uint8_t outer[] = {
+    0x59, COAP_GET, 0, 1, /* version 1, RST, token length 9 */
+    0, 1, 2, 3, 4, 5, 6, 7, 8
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+}
+
+TEST_F(OscoreEngine, AckWithRequestCodeIsRejectedAndMessageIsReleased)
+{
+  const uint8_t outer[] = {
+    0x60, COAP_GET, 0, 1, /* version 1, ACK, no token */
+    0x91, 0x00             /* OSCORE option 9 with an empty value */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+}
+
+TEST_F(OscoreEngine, UnknownUnicastSenderReceivesUnauthorized)
+{
+  const uint8_t outer[] = {
+    0x40, COAP_POST, 0, 1, /* version 1, CON, no token */
+    0x93, 0x09, 0x01, 0xAA /* OSCORE option: PIV 1, kid AA */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, MissingOscoreOptionRequestReceivesBadOption)
+{
+  const uint8_t outer[] = { 0x40, COAP_POST, 0, 1 };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, RequestWithoutKidReceivesBadOption)
+{
+  const uint8_t outer[] = {
+    0x40, COAP_POST, 0, 1, /* version 1, CON, no token */
+    0x92, 0x01, 0x01       /* OSCORE option: PIV 1, no kid */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, UnknownMulticastSenderIsSilentlyDropped)
+{
+  const uint8_t outer[] = {
+    0x50, COAP_POST, 0, 1, /* version 1, NON, no token */
+    0x93, 0x09, 0x01, 0xAA /* OSCORE option: PIV 1, kid AA */
+  };
+  oc_message_t* message = make_message(outer, sizeof(outer));
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = MULTICAST;
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 0);
+}
+
+TEST_F(OscoreEngine, AuthenticatedRequestIsDecryptedAndQueuedForRi)
+{
+  const uint8_t plaintext[] = { COAP_POST };
+  oc_message_t* message = make_encrypted_request(plaintext, sizeof(plaintext));
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[INBOUND_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+
+  EXPECT_NE(message->endpoint.flags & OSCORE_DECRYPTED, 0);
+  EXPECT_EQ(oc_process_nevents(), 1);
+
+  oc_message_unref(message);
+  oc_message_unref(message);
+}
+
+TEST_F(OscoreEngine, TamperedAuthenticatedRequestReceivesBadRequest)
+{
+  const uint8_t plaintext[] = { COAP_POST };
+  oc_message_t* message = make_encrypted_request(plaintext, sizeof(plaintext));
+  ASSERT_NE(message, nullptr);
+  message->data[message->length - 1] ^= 0xFF;
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, InnerOscoreOptionReceivesSecuredBadOption)
+{
+  const uint8_t plaintext[] = { COAP_POST, 0x91, 0x00 };
+  oc_message_t* message = make_encrypted_request(plaintext, sizeof(plaintext));
+  ASSERT_NE(message, nullptr);
+
+  dispatch_and_expect_released(message);
+  EXPECT_EQ(g_oscore_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, OutboundUnicastRequestIsEncryptedAndSent)
+{
+  oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_GT(g_last_network_length, COAP_HEADER_LEN);
+  EXPECT_NE(g_last_network_flags & OSCORE, 0);
+  EXPECT_EQ(sender_context_->ssn, 1U);
+}
+
+TEST_F(OscoreEngine, OutboundMulticastRequestIsEncryptedAndSent)
+{
+  oc_message_t* message = make_outbound_request(
+    COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST | S_MODE_NON_REQUEST));
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_MC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_GT(g_last_network_length, COAP_HEADER_LEN);
+  EXPECT_NE(g_last_network_flags & OSCORE, 0);
+  EXPECT_NE(g_last_network_flags & MULTICAST, 0);
+  EXPECT_EQ(sender_context_->ssn, 1U);
+}
+
+TEST_F(OscoreEngine, OutboundResponseIsEncryptedAndSent)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_GT(g_last_network_length, COAP_HEADER_LEN);
+  EXPECT_NE(g_last_network_flags & OSCORE, 0);
+  /* 8.3: the response reuses the request PIV, so no sender sequence number is spent */
+  EXPECT_EQ(recipient_context_->ssn, 0U);
+  EXPECT_EQ(sender_context_->ssn, 0U);
 }
 
 

@@ -76,7 +76,7 @@ Where a note below cites a runtime test by name, check
 |--------|-----------|--------|
 | oc_oscore_context.c | test_oc_oscore_context.cpp | DONE |
 | oc_oscore_crypto.c | test_oc_oscore_crypto.cpp | DONE |
-| oc_oscore_engine.c | — | INTEGRATION |
+| oc_oscore_engine.c | test_oc_oscore_echo_tx.cpp | PARTIAL (echo ring, inbound parser/decrypt and wrapped unicast/multicast request plus normal-response transport boundaries; echo-response and observe variants remain integration-level) |
 | spake2plus.c | test_spake2plus.cpp | DONE |
 
 ### messaging/coap/

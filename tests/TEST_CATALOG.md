@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1600 unit tests** (53 files) + **629 runtime tests** across three tiers = **2229 total**
+> **1617 unit tests** (53 files) + **629 runtime tests** across three tiers = **2246 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -258,14 +258,15 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_oscore_context.cpp — OSCORE Context (18 tests)
+### test_oc_oscore_context.cpp — OSCORE Context (25 tests)
 
 **Source:** `security/oc_oscore_context.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `ContextDeriveParam` | 4 | HKDF key derivation (sender key, IV, with context, uniqueness) |
-| `OscoreContextTest` | 14 | Add/find/free contexts, bad params, kid_context, find-by-group-address (sender/recipient), LRU recipient eviction, free-by-AT-id |
+| `OscoreContextTest` | 16 | Add/find/free contexts, bad params, kid_context, find-by-group-address (sender/recipient), LRU recipient eviction, free-by-AT-id, and the recipient/sender context builders that take their ID from the access token |
+| `OscoreContextByToken` | 5 | `oc_oscore_find_context_by_token_mid`: match by token (returns the request PIV), MID fallback, optional out-parameters, unknown transaction → NULL, transaction without an access token → NULL |
 
 ---
 
@@ -309,9 +310,9 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — S-Mode Echo Replay Defence (24 tests)
+### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (37 tests)
 
-**Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring, `EchoTxRingTest`)
+**Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
 | Test | What it verifies |
 |------|-----------------|
@@ -339,6 +340,19 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `MultiKid_WrongKidForAnchor_Rejected_CorrectKidAccepted` | Echo with another sender's kid for a matching SSN rejected; correct kid accepted |
 | `MultiKid_Overflow_EvictedSenderDropped_OthersAccepted` | Ring overflow evicts one sender's anchor while surviving senders remain accepted |
 | `Retain_RingRollOverCleansOldestRetainedMessage` | Ring roll-over past capacity frees the oldest retained message, keeps the newest |
+| `InvalidOuterVersionIsRejectedAndMessageIsReleased` | Version-0 outer CoAP message is rejected and its event reference released |
+| `OverlongTokenIsRejectedAndMessageIsReleased` | Outer token length beyond COAP_TOKEN_LEN is rejected before copying |
+| `AckWithRequestCodeIsRejectedAndMessageIsReleased` | ACK carrying a request code is not accepted as an OSCORE carrier |
+| `UnknownUnicastSenderReceivesUnauthorized` | Unknown unicast OSCORE kid receives an unsecured 4.01 |
+| `MissingOscoreOptionRequestReceivesBadOption` | Request without the mandatory OSCORE option receives 4.02 |
+| `RequestWithoutKidReceivesBadOption` | OSCORE request without a kid receives 4.02 |
+| `UnknownMulticastSenderIsSilentlyDropped` | Unknown multicast kid is discarded without a reflection response |
+| `AuthenticatedRequestIsDecryptedAndQueuedForRi` | Valid AEAD request is decrypted, marked OSCORE_DECRYPTED and queued for RI |
+| `TamperedAuthenticatedRequestReceivesBadRequest` | Modified AEAD tag is rejected with 4.00 |
+| `InnerOscoreOptionReceivesSecuredBadOption` | OSCORE option in authenticated inner options receives secured 4.02 |
+| `OutboundUnicastRequestIsEncryptedAndSent` | Sender context encrypts a unicast request, advances SSN and dispatches the OSCORE frame |
+| `OutboundMulticastRequestIsEncryptedAndSent` | Sender context encrypts a multicast NON request, advances SSN and dispatches the OSCORE frame |
+| `OutboundResponseIsEncryptedAndSent` | Recipient context encrypts a normal response without consuming a sender SSN |
 
 ---
 
