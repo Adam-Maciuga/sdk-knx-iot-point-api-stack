@@ -39,6 +39,14 @@
 #include <string.h>
 
 /*
+ * Event queue statistics are off unless the build defines OC_PROCESS_CONF_STATS as 1.
+ */
+// TODO Stack issue #146: Remove the statistics as dead code once the team confirms.
+#ifndef OC_PROCESS_CONF_STATS
+#define OC_PROCESS_CONF_STATS 0
+#endif
+
+/*
  * Pointer to the currently running process structure.
  */
 struct oc_process* oc_process_list = NULL;
