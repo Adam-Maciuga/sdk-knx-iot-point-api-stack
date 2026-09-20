@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <vector>
 
 extern "C" {
 #include "api/oc_knx_sec.h"
@@ -176,6 +177,7 @@ TEST_F(AtTable, FindByOscIdMatchAndMiss)
 {
   oc_auth_at_t *e = oc_get_auth_at_entry(3);
   const uint8_t osc[] = { 0x01, 0x02, 0x03 };
+  oc_new_string(&e->id, "tok", 3); /* only a provisioned entry is matchable */
   oc_new_byte_string(&e->osc_id, (const char *)osc, sizeof(osc));
 
   coap_packet_t pkt = make_kid_pkt(osc, sizeof(osc));
@@ -185,6 +187,18 @@ TEST_F(AtTable, FindByOscIdMatchAndMiss)
   coap_packet_t pkt_other = make_kid_pkt(other, sizeof(other));
   EXPECT_EQ(oc_core_find_at_entry_by_osc_id(&pkt_other),
             nullptr);
+}
+
+TEST_F(AtTable, FindByOscIdDoesNotMatchAnEmptyKidAgainstAnUnusedSlot)
+{
+  /*
+    An unused slot has an empty osc_id, so a packet without a kid compares
+    0 == 0 plus a zero-length memcmp against it. The echo-response path in
+    oc_oscore_engine.c reaches this lookup without a kid_len > 0 guard, so a
+    hit would hand out an AT entry that was never provisioned.
+  */
+  coap_packet_t pkt = make_kid_pkt(nullptr, 0);
+  EXPECT_EQ(oc_core_find_at_entry_by_osc_id(&pkt), nullptr);
 }
 
 TEST_F(AtTable, DeleteEntryClearsIdAndReturnsZero)
@@ -566,6 +580,136 @@ TEST_F(SecHandlers, ASenPostRenewCommandChanged)
             oc_status_code(OC_STATUS_CHANGED));
 
   oc_free_string(&rep.value.string);
+}
+
+/* ─────────────────── /auth/at POST: mandatory-property check ─────────────── */
+
+/*
+  An AT entry may only be CREATED once all five mandatory properties are
+  present (id, profile, scope, cnf:osc:id, cnf:osc:ms). The handler counts them
+  in `at_properties_seen`.
+
+  The payloads are hand-encoded because the point of the second test is a
+  repeated map key, which no CBOR writer will emit from a dictionary.
+*/
+
+class SecAtPost : public SecHandlers {
+protected:
+  oc_rep_t *payload = nullptr;
+
+  void TearDown() override
+  {
+    if (payload != nullptr) {
+      oc_free_rep(payload);
+      payload = nullptr;
+    }
+    oc_free_at_table_ram();
+  }
+
+  int post_at(const uint8_t *cbor, size_t len)
+  {
+    EXPECT_EQ(oc_parse_rep(cbor, (int)len, &payload), CborNoError);
+    return invoke(core_resource_knx_auth_at,
+                  core_resource_knx_auth_at.post_handler.cb, APPLICATION_CBOR,
+                  OC_IF_SEC, nullptr, nullptr, payload);
+  }
+
+  static std::vector<uint8_t> make_complete_at_payload(size_t secret_len,
+                                                        bool zero_secret,
+                                                        size_t sender_id_len = 1)
+  {
+    /* both lengths are emitted as a single-byte CBOR byte-string header */
+    EXPECT_LE(secret_len, 23u);
+    EXPECT_LE(sender_id_len, 23u);
+
+    std::vector<uint8_t> cbor = {
+      0xa1, 0x00,                         /* outer map: entry 0 */
+      0xa4,                               /* id, scope, profile, cnf */
+      0x00, 0x63, 't', 'o', 'k',
+      0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
+      0x18, 0x26, 0x02,                   /* profile: coap_oscore */
+      0x08, 0xa1, 0x04,                   /* cnf: osc */
+      0xa2,                               /* osc id + master secret */
+      0x00, (uint8_t)(0x40 + sender_id_len)
+    };
+
+    for (size_t i = 0; i < sender_id_len; ++i) {
+      cbor.push_back((uint8_t)(i + 1));
+    }
+
+    cbor.push_back(0x02);                    /* cnf:osc:ms */
+    cbor.push_back((uint8_t)(0x40 + secret_len));
+    for (size_t i = 0; i < secret_len; ++i) {
+      cbor.push_back(zero_secret ? 0 : (uint8_t)(i + 1));
+    }
+    return cbor;
+  }
+};
+
+TEST_F(SecAtPost, CreateWithTooFewPropertiesIsRejected)
+{
+  /* { 0: { 0: "tok", 9: ["if.sec"] } } -> id + scope = 2 of 5 */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,                                     /* { 0:            */
+    0xa2,                                           /*   map(2)        */
+    0x00, 0x63, 't',  'o',  'k',                    /*     0: "tok"    */
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c'  /*     9: ["if.sec"] */
+  };
+
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
+}
+
+TEST_F(SecAtPost, RepeatedPropertyDoesNotSatisfyTheMandatoryCount)
+{
+  /*
+    { 0: { 0: "tok", 9: [..], 9: [..], 9: [..], 9: [..] } }
+
+    Still only two DISTINCT mandatory properties (id + scope): no profile, no
+    cnf:osc:id, no cnf:osc:ms. If the repeated scope key were counted four
+    times the entry would be created without a master secret.
+  */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa5,                                           /*   map(5)        */
+    0x00, 0x63, 't',  'o',  'k',
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c'
+  };
+
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
+}
+
+TEST_F(SecAtPost, ShortMasterSecretIsRejected)
+{
+  const std::vector<uint8_t> cbor = make_complete_at_payload(15, false);
+
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
+}
+
+TEST_F(SecAtPost, AllZeroMasterSecretIsRejected)
+{
+  const std::vector<uint8_t> cbor = make_complete_at_payload(16, true);
+
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
+}
+
+TEST_F(SecAtPost, SenderIdLongerThanOscoreLimitIsRejected)
+{
+  const std::vector<uint8_t> cbor = make_complete_at_payload(16, false, 8);
+
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

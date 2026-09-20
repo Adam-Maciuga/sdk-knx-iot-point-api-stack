@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1591 unit tests** (53 files) + **629 runtime tests** across three tiers = **2220 total**
+> **1597 unit tests** (53 files) + **629 runtime tests** across three tiers = **2226 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -269,7 +269,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (70 tests)
+### test_oc_knx_sec.cpp — Security Credentials (73 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -283,7 +283,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
 | `SecHandlers` | 23 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*` and `/a/sen`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00), `/a/sen` renew command |
 | `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
-| `SecAtPost` | 2 | `/auth/at` POST mandatory-property check driven with hand-encoded CBOR: id + one scope → 4.00 and no entry created; the same scope key repeated four times is rejected too (F-027 regression — the check counts distinct properties, not occurrences) |
+| `SecAtPost` | 5 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit |
 
 ---
 

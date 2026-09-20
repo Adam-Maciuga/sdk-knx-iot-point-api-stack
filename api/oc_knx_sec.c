@@ -783,7 +783,19 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
       }
 
-      #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id, cnf:osc:ms
+      /*
+        A bitmask, not a counter: a repeated CBOR key survives oc_parse_rep() as
+        a separate rep, so counting occurrences would let one property repeated
+        five times stand in for all five mandatory ones.
+      */
+      #define AT_PROP_ID      (1u << 0)
+      #define AT_PROP_SCOPE   (1u << 1)
+      #define AT_PROP_PROFILE (1u << 2)
+      #define AT_PROP_OSC_ID  (1u << 3)
+      #define AT_PROP_OSC_MS  (1u << 4)
+      #define MANDATORY_AT_PROPERTIES \
+        (AT_PROP_ID | AT_PROP_SCOPE | AT_PROP_PROFILE | AT_PROP_OSC_ID | AT_PROP_OSC_MS)
+
       bool id_only = true; // used to delete the AT table entry
 
       /*
@@ -791,7 +803,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         becomes visible in the AT table once all checks passed. Note that an access token is (too) complex
         to use a shadow copy as for POST on pub/rcp/go.
       */
-      int current_at_properties = 1;
+      unsigned int at_properties_seen = AT_PROP_ID;
 
       while (object)
       {
@@ -849,7 +861,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
             // scopes (compacted bits)
             at_entry->scope = acl_scopes;
-            current_at_properties++;
+            at_properties_seen |= AT_PROP_SCOPE;
           }
         }
         else if (object->type == OC_REP_INT_ARRAY)
@@ -893,7 +905,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   - is used only in combination with a present ga array / array len (see above)
                 */
                 at_entry->scope = OC_ACL_GA;
-                current_at_properties++;
+                at_properties_seen |= AT_PROP_SCOPE;
               }
               else
               {
@@ -930,7 +942,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           if (object->iname == 38)
           {
             at_entry->profile = (oc_at_profile_t)object->value.integer;
-            current_at_properties++;
+            at_properties_seen |= AT_PROP_PROFILE;
           }
         }
         else if (object->type == OC_REP_OBJECT)
@@ -998,7 +1010,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     oc_new_byte_string(&at_entry->osc_ms, mastersecret_ptr, mastersecret_size);
 
                     other_updated = true;
-                    current_at_properties++;
+                    at_properties_seen |= AT_PROP_OSC_MS;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
                   {
@@ -1035,7 +1047,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     oc_free_string(&at_entry->osc_id);
                     oc_new_byte_string(&at_entry->osc_id, oc_string(oscore_object->value.string), sender_id_size);
                     other_updated = true;
-                    current_at_properties++;
+                    at_properties_seen |= AT_PROP_OSC_ID;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
                   {
@@ -1078,7 +1090,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED &&
+            (at_properties_seen & MANDATORY_AT_PROPERTIES) != MANDATORY_AT_PROPERTIES)
         {
           // a
           OC_WRN("mandatory items missing, no entry created");
@@ -1792,8 +1805,25 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
 
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
 {
+  /*
+    A message without a 'kid' must not match the empty osc_id of an unused slot:
+    0 == 0 plus a zero-length memcmp would otherwise hand out an AT entry that
+    was never provisioned. The 8.4 echo-response caller reaches this without a
+    kid_len > 0 guard of its own.
+  */
+  if (pkt->kid_len == 0)
+  {
+    return NULL;
+  }
+
   for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
+    // an entry only counts as provisioned once it carries its id (written last)
+    if (oc_string_len(entry->id) == 0)
+    {
+      continue;
+    }
+
     if (oc_byte_string_len(entry->osc_id) == pkt->kid_len 
         && memcmp(oc_string(entry->osc_id), pkt->kid, pkt->kid_len) == 0)
     {

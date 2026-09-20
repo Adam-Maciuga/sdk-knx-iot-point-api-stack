@@ -1029,3 +1029,24 @@ Bugs and issues discovered during unit test development.
 - **Resolution:** the gate no longer stops at the first ga. It walks every s map and every `ga` key, returns `false` as soon as one is outside the token's list, and returns `true` only if at least one ga was present and all of them were covered. This is fail-closed and order-independent, so it also covers the multi-s-map case. The `/k` handler was left unchanged - the ACL gate is the right place to bound what the payload may address.
 - **Pinned by:** `SecAcl.GaScopeRejectsForeignGaAnywhereInOneSMap` (the original bypass, now denied), `SecAcl.GaScopeRejectsForeignGaInASecondSMap` (both orderings across two s maps), `SecAcl.GaScopeAllowsSeveralAuthorizedGasInOneSMap` (guards against over-correcting into "deny on more than one ga"), and the runtime probe `test_group_comm.py::TestUnicastWriteDuplicateGroupAddress::test_duplicate_ga_does_not_bypass_scope`, whose `xfail` marker was removed.
 - **Verification:** unit suite **1588 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed** (`linux-coverage-gcc`).
+
+## F-027: ~~repeating one property in an `/auth/at` POST satisfies the mandatory-property check~~ - RESOLVED
+
+- **File:** `api/oc_knx_sec.c`, `oc_core_auth_at_post_handler()`.
+- **Severity:** Medium - validation bypass on the credential-installation path: it created an AT entry with an id and a scope but no profile and no OSCORE key material. Not remotely reachable, `POST /auth/at` requires an `if.sec`-scoped token.
+- **Description:** an entry may only be created once all five mandatory properties are present (id, profile, scope, `cnf:osc:id`, `cnf:osc:ms`). The handler tracked this with a plain **counter** - `current_at_properties`, starting at 1, incremented per recognised property, rejected below 5. Since `oc_parse_rep()` keeps a repeated CBOR map key as separate reps (see F-026), one property counted four times reached the threshold on its own.
+- **Evidence:** the hand-encoded payload `{0: {0: "tok", 9: ["if.sec"] ×4}}` was answered **2.01 Created** and `oc_core_items_used_in_auth_at_table()` became 1, although only id and scope were supplied. The control `SecAtPost.CreateWithTooFewPropertiesIsRejected` (id + one scope) was correctly rejected with 4.00, so the check itself was reached.
+- **Resolution:** the counter is replaced by the bitmask `at_properties_seen` over `AT_PROP_ID|SCOPE|PROFILE|OSC_ID|OSC_MS`. A repeated key now sets the same bit again and can no longer complete the set.
+- **Pinned by:** `SecAtPost.RepeatedPropertyDoesNotSatisfyTheMandatoryCount` (the bypass, now rejected) and `SecAtPost.CreateWithTooFewPropertiesIsRejected`.
+- **Verification:** unit suite **1591 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed**.
+
+## F-028: an empty OSCORE `kid` matches an unprovisioned AT table slot - RESOLVED
+
+- **File:** `api/oc_knx_sec.c`, `oc_core_find_at_entry_by_osc_id()`.
+- **Severity:** Medium-High - the lookup returned an AT entry that was never provisioned. Found while answering the open question of F-027; it is an independent defect that does not need F-027 to trigger.
+- **Description:** the match is `oc_byte_string_len(entry->osc_id) == pkt->kid_len && memcmp(...) == 0`. For an inbound message with an empty `kid` (`kid_len == 0`) both operands are zero-length and `memcmp` over 0 bytes returns 0, so **every** slot with an empty `osc_id` matches - including untouched slots. Of the two callers only the first was guarded by `if (coap_pkt->kid_len > 0)`; the echo-response path was not.
+- **Evidence:** against a completely empty AT table, a packet with `kid_len == 0` returned slot 0.
+- **Resolution:** the function now rejects an empty `kid` itself (`if (pkt->kid_len == 0) return NULL;`) instead of relying on each caller to guard, and the slot scan skips entries without an id.
+- **Not claimed:** end-to-end exploitability over the echo path was not demonstrated - the fix was applied once the bogus match was reproduced.
+- **Pinned by:** the `AtTable` cases in `test_oc_knx_sec.cpp`, including the empty-`kid` probe and `FindByOscIdMatchAndMiss`, which now marks its entry as provisioned rather than setting `osc_id` alone.
+- **Verification:** unit suite **1591 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed**.
