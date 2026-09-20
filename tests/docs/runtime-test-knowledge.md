@@ -195,6 +195,30 @@ Helper function `_sync_group_context()` in `test_group_comm.py` implements this.
 - The EITT trace shows the test tool always re-adds `ps=` when following next links
 - Test code must append `ps=N` to next links if not already present
 
+## Security probes: how a runtime test passes for the wrong reason (Sep 2026 - F-026)
+
+Writing the F-026 duplicate-`ga` probe in `test_group_comm.py` produced three false "passes" in a row. Each one looked like a clean result and each was an artefact. Anything asserting "the device did NOT do X" needs these guards.
+
+### One OSCORE context per test restarts the SSN at 0 and gets 4.01
+`_make_uc_ctx()` builds a fresh `OscoreContext` whose sender sequence number starts at 0. Two tests in one class that each call it send SSN=0 twice, and the second is answered **4.01 Unauthorized** by the replay window. For a test asserting "the value did not change", a 4.01 means the request never reached the ACL gate, so the assertion holds and the test passes green while having verified nothing. Fixes, both needed:
+- Share one context per class via a `@pytest.fixture(scope="class")` so the SSN keeps counting up.
+- Explicitly `assert resp.code != "4.01"` with an "inconclusive" message in any negative security assertion.
+
+### Reusing a sender_id across classes makes the outcome order-dependent
+The same probe failed correctly when its class ran alone but was answered 4.01 when the whole module ran, purely because earlier classes had already driven the shared `UC_SENDER_ID` context. Give a security probe class its own `token_id` + `sender_id` (see `UC3_*`) that no other class touches.
+
+### /p/N interfaces decide whether an s-mode write can land at all
+In `runtime_test_server.c`: `/p/1` and `/p/4` are `OC_IF_I` inputs (writable by s-mode), `/p/2` and `/p/3` are `OC_IF_O` outputs (not writable). An s-mode write aimed at an output is silently accepted (2.04) but changes nothing. A probe that expects "datapoint unchanged" therefore passes trivially if it picked an output. Always pair such a probe with a control proving the binding is live when properly authorized (`TestForeignGaBindingIsLive`).
+
+### Running the runtime tier locally
+The fixture searches only the `linux-test-*` / `windows-test-*` preset dirs for the DUT binary. For any other build dir, point it explicitly:
+```bash
+python3 -m pip install --user --break-system-packages -r tests/common/requirements.txt
+cd tests
+RUNTIME_TEST_SERVER=<repo>/build/<preset>/tests/runtime_test_server python3 -m pytest runtime/test_group_comm.py -q
+```
+Multicast classes skip without `DEVICE_IFACE`; the unicast ones still run. Use `--runxfail` to see the real assertion behind an `xfail`-marked probe.
+
 ## CoAP Observe / Notifications (June 2026 - test_observe.py)
 
 ### Status: spec-backed approximation, NOT an EITT replication

@@ -1004,3 +1004,28 @@ Bugs and issues discovered during unit test development.
   script; UBSan must be silent for it to turn green.
 - **Status:** OPEN. The `*-memcheck` jobs in `.gitlab-ci.yml` are red on this until fixed (they are
   nightly and `allow_failure`, so the push pipeline is not affected).
+
+## F-026: ~~`<ga>`-scoped access tokens are authorized against a different group address than the one acted upon~~ - RESOLVED
+
+- **Files:** `api/oc_knx_sec.c`, `oc_knx_sec_check_acl()` (~line 2050); `api/oc_knx.c`, `oc_core_knx_k_post_handler()` (~line 790).
+- **Severity:** High - authorization bypass, confirmed end-to-end against the live DUT: a `<ga>`-scoped token could write to a group address outside its list.
+- **Description:** For a token scoped exactly `OC_ACL_GA`, the ACL gate and the `/k` handler disagreed on which `ga` (key 7) they take when one s map carries the key twice - the gate stopped at the first, the handler keeps the last:
+
+  ```c
+  /* oc_knx_sec_check_acl: stopped at the FIRST ga */
+  if (s_map->type == OC_REP_INT && s_map->iname == 7) {
+    group_address_match = check_access_token_for_group_address(...);
+    break;
+  }
+
+  /* oc_core_knx_k_post_handler: keeps the LAST ga */
+  if (object->iname == 7) {
+    received_notification.ga = (uint32_t)object->value.integer;
+  }   /* no break */
+  ```
+
+  So `7: <allowed>` followed by `7: <foreign>` was authorized against the allowed one and executed with the foreign one. Across *separate* s maps both converged on the last, so only the single-map duplicate-key case diverged.
+- **Evidence:** `test_oc_rep.cpp::ParseRep_DuplicateIntegerKeyInNestedMap` (the parser keeps both keys as separate reps) and, at the time, `test_oc_knx_sec.cpp::SecAcl.GaScopeUsesFirstGaWithinOneSMap` (the gate took the first). End-to-end, `test_group_comm.py::TestUnicastWriteDuplicateGroupAddress` sent `{4: sia, 5: {7: 65535, 6: "w", 1: true, 7: 1}}` to `/k` with a token scoped `[65535]`: the DUT answered **2.04 Changed** and wrote `/p/4`, bound to ga=1. Two controls in the same run excluded a provisioning artefact - the ga=65535 write reaches only `/p/1`, and `TestForeignGaBindingIsLive` proves the ga=1 -> `/p/4` binding works when properly scoped.
+- **Resolution:** the gate no longer stops at the first ga. It walks every s map and every `ga` key, returns `false` as soon as one is outside the token's list, and returns `true` only if at least one ga was present and all of them were covered. This is fail-closed and order-independent, so it also covers the multi-s-map case. The `/k` handler was left unchanged - the ACL gate is the right place to bound what the payload may address.
+- **Pinned by:** `SecAcl.GaScopeRejectsForeignGaAnywhereInOneSMap` (the original bypass, now denied), `SecAcl.GaScopeRejectsForeignGaInASecondSMap` (both orderings across two s maps), `SecAcl.GaScopeAllowsSeveralAuthorizedGasInOneSMap` (guards against over-correcting into "deny on more than one ga"), and the runtime probe `test_group_comm.py::TestUnicastWriteDuplicateGroupAddress::test_duplicate_ga_does_not_bypass_scope`, whose `xfail` marker was removed.
+- **Verification:** unit suite **1588 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed** (`linux-coverage-gcc`).

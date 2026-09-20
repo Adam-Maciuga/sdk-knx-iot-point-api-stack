@@ -568,3 +568,416 @@ TEST_F(SecHandlers, ASenPostRenewCommandChanged)
   oc_free_string(&rep.value.string);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_knx_sec_check_acl — the authorization gate
+ *
+ * Every inbound request passes through this function, so each test below
+ * asserts fail-closed behaviour explicitly rather than "does not crash".
+ *
+ * All four parameters are plain structs and the three helpers it calls
+ * (oc_resource_get_acl_for_method, oc_at_get_scope_mask and the file-static
+ * check_access_token_for_group_address) only read struct fields, so no device,
+ * OSCORE context, storage or network is needed. The <ga> tests below are what
+ * covers check_access_token_for_group_address.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class SecAcl : public ::testing::Test {
+protected:
+  oc_resource_t res;
+  oc_endpoint_t ep;
+  oc_auth_at_t token;
+  uint32_t ga_list[4];
+  char uri_buf[8];
+
+  void SetUp() override
+  {
+    memset(&res, 0, sizeof(res));
+    memset(&ep, 0, sizeof(ep));
+    memset(&token, 0, sizeof(token));
+    memset(ga_list, 0, sizeof(ga_list));
+
+    strcpy(uri_buf, "/p/1");
+    res.uri.next = nullptr;
+    res.uri.size = strlen(uri_buf) + 1;
+    res.uri.ptr = uri_buf;
+
+    /* baseline: a fully authenticated OSCORE request carrying a token */
+    ep.flags = (enum transport_flags)(OSCORE | OSCORE_DECRYPTED);
+    ep.auth_at_of_inbound_msg = &token;
+  }
+
+  /* s-mode payload shape the handler scans: [ { 7: <ga> } ] */
+  static void make_ga_payload(oc_rep_t *outer, oc_rep_t *inner, int64_t ga)
+  {
+    memset(inner, 0, sizeof(*inner));
+    inner->type = OC_REP_INT;
+    inner->iname = 7;
+    inner->value.integer = ga;
+
+    memset(outer, 0, sizeof(*outer));
+    outer->type = OC_REP_OBJECT;
+    outer->value.object = inner;
+  }
+};
+
+/* ───────────────────────── resource / method resolution ──────────────────── */
+
+TEST_F(SecAcl, NullResourceDenied)
+{
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, nullptr, &ep, nullptr));
+}
+
+TEST_F(SecAcl, UnsupportedMethodDenied)
+{
+  /* FETCH resolves to no handler -> must not fall through to "allowed" */
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_FETCH, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, PostUsesPostHandlerScopeNotGetScope)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_NONE;
+  res.post_handler.acl_scope_mask = OC_ACL_SEC;
+  ep.flags = (enum transport_flags)0; /* unauthenticated */
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, PutUsesPutHandlerScopeNotGetScope)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_NONE;
+  res.put_handler.acl_scope_mask = OC_ACL_SEC;
+  ep.flags = (enum transport_flags)0;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_PUT, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, DeleteUsesDeleteHandlerScopeNotGetScope)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_NONE;
+  res.delete_handler.acl_scope_mask = OC_ACL_SEC;
+  ep.flags = (enum transport_flags)0;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_DELETE, &res, &ep, nullptr));
+}
+
+/* ──────────────────────────── OSCORE requirement ─────────────────────────── */
+
+TEST_F(SecAcl, UnsecuredResourceAllowedWithoutOscore)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_NONE;
+  ep.flags = (enum transport_flags)0;
+  ep.auth_at_of_inbound_msg = nullptr;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, SecureResourceWithoutOscoreDenied)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  token.scope = OC_ACL_SEC;
+  ep.flags = (enum transport_flags)0;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, SecureResourceWithOscoreButNotDecryptedDenied)
+{
+  /* both flags are required; OSCORE alone must not pass the mask check */
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  token.scope = OC_ACL_SEC;
+  ep.flags = OSCORE;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, SecureResourceWithDecryptedFlagAloneDenied)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  token.scope = OC_ACL_SEC;
+  ep.flags = OSCORE_DECRYPTED;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+/* ───────────────────────────── scope matching ────────────────────────────── */
+
+TEST_F(SecAcl, MatchingScopeAllowed)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  token.scope = OC_ACL_SEC;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, DisjointScopeDenied)
+{
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  token.scope = OC_ACL_D;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, PartiallyOverlappingScopeAllowed)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_SEC | OC_ACL_P);
+  token.scope = OC_ACL_P;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, MissingAccessTokenDenied)
+{
+  /* decrypted OSCORE but no auth/at entry attached -> scope mask is NONE */
+  res.get_handler.acl_scope_mask = OC_ACL_SEC;
+  ep.auth_at_of_inbound_msg = nullptr;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+/* ─────────────────── <ga> scope: per-group-address authorization ─────────── */
+
+TEST_F(SecAcl, GroupScopeAllowsAnyGroupAddress)
+{
+  /* if.g.s is the "all ga's allowed" scope: no payload inspection */
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_G;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, GaScopeWithMatchingGroupAddressAllowed)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  ga_list[1] = 5678;
+  token.ga = ga_list;
+  token.ga_len = 2;
+
+  oc_rep_t outer, inner;
+  make_ga_payload(&outer, &inner, 5678);
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeWithForeignGroupAddressDenied)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t outer, inner;
+  make_ga_payload(&outer, &inner, 9999);
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeWithEmptyGroupAddressListDenied)
+{
+  /* an empty ga list must never authorize, not even for a ga of 0 */
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  token.ga = ga_list;
+  token.ga_len = 0;
+
+  oc_rep_t outer, inner;
+  make_ga_payload(&outer, &inner, 0);
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeWithNullGroupAddressListDenied)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  token.ga = nullptr;
+  token.ga_len = 0;
+
+  oc_rep_t outer, inner;
+  make_ga_payload(&outer, &inner, 1234);
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeWithoutPayloadDenied)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+}
+
+TEST_F(SecAcl, GaScopeWithPayloadCarryingNoGroupAddressDenied)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  /* s map holds only the value (6), no ga (7) */
+  oc_rep_t inner;
+  memset(&inner, 0, sizeof(inner));
+  inner.type = OC_REP_INT;
+  inner.iname = 6;
+  inner.value.integer = 1234;
+
+  oc_rep_t outer;
+  memset(&outer, 0, sizeof(outer));
+  outer.type = OC_REP_OBJECT;
+  outer.value.object = &inner;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeWithNonObjectPayloadDenied)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  /* a bare int at top level is not the s map the scan expects */
+  oc_rep_t outer;
+  memset(&outer, 0, sizeof(outer));
+  outer.type = OC_REP_INT;
+  outer.iname = 7;
+  outer.value.integer = 1234;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeMatchesFirstAndLastListEntry)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 11;
+  ga_list[1] = 22;
+  ga_list[2] = 33;
+  ga_list[3] = 44;
+  token.ga = ga_list;
+  token.ga_len = 4;
+
+  oc_rep_t outer, inner;
+
+  make_ga_payload(&outer, &inner, 11);
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+
+  make_ga_payload(&outer, &inner, 44);
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+
+  /* one past the end must not be read as a match */
+  make_ga_payload(&outer, &inner, 55);
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeBroadcastAddressOnlyAllowedWhenInList)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t outer, inner;
+  make_ga_payload(&outer, &inner, 0xFFFFFFFF);
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+
+  ga_list[0] = 0xFFFFFFFF;
+  make_ga_payload(&outer, &inner, 0xFFFFFFFF);
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeRejectsForeignGaAnywhereInOneSMap)
+{
+  /*
+    Every ga of an s map is checked, not just the first. The /k handler acts on
+    the LAST ga, so authorizing on the first one would check one group address
+    and execute another (F-026).
+  */
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t authorized, foreign, outer;
+  memset(&authorized, 0, sizeof(authorized));
+  authorized.type = OC_REP_INT;
+  authorized.iname = 7;
+  authorized.value.integer = 1234;
+
+  memset(&foreign, 0, sizeof(foreign));
+  foreign.type = OC_REP_INT;
+  foreign.iname = 7;
+  foreign.value.integer = 9999;
+
+  authorized.next = &foreign;
+
+  memset(&outer, 0, sizeof(outer));
+  outer.type = OC_REP_OBJECT;
+  outer.value.object = &authorized;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeAllowsSeveralAuthorizedGasInOneSMap)
+{
+  /* the all-covered case must still pass, so the check is not simply "deny on
+     more than one ga" */
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  ga_list[1] = 5678;
+  token.ga = ga_list;
+  token.ga_len = 2;
+
+  oc_rep_t first, second, outer;
+  memset(&first, 0, sizeof(first));
+  first.type = OC_REP_INT;
+  first.iname = 7;
+  first.value.integer = 1234;
+
+  memset(&second, 0, sizeof(second));
+  second.type = OC_REP_INT;
+  second.iname = 7;
+  second.value.integer = 5678;
+
+  first.next = &second;
+
+  memset(&outer, 0, sizeof(outer));
+  outer.type = OC_REP_OBJECT;
+  outer.value.object = &first;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+}
+
+TEST_F(SecAcl, GaScopeRejectsForeignGaInASecondSMap)
+{
+  res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t first_inner, second_inner, first, second;
+
+  /* authorized first, foreign second */
+  make_ga_payload(&first, &first_inner, 1234);
+  make_ga_payload(&second, &second_inner, 9999);
+  first.next = &second;
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first));
+
+  /* and the other way round - order must not decide the verdict */
+  make_ga_payload(&first, &first_inner, 9999);
+  make_ga_payload(&second, &second_inner, 1234);
+  first.next = &second;
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first));
+}
+

@@ -2053,8 +2053,14 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
 
       // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
       const oc_rep_t* rep = value_object;
-      bool group_address_match = false;
+      bool group_address_found = false;
 
+      /*
+        EVERY ga in the payload must be covered by the access token, not just the
+        first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
+        authorizing on the first one let a payload carrying the key twice be
+        checked against one group address and executed with another.
+      */
       while (rep)
       {
         if (rep->type == OC_REP_OBJECT)
@@ -2068,9 +2074,13 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
             {
               // only GA is of interest
 
-              // found a GA, check it, and break ...
-              group_address_match = check_access_token_for_group_address(endpoint->auth_at_of_inbound_msg, (uint32_t)s_map->value.integer);
-              break;
+              if (!check_access_token_for_group_address(endpoint->auth_at_of_inbound_msg, (uint32_t)s_map->value.integer))
+              {
+                OC_WRN("ga %d of the request payload is not in the access token", (int)s_map->value.integer);
+                return false;
+              }
+
+              group_address_found = true;
             }
 
             s_map = s_map->next;
@@ -2081,11 +2091,9 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
       }
 
       // a: no ga found in request payload at all = request payload error (no access) -> false 
-      // b: acl scopes + method OK + ga found in request payload, was checked
-      //    - b1 : true -> found in an access token
-      //    - b2 : false -> not found in any access token
+      // b: acl scopes + method OK + every ga of the request payload is in the access token -> true
 
-      return group_address_match;
+      return group_address_found;
     }
 
     // acl scopes + method OK

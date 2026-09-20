@@ -7,6 +7,9 @@ and inspects the telegram far beyond what the template matches (marked
 @pytest.mark.eitt_overlap) or has no template case at all:
 
 5.4.1.1b  Sending Unicast Write Group Message — GA Not in Auth Table
+Duplicate <ga> key in one s map (ADDITIONAL, non-EITT) - probes F-026,
+          the disagreement between oc_knx_sec_check_acl (first ga) and
+          oc_core_knx_k_post_handler (last ga)
 5.4.1.3   Sending Multicast Read Group Message to Device Elicits Response
 5.4.1.4   Sending Unicast Read Group Message to Device Elicits Response
 5.4.1.6   Trigger Device to Elicit Multicast Write Group Message
@@ -57,6 +60,18 @@ GROUP_GRPID = 0x80000001  # ULA-style multicast group identifier
 UC_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012379"
 UC_SENDER_ID = b"\x10\x2a\x3b\x4c\x5d\x6e\x7f"
 UC_MS = bytes.fromhex("03a586c66414db4e4dade209a59656b2")
+
+# Second unicast credential set. A control class that reuses UC_SENDER_ID after
+# another class has already driven that context gets 4.01 from the anti-replay
+# window, which would look like an authorization result.
+UC2_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012380"
+UC2_SENDER_ID = b"\x20\x2a\x3b\x4c\x5d\x6e\x7f"
+
+# Third set, used only by the F-026 duplicate-ga class. Its SSN sequence must
+# not be shared with any other class, otherwise the probe can be answered 4.01
+# by the replay window instead of reaching the ACL gate.
+UC3_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012381"
+UC3_SENDER_ID = b"\x30\x2a\x3b\x4c\x5d\x6e\x7f"
 
 # Multicast OSCORE credentials (EITT "MulticastTx" / "MulticastRx")
 MC_SENDER_ID = b"\x10\x2a\x3b\x4c\x5d\x6e\x7f"
@@ -934,6 +949,150 @@ class TestUnicastWriteUnauthorized:
         data = _get_datapoint(coap, oscore_ctx, "/p/1")
         assert data.get(1) is False, (
             f"Expected /p/1 value=false (unchanged), got {data}")
+
+
+# ===========================================================================
+# Duplicate <ga> key in one s map (ADDITIONAL, non-EITT) — F-026
+# ===========================================================================
+
+def _build_smode_write_duplicate_ga(first_ga, last_ga, value, sia=PEER_IA):
+    """Build {4: sia, 5: {7: first_ga, 6: "w", 1: value, 7: last_ga}}.
+
+    cbor2 cannot emit a repeated map key from a dict, so the s map is
+    assembled from pre-encoded items behind a hand-written map(4) header.
+    """
+    s_map = b"".join([
+        cbor2.dumps(7), cbor2.dumps(first_ga),
+        cbor2.dumps(6), cbor2.dumps("w"),
+        cbor2.dumps(1), cbor2.dumps(value),
+        cbor2.dumps(7), cbor2.dumps(last_ga),
+    ])
+    return (bytes([0xa2])                        # map(2): sia + s
+            + cbor2.dumps(4) + cbor2.dumps(sia)
+            + cbor2.dumps(5)
+            + bytes([0xa4]) + s_map)             # map(4): 7, 6, 1, 7
+
+
+class TestUnicastWriteDuplicateGroupAddress:
+    """F-026: an s map carrying the ga key (7) twice must not let a
+    <ga>-scoped token write to a group address outside its list.
+
+    oc_knx_sec_check_acl stops at the FIRST ga of the s map, while
+    oc_core_knx_k_post_handler keeps the LAST one, so the request is
+    authorized against a different group address than the one acted upon.
+    tests/unit/test_oc_rep.cpp::ParseRep_DuplicateIntegerKeyInNestedMap
+    confirms the parser keeps both keys as separate reps.
+
+    GO table: ga=[65535] -> /p/1 (authorized), ga=[1] -> /p/4 (not authorized)
+    AT scope: [65535] only
+
+    The two group addresses deliberately map to DIFFERENT datapoints so the
+    datapoint that changes identifies which ga the handler acted on. Both are
+    OC_IF_I inputs; an OC_IF_O output such as /p/2 is not writable by s-mode
+    and would make this test pass for the wrong reason.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx):
+        go = [
+            {0: 13, 7: [65535], 8: 0x10, 11: "/p/1"},
+            {0: 14, 7: [1], 8: 0x10, 11: "/p/4"},
+        ]
+        _provision_unicast(coap, oscore_ctx, go, scope=[65535],
+                           token_id=UC3_TOKEN_ID, sender_id=UC3_SENDER_ID)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    @pytest.fixture(scope="class")
+    @staticmethod
+    def uc_ctx():
+        """One context for the whole class so the SSN keeps counting up; a
+        fresh context per test would restart at 0 and be replayed."""
+        return _make_uc_ctx(sender_id=UC3_SENDER_ID)
+
+    def test_control_authorized_ga_writes_only_its_own_datapoint(
+            self, coap, oscore_ctx, uc_ctx):
+        """Control: a plain single-ga write to the authorized 65535 changes
+        /p/1 and leaves /p/4 alone. Guards the probe below against
+        passing/failing for provisioning reasons."""
+        _set_datapoint(coap, oscore_ctx, "/p/1", False)
+        _set_datapoint(coap, oscore_ctx, "/p/4", False)
+
+        resp = coap.oscore_post(
+            uc_ctx, "/k",
+            payload=_build_smode_write(65535, True), timeout=5)
+        assert resp is not None, "POST /k timed out"
+        assert resp.is_successful, (
+            f"authorized write to ga=65535 rejected: {resp.code}")
+
+        assert _get_datapoint(coap, oscore_ctx, "/p/1").get(1) is True, (
+            "authorized write did not reach /p/1")
+        assert _get_datapoint(coap, oscore_ctx, "/p/4").get(1) is False, (
+            "ga=65535 must not touch /p/4")
+
+    def test_duplicate_ga_does_not_bypass_scope(self, coap, oscore_ctx,
+                                                uc_ctx):
+        """{7: 65535, ..., 7: 1} must not write /p/4: ga=1 is outside the
+        token's scope."""
+        _set_datapoint(coap, oscore_ctx, "/p/1", False)
+        _set_datapoint(coap, oscore_ctx, "/p/4", False)
+
+        payload = _build_smode_write_duplicate_ga(65535, 1, True)
+        resp = coap.oscore_post(uc_ctx, "/k", payload=payload, timeout=5)
+        assert resp is not None, "POST /k timed out"
+
+        # 4.01 is an OSCORE-layer rejection (replay window), not an ACL verdict.
+        # Without this guard the run would look clean simply because the
+        # request never reached oc_knx_sec_check_acl.
+        assert resp.code != "4.01", (
+            "inconclusive: OSCORE rejected the probe with 4.01 before the ACL "
+            "gate saw it, so this run says nothing about the scope check")
+
+        data = _get_datapoint(coap, oscore_ctx, "/p/4")
+        assert data.get(1) is False, (
+            "scope bypass: /p/4 is bound to ga=1, which is NOT in the token "
+            f"scope [65535], yet it was written (got {data}). The request was "
+            f"answered with {resp.code}.")
+
+        # the gate must reject outright, not accept and silently drop
+        assert resp.code in ("4.03", "4.00"), (
+            f"expected 4.03 Forbidden (or 4.00), got {resp.code}")
+
+
+class TestForeignGaBindingIsLive:
+    """Control for TestUnicastWriteDuplicateGroupAddress.
+
+    Proves the ga=1 -> /p/4 group object is really installed and writable, so
+    that a passing duplicate-ga test cannot pass merely because that binding
+    was never there. Same GO table, but the token is scoped to both group
+    addresses.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx):
+        go = [
+            {0: 13, 7: [65535], 8: 0x10, 11: "/p/1"},
+            {0: 14, 7: [1], 8: 0x10, 11: "/p/4"},
+        ]
+        _provision_unicast(coap, oscore_ctx, go, scope=[65535, 1],
+                           token_id=UC2_TOKEN_ID, sender_id=UC2_SENDER_ID)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_authorized_write_to_ga_one_reaches_p4(self, coap, oscore_ctx):
+        _set_datapoint(coap, oscore_ctx, "/p/4", False)
+
+        uc_ctx = _make_uc_ctx(sender_id=UC2_SENDER_ID)
+        resp = coap.oscore_post(
+            uc_ctx, "/k", payload=_build_smode_write(1, True), timeout=5)
+        assert resp is not None and resp.is_successful, (
+            f"write to ga=1 rejected: {resp.code if resp else 'timeout'}")
+
+        assert _get_datapoint(coap, oscore_ctx, "/p/4").get(1) is True, (
+            "ga=1 -> /p/4 group object is not live; the duplicate-ga test "
+            "would then pass for the wrong reason")
 
 
 # ===========================================================================
