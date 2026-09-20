@@ -78,7 +78,7 @@ static void oc_ipv6_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* end
       }
       else if ((addr_idx % 2 == 0 || (addr_idx > 0 && addr[addr_idx - 1]) == 0) && addr[addr_idx] <= 0x0f)
       {
-        ip[str_idx++] = "0123456789abcdef"[addr[addr_idx]];
+        ip[str_idx++] = "0123456789abcdef"[addr[addr_idx] & 0x0f];
       }
       else
       {
