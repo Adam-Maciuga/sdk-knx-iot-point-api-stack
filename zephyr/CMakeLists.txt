@@ -273,6 +273,15 @@ zephyr_library_compile_options(
     -Wdouble-promotion -Wnull-dereference -Wpointer-arith -Wpointer-sign
 )
 
+# The Zephyr headers are not clean under this policy (-Wundef on absent CONFIG_ symbols,
+# -Wstrict-prototypes and -Wvla in the cbprintf and logging headers). The Zephyr include
+# directories become system include directories for the stack library, so the compiler
+# leaves them alone, macros defined there included, and the policy applies to the stack
+# sources only.
+target_include_directories(knx_iot_stack SYSTEM PRIVATE
+    $<TARGET_PROPERTY:zephyr_interface,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
 # ── Include directories ────────────────────────────────────────────────────────
 # Mirrors KNX_INCLUDE_DIRS from the stack's top-level CMakeLists.txt.
 # Note: some are marked TODO in the stack as not intended to be public.

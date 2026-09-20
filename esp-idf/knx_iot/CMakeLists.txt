@@ -126,14 +126,41 @@ idf_component_register(
 # -Wall -Werror -Wextra and relaxes -Wno-unused-parameter -Wno-sign-compare
 # -Wno-enum-conversion plus -Wno-error= for the unused, deprecated and extra groups
 # (tools/cmake/build.cmake). A later -Wall or -Werror does not undo an explicit -Wno- or
-# -Wno-error= option, so the re-enabled ones are spelled out.
+# -Wno-error= option, so the re-enabled ones are spelled out. -Wundef is left out: The
+# ESP-IDF header overrides in esp_libc/platform_include (assert.h in every unit) test
+# disabled Kconfig options with #if on their absent CONFIG_ symbols.
 target_compile_options(${COMPONENT_LIB} PRIVATE
-    -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wundef -Wvla
+    -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wvla
     -Wdouble-promotion -Wnull-dereference -Wpointer-arith
     -Wunused-parameter -Wsign-compare -Wenum-conversion
     -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable
     -Werror=deprecated-declarations -Werror=extra
 )
+
+# The ESP-IDF headers are not clean under this policy (-Wunused-parameter in inline
+# functions, ...). Their include directories become system include directories for the
+# stack component, so the compiler leaves them alone and the policy applies to the stack
+# sources only. The stack and application components stay regular include directories.
+# So does esp_libc: Its platform_include overrides toolchain headers and must stay ahead
+# of the picolibc include directory, which the gcc driver injects as a system directory
+# ahead of every system directory given on the command line.
+idf_build_get_property(build_components BUILD_COMPONENTS)
+foreach(component ${build_components})
+    if(component STREQUAL "knx_iot" OR component STREQUAL "knx_iot_app"
+       OR component STREQUAL "main" OR component STREQUAL "esp_libc")
+        continue()
+    endif()
+    idf_component_get_property(component_dir ${component} COMPONENT_DIR)
+    idf_component_get_property(component_include_dirs ${component} INCLUDE_DIRS)
+    foreach(include_dir ${component_include_dirs})
+        if(IS_ABSOLUTE "${include_dir}")
+            target_include_directories(${COMPONENT_LIB} SYSTEM PRIVATE "${include_dir}")
+        else()
+            target_include_directories(${COMPONENT_LIB} SYSTEM PRIVATE
+                "${component_dir}/${include_dir}")
+        endif()
+    endforeach()
+endforeach()
 
 # -- External libraries (mirrors zephyr/CMakeLists.txt) --
 # ESP-IDF's bundled Mbed TLS 4.1.0 is used via REQUIRES above. PSA crypto is
