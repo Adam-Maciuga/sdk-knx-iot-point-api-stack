@@ -1,6 +1,7 @@
 # KNX IoT Point API Stack
 
 [![pipeline status](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/badges/work_in_progress/pipeline.svg?ignore_skipped=true)](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/-/pipelines)
+[![coverage](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/badges/work_in_progress/coverage.svg?job=unit-coverage-gcc&min_good=85&min_acceptable=80&min_medium=75)](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/-/pipelines)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE.md)
 [![CMake](https://img.shields.io/badge/CMake-3.21%2B-blue.svg)](https://cmake.org/)
 
@@ -120,7 +121,7 @@ gcovr --root . --filter 'api/' --filter 'messaging/' --filter 'security/' --filt
       --html-details build/linux-coverage-gcc/coverage-html/index.html build/linux-coverage-gcc
 ```
 
-In CI the `unit-coverage-gcc` job does this on every push; GitLab shows the line
+In CI the `unit-coverage-gcc` job does this on every push; GitLab shows the function
 percentage on the job and the merge request, and the HTML report is an artifact.
 
 ### Runtime Conformance Tests
