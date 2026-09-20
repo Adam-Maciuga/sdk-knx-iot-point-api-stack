@@ -360,26 +360,30 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
   int prev_interface_index = -1;
   bool done = false;
   while (!done) {
-    int guess = 512, response_len;
-    do {
-      guess <<= 1;
-      uint8_t dummy[guess];
-      response_len = recv(nl_sock, dummy, guess, MSG_PEEK);
-      if (response_len < 0) {
-        close(nl_sock);
-        return;
-      }
-    } while (response_len == guess);
+    // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
+    uint8_t probe;
+    int response_len = recv(nl_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+    if (response_len <= 0) {
+      close(nl_sock);
+      return;
+    }
 
-    uint8_t buffer[response_len];
+    uint8_t *buffer = malloc(response_len);
+    if (!buffer) {
+      close(nl_sock);
+      return;
+    }
+
     response_len = recv(nl_sock, buffer, response_len, 0);
     if (response_len < 0) {
+      free(buffer);
       close(nl_sock);
       return;
     }
 
     response = (struct nlmsghdr *)buffer;
     if (response->nlmsg_type == NLMSG_ERROR) {
+      free(buffer);
       close(nl_sock);
       return;
     }
@@ -436,6 +440,7 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
 
         oc_endpoint_t *new_ep = calloc(1, sizeof(oc_endpoint_t));
         if (!new_ep) {
+          free(buffer);
           close(nl_sock);
           return;
         }
@@ -447,6 +452,8 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
     next_ifaddr:
       response = NLMSG_NEXT(response, response_len);
     }
+
+    free(buffer);
   }
 
   close(nl_sock);
@@ -652,27 +659,31 @@ int oc_network_refresh_endpoints(void) {
   }
 
   // Data is available, process the netlink event.
-  int guess = 512, response_len;
-  do {
-    guess <<= 1;
-    uint8_t dummy[guess];
-    response_len = recv(ifchange_sock, dummy, guess, MSG_PEEK);
-    if (response_len < 0) {
-      OC_ERR("reading payload size from netlink interface");
-      return -1;
-    }
-  } while (response_len == guess);
+  // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
+  uint8_t probe;
+  int response_len = recv(ifchange_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+  if (response_len <= 0) {
+    OC_ERR("reading payload size from netlink interface");
+    return -1;
+  }
 
-  uint8_t buffer[response_len];
+  uint8_t *buffer = malloc(response_len);
+  if (!buffer) {
+    OC_ERR("Failed to allocate the netlink message buffer!");
+    return -1;
+  }
+
   response_len = recv(ifchange_sock, buffer, response_len, 0);
   if (response_len < 0) {
     OC_ERR("reading payload from netlink interface");
+    free(buffer);
     return -1;
   }
 
   response = (struct nlmsghdr *)buffer;
   if (response->nlmsg_type == NLMSG_ERROR) {
     OC_ERR("caught NLMSG_ERROR in payload from netlink interface");
+    free(buffer);
     return -1;
   }
 
@@ -712,6 +723,8 @@ int oc_network_refresh_endpoints(void) {
 
     response = NLMSG_NEXT(response, response_len);
   }
+
+  free(buffer);
 
   if (if_state_changed) {
     ip_context_t *dev = get_ip_context_for_device();
