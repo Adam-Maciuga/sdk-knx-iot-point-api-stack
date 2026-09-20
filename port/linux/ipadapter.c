@@ -362,7 +362,7 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
   while (!done) {
     // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
     uint8_t probe;
-    int response_len = recv(nl_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+    ssize_t response_len = recv(nl_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
     if (response_len <= 0) {
       close(nl_sock);
       return;
@@ -474,7 +474,7 @@ static void refresh_endpoints_list(ip_context_t *dev) {
   get_interface_addresses(dev, AF_INET6, dev->port);	// TBD FIXME shouldn't this also be an option and called always?
 }
 
-oc_endpoint_t * oc_connectivity_get_endpoints() {
+oc_endpoint_t * oc_connectivity_get_endpoints(void) {
   ip_context_t *dev = get_ip_context_for_device();
 
   if (!dev) {
@@ -661,7 +661,7 @@ int oc_network_refresh_endpoints(void) {
   // Data is available, process the netlink event.
   // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
   uint8_t probe;
-  int response_len = recv(ifchange_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+  ssize_t response_len = recv(ifchange_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
   if (response_len <= 0) {
     OC_ERR("reading payload size from netlink interface");
     return -1;
@@ -1403,7 +1403,7 @@ int oc_connectivity_init(void) {
   return 0;
 }
 
-void oc_connectivity_shutdown() {
+void oc_connectivity_shutdown(void) {
   ip_context_t *dev = get_ip_context_for_device();
   dev->terminate = 1;
   if (write(dev->shutdown_pipe[1], "", 1) < 0) {
