@@ -148,6 +148,9 @@ static int knx_iid_to_str(uint64_t iid, char* buf, int size)
 /* KNX Serial Number command */
 static int knx_serial_number_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%s", device->serialnumber);
   return 0;
@@ -156,6 +159,9 @@ static int knx_serial_number_cmd(size_t argc, char** argv)
 /* KNX Hardware Version command */
 static int knx_hw_version_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%d.%d.%d", device->hwv->major, device->hwv->minor, device->hwv->patch);
   return 0;
@@ -164,6 +170,9 @@ static int knx_hw_version_cmd(size_t argc, char** argv)
 /* KNX Hardware Type command */
 static int knx_hw_type_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%s", device->hwt);
   return 0;
@@ -172,6 +181,9 @@ static int knx_hw_type_cmd(size_t argc, char** argv)
 /* KNX Firmware Version command */
 static int knx_fw_version_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
   return 0;
@@ -180,6 +192,9 @@ static int knx_fw_version_cmd(size_t argc, char** argv)
 /* KNX Application Version command */
 static int knx_app_version_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
   return 0;
@@ -188,6 +203,9 @@ static int knx_app_version_cmd(size_t argc, char** argv)
 /* KNX Application Name command */
 static int knx_app_name_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("%s", knx_iot_get_application_name());
   return 0;
 }
@@ -195,6 +213,9 @@ static int knx_app_name_cmd(size_t argc, char** argv)
 /* KNX Model command */
 static int knx_model_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%s", device->iot_model);
   return 0;
@@ -203,6 +224,9 @@ static int knx_model_cmd(size_t argc, char** argv)
 /* KNX Hostname command */
 static int knx_hostname_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   oc_device_info_t* device = oc_core_get_device_info();
   knx_shell_print("%s", oc_string(device->iot_hostname));
   return 0;
@@ -211,6 +235,9 @@ static int knx_hostname_cmd(size_t argc, char** argv)
 /* KNX QR Code command */
 static int knx_qr_code_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   char sn_upper[SN_STR_LEN_MAX + 1] = "";
 
   const oc_device_info_t* device = oc_core_get_device_info();
@@ -437,6 +464,9 @@ static int knx_lsm_cmd(size_t argc, char** argv)
 /* KNX GOT (Group Object Table) print command */
 static int knx_got_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Group Object Table (GOT):");
   const int size = oc_core_get_group_object_table_total_size();
   for (int i = 0; i < size; i++)
@@ -479,6 +509,9 @@ static int knx_got_cmd(size_t argc, char** argv)
 /* KNX GPT (Group Publisher Table) print command */
 static int knx_gpt_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Group Publisher Table (GPT):");
   const int size = oc_core_get_publisher_table_size();
   for (int i = 0; i < size; i++)
@@ -527,6 +560,9 @@ static int knx_gpt_cmd(size_t argc, char** argv)
 /* KNX GRT (Group Recipient Table) print command */
 static int knx_grt_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Group Recipient Table (GRT):");
   const int size = oc_core_get_recipient_table_size();
   for (int i = 0; i < size; i++)
@@ -575,6 +611,9 @@ static int knx_grt_cmd(size_t argc, char** argv)
 /* KNX AT (Access Token Table) print command */
 static int knx_at_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Access Token Table (AT):");
   const int size = oc_core_get_at_table_size();
   for (int i = 0; i < size; i++)
@@ -594,6 +633,8 @@ static int knx_at_cmd(size_t argc, char** argv)
 /* KNX Print All command: print all device parameters and tables */
 static int knx_print_all_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+
   const oc_device_info_t* device = oc_core_get_device_info();
 
   knx_shell_print("Serial number      : %s", device->serialnumber);
@@ -648,6 +689,9 @@ static int knx_print_all_cmd(size_t argc, char** argv)
 /* KNX Clear Tables command */
 static int knx_clear_tables_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Clearing KNX tables... ");
 
   /* Call KNX storage reset with code 7 (Factory Reset without IA) */
@@ -660,6 +704,9 @@ static int knx_clear_tables_cmd(size_t argc, char** argv)
 /* KNX Factory Reset command */
 static int knx_factory_reset_cmd(size_t argc, char** argv)
 {
+  (void)argc;
+  (void)argv;
+
   knx_shell_print("Resetting KNX parameters to factory settings... ");
 
   /* Call KNX storage reset with code 2 (Factory Reset to default state) */

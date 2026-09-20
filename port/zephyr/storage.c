@@ -29,6 +29,8 @@
 
 int oc_storage_config(const char* store)
 {
+  (void)store; // The settings subsystem has no store path, the partition is fixed.
+
   const int ret = settings_subsys_init();
   if (ret != 0)
   {

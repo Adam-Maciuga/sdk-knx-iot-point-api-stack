@@ -60,6 +60,9 @@ static const char* knx_heap_help = "ESP-IDF heap statistics (default and interna
  * The numbers come from heap_caps_get_info() over all regions with the capability. */
 static int knx_heap_cmd(size_t argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     static const struct {
         const char* name;
         uint32_t caps;

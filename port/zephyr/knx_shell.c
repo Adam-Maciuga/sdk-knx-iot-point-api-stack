@@ -81,6 +81,9 @@ static int knx_iot_dispatch(const struct shell* sh, size_t argc, char** argv)
  * Requires CONFIG_SYS_HEAP_RUNTIME_STATS=y (set via CONFIG_KERNEL_SHELL). */
 static int knx_heap_cmd(const struct shell *sh, size_t argc, char **argv)
 {
+    (void)argc;
+    (void)argv;
+
 #if defined(CONFIG_SYS_HEAP_RUNTIME_STATS)
     int rc = 0;
     struct sys_memory_stats stats;
