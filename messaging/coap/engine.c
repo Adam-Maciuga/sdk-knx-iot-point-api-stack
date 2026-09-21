@@ -255,9 +255,15 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
       oc_char_print_hex((char*)his.fields.address, 16);
 
       // RFC 7252 section 4.5: re-send cached response if available
-      const bool resend = response_cache_lookup_and_resend(&his);
+      if (response_cache_lookup_and_resend(&his))
+      {
+        OC_DBG("duplicate CON: cached response re-sent for MID %d", his.fields.mid);
+      }
+      else
+      {
+        OC_DBG("duplicate CON: cached response ignored for MID %d", his.fields.mid);
+      }
 
-      OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
       return true;
     }
   }
