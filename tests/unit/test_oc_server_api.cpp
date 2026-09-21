@@ -192,7 +192,7 @@ TEST_F(ServerApiQuery, EmptyQueryIterationReturnsFalse)
   oc_request_t request;
   memset(&request, 0, sizeof(request));
   oc_init_query_iterator();
-  char *value = nullptr;
+  const char *value = nullptr;
   int value_len = 0;
   EXPECT_FALSE(oc_iterate_query_get_values(&request, "missing", &value,
                                            &value_len));

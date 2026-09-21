@@ -321,8 +321,8 @@ TEST(ScopeMask, EmptyNameWithNonZeroLengthIsNone)
 
 TEST(QueryParsing, NullOrEmptyQueryIsRejected)
 {
-  char *key = nullptr;
-  char *value = nullptr;
+  const char *key = nullptr;
+  const char *value = nullptr;
   size_t key_len = 0;
   size_t value_len = 0;
 
@@ -633,7 +633,7 @@ TEST(QueryNthKeyExists, ThirdFragmentKey)
 TEST(QueryNthKeyValue, KeyOnlyFragment)
 {
   const char *q = "flag&a=1";
-  char *k = nullptr, *v = nullptr;
+  const char *k = nullptr, *v = nullptr;
   size_t kl = 0, vl = 0;
   EXPECT_EQ(oc_ri_get_query_nth_key_value(q, strlen(q), &k, &kl, &v, &vl, 1), -1);
 }
@@ -641,34 +641,34 @@ TEST(QueryNthKeyValue, KeyOnlyFragment)
 TEST(QueryNthKeyValue, MissingFragmentReturnsMinusOne)
 {
   const char *q = "a=1";
-  char *k = nullptr, *v = nullptr;
+  const char *k = nullptr, *v = nullptr;
   size_t kl = 0, vl = 0;
   EXPECT_EQ(oc_ri_get_query_nth_key_value(q, strlen(q), &k, &kl, &v, &vl, 2), -1);
 }
 
 TEST(QueryNthKeyValue, ZeroIndexReturnsMinusOne)
 {
-  char *k = nullptr, *v = nullptr;
+  const char *k = nullptr, *v = nullptr;
   size_t kl = 0, vl = 0;
   EXPECT_EQ(oc_ri_get_query_nth_key_value("a=1", 3, &k, &kl, &v, &vl, 0), -1);
 }
 
 TEST(QueryValue, KeyOnlyFragmentReturnsMinusOne)
 {
-  char *value = nullptr;
+  const char *value = nullptr;
   EXPECT_EQ(oc_ri_get_query_value("flag", 4, "flag", &value), -1);
 }
 
 TEST(QueryValue, EmptyValueReturnsZero)
 {
-  char *value = nullptr;
+  const char *value = nullptr;
   EXPECT_EQ(oc_ri_get_query_value("a=", 2, "a", &value), 0);
 }
 
 TEST(QueryNthKeyExists, KeyOnlySecondFragment)
 {
   const char *q = "a=1&flag";
-  char *k = nullptr;
+  const char *k = nullptr;
   size_t kl = 0;
   EXPECT_GT(oc_ri_query_nth_key_exists(q, strlen(q), &k, &kl, 2), 0);
   EXPECT_EQ(kl, 4U);
