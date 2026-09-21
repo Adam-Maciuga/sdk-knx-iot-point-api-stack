@@ -176,6 +176,9 @@ target_include_directories(kis-port PUBLIC "${MDNS_INCLUDE_DIR}")
 
 ## KNX-IoT Stack - Platform Port Options ##
 target_link_libraries(kis-port PUBLIC kis-common)
+target_compile_options(kis-port PRIVATE ${KNX_STACK_C_FLAGS})
+target_compile_definitions(kis-port PRIVATE ${KNX_STACK_C_DEFINITIONS})
+set_target_properties(kis-port PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     target_link_libraries(kis-port PUBLIC mbedtls)
 endif()

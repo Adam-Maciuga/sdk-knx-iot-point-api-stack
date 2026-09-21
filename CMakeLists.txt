@@ -63,8 +63,8 @@ if(MSVC)
   # - Mbed TLS uses its own /W3 and /WX on its targets, the HERE leaked flags would cause 
   #   MSVC D9025 "overriding" warnings on every Mbed TLS source file
   #
-  # - The stack warning flags are attached to the kis-common INTERFACE target below, 
-  #   which only the stack's own targets consume.
+  # - The stack warning and hardening flags are applied PRIVATE to the stack libraries
+  #   below (KNX_STACK_C_FLAGS), see ## KNX-IoT Stack Options ##.
 
 endif()
 
@@ -213,73 +213,42 @@ set(COAP_SOURCES
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
 
-# - stack warning flags are attached to the kis-common INTERFACE target 
-#   (consumed only by the stack's own targets) instead of via directory-scoped 
-#   add_compile_options / CMAKE_C_FLAGS, they do NOT leak into the FetchContent 
-#   third-party dependencies (see details above on ### Compiler ###). 
-#
-# - the GNU/Clang flags are guarded with # $<COMPILE_LANGUAGE:C> because they are not
-#   valid for C++ (the unit tests consume kis-common transitively).
-
+# ── Warning policy and hardening of the stack sources ─────────────────────────
+# - Applied PRIVATE to the stack libraries (kisClientServer, kis-port, kisTestControl): The
+#   flags neither leak into the FetchContent third-party dependencies nor propagate to the
+#   applications linking the stack, the demos apply the same flags to their executables in
+#   their own build file.
+# - One set for Debug and Release, with one exception: _FORTIFY_SOURCE needs the optimiser
+#   and is Release only.
+# - The warning policy is the same as on Zephyr (zephyr/CMakeLists.txt) and ESP-IDF
+#   (esp-idf/knx_iot/CMakeLists.txt), the documentation checks of clang stay warnings.
+# - -fstack-protector-strong: A canary between the local buffers and the return address,
+#   checked on return, an overflow that overwrote it aborts the program.
+# - _FORTIFY_SOURCE=2: glibc replaces memcpy, strcpy, snprintf, ... by checking variants
+#   where the destination size is known, an overflow aborts at runtime.
+# - Position independent code: The objects can be linked into a PIE executable. The
+#   executables link with -pie (random load address on every start, ASLR for the program
+#   itself) and full RELRO (-z relro -z now: The relocation tables are read-only once the
+#   loader is done), both belong to the application, see the demos.
 if(MSVC)
     # W4 = max warn level, WX- = do NOT treat warnings as errors (MSVC default).
-    target_compile_options(kis-common INTERFACE /W4 /WX-)
-endif()
-# - the warning policy (warnings as errors) is the same on every build, gcc and clang
-#   here, Zephyr in zephyr/CMakeLists.txt, ESP-IDF in esp-idf/knx_iot/CMakeLists.txt.
-# - the documentation checks of clang stay warnings, the doc comments are a block of their own.
-if(CMAKE_COMPILER_IS_GNUCC)
-    target_compile_options(kis-common INTERFACE
-        $<$<COMPILE_LANGUAGE:C>:-Wall>
-        $<$<COMPILE_LANGUAGE:C>:-Wextra>
-        $<$<COMPILE_LANGUAGE:C>:-Werror>
-        $<$<COMPILE_LANGUAGE:C>:-Wshadow>
-        $<$<COMPILE_LANGUAGE:C>:-Wformat=2>
-        $<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>
-        $<$<COMPILE_LANGUAGE:C>:-Wundef>
-        $<$<COMPILE_LANGUAGE:C>:-Wvla>
-        $<$<COMPILE_LANGUAGE:C>:-Wdouble-promotion>
-        $<$<COMPILE_LANGUAGE:C>:-Wnull-dereference>
-        $<$<COMPILE_LANGUAGE:C>:-Wpointer-arith>
-        $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
-        $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
+    set(KNX_STACK_C_FLAGS /W4 /WX-)
+elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    set(KNX_STACK_C_FLAGS
+        -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wundef -Wvla
+        -Wdouble-promotion -Wnull-dereference -Wpointer-arith
+        -Wmissing-declarations -Wmissing-prototypes
     )
-endif()
-if(CMAKE_COMPILER_IS_CLANG)
-    target_compile_options(kis-common INTERFACE
-        $<$<COMPILE_LANGUAGE:C>:-Wall>
-        $<$<COMPILE_LANGUAGE:C>:-Wextra>
-        $<$<COMPILE_LANGUAGE:C>:-Werror>
-        $<$<COMPILE_LANGUAGE:C>:-Wshadow>
-        $<$<COMPILE_LANGUAGE:C>:-Wformat=2>
-        $<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>
-        $<$<COMPILE_LANGUAGE:C>:-Wundef>
-        $<$<COMPILE_LANGUAGE:C>:-Wvla>
-        $<$<COMPILE_LANGUAGE:C>:-Wdouble-promotion>
-        $<$<COMPILE_LANGUAGE:C>:-Wnull-dereference>
-        $<$<COMPILE_LANGUAGE:C>:-Wpointer-arith>
-        $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
-        $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
-        $<$<COMPILE_LANGUAGE:C>:-Wdocumentation>
-        $<$<COMPILE_LANGUAGE:C>:-Wno-documentation-deprecated-sync>
-        $<$<COMPILE_LANGUAGE:C>:-Wunreachable-code>
-        $<$<COMPILE_LANGUAGE:C>:-Wno-error=documentation>
-        $<$<COMPILE_LANGUAGE:C>:-Wno-error=documentation-html>
-    )
-endif()
-
-if(UNIX AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(kis-common INTERFACE
-        $<$<CONFIG:Release>:-fstack-protector-strong>
-        $<$<CONFIG:Release>:-Werror>
-    )
-    target_compile_definitions(kis-common INTERFACE
-        $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>
-    )
-    target_link_options(kis-common INTERFACE
-        $<$<CONFIG:Release>:-pie>
-        $<$<CONFIG:Release>:-Wl,-z,relro,-z,now>
-    )
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        list(APPEND KNX_STACK_C_FLAGS
+            -Wdocumentation -Wno-documentation-deprecated-sync -Wunreachable-code
+            -Wno-error=documentation -Wno-error=documentation-html
+        )
+    endif()
+    if(UNIX)
+        list(APPEND KNX_STACK_C_FLAGS -fstack-protector-strong)
+        set(KNX_STACK_C_DEFINITIONS $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>)
+    endif()
 endif()
 
 if(OC_PRINT_ENABLED)
@@ -331,6 +300,9 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     target_link_libraries(kisClientServer PUBLIC tinycbor)
 endif()
 target_link_libraries(kisClientServer PUBLIC kis-port)
+target_compile_options(kisClientServer PRIVATE ${KNX_STACK_C_FLAGS})
+target_compile_definitions(kisClientServer PRIVATE ${KNX_STACK_C_DEFINITIONS})
+set_target_properties(kisClientServer PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 ## Process individual stack/application behavior ##
 target_compile_definitions(kis-common INTERFACE
@@ -367,6 +339,9 @@ target_compile_definitions(kis-common INTERFACE
 add_library(kisTestControl STATIC ${PROJECT_SOURCE_DIR}/api/oc_test_control.c)
 target_include_directories(kisTestControl PUBLIC ${PROJECT_SOURCE_DIR}/api)
 target_link_libraries(kisTestControl PUBLIC kisClientServer)
+target_compile_options(kisTestControl PRIVATE ${KNX_STACK_C_FLAGS})
+target_compile_definitions(kisTestControl PRIVATE ${KNX_STACK_C_DEFINITIONS})
+set_target_properties(kisTestControl PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 ### Unit Tests ###
 if(BUILD_TESTING)
