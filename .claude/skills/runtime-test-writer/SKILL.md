@@ -54,8 +54,7 @@ No mocks, no in-process calls. Real UDP network I/O.
 - **Test server**: `tests/common/runtime_test_server.c` — headless C binary linked against full `kisClientServer`
 - **Spec reference**: "08_10_5 KNX IoT Point API Tests v01_01_01_AS"
 - **CI**: GitLab CI `runtime-gcc` job in `.gitlab-ci.yml` (memory-safety variant: `runtime-asan-memcheck`)
-- **Docker image**: `luftd/knx-ci:latest` (GCC 15.2, Python 3.13, IPv6 enabled)
-- **Branch**: `unit_tests_claude`
+- **Docker image**: `itgesellschaft/knxiot-knx-ci:latest` (GCC 15.2, Python 3.13, IPv6 enabled)
 
 ### Key Files
 
@@ -141,32 +140,32 @@ The runtime_test_server exposes:
 
 ### Trace Files
 
-The `tests/EITT_REFERENCE_PROJECT/` directory contains captured traffic from successful EITT runs against a real device. Each spec section has its own trace buffer:
+The `tests/eitt/data/traces/` directory contains captured traffic from successful EITT runs against a real device. Each spec section has its own trace file:
 
 | File | Section |
 |------|---------|
-| `5_1_trace_buffer.xml` | 5.1 — Discovery |
-| `5_2_trace_buffer.xml` | 5.2 — Device resources |
-| `5_3_trace_buffer.xml` | 5.3 — Security |
-| `5_4_1_trace_buffer.xml` | 5.4 — Group communication (S-Mode) |
-| `5_5_trace_buffer.xml` | 5.5 — Programming interface |
-| `5_6_trace_buffer.xml` | 5.6 — Functional blocks |
-| `5_7_trace_buffer.xml` | 5.7 — Data point resources |
-| `5_8_trace_buffer.xml` | 5.8 — Additional |
-| `5_107_trace_buffer.xml` | 5.107 — Extended |
+| `5_1.xml` | 5.1 — Discovery |
+| `5_2.xml` | 5.2 — Device resources |
+| `5_3.xml` | 5.3 — Security |
+| `5_4_1.xml` | 5.4 — Group communication (S-Mode) |
+| `5_5.xml` | 5.5 — Programming interface |
+| `5_6.xml` | 5.6 — Functional blocks |
+| `5_7.xml` | 5.7 — Data point resources |
+| `5_8.xml` | 5.8 — Additional |
+| `5_10.xml` | 5.10 — Extended |
 
-`EittProject.xml` (5MB) contains the test definitions for ALL sections — use it to enumerate test case IDs and verify completeness.
+`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml` contains the test definitions for ALL sections — the eitt tier (`tests/eitt/test_eitt.py`) runs this template directly against the DUT, so it already covers everything it declares. Per `tests/runtime/README.md`, a hand-written test in `tests/runtime/` may exist only for behaviour the template does NOT cover, or one that asserts materially more than it does (in which case it must carry `@pytest.mark.eitt_overlap("<case id>")`). Check the template for a covering `TestCase` FIRST — if the section 5.X.Y.Z you were asked about is in there and the assertion doesn't exceed it, no runtime test is needed at all.
 
 **Trace format**: XML with `<CoAPMessage>` elements containing:
 - `CWay`: `IN` (sent to DUT) or `OUT` (response from DUT)
-- `Method`, `Path`, `SecContext`, `SeqNum`
+- `Method`, `Path`, `SeqNum`, `SeqNumMethod`
 - `RawContent`: hex-encoded raw CBOR payload
-- `CoAPRequest`: JSON with decoded fields
+- `CoAPRequest`: decoded human-readable form of the request/response
 - `EvalResult`: pass/fail evaluation from EITT
 
-**How to use**: When implementing a test for section 5.X.Y.Z, find the corresponding section in the matching trace buffer file. The hex `RawContent` shows exactly what EITT sends and expects back. Decode with `cbor2.loads(bytes.fromhex(hex_string))`.
+**How to use**: Only once the template check above says a hand-written test is warranted, find the corresponding section in the matching trace file for section 5.X.Y.Z. The hex `RawContent` shows exactly what a real device sent/expected on the wire. Decode with `cbor2.loads(bytes.fromhex(hex_string))`.
 
-**IMPORTANT**: Always analyze the trace buffer BEFORE writing tests. Do NOT use `disabled_test_*.py` files as reference — they are not EITT-compliant.
+**IMPORTANT**: The traces are not just historical reference — the eitt-tier interpreter (`tests/eitt/interpreter/*.py`) still cites specific `TelNo` entries in them to justify its own quirk handling, and `tests/eitt/interpreter/events.py` is designed so a live run can be diffed against them. Don't treat them as superseded by the template tier.
 
 ### EITT AUTH PREPARATION Pattern
 
@@ -199,14 +198,15 @@ it covers: `test_<topic>.py` — never for the EITT id.
 
 ### Step 2: Analyze Requirements (parallel)
 
-1. **Check the EITT trace file** for the target section — look at the `RawContent` hex to see exact CBOR payloads and expected response codes
-2. **Search the test spec** via MCP for official test procedures
-3. **Search the API spec** via MCP for resource definitions
-4. Read the **stack handler** (e.g., `api/oc_knx_sec.c` for auth resources) to understand:
+1. **Check `KnxConformanceTestTemplate-PointAPI.xml` first** for a `TestCase` covering the target section — if one exists and doesn't need a materially stronger assertion, STOP: the eitt tier already tests it and a hand-written test must not be added (see §EITT Reference Material).
+2. **If a hand-written test is still warranted**, check the matching EITT trace file — look at the `RawContent` hex to see exact CBOR payloads and expected response codes
+3. **Search the test spec** via MCP for official test procedures
+4. **Search the API spec** via MCP for resource definitions
+5. Read the **stack handler** (e.g., `api/oc_knx_sec.c` for auth resources) to understand:
    - Expected CBOR payload format (which keys, which types)
    - Required preconditions
    - Response codes for success/failure
-5. Read **2-3 existing active test files** to match current project style
+6. Read **2-3 existing active test files** to match current project style
 
 ### Step 3: Generate the Test File
 
