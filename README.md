@@ -1,7 +1,7 @@
 # KNX IoT Point API Stack
 
 [![pipeline status](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/badges/work_in_progress/pipeline.svg?ignore_skipped=true)](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/-/pipelines)
-[![coverage](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/badges/work_in_progress/coverage.svg?job=unit-coverage-gcc&min_good=85&min_acceptable=80&min_medium=75)](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/-/pipelines)
+[![coverage](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/badges/work_in_progress/coverage.svg?job=unit-coverage-gcc&min_good=85&min_acceptable=65&min_medium=65)](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-stack/-/pipelines)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE.md)
 [![CMake](https://img.shields.io/badge/CMake-3.21%2B-blue.svg)](https://cmake.org/)
 
@@ -118,6 +118,7 @@ cmake --build --preset linux-coverage-gcc
 ctest --preset linux-coverage-gcc
 gcovr --root . --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' \
       --exclude 'api/c-timestamp/.*' --print-summary \
+  --html-medium-threshold 65 --html-high-threshold 85 \
       --html-details build/linux-coverage-gcc/coverage-html/index.html build/linux-coverage-gcc
 ```
 

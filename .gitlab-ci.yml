@@ -184,6 +184,8 @@ unit-coverage-gcc:
       --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/'
       --exclude 'api/c-timestamp/.*'
       --cobertura build/linux-coverage-gcc/coverage.xml
+      --html-medium-threshold 65
+      --html-high-threshold 85
       --html-details build/linux-coverage-gcc/coverage-html/index.html
       --print-summary
       build/linux-coverage-gcc
@@ -270,6 +272,8 @@ fuzz-seed-replay:
         --filter 'api/' --filter 'messaging/' --filter 'security/' --filter 'util/' \
         --exclude 'api/c-timestamp/.*' \
         --cobertura build/linux-fuzz-coverage-clang/coverage.xml \
+        --html-medium-threshold 65 \
+        --html-high-threshold 85 \
         --html-details build/linux-fuzz-coverage-clang/coverage-html/index.html \
         --print-summary build/linux-fuzz-coverage-clang; then
         status=1
