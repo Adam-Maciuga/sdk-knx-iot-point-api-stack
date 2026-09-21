@@ -249,6 +249,12 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         list(APPEND KNX_STACK_C_FLAGS -fstack-protector-strong)
         set(KNX_STACK_C_DEFINITIONS $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>)
     endif()
+    if(WIN32)
+        # MinGW: printf and snprintf are checked by gcc as builtins with the Microsoft format
+        # rules, which have no %zu. Without the builtins gcc checks the MinGW declaration with
+        # the gnu_printf attribute (__USE_MINGW_ANSI_STDIO=1), the C99 rules the runtime follows.
+        list(APPEND KNX_STACK_C_FLAGS -fno-builtin-printf -fno-builtin-snprintf)
+    endif()
 endif()
 
 if(OC_PRINT_ENABLED)

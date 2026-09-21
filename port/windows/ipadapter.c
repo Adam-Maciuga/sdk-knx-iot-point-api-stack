@@ -85,7 +85,7 @@ static bool add_ip_interface(DWORD target_index) {
 
   new_if->if_index = target_index;
   oc_list_add(ip_interface_list, new_if);
-  OC_DBG("New interface added: %d", new_if->if_index);
+  OC_DBG("New interface added: %lu", new_if->if_index);
 
   return true;
 }
@@ -98,7 +98,7 @@ static bool remove_ip_interface(DWORD target_index) {
 
   oc_list_remove(ip_interface_list, if_item);
   free(if_item);
-  OC_DBG("Removed from ip interface list: %d", target_index);
+  OC_DBG("Removed from ip interface list: %lu", target_index);
 
   return true;
 }
@@ -352,7 +352,7 @@ static void get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
       memcpy(new_ep, &ep, sizeof(oc_endpoint_t));
       oc_list_add(dev->eps, new_ep);
 #ifdef OC_DEBUG
-      OC_DBG("Adding address for interface %d ", ifaddr->if_index);
+      OC_DBG("Adding address for interface %lu ", ifaddr->if_index);
       PRINTipaddr(ep);
 #endif
       continue;
@@ -387,7 +387,7 @@ int oc_connectivity_get_new_port(void) {
 
   /* Open a fresh socket */
   dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-  if (dev->server_sock == SOCKET_ERROR) {
+  if (dev->server_sock == INVALID_SOCKET) {
     OC_ERR("creating new server socket %d", WSAGetLastError());
     return -1;
   }
@@ -543,9 +543,13 @@ static int recv_msg(SOCKET sock, uint8_t *recv_buf, int recv_buf_size,
   Msg.dwBufferCount = 1;
 
   union {
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     char in[WSA_CMSG_SPACE(sizeof(struct in_pktinfo))];
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     char in6[WSA_CMSG_SPACE(sizeof(struct in6_pktinfo))];
   } control_buf;
   Msg.Control.buf = (char *)&control_buf;
@@ -576,7 +580,9 @@ static int recv_msg(SOCKET sock, uint8_t *recv_buf, int recv_buf_size,
 
     LPWSACMSGHDR MsgHdr = NULL;
     do {
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
       MsgHdr = WSA_CMSG_NXTHDR(&Msg, MsgHdr);
       if (!MsgHdr) {
         break;
@@ -624,7 +630,7 @@ static int recv_msg(SOCKET sock, uint8_t *recv_buf, int recv_buf_size,
   return -1;
 }
 
-static void * network_event_thread(void *data) {
+static DWORD WINAPI network_event_thread(LPVOID data) {
   ip_context_t *dev = data;
 
 #define OC_WSAEVENTSELECT(socket, event_handle, event_type)                    \
@@ -735,11 +741,11 @@ static void * network_event_thread(void *data) {
     WSACloseEvent(events_list[i]);
   }
 
-  return NULL;
+  return 0;
 
 network_event_thread_error:
   oc_abort("err in network event thread");
-  return NULL;
+  return 0;
 }
 
 oc_endpoint_t * oc_connectivity_get_endpoints() {
@@ -796,24 +802,6 @@ static bool check_if_address_unset(uint8_t *address, int size) {
     return false;
   }
   return true;
-}
-
-static void set_source_address_for_interface(ADDRESS_FAMILY family, uint8_t *address,
-        int address_size, int interface_index) {
-  if (!check_if_address_unset(address, address_size)) {
-    return;
-  }
-  ifaddr_t *ifaddr_list = get_network_addresses(), *addr;
-  for (addr = ifaddr_list; addr != NULL; addr = addr->next) {
-    if (addr->addr.ss_family == family &&
-        (int)addr->if_index == interface_index) {
-      if (family == AF_INET6) {
-        struct sockaddr_in6 *a = (struct sockaddr_in6 *)&addr->addr;
-        memcpy(address, a->sin6_addr.u.Byte, 16);
-      }
-    }
-  }
-  free_network_addresses(ifaddr_list);
 }
 
 static bool is_ula(const struct in6_addr *addr) {
@@ -899,9 +887,13 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
   LPWSACMSGHDR MsgHdr = NULL;
 
   union {
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     char in[WSA_CMSG_SPACE(sizeof(struct in_pktinfo))];
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     char in6[WSA_CMSG_SPACE(sizeof(struct in6_pktinfo))];
   } control_buf;
 
@@ -914,12 +906,18 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
 
     // Use pktinfo for both multicast and unicast to ensure consistent
     // source address selection across all send paths.
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
 
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     MsgHdr = WSA_CMSG_FIRSTHDR(&Msg);
+#ifdef _MSC_VER
 #pragma warning(suppress : 4116)
+#endif
     memset(MsgHdr, 0, WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)));
 
     MsgHdr->cmsg_level = IPPROTO_IPV6;
@@ -1215,7 +1213,7 @@ int oc_connectivity_init(void) {
   dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
   dev->mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
-  if (dev->server_sock == SOCKET_ERROR || dev->mcast_sock == SOCKET_ERROR) {
+  if (dev->server_sock == INVALID_SOCKET || dev->mcast_sock == INVALID_SOCKET) {
     OC_ERR("creating server sockets");
     return -1;
   }
@@ -1317,8 +1315,7 @@ int oc_connectivity_init(void) {
   }
 
   dev->event_thread_handle =
-    CreateThread(0, 0, (LPTHREAD_START_ROUTINE)network_event_thread, dev, 0,
-            &dev->event_thread);
+    CreateThread(0, 0, network_event_thread, dev, 0, &dev->event_thread);
   if (dev->event_thread_handle == NULL) {
     OC_ERR("creating network polling thread");
     return -1;

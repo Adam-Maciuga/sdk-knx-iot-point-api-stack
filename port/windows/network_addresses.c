@@ -45,7 +45,7 @@ ifaddr_t * get_network_addresses(void) {
             GAA_FLAG_SKIP_DNS_SERVER, NULL, interface_list, &out_buf_len);
 
     if (dwRetVal == ERROR_BUFFER_OVERFLOW) {
-      OC_WRN("retry GetAdaptersAddresses with out_buf_len=%d", out_buf_len);
+      OC_WRN("retry GetAdaptersAddresses with out_buf_len=%lu", out_buf_len);
       free(interface_list);
       interface_list = NULL;
       continue;
@@ -69,7 +69,7 @@ ifaddr_t * get_network_addresses(void) {
 
 #ifdef OC_DEBUG
     if (interface->FriendlyName) {
-      OC_DBG("processing interface %ws:", interface->FriendlyName);
+      OC_DBG("processing interface %ls:", interface->FriendlyName);
     }
 #endif
     // Process all IPv6 addresses on this interface.
