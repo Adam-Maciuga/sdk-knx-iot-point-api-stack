@@ -174,11 +174,12 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
-/* OC_LOG_OFF
+/* KNX_LOG_OFF
  * A log call whose output is off: Never evaluated, its arguments still count as used and
  * are format checked. Zephyr (Z_LOG2) and FreeRTOS (ESP_LOG_LEVEL_LOCAL) do the same.
+ * A side effect in a log call happens with the output on only, never rely on one.
  */
-#define OC_LOG_OFF(call) do { if (0) { call; } } while (0)
+#define KNX_LOG_OFF(call) do { if (0) { call; } } while (0)
 
 // Note: it is recommended to use a console for the output that allows a 'no word wrap'
 
@@ -205,8 +206,8 @@ extern "C" {
   #endif
 #else
     // logging off
-    #define PRINT(...)  OC_LOG_OFF(printf(__VA_ARGS__))
-    #define PRINTF(...) OC_LOG_OFF(printf(__VA_ARGS__))
+    #define PRINT(...)  KNX_LOG_OFF(printf(__VA_ARGS__))
+    #define PRINTF(...) KNX_LOG_OFF(printf(__VA_ARGS__))
 #endif
 
 /* OC_LOG
@@ -249,7 +250,7 @@ extern "C" {
   PRINTF(__VA_ARGS__);                                          \
   } while (0)
 #else
-#define OC_LOG(level, ...) OC_LOG_OFF(printf(__VA_ARGS__))
+#define OC_LOG(level, ...) KNX_LOG_OFF(printf(__VA_ARGS__))
 #endif
 
 /* OC_ERR / OC_WRN / OC_INF
@@ -279,9 +280,9 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
   #define OC_LOGbytes(bytes, length) \
     knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
-  #define OC_DBG(...) OC_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_DBG(...) KNX_LOG_OFF(printf(__VA_ARGS__))
   #define OC_LOGbytes(bytes, length) \
-    OC_LOG_OFF(knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
+    KNX_LOG_OFF(knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
 #endif
 
 /* OC_DBG_OSCORE / OC_DBG_SPAKE */
@@ -291,10 +292,10 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
   #define OC_LOGbytes_OSCORE(bytes, length) \
     knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
-  #define OC_DBG_OSCORE(...) OC_LOG_OFF(printf(__VA_ARGS__))
-  #define OC_DBG_SPAKE(...)  OC_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_DBG_OSCORE(...) KNX_LOG_OFF(printf(__VA_ARGS__))
+  #define OC_DBG_SPAKE(...)  KNX_LOG_OFF(printf(__VA_ARGS__))
   #define OC_LOGbytes_OSCORE(bytes, length) \
-    OC_LOG_OFF(knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
+    KNX_LOG_OFF(knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0)))
 #endif
 
 #endif

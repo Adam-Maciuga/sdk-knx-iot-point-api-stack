@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+/* The blockwise state is only forward declared here, oc_blockwise.h includes this header. */
 struct oc_blockwise_state_s;
 
 /**
@@ -688,6 +689,30 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
  */
 int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char** key, size_t* key_len, size_t n);
 
+/**
+ * @brief dispatches an inbound CoAP request to the handler of the addressed resource and fills
+ *        in the response, the server side entry point of the resource interface
+ *
+ * @note
+ *  - called by the CoAP engine (coap_receive) once the request is assembled, applications
+ *    never call it
+ *  - the resource lookup, the access scope check, the GET/PUT/POST/DELETE handler callback,
+ *    observe registration, separate responses and the observer notification happen here
+ *  - the response state is allocated here when it is NULL, the response payload is written
+ *    into its buffer
+ *
+ * @param request the inbound coap_packet_t
+ * @param response the coap_packet_t the response is written to
+ * @param request_state blockwise state holding the request payload, the payload is empty when
+ *                      it is NULL
+ * @param response_state blockwise state receiving the response payload, allocated when NULL
+ * @param block2_size block size for the response
+ * @param endpoint endpoint the request was received from
+ *
+ * @return true when the request reached the handler of a matching resource, false when this
+ *         function set an error status on the response itself (bad request, forbidden, not
+ *         found, method not allowed, entity too large)
+ */
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       struct oc_blockwise_state_s** request_state,
                                       struct oc_blockwise_state_s** response_state,

@@ -58,8 +58,6 @@ int oc_storage_config(const char* store)
     }
 
     OC_INF("Creating storage directory at %s", temp_dir);
-    // directories need the execute (traversal) bit; 0664 would make the
-    // directory inaccessible, including to its own owner.
     const int ret_val = mkdir(temp_dir, 0775); // rwxrwxr-x
     OC_DBG("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
 

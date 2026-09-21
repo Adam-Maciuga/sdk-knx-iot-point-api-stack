@@ -388,7 +388,10 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
       return;
     }
 
-    while (NLMSG_OK(response, response_len)) {
+    // Signed like the int the netlink macros are written against, 64 bit so the u32 message
+    // length compares without a sign change on every target (clang -Wsign-compare).
+    int64_t len = response_len;
+    while (NLMSG_OK(response, len)) {
       if (response->nlmsg_type == NLMSG_DONE) {
         done = true;
         break;
@@ -450,7 +453,7 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
       }
 
     next_ifaddr:
-      response = NLMSG_NEXT(response, response_len);
+      response = NLMSG_NEXT(response, len);
     }
 
     free(buffer);
@@ -688,7 +691,10 @@ int oc_network_refresh_endpoints(void) {
   }
 
   bool if_state_changed = false;
-  while (NLMSG_OK(response, response_len)) {
+  // Signed like the int the netlink macros are written against, 64 bit so the u32 message
+  // length compares without a sign change on every target (clang -Wsign-compare).
+  int64_t len = response_len;
+  while (NLMSG_OK(response, len)) {
     if (response->nlmsg_type == RTM_NEWADDR) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
       if (ifa) {
@@ -721,7 +727,7 @@ int oc_network_refresh_endpoints(void) {
       if_state_changed = true;
     }
 
-    response = NLMSG_NEXT(response, response_len);
+    response = NLMSG_NEXT(response, len);
   }
 
   free(buffer);

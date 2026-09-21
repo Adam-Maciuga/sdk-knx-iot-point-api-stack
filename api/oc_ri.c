@@ -449,8 +449,8 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, const cha
   if (current)
   {
     *key_len = current - start;
-    *key = (char*)start;
-    *value = (char*)(current + 1);
+    *key = start;
+    *value = current + 1;
 
     current = (char*)memchr(*value, '&', end - *value);
 
@@ -477,7 +477,7 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, const cha
     else
     {
       // there is no value
-      *key = (char*)start;
+      *key = start;
       *key_len = current - start;
     }
   }
@@ -552,7 +552,7 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char**
     size_t value_len;
 
     *key_len = current - start;
-    *key = (char*)start;
+    *key = start;
 
     const char* value = current + 1;
     current = (char*)memchr(value, '&', end - value);
@@ -577,7 +577,7 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char**
     }
 
     // there is no value
-    *key = (char*)start;
+    *key = start;
     *key_len = current - start;
     next_pos = (int)(*key_len + 1);
   }
