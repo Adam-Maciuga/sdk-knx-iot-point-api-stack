@@ -2090,6 +2090,11 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
         first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
         authorizing on the first one let a payload carrying the key twice be
         checked against one group address and executed with another.
+        - normal   = {6: "w", 7: 2, 1: true}
+        - abnormal = {6: "w", 7: 2, 7: 99, 1: true} - parser allows this, 
+                     if the authorization loop only checked the first ga (2, covered by the token) instead
+                     of scanning all occurrences, the request would be authorized against GA 2 but actually
+                     executed against GA 99.
       */
       while (rep)
       {
