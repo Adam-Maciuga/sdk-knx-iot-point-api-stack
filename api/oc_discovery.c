@@ -181,15 +181,14 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 		if (resource->content_type[1] != CONTENT_NONE)
 		{// 2 types, ct="60 40"
 
-			// space for two types (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
-      #define MAX_CT_LEN_DOUBLE (3 + 1 + 5 + 1 + 5 + 1)
+      // space for two types (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
+      // "ct=" + '"' + number + ' ' + number + '"' + terminator
+      #define MAX_CT_LEN_DOUBLE (3 + 1 + 5 + 1 + 5 + 1 + 1)
 
       char double_my_ct_value[MAX_CT_LEN_DOUBLE];
 
-
-			// ct= + " + number + ' ' + number + "
-      (void)snprintf(double_my_ct_value, MAX_CT_LEN_DOUBLE, "ct=\"%d %d\"", 
-										 resource->content_type[0],
+      (void)snprintf(double_my_ct_value, MAX_CT_LEN_DOUBLE, "ct=\"%d %d\"",
+                     resource->content_type[0],
                      resource->content_type[1]);
       *response_length += oc_rep_add_line_to_buffer(double_my_ct_value);
 
@@ -197,14 +196,14 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 		else
 		{// 1 type, ct=60
 
-			// space for one type (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
-		  #define MAX_CT_LEN_SINGLE (3 + 5)
+      // space for one type (max 5 digits, the largest value in oc_content_format_t is CONTENT_NONE = 64999)
+      // "ct=" + number + terminator
+      #define MAX_CT_LEN_SINGLE (3 + 5 + 1)
 
       char single_my_ct_value[MAX_CT_LEN_SINGLE];
 
-		  // ct= + number 
-			(void)snprintf(single_my_ct_value, MAX_CT_LEN_SINGLE, "ct=%d", 
-										 resource->content_type[0]);
+      (void)snprintf(single_my_ct_value, MAX_CT_LEN_SINGLE, "ct=%d",
+                     resource->content_type[0]);
       *response_length += oc_rep_add_line_to_buffer(single_my_ct_value);
 		}
 	}
