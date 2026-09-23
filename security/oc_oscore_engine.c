@@ -189,10 +189,17 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   =========
   Two tasks:
 
-  (a) Defends the client-side S-mode path against replayed 4.01 unicast echo responses (clause 3.6.4.1.3).
-  (b) A (too) LATE echo response (arriving after the beforehand outgoing s-mode CoAP transaction 
-      self-cleared, such as s-mode CON transaction cleared s-mode NON was fired and forgotten)
-      can still trigger a re-request (therefore the original message is needed)
+  (a) Defends the client-side s-mode path against replayed 4.01 unicast echo responses (clause 3.6.4.1.3).
+  (b) A (too) LATE echo response arrives, but can still trigger a re-request (therefore the original
+      message is needed), reason:
+      -> the outgoing s-mode MULTICAST NON message was fired to N recipients; unlike unicast, a single
+         CoAP transaction cannot hold the multiple, asynchronous echo responses that may come back
+
+      Note: unicast s-mode requests (CON and NON) do NOT use this ring; they instead rely on
+      transaction system which deliberately retains the message 
+      - CON, standard in CoAP
+      - NON, transactions are reused (= own add on to standard)
+      
 
   One unified FIFO ring (g_echo_ring). Every slot holds the same struct; the
   bl.kid_ctx_len field acts as a discriminator between two ring roles:
