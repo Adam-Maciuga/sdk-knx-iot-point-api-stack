@@ -187,20 +187,22 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 /*
   ECHO RING
   =========
-  Defends the client-side S-mode path against replayed 4.01 unicast echo responses
-  (clause 3.6.4.1.3).
+  Two tasks:
+
+  (a) Defends the client-side S-mode path against replayed 4.01 unicast echo responses (clause 3.6.4.1.3).
+  (b) A (too) LATE echo response (arriving after the beforehand outgoing s-mode CoAP transaction 
+      self-cleared, such as s-mode CON transaction cleared s-mode NON was fired and forgotten)
+      can still trigger a re-request (therefore the original message is needed)
 
   One unified FIFO ring (g_echo_ring). Every slot holds the same struct; the
   bl.kid_ctx_len field acts as a discriminator between two ring roles:
 
   Anchor slot  (bl.kid_ctx_len == 0)  -- WHITELIST role:
-  - Written once per outbound multicast send: records (ssn, kid, token, msg).
-  - Proves we sent a request carrying this (ssn, kid).
-  - Also carries the retained PLAINTEXT s-mode message (msg, ref-counted) so a
-    LATE echo response (arriving after the s-mode CoAP transaction self-cleared)
-    can still trigger a re-request.  token + token_len correlate the echo to msg.
+  - Written once per outbound multicast send: records (ssn, kid, token, msg), proves we sent 
+    a request carrying this (ssn, kid).
+  - Can still trigger a re-request, task (b), token + token_len correlate the echo to msg.
   - Released (msg unref'd, slot zeroed) when the slot is reused on roll-over or
-    when the ring is cleared.
+    when the ring is cleared. Note there is NO explicit timeout that auto clears an echo ring buffer.
 
   Seen-responder slot  (bl.kid_ctx_len > 0)  -- BLACKLIST role:
   - Written the first time a responder triple (ssn, kid, kid_ctx) is accepted.

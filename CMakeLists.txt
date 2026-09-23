@@ -112,7 +112,7 @@ set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient tab
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/applications per CoAP message" FORCE)
-set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size")
+set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size, used buffers to defend against replayed 4.01 unicast echo responses")
 
 ## KNX payload size (bytes)
 # 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 273 = 1041)
@@ -123,6 +123,12 @@ set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size")
 #    (such as for discovery linked list responses, here it depends on how many application resources
 #     are defined and responded)
 #  - can be overwritten at runtime by applications with oc_set_pdu_size()
+
+## KNX_ECHO_RING_SIZE 
+#  The size should be carfully chosen in accordance to the individual outgoing senders. 
+#  Each ring buffer hosts some security data and a reference to the original (outgoing) request. 
+#  Consequently each ring buffer keeps the request alive until its being overwritten 
+#  Details see 'ECHO RING'#  
 
 # Network
 # IPv6 unicast port
