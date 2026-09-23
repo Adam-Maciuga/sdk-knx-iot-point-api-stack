@@ -37,7 +37,7 @@ static oc_group_object_table_t g_got[KNX_GOT_MAX_ENTRIES];  // go table
 static oc_group_table_t g_grt[KNX_GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
-static oc_group_table_t g_gpt[KNX_GPT_MAX_ENTRIES];         // pub table (to receive)
+static oc_group_table_t g_gpt[KNX_GPT_MAX_ENTRIES];     // pub table (to receive)
 static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains 'iid' entries from external projects
 bool pub_table_contains_no_iid(void) {return g_gpt_contains_no_iid;} 
 #endif

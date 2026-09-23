@@ -38,7 +38,7 @@ static const uint16_t g_oscore_replay_window_size = 32;   // default according t
 
 // static RAM variables
 static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
-static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
+static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];    // init all with '0' (also in at table included strings next/ptr/size)
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
