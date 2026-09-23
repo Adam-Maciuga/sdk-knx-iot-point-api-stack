@@ -93,6 +93,25 @@ config KNXIOT_PAGE_SIZE
 
 # -- Network --
 
+choice KNXIOT_NETWORK_BACKEND
+    prompt "KNX-IoT network backend"
+    default KNXIOT_NETWORK_BACKEND_WIFI
+    help
+      Selects the connectivity implementation compiled into the stack.
+      The application supplies the matching ESP-IDF configuration for the
+      selected backend.
+
+config KNXIOT_NETWORK_BACKEND_ETHERNET
+    bool "Ethernet"
+
+config KNXIOT_NETWORK_BACKEND_THREAD
+    bool "OpenThread"
+
+config KNXIOT_NETWORK_BACKEND_WIFI
+    bool "Wi-Fi"
+
+endchoice
+
 config KNX_UNICAST_PORT
     int "IPv6 unicast port (0 = OS-assigned ephemeral)"
     default 0

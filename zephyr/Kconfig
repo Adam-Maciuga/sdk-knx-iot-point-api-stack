@@ -154,6 +154,39 @@ config KNXIOT_PAGE_SIZE
 
 # ── Network ────────────────────────────────────────────────────────────────────
 
+choice KNXIOT_NETWORK_BACKEND
+    prompt "KNX-IoT network backend"
+    default KNXIOT_NETWORK_BACKEND_THREAD
+    help
+      Selects the connectivity implementation compiled into the stack.
+      The application supplies the matching Zephyr configuration for the
+      selected backend.
+
+config KNXIOT_NETWORK_BACKEND_ETHERNET
+    bool "Ethernet"
+    help
+      Use Ethernet as the network backend.
+      Compiles port/zephyr/connectivity_posix.c with the shared DNS-SD
+      responder. Needs CONFIG_NET_L2_ETHERNET.
+
+config KNXIOT_NETWORK_BACKEND_THREAD
+    bool "OpenThread"
+    help
+      Use OpenThread (IEEE 802.15.4 Thread mesh) as the network backend.
+      Compiles port/zephyr/connectivity_thread.c with the OpenThread SRP
+      client. Needs CONFIG_OPENTHREAD, with or without the Zephyr
+      OpenThread L2.
+
+config KNXIOT_NETWORK_BACKEND_WIFI
+    bool "Wi-Fi"
+    select WIFI
+    help
+      Use Wi-Fi as the network backend.
+      Compiles port/zephyr/connectivity_posix.c with the shared DNS-SD
+      responder.
+
+endchoice
+
 config KNX_UNICAST_PORT
     int "IPv6 unicast port for KNX S-mode messages"
     default 0

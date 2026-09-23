@@ -72,6 +72,12 @@ set(COAP_SOURCES
 # (connectivity_lwip.c) plus the shared DNS-SD responder (port/dns-sd_mdns.c, which
 # reaches the endpoint list through ipadapter.c). The OpenThread backend is a later
 # phase.
+if(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    message(FATAL_ERROR
+        "KNX-IoT stack: The Thread network backend is not implemented on ESP-IDF yet. "
+        "Select CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET or CONFIG_KNXIOT_NETWORK_BACKEND_WIFI.")
+endif()
+
 set(PORT_SOURCES
     ${STACK_ROOT}/port/oc_log.c
     ${STACK_ROOT}/port/random_psa.c

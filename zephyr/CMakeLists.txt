@@ -232,20 +232,41 @@ endif()
 #       API (zsock_*), used for both Wi-Fi and Ethernet L2 backends.
 #       The shared port/dns-sd_mdns.c provides DNS-SD and mDNS, the same implementation
 #       used on Linux and Windows.
-if(CONFIG_NET_L2_OPENTHREAD)
+# Note: The backend is chosen with CONFIG_KNXIOT_NETWORK_BACKEND_* (zephyr/Kconfig),
+#       not inferred from the Zephyr L2 symbols.
+if(CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET)
+    if(NOT CONFIG_NET_L2_ETHERNET)
+        message(FATAL_ERROR
+            "KNX-IoT stack: The Ethernet network backend needs the Zephyr Ethernet L2. "
+            "Enable CONFIG_NET_L2_ETHERNET in the application configuration.")
+    endif()
+
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/zephyr/connectivity_posix.c
+        ${STACK_ROOT}/port/dns-sd_mdns.c
+    )
+elseif(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    # OpenThread is needed with or without the Zephyr OpenThread L2 (native OpenThread).
+    if(NOT CONFIG_OPENTHREAD)
+        message(FATAL_ERROR
+            "KNX-IoT stack: The Thread network backend needs OpenThread. "
+            "Enable CONFIG_OPENTHREAD in the application configuration.")
+    endif()
+
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
         ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
     )
-elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
+elseif(CONFIG_KNXIOT_NETWORK_BACKEND_WIFI)
+    # The Wi-Fi backend selects CONFIG_WIFI itself, so there is nothing to check.
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_posix.c
         ${STACK_ROOT}/port/dns-sd_mdns.c
     )
 else()
     message(FATAL_ERROR
-        "KNX-IoT stack: No supported network backend selected. "
-        "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
+        "KNX-IoT stack: No network backend selected. "
+        "Set CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET, _THREAD or _WIFI.")
 endif()
 
 # Test-control endpoints (/test/*) for the Python runtime conformance suite.
