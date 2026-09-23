@@ -132,11 +132,11 @@ config KNXIOT_GRT_MAX_ENTRIES
       (receives S-mode messages from). Size this to the number of
       group objects the device listens to.
 
-config KNXIOT_SEC_MAX_ENTRIES
+config KNXIOT_ATT_MAX_ENTRIES
     int "Access Token Table max entries"
     default 20
     help
-      Corresponds to CMake: KNX_SEC_MAX_ENTRIES.
+      Corresponds to CMake: KNX_ATT_MAX_ENTRIES.
       Maximum number of entries in the Access Token (AT) table.
       Each entry holds a security token granting a management client
       access rights to this device. Size this to the maximum number

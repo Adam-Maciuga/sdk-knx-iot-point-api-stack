@@ -377,8 +377,8 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
   int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
 	size_t response_length = 0;
   int skipped = 0;																// ignore resources that do not fit to the requested page
-	int query_pn = PAGE_NUMBER;
-	int query_ps = PAGE_SIZE;
+	int query_pn = KNX_PAGE_NUMBER;
+	int query_ps = KNX_PAGE_SIZE;
 
 	bool current_page_is_full = false;							// true if response page is full, no more resources can be added
 	bool query_parameter_key_match = false;					// true if at least one query parameter KEY was found
@@ -479,7 +479,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	}
 
 	// handle query parameters l=ps and/or l=total
-	if (query_l_was_processed(request, PAGE_SIZE, total))
+	if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
 		return;
 
 	// first entry number of a resource that will be placed on a page

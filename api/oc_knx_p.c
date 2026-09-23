@@ -40,8 +40,8 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
 
   size_t response_length = 0;
   int total = 0; // total entries of this resource
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_p_get_handler - start");
 
@@ -63,7 +63,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // first entry number of a resource that will be placed on a page

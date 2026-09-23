@@ -76,7 +76,7 @@ TEST(OscoreConfig, OsnDelayRoundTrips)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * AT-table slot accessors (file-static g_at_entries[G_AT_MAX_ENTRIES])
+ * AT-table slot accessors (file-static g_at_entries[KNX_ATT_MAX_ENTRIES])
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 TEST(AuthAtEntry, OutOfBoundsReturnsNull)

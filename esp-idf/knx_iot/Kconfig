@@ -83,7 +83,7 @@ config KNXIOT_GRT_MAX_ENTRIES
     int "Group Recipient Table (GRT) max entries"
     default 20
 
-config KNXIOT_SEC_MAX_ENTRIES
+config KNXIOT_ATT_MAX_ENTRIES
     int "Access Token (AT) table max entries"
     default 20
 

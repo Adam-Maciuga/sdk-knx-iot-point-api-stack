@@ -787,8 +787,8 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   int query_parameter_kvpair_matches = 0; // how many query parameter key/value pair matches where found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   int first_entry = OC_KNX_SWU_PROTOCOL; // first entry number of a resource that will be placed on a page
   int last_entry = OC_KNX_SWU; // last entry number of a resource that will be placed on a page
@@ -803,7 +803,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // first entry number of a resource that will be placed on a page

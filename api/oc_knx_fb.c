@@ -111,8 +111,8 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
   size_t response_length = 0;
   int skipped = 0; // ignore resources that do not fit to the requested page
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_fb_x_get_handler - start");
 
@@ -146,7 +146,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   const int total = oc_core_get_dps_in_a_specific_fb(fb_number, fb_instance);
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // first entry number of a resource that will be placed on a page
@@ -435,8 +435,8 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int skipped = 0; // ignore resources that do not fit to the requested page
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
   
 
   OC_INF("oc_core_fb_get_handler");
@@ -450,7 +450,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   const int total = oc_count_functional_blocks_from_application();
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // first entry number of a resource that will be placed on a page

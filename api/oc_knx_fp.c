@@ -33,11 +33,11 @@ extern const oc_resource_t core_resource_knx_p;
 #define TABLE_GAS (1 << 1)      // identifier for pub/rcp/go table ga list ref property
 
 // note static variables are initialized with '0' first time on device startup
-static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
-static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
+static oc_group_object_table_t g_got[KNX_GOT_MAX_ENTRIES];  // go table
+static oc_group_table_t g_grt[KNX_GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
-static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive)
+static oc_group_table_t g_gpt[KNX_GPT_MAX_ENTRIES];         // pub table (to receive)
 static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains 'iid' entries from external projects
 bool pub_table_contains_no_iid(void) {return g_gpt_contains_no_iid;} 
 #endif
@@ -90,7 +90,7 @@ int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_
 
 int find_empty_slot_in_group_object_table(void)
 {
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id == -1)
     { // empty slot is defined as 'not initialized'
@@ -100,16 +100,16 @@ int find_empty_slot_in_group_object_table(void)
   return -1;
 }
 
-int oc_core_get_group_object_table_total_size(void) { return GOT_MAX_ENTRIES; }
+int oc_core_get_group_object_table_total_size(void) { return KNX_GOT_MAX_ENTRIES; }
 
 oc_group_object_table_t* oc_core_get_group_object_table_entry(int entry)
 {
-  return entry >= 0 && entry < GOT_MAX_ENTRIES ? &g_got[entry] : NULL;
+  return entry >= 0 && entry < KNX_GOT_MAX_ENTRIES ? &g_got[entry] : NULL;
 }
 
 int oc_core_find_index_in_group_object_table_from_id(int32_t id)
 {
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id == id)
     {
@@ -127,7 +127,7 @@ int oc_core_find_first_go_table_index_with_ga(uint32_t group_address)
 int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int current_index)
 {
   // don't allow to access array outside bounds ( current_index must be at least -1)
-  for (int i = current_index + 1; i >= 0 && i < GOT_MAX_ENTRIES; i++)
+  for (int i = current_index + 1; i >= 0 && i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     {
@@ -151,7 +151,7 @@ oc_group_object_table_t* oc_core_find_sending_ga_in_pos_zero_for_href(const char
   // init with NULL
   oc_group_object_table_t* go_entry = NULL;
 
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     { // table entry present
@@ -183,18 +183,18 @@ oc_string_t oc_core_get_href_from_group_object_table_index(int index)
 {
   {
     const oc_string_t error = {0};
-    return index >= 0 && index < GOT_MAX_ENTRIES ? g_got[index].href : error;
+    return index >= 0 && index < KNX_GOT_MAX_ENTRIES ? g_got[index].href : error;
   }
 }
 
 oc_cflag_mask_t oc_core_get_cflags_from_group_object_table_index(int index)
 {
-  return index >= 0 && index < GOT_MAX_ENTRIES ? g_got[index].cflags : OC_CFLAG_NONE;
+  return index >= 0 && index < KNX_GOT_MAX_ENTRIES ? g_got[index].cflags : OC_CFLAG_NONE;
 }
 
 int oc_core_get_ga_table_len_from_group_object_table_index(int index)
 {
-  return index >= 0 && index < GOT_MAX_ENTRIES ? g_got[index].ga_len : 0;
+  return index >= 0 && index < KNX_GOT_MAX_ENTRIES ? g_got[index].ga_len : 0;
 }
 
 int oc_core_find_first_group_object_table_index_from_href(const char* resource_path)
@@ -205,7 +205,7 @@ int oc_core_find_first_group_object_table_index_from_href(const char* resource_p
 int oc_core_find_next_group_object_table_index_from_href(const char* resource_path, int current_index)
 {
   if (current_index > -2) // don't allow to access array outside bounds ( > -2 = at least -1, + 1 = 0)
-  for (int i = current_index + 1; i < GOT_MAX_ENTRIES; i++)
+  for (int i = current_index + 1; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
     { // href len and content matches
@@ -223,7 +223,7 @@ int oc_core_find_next_group_object_table_index_from_href(const char* resource_pa
 static int oc_core_items_used_in_go_table(void)
 {
   int counter = 0;
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     {
@@ -241,7 +241,7 @@ static int oc_core_items_used_in_go_table(void)
 static int oc_core_items_used_in_rcp_table(void)
 {
   int counter = 0;
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
   {
     if (g_grt[i].id > -1)
     {
@@ -280,8 +280,8 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   // query parameter key/value pair matches found
   int query_parameter_kvpair_matches = 0;
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_fp_g_get_handler - start");
 
@@ -294,7 +294,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   const int total = oc_core_items_used_in_go_table();
 
   // handle query parameters l=ps (by using the server default value) and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // empty table returns an empty link-response
@@ -326,7 +326,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   const bool more_request_needed = total > first_entry + query_ps;
 
   // example </fp/g/1>;ct=60 ; must run through entire table since entries are stored randomly
-  for (int i = first_entry; i < GOT_MAX_ENTRIES; i++)
+  for (int i = first_entry; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     {
@@ -823,18 +823,18 @@ const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_r,
 
 int oc_core_find_index_in_publisher_table_from_id(int id)
 {
-  return oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+  return oc_core_find_index_in_table_from_id(id, g_gpt, KNX_GPT_MAX_ENTRIES);
 }
 
 
 oc_group_table_t*  oc_find_entry_in_publisher_table(uint32_t group_address)
 {
-  return oc_find_table_entry_from_ga(g_gpt, GPT_MAX_ENTRIES, group_address);
+  return oc_find_table_entry_from_ga(g_gpt, KNX_GPT_MAX_ENTRIES, group_address);
 }
 
 oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address)
 {
-  return oc_find_table_entry_from_ga(g_grt, GRT_MAX_ENTRIES, group_address);
+  return oc_find_table_entry_from_ga(g_grt, KNX_GRT_MAX_ENTRIES, group_address);
 }
 
 /*
@@ -845,7 +845,7 @@ oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address)
 static int oc_core_items_used_in_pub_table(void)
 {
   int counter = 0;
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GPT_MAX_ENTRIES; i++)
   {
     if (g_gpt[i].id > -1)
     {
@@ -862,8 +862,8 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_fp_p_get_handler - start");
 
@@ -876,7 +876,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   const int total = oc_core_items_used_in_pub_table();
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // empty table returns an empty link-response
@@ -908,7 +908,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   const bool more_request_needed = total > first_entry + query_ps;
 
   // example </fp/p/1>;ct=60 ; must run through entire table since entries are stored randomly
-  for (int i = first_entry; i < GPT_MAX_ENTRIES; i++)
+  for (int i = first_entry; i < KNX_GPT_MAX_ENTRIES; i++)
   {
     if (g_gpt[i].id > -1)
     {
@@ -1004,7 +1004,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       // find index in PUB table
-      int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+      int index = oc_core_find_index_in_table_from_id(id, g_gpt, KNX_GPT_MAX_ENTRIES);
       if (index != -1)
       {
         // index already in use, so it will be changed
@@ -1016,7 +1016,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         return_status = OC_STATUS_CREATED;
 
         // no index, so we will create one (default)
-        index = find_empty_slot_in_table(g_gpt, GPT_MAX_ENTRIES);
+        index = find_empty_slot_in_table(g_gpt, KNX_GPT_MAX_ENTRIES);
         if (index == -1)
         {
           OC_ERR("PUB table has no empty slot to add a new entry");
@@ -1197,7 +1197,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, KNX_GPT_MAX_ENTRIES);
       }
       else
       {
@@ -1300,7 +1300,7 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path,
     request->uri_path_len);
 
-  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, KNX_GPT_MAX_ENTRIES);
 
   OC_DBG("id:%d index = %d", id, index);
 
@@ -1382,7 +1382,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path,
     request->uri_path_len);
 
-  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, KNX_GPT_MAX_ENTRIES);
 
   if (index == -1)
   {
@@ -1390,7 +1390,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, KNX_GPT_MAX_ENTRIES);
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
@@ -1426,8 +1426,8 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_fp_r_get_handler - start");
 
@@ -1440,7 +1440,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   const int total = oc_core_items_used_in_rcp_table();
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
     return;
 
   // empty table returns an empty link-response
@@ -1472,7 +1472,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   const bool more_request_needed = total > first_entry + query_ps;
 
   // example </fp/r/1>;ct=60 ; must run through entire table since entries are stored randomly
-  for (int i = first_entry; i < GRT_MAX_ENTRIES; i++)
+  for (int i = first_entry; i < KNX_GRT_MAX_ENTRIES; i++)
   {
     if (g_grt[i].id > -1)
     {
@@ -1566,7 +1566,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       // find index in RCP table
-      int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+      int index = oc_core_find_index_in_table_from_id(id, g_grt, KNX_GRT_MAX_ENTRIES);
       if (index != -1)
       {
         // index already in use, so it will be changed
@@ -1578,7 +1578,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         return_status = OC_STATUS_CREATED;
 
         // no index, so we will create one (default)
-        index = find_empty_slot_in_table(g_grt, GRT_MAX_ENTRIES);
+        index = find_empty_slot_in_table(g_grt, KNX_GRT_MAX_ENTRIES);
         if (index == -1)
         {
           OC_ERR("RCP table has no empty slot to add a new entry");
@@ -1803,7 +1803,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+        oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, KNX_GRT_MAX_ENTRIES);
       }
       else
       {
@@ -1907,7 +1907,7 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path,
     request->uri_path_len);
 
-  const int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+  const int index = oc_core_find_index_in_table_from_id(id, g_grt, KNX_GRT_MAX_ENTRIES);
 
   OC_DBG("id:%d index = %d", id, index);
 
@@ -1989,7 +1989,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path, 
     request->uri_path_len);
 
-  int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+  int index = oc_core_find_index_in_table_from_id(id, g_grt, KNX_GRT_MAX_ENTRIES);
 
   if (index == -1)
   {
@@ -1997,7 +1997,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+  oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, KNX_GRT_MAX_ENTRIES);
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
@@ -2127,7 +2127,7 @@ void oc_print_group_object_table_entry(int entry)
 
 void oc_store_group_object_table_entry(int entry)
 {
-  if (entry < 0 || entry >= GOT_MAX_ENTRIES)
+  if (entry < 0 || entry >= KNX_GOT_MAX_ENTRIES)
     return;
 
   char storage_key[KNX_STORAGE_KEY_GOT_ENTRY_SIZE];
@@ -2169,7 +2169,7 @@ void oc_store_group_object_table_entry(int entry)
 
 void oc_load_group_object_table_entry(int entry)
 {
-  if (entry < 0 || entry >= GOT_MAX_ENTRIES)
+  if (entry < 0 || entry >= KNX_GOT_MAX_ENTRIES)
     return;
   
   char storage_key[KNX_STORAGE_KEY_GOT_ENTRY_SIZE];
@@ -2285,7 +2285,7 @@ void oc_load_group_object_table_entry(int entry)
 void oc_load_group_object_table(void)
 {
   OC_INF("Loading Group Object table from persistent storage");
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     oc_load_group_object_table_entry(i);
     oc_print_group_object_table_entry(i);
@@ -2335,7 +2335,7 @@ void oc_free_allocated_group_table_elements(oc_group_table_t* entry, uint8_t all
 
 int oc_delete_group_object_table_entry(int entry)
 {
-  if (entry < 0 || entry >= GOT_MAX_ENTRIES)
+  if (entry < 0 || entry >= KNX_GOT_MAX_ENTRIES)
     return -1;
 
   // delete GO entry (note, one file per entry)
@@ -2352,7 +2352,7 @@ int oc_delete_group_object_table_entry(int entry)
 void oc_delete_group_object_table(void)
 {
   OC_INF("Deleting Group Object table from storage (file) system and RAM");
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     oc_delete_group_object_table_entry(i);
     oc_print_group_object_table_entry(i);
@@ -2362,7 +2362,7 @@ void oc_delete_group_object_table(void)
 static void oc_free_group_object_table(void)
 {
   OC_INF("Free Group Object table from RAM");
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     oc_free_group_object_table_entry(i);
   }
@@ -2595,17 +2595,17 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
 static void oc_load_object_tables(void)
 {
   OC_INF("Loading Recipient table from persistent storage");
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, KNX_GRT_MAX_ENTRIES);
     oc_print_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   OC_INF("Loading Publisher table from persistent storage");
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GPT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+    oc_load_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, KNX_GPT_MAX_ENTRIES);
     oc_print_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
   }
   #endif
@@ -2662,17 +2662,17 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
 void oc_delete_group_tables(void)
 {
   OC_INF("Deleting Recipient table from RAM and storage (file system)");
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, GRT_MAX_ENTRIES);
+    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, KNX_GRT_MAX_ENTRIES);
     oc_print_group_table_entry(i, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   OC_INF("Deleting Publisher table from RAM and storage (file system)");
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GPT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, GPT_MAX_ENTRIES);
+    oc_delete_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, KNX_GPT_MAX_ENTRIES);
     oc_print_group_table_entry(i, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
   }
   #endif
@@ -2681,14 +2681,14 @@ void oc_delete_group_tables(void)
 static void oc_free_group_tables(void)
 {
   OC_INF("Free Recipient table from RAM");
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   OC_INF("Free Publisher table from RAM");
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt);
   }
@@ -2709,17 +2709,17 @@ static int find_empty_slot_in_table(const oc_group_table_t* table, int max_size)
   return -1;
 }
 
-int oc_core_get_recipient_table_size(void) { return GRT_MAX_ENTRIES; }
+int oc_core_get_recipient_table_size(void) { return KNX_GRT_MAX_ENTRIES; }
 
 oc_group_table_t* oc_core_get_recipient_table_entry(int index)
 {
-  return index >= 0 && index < GRT_MAX_ENTRIES ? &g_grt[index] : NULL;
+  return index >= 0 && index < KNX_GRT_MAX_ENTRIES ? &g_grt[index] : NULL;
 }
 
 int oc_core_get_publisher_table_size(void)
 {
 #ifdef OC_PUBLISHER_TABLE
-  return GPT_MAX_ENTRIES;
+  return KNX_GPT_MAX_ENTRIES;
 #else
   return 0;
 #endif
@@ -2729,7 +2729,7 @@ oc_group_table_t* oc_core_get_publisher_table_entry(int index)
 {
 
 #ifdef OC_PUBLISHER_TABLE
-  return index < 0 ? NULL : index >= GPT_MAX_ENTRIES ? NULL : &g_gpt[index];
+  return index < 0 ? NULL : index >= KNX_GPT_MAX_ENTRIES ? NULL : &g_gpt[index];
 #else
   return NULL;
 #endif
@@ -2737,25 +2737,25 @@ oc_group_table_t* oc_core_get_publisher_table_entry(int index)
 
 int oc_core_find_index_in_recipient_table_from_id(int id)
 {
-  return oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+  return oc_core_find_index_in_table_from_id(id, g_grt, KNX_GRT_MAX_ENTRIES);
 }
 
 static void oc_init_tables(void)
 {
   #ifdef OC_PUBLISHER_TABLE
 
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt);
   }
   #endif
 
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_grt);
   }
 
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++)
   {
     oc_free_group_object_table_entry(i);
   }
@@ -2799,7 +2799,7 @@ bool oc_add_points_from_group_object_table_to_response(uint32_t group_address, s
 
   OC_INF("oc_add_points_from_group_object_table_to_response %04" PRIX32, group_address);
 
-  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
+  for (int index = 0; index < KNX_GOT_MAX_ENTRIES; index++)
   {
     if (g_got[index].id > -1)
     {
@@ -2920,7 +2920,7 @@ static void oc_handle_group_multicasts(bool subscribe)
   // (re)set for new check
   g_gpt_contains_no_iid = true;
 
-  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
+  for (int index = 0; index < KNX_GOT_MAX_ENTRIES; index++)
   {
     const oc_cflag_mask_t cflags = g_got[index].cflags;
 
@@ -3058,7 +3058,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
   */
 
   // continue from where the previous callback left off (got_idx advances one GOT entry per sent read)
-  while (g_roi.got_idx < GOT_MAX_ENTRIES)
+  while (g_roi.got_idx < KNX_GOT_MAX_ENTRIES)
   {
     if (g_got[g_roi.got_idx].id >= 0 && g_got[g_roi.got_idx].cflags & OC_CFLAG_INIT)
     {// (a)

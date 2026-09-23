@@ -109,7 +109,7 @@ set(USE_CONSOLE ON CACHE BOOL "Enables the console as a logging output also for 
 set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
-set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
+set(KNX_ATT_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/applications per CoAP message" FORCE)
 set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size, used buffers to defend against replayed 4.01 unicast echo responses")
@@ -319,11 +319,11 @@ set_target_properties(kisClientServer PROPERTIES POSITION_INDEPENDENT_CODE ON)
 ## Process individual stack/application behavior ##
 target_compile_definitions(kis-common INTERFACE
     ## Sizes (tables, pagination, ...)
-    GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES}     # group object table size
-    GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES}     # publisher table size
-    GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES}     # recipient table size
-    G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES}    # access token table size
-    PAGE_SIZE=${KNX_PAGE_SIZE}                 # server default page size
+    KNX_GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES} # group object table size
+    KNX_GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES} # publisher table size
+    KNX_GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES} # recipient table size
+    KNX_ATT_MAX_ENTRIES=${KNX_ATT_MAX_ENTRIES} # access token table size
+    KNX_PAGE_SIZE=${KNX_PAGE_SIZE}             # server default page size
     KNX_ECHO_RING_SIZE=${KNX_ECHO_RING_SIZE}   # echo ring size
 
     ## Network

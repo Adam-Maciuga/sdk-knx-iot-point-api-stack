@@ -242,7 +242,7 @@ Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`.
 OSCORE config lives
 in file-static RAM: `get_oscore_replay_window_size` (const RFC default 32),
 `get_oscore_osn_delay_ms` / `set_oscore_osn_delay_ms` (round-trip, restored).
-The AT table is the file-static `g_at_entries[G_AT_MAX_ENTRIES]`, reached for
+The AT table is the file-static `g_at_entries[KNX_ATT_MAX_ENTRIES]`, reached for
 read/write through the public slot pointer `oc_get_auth_at_entry` plus
 `oc_core_get_at_table_size`:
 - `oc_get_auth_at_entry` (in-bounds entry / out-of-bounds NULL),

@@ -162,13 +162,13 @@ protected:
 
 TEST_F(GoTableSearch, TotalSizeMatchesBuildConstant)
 {
-  EXPECT_EQ(oc_core_get_group_object_table_total_size(), GOT_MAX_ENTRIES);
+  EXPECT_EQ(oc_core_get_group_object_table_total_size(), KNX_GOT_MAX_ENTRIES);
 }
 
 TEST_F(GoTableSearch, GetEntryOutOfBoundsReturnsNull)
 {
   EXPECT_EQ(oc_core_get_group_object_table_entry(-1), nullptr);
-  EXPECT_EQ(oc_core_get_group_object_table_entry(GOT_MAX_ENTRIES), nullptr);
+  EXPECT_EQ(oc_core_get_group_object_table_entry(KNX_GOT_MAX_ENTRIES), nullptr);
   EXPECT_NE(oc_core_get_group_object_table_entry(0), nullptr);
 }
 
@@ -212,7 +212,7 @@ TEST_F(GoTableSearch, FindNextWalksAllMatchesThenNeg1)
 }
 
 /* Regression for the array-bounds fix (commit b677b04f):
- * the scan loop `for (i = current_index + 1; i >= 0 && i < GOT_MAX_ENTRIES; i++)`
+ * the scan loop `for (i = current_index + 1; i >= 0 && i < KNX_GOT_MAX_ENTRIES; i++)`
  * must never read g_got[i] with i < 0. current_index == -1 is the canonical
  * "start" (used by find_first) and scans from index 0; any current_index < -1
  * yields a start index that is still negative, so the loop body never runs and
@@ -233,9 +233,9 @@ TEST_F(GoTableSearch, FindNextCurrentIndexAtOrPastEndReturnsNeg1)
 {
   uint32_t ga[] = { 9 };
   set_entry(3, 88, ga, 1);
-  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, GOT_MAX_ENTRIES - 1), -1);
-  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, GOT_MAX_ENTRIES), -1);
-  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, GOT_MAX_ENTRIES + 50), -1);
+  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, KNX_GOT_MAX_ENTRIES - 1), -1);
+  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, KNX_GOT_MAX_ENTRIES), -1);
+  EXPECT_EQ(oc_core_find_next_go_table_index_with_ga(9, KNX_GOT_MAX_ENTRIES + 50), -1);
 }
 
 TEST_F(GoTableSearch, FindMatchesCorrectGaWithinMultiGaEntry)
@@ -272,7 +272,7 @@ TEST_F(GoTableSearch, FindEmptySlotSkipsOccupiedLeadingSlots)
 TEST_F(GoTableSearch, FindEmptySlotFullTableReturnsNeg1)
 {
   uint32_t ga[] = { 1 };
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++) {
+  for (int i = 0; i < KNX_GOT_MAX_ENTRIES; i++) {
     set_entry(i, 100 + i, ga, 1);
   }
   EXPECT_EQ(find_empty_slot_in_group_object_table(), -1);
@@ -282,7 +282,7 @@ TEST_F(GoTableSearch, FindEmptySlotFullTableReturnsNeg1)
 TEST_F(GoTableSearch, GetCflagsOutOfBoundsReturnsNone)
 {
   EXPECT_EQ(oc_core_get_cflags_from_group_object_table_index(-1), OC_CFLAG_NONE);
-  EXPECT_EQ(oc_core_get_cflags_from_group_object_table_index(GOT_MAX_ENTRIES),
+  EXPECT_EQ(oc_core_get_cflags_from_group_object_table_index(KNX_GOT_MAX_ENTRIES),
             OC_CFLAG_NONE);
 }
 
@@ -299,7 +299,7 @@ TEST_F(GoTableSearch, GetGaLenOutOfBoundsReturnsZero)
 {
   EXPECT_EQ(oc_core_get_ga_table_len_from_group_object_table_index(-1), 0);
   EXPECT_EQ(
-    oc_core_get_ga_table_len_from_group_object_table_index(GOT_MAX_ENTRIES), 0);
+    oc_core_get_ga_table_len_from_group_object_table_index(KNX_GOT_MAX_ENTRIES), 0);
 }
 
 TEST_F(GoTableSearch, GetGaLenReturnsStoredLength)
@@ -315,26 +315,26 @@ TEST_F(GoTableSearch, GetGaLenReturnsStoredLength)
 
 TEST(FpTableSizes, RecipientMatchesBuildConstant)
 {
-  EXPECT_EQ(oc_core_get_recipient_table_size(), GRT_MAX_ENTRIES);
+  EXPECT_EQ(oc_core_get_recipient_table_size(), KNX_GRT_MAX_ENTRIES);
 }
 
 TEST(FpTableSizes, PublisherMatchesBuildConstant)
 {
   /* OC_PUBLISHER_TABLE is defined in this build */
-  EXPECT_EQ(oc_core_get_publisher_table_size(), GPT_MAX_ENTRIES);
+  EXPECT_EQ(oc_core_get_publisher_table_size(), KNX_GPT_MAX_ENTRIES);
 }
 
 TEST(FpTableSizes, RecipientEntryBounds)
 {
   EXPECT_EQ(oc_core_get_recipient_table_entry(-1), nullptr);
-  EXPECT_EQ(oc_core_get_recipient_table_entry(GRT_MAX_ENTRIES), nullptr);
+  EXPECT_EQ(oc_core_get_recipient_table_entry(KNX_GRT_MAX_ENTRIES), nullptr);
   EXPECT_NE(oc_core_get_recipient_table_entry(0), nullptr);
 }
 
 TEST(FpTableSizes, PublisherEntryBounds)
 {
   EXPECT_EQ(oc_core_get_publisher_table_entry(-1), nullptr);
-  EXPECT_EQ(oc_core_get_publisher_table_entry(GPT_MAX_ENTRIES), nullptr);
+  EXPECT_EQ(oc_core_get_publisher_table_entry(KNX_GPT_MAX_ENTRIES), nullptr);
   EXPECT_NE(oc_core_get_publisher_table_entry(0), nullptr);
 }
 
@@ -443,7 +443,7 @@ TEST_F(GoTableHref, GetHrefOutOfBoundsReturnsEmpty)
   EXPECT_EQ(oc_string_len(oc_core_get_href_from_group_object_table_index(-1)),
             0u);
   EXPECT_EQ(oc_string_len(oc_core_get_href_from_group_object_table_index(
-              GOT_MAX_ENTRIES)),
+              KNX_GOT_MAX_ENTRIES)),
             0u);
 }
 

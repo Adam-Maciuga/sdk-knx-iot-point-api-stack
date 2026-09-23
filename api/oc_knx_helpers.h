@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 // default batch size if ps is not part of the request, see clause 2.5.3.8, GET dev/ipv6
-#define BATCH_SIZE 1
+#define KNX_PAGE_SIZE_DEV_IPV6 1
 // default page number if pn is not part of the request
-#define PAGE_NUMBER 0
+#define KNX_PAGE_NUMBER 0
 
 /**
  * @brief summarize the (1...n) response status from the different

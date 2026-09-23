@@ -38,7 +38,7 @@ static const uint16_t g_oscore_replay_window_size = 32;   // default according t
 
 // static RAM variables
 static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
+static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
@@ -52,7 +52,7 @@ int32_t get_at_index(const oc_auth_at_t* entry)
     return -1;
   }
   const int32_t index = (int32_t)(entry - g_at_entries);
-  return index >= 0 && index < G_AT_MAX_ENTRIES ? index : -1;
+  return index >= 0 && index < KNX_ATT_MAX_ENTRIES ? index : -1;
 }
 
 /*
@@ -261,8 +261,8 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   int first_entry = OC_KNX_AUTH_O_REPLWDO; // first entry number of a resource that will be placed on a page
   int last_entry = OC_KNX_AUTH_O; // last entry number of a resource that will be placed on a page
@@ -277,7 +277,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -479,7 +479,7 @@ static void oc_free_at_table_entry_ram(oc_auth_at_t* entry)
 
 void oc_free_at_table_ram(void)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     oc_free_at_table_entry_ram(entry);
   }
@@ -494,7 +494,7 @@ void oc_free_at_table_ram(void)
 static oc_auth_at_t* find_empty_at_entry(void)
 {
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) == 0)
     {
@@ -509,7 +509,7 @@ static oc_auth_at_t* find_empty_at_entry(void)
 
 static oc_auth_at_t* find_entry_from_access_token_string(const char* at, size_t len_at)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     const size_t len = oc_string_len(entry->id);
     if (len > 0 && len == len_at && strncmp(at, oc_string(entry->id), len) == 0)
@@ -575,7 +575,7 @@ static bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, u
 
 int oc_core_get_at_table_size(void)
 {
-  return G_AT_MAX_ENTRIES;
+  return KNX_ATT_MAX_ENTRIES;
 }
 
 /*
@@ -587,7 +587,7 @@ int oc_core_get_at_table_size(void)
 int oc_core_items_used_in_auth_at_table(void)
 {
   int counter = 0;
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) > 0)
     {
@@ -606,8 +606,8 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   // query parameter key/value pair matches found
   int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_auth_at_get_handler - start"); 
 
@@ -620,7 +620,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   const int total = oc_core_items_used_in_auth_at_table();
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -658,7 +658,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   /*
     Example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly.
   */
-  for (oc_auth_at_t* entry = g_at_entries + first_entry; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries + first_entry; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) > 0)
     {
@@ -1367,8 +1367,8 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   int first_entry = OC_KNX_AUTH_O; // first entry number of a resource that will
   // be placed on a page
@@ -1385,7 +1385,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -1541,7 +1541,7 @@ static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
 */
 int oc_delete_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
 
   if (index != -1)
@@ -1587,7 +1587,7 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
 */
 static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
 
   if (index != -1)
@@ -1650,7 +1650,7 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
 
 static void oc_load_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
 
   if (index !=-1)
@@ -1794,7 +1794,7 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
 
 void oc_core_find_and_remove_pase_token_in_at_table(void)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (entry->profile == OC_PROFILE_COAP_PASE)
     {
@@ -1818,7 +1818,7 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
     return NULL;
   }
 
-  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // an entry only counts as provisioned once it carries its id (written last)
     if (oc_string_len(entry->id) == 0)
@@ -1840,7 +1840,7 @@ static void oc_load_at_table(void)
 {
   OC_INF("Loading AT Table into RAM from persistent storage");
   
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // debugging 
     oc_load_at_table_entry(entry);
@@ -1855,7 +1855,7 @@ void oc_delete_at_table(void)
 {
   OC_INF("Deleting AT from RAM and persistent storage");
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // debugging 
     oc_print_auth_at_entry(entry);
@@ -1871,7 +1871,7 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 {
   OC_INF("deleting 'non if.sec' access token table entries from RAM and storage");
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     const oc_acl_mask_t scope = oc_at_get_scope_mask(entry);
 
@@ -1942,7 +1942,7 @@ void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_i
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)
 {
-  return index >= 0 && index < G_AT_MAX_ENTRIES ? &g_at_entries[index] : NULL;
+  return index >= 0 && index < KNX_ATT_MAX_ENTRIES ? &g_at_entries[index] : NULL;
 }
 
 void oc_create_knx_sec_resources(void)
@@ -1955,7 +1955,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
   oc_oscore_free_sender_contexts();
 
-  for (oc_auth_at_t* at_entry = g_at_entries; at_entry < g_at_entries + G_AT_MAX_ENTRIES; at_entry++)
+  for (oc_auth_at_t* at_entry = g_at_entries; at_entry < g_at_entries + KNX_ATT_MAX_ENTRIES; at_entry++)
   {
     if (oc_string_len(at_entry->id) > 0)
     {

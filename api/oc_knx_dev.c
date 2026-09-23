@@ -419,8 +419,8 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 
   // total entries of this resource
   int total = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = BATCH_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE_DEV_IPV6;
 
   OC_INF("oc_core_dev_ipv6_get_handler - start");
 
@@ -438,7 +438,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, BATCH_SIZE, total)) 
+  if (query_l_was_processed(request, KNX_PAGE_SIZE_DEV_IPV6, total))
   {
     return;
   }
@@ -619,8 +619,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   int first_entry = OC_DEV_SN; // first entry number of a resource that will be placed on a page
   int last_entry = OC_DEV; // last entry number of a resource that will be placed on a page
@@ -635,7 +635,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   }
   
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total)) 
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -1027,8 +1027,8 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
   int query_parameter_kvpair_matches = 0;       // how many query parameter key/value pair matches where found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   int first_entry = OC_APP_X;                   // first entry number of a resource that will be placed on a page
   int last_entry = OC_KNX_SPAKE;                // last entry number of a resource that will be placed on a page
@@ -1043,7 +1043,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total)) 
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
