@@ -38,7 +38,8 @@ static const uint16_t g_oscore_replay_window_size = 32;   // default according t
 
 // static RAM variables
 static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
-static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];    // init all with '0' (also in at table included strings next/ptr/size)
+// init all with '0' (also in at table included strings next/ptr/size)
+static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
@@ -658,7 +659,8 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   /*
     Example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly.
   */
-  for (oc_auth_at_t* entry = g_at_entries + first_entry; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries + first_entry;
+       entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) > 0)
     {
@@ -1818,7 +1820,8 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
     return NULL;
   }
 
-  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
+  for (const oc_auth_at_t* entry = g_at_entries;
+       entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // an entry only counts as provisioned once it carries its id (written last)
     if (oc_string_len(entry->id) == 0)
@@ -1955,7 +1958,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
   oc_oscore_free_sender_contexts();
 
-  for (oc_auth_at_t* at_entry = g_at_entries; at_entry < g_at_entries + KNX_ATT_MAX_ENTRIES; at_entry++)
+  for (oc_auth_at_t* at_entry = g_at_entries;
+       at_entry < g_at_entries + KNX_ATT_MAX_ENTRIES; at_entry++)
   {
     if (oc_string_len(at_entry->id) > 0)
     {
