@@ -39,14 +39,6 @@
 #include <string.h>
 
 /*
- * Event queue statistics are off unless the build defines OC_PROCESS_CONF_STATS as 1.
- */
-// TODO Stack issue #146: Remove the statistics as dead code once the team confirms.
-#ifndef OC_PROCESS_CONF_STATS
-#define OC_PROCESS_CONF_STATS 0
-#endif
-
-/*
  * Pointer to the currently running process structure.
  */
 struct oc_process* oc_process_list = NULL;
@@ -68,10 +60,6 @@ static unsigned long OC_PROCESS_NUMEVENTS = 10;
 
 static oc_process_num_events_t nevents, fevent;
 static struct event_data* events;
-
-#if OC_PROCESS_CONF_STATS
-oc_process_num_events_t process_maxevents;
-#endif
 
 static volatile unsigned char poll_requested;
 
@@ -206,9 +194,6 @@ void oc_process_init(void)
   lastevent = OC_PROCESS_EVENT_MAX;
 
   nevents = fevent = 0;
-  #if OC_PROCESS_CONF_STATS
-  process_maxevents = 0;
-  #endif 
 
   oc_process_current = NULL;
   oc_process_list = NULL;
@@ -286,7 +271,7 @@ static void do_event(void)
     {
       /* This is not a broadcast event, so we deliver it to the specified process. */
       /* If the event was an INIT event, we should also update the state of the process. */
-      
+
       if (ev == OC_PROCESS_EVENT_INIT)
       {
         receiver->state = OC_PROCESS_STATE_RUNNING;
@@ -361,13 +346,6 @@ int oc_process_post(struct oc_process* p, oc_process_event_t ev, oc_process_data
   events[snum].data = data;
   events[snum].p = p;
   ++nevents;
-
-  #if OC_PROCESS_CONF_STATS
-  if (nevents > process_maxevents)
-  {
-    process_maxevents = nevents;
-  }
-  #endif 
 
   return OC_PROCESS_ERR_OK;
 }
