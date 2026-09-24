@@ -15,7 +15,8 @@
  *         the echo response replays the request's kid + sequence (ssn), while
  *         kid_context is a server-side random that DIFFERS per responder.
  *
- *         Single unified FIFO ring (ECHO_RING_SIZE = 64):
+ *         Single unified FIFO ring (ECHO_RING_SIZE, production default 64;
+ *         reads the actual compiled KNX_ECHO_RING_SIZE, e.g. 16 on Zephyr):
  *
  *         Anchor slot  (kid_ctx_len == 0)  -- former whitelist role:
  *           one slot per outbound send; carries the retained PLAINTEXT s-mode
@@ -299,7 +300,7 @@ TEST_F(EchoTxRingTest, Attacker_FloodThenReplay_AllIllegalAttemptsRejected)
   EXPECT_FALSE(consume_ctx(10, g_ctx_a, sizeof(g_ctx_a)));
 }
 
-/* Attack 4 -- ring exhaustion: > 64 forged probes evict the anchor itself */
+/* Attack 4 -- ring exhaustion: > ECHO_RING_SIZE forged probes evict the anchor itself */
 
 TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseRejected)
 {
@@ -311,18 +312,18 @@ TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseReject
    *
    *   Full exhaustion requires TWO phases:
    *     Phase 1: ECHO_RING_SIZE forged probes for (ssn=10, kid) -- fills the ring
-   *              with 64 BL slots all carrying (ssn=10, kid, forged_ctx_i).
+   *              with ECHO_RING_SIZE BL slots all carrying (ssn=10, kid, forged_ctx_i).
    *     Phase 2: ECHO_RING_SIZE additional writes for DIFFERENT SSNs -- displaces
-   *              all 64 (ssn=10, kid) BL slots, leaving no ssn=10 entry at all.
+   *              all ECHO_RING_SIZE (ssn=10, kid) BL slots, leaving no ssn=10 entry at all.
    *
    * After full exhaustion:
    *   - genuine response for ssn=10: no anchor found -> rejected.
    *   - attacker exact replay: no anchor found -> also rejected.
    *
    * This documents the ring exhaustion denial-of-service and its cost: the
-   * attacker must inject 2 * RING_SIZE packets (128 in total) before the
-   * genuine responder's window.  Mitigation is rate-limiting at the transport
-   * layer, which is outside the ring's responsibility.
+   * attacker must inject 2 * ECHO_RING_SIZE packets before the genuine
+   * responder's window. Mitigation is rate-limiting at the transport layer,
+   * which is outside the ring's responsibility.
    */
   store(10);  /* anchor written */
 
@@ -335,8 +336,8 @@ TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseReject
     (void)consume_full(10, g_kid, sizeof(g_kid), forged, sizeof(forged));
   }
 
-  /* phase 2: overwrite all 64 slots with anchors for different SSNs, so no
-     slot with wl.ssn == 10 remains in the ring */
+  /* phase 2: overwrite all ECHO_RING_SIZE slots with anchors for different
+     SSNs, so no slot with wl.ssn == 10 remains in the ring */
   for (uint64_t s = 100; s < 100 + (uint64_t)ECHO_RING_SIZE; s++) {
     store(s);
   }
@@ -443,16 +444,17 @@ TEST_F(EchoTxRingTest, Retain_FreeAll_ReleasesRetainedMessage)
 }
 
 
-/* -- Capacity boundary: < 64 senders and < 64 responses all fit ----------- */
+/* -- Capacity boundary: < ECHO_RING_SIZE senders and responses all fit ---- */
 
 TEST_F(EchoTxRingTest, WithinCapacity_AllSendersAndResponsesAccepted)
 {
-  /* store 32 anchors (well within the 64-slot ring) */
-  for (uint64_t i = 1; i <= 32; i++) {
+  /* store half the ring's anchors (well within capacity) */
+  const uint64_t half = (uint64_t)ECHO_RING_SIZE / 2;
+  for (uint64_t i = 1; i <= half; i++) {
     store(i);
   }
   /* every echo is accepted and none collides */
-  for (uint64_t i = 1; i <= 32; i++) {
+  for (uint64_t i = 1; i <= half; i++) {
     EXPECT_TRUE(consume(i)) << "ssn=" << i;
   }
 }
@@ -464,19 +466,21 @@ TEST_F(EchoTxRingTest, OverflowEviction_LateEchoRejected_NewAnchorAccepted)
   /*
     Fill the ring beyond capacity so the first anchor (ssn=1) is overwritten.
     A late echo for ssn=1 must be rejected (send-proof gone).
-    The same sender then uses the next valid ssn=66 (SSN is monotonically
+    The same sender then uses the next valid ssn (SSN is monotonically
     increasing per Sender Context; reusing an earlier value is forbidden).
   */
-  for (uint64_t i = 1; i <= (uint64_t)ECHO_RING_SIZE + 1; i++) {
+  const uint64_t last_used = (uint64_t)ECHO_RING_SIZE + 1;
+  for (uint64_t i = 1; i <= last_used; i++) {
     store(i);
   }
 
   /* ssn=1 anchor was evicted: late echo rejected */
   EXPECT_FALSE(consume(1));
 
-  /* next outbound from the same sender: ssn must advance past the last used (65) */
-  store(66);
-  EXPECT_TRUE(consume(66));
+  /* next outbound from the same sender: ssn must advance past the last used */
+  const uint64_t next_ssn = last_used + 1;
+  store(next_ssn);
+  EXPECT_TRUE(consume(next_ssn));
 }
 
 /* -- Overflow with mixed anchor+BL slots: evicted BL does not block re-use - */
@@ -486,20 +490,22 @@ TEST_F(EchoTxRingTest, OverflowMixed_EvictedBlSlot_DoesNotFalseReplay)
   /*
     Scenario: store an anchor (ssn=1), accept one responder for it (writes a BL
     slot), then overflow the ring so both the anchor and the BL slot are evicted.
-    The sender then uses the next valid SSN (129, since 2*RING_SIZE=128 was the
-    last anchor stored); the evicted BL slot must NOT cause a false replay reject.
+    The sender then uses the next valid SSN (one past 2*ECHO_RING_SIZE, the last
+    anchor stored); the evicted BL slot must NOT cause a false replay reject.
   */
   store(1);
   EXPECT_TRUE(consume(1)); /* writes BL slot for (ssn=1, kid, ctx_a) */
 
   /* overflow: fill 2 * ECHO_RING_SIZE more anchors to evict every slot */
-  for (uint64_t i = 2; i <= (uint64_t)(2 * ECHO_RING_SIZE); i++) {
+  const uint64_t last_stored = (uint64_t)(2 * ECHO_RING_SIZE);
+  for (uint64_t i = 2; i <= last_stored; i++) {
     store(i);
   }
 
-  /* next outbound must advance past the last stored SSN (128) */
-  store(129);
-  EXPECT_TRUE(consume(129)); /* must NOT be treated as replay */
+  /* next outbound must advance past the last stored SSN */
+  const uint64_t next_ssn = last_stored + 1;
+  store(next_ssn);
+  EXPECT_TRUE(consume(next_ssn)); /* must NOT be treated as replay */
 }
 
 /* -- Several distinct senders, each with its own kid and SSN sequence ------ */
@@ -575,7 +581,7 @@ TEST_F(EchoTxRingTest, MultiKid_Overflow_EvictedSenderDropped_OthersAccepted)
     store_kid(i, g_kid_y, sizeof(g_kid_y));
     store_kid(i, g_kid_z, sizeof(g_kid_z));
   }
-  /* ring is now full (1 + 64 writes = 65); X ssn=1 was evicted at wrap */
+  /* ring is now full (1 + ECHO_RING_SIZE writes); X ssn=1 was evicted at wrap */
 
   /* late echo for evicted X ssn=1 is rejected */
   EXPECT_FALSE(consume_kid(1, g_kid_x, sizeof(g_kid_x)));
