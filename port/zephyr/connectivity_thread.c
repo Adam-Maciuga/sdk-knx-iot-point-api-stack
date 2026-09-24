@@ -256,14 +256,13 @@ exit:
     return ret;
 }
 
-void
-oc_send_discovery_request(oc_message_t *message)
+void oc_send_discovery_request(oc_message_t *message)
 {
     OC_INF("Sending discovery request\r\n");
     oc_send_buffer(message);
 }
 
-/* Caller should hold the OpenThread mutex*/
+/* Caller should hold the OpenThread mutex. */
 static oc_endpoint_t *find_unicast_endpoint(void)
 {
     const otNetifAddress *addr;
@@ -340,40 +339,34 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
     return endpoint;
 }
 
-void
-oc_connectivity_shutdown()
+void oc_connectivity_shutdown(void)
 {
     openthread_mutex_lock();
     otUdpClose(sInstance, &mSocket);
     openthread_mutex_unlock();
 }
 
-void
-oc_network_event_handler_mutex_init(void)
+void oc_network_event_handler_mutex_init(void)
 {
     /* network_mutex already initialized by K_MUTEX_DEFINE */
 }
 
-void
-oc_network_event_handler_mutex_lock(void)
+void oc_network_event_handler_mutex_lock(void)
 {
     k_mutex_lock(&network_mutex, K_FOREVER);
 }
 
-void
-oc_network_event_handler_mutex_unlock(void)
+void oc_network_event_handler_mutex_unlock(void)
 {
     k_mutex_unlock(&network_mutex);
 }
 
-void
-oc_network_event_handler_mutex_destroy(void)
+void oc_network_event_handler_mutex_destroy(void)
 {
     /* Zephyr mutexes don't require explicit destruction */
 }
 
-void
-oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
+void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {

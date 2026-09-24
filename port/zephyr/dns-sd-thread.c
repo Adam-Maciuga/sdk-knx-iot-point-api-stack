@@ -314,20 +314,20 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
 
 void knx_dns_sd_set_sleep_period(uint16_t sp)
 {
+    otInstance *inst = openthread_get_default_instance();
+
+    openthread_mutex_lock();
+
     pending.sp = sp;
     OC_INF("DNS-SD: sleep period set to %u.", (unsigned)sp);
 
     /* re-publish at once, like the mDNS port re-announces its TXT record */
-    if ((entry != NULL) && !stopped)
+    if ((entry != NULL) && !stopped && (inst != NULL))
     {
-        otInstance *inst = openthread_get_default_instance();
-        if (inst != NULL)
-        {
-            openthread_mutex_lock();
-            publish(inst);
-            openthread_mutex_unlock();
-        }
+        publish(inst);
     }
+
+    openthread_mutex_unlock();
 }
 
 uint16_t knx_dns_sd_get_used_port(void)
