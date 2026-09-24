@@ -8,6 +8,8 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Condition | Value used here |
 | --- | --- |
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
+| Estimated since | figures marked `~` estimated for `9f1f59db` (2026-09-24), diffed from `7c3603c`: the DNS-SD Thread parity rework merged (§ 5 Port, Thread) and the access-token table `osc_version`/`osc_hkdf`/`osc_alg` field removal (§ 6). Everything else in the ~60-commit diff was refactor/warning-fix only or stayed under the rounding threshold |
+| Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) to bound the worst-case heap a burst of unanswered echo challenges can retain, since no timeout is used (sleepy devices may answer minutes late), see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the new Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
 | KNX table sizes | certification defaults: 50 group objects, 20 publishers, 20 recipients, 20 access tokens |
@@ -23,11 +25,11 @@ move as the stack evolves. For a first estimate it is sufficient.
 | | Ethernet, Wi-Fi | Thread |
 | --- | --- | --- |
 | **FLASH** | **125 KiB** | **110 KiB** |
-| **RAM, static** | 32 KiB | 15 KiB |
+| **RAM, static** | ~30 KiB | ~13 KiB |
 | **RAM, stack thread** | 12 KiB | 12 KiB |
 | **RAM, crypto heap (Mbed TLS)** | 15 KiB | 15 KiB |
 | **RAM, heap, idle → certification peak** | 4 → ~24 KiB | 4 → ~24 KiB |
-| **RAM, total** | **~63–84 KiB** | **~46–66 KiB** |
+| **RAM, total** | **~61–81 KiB** | **~44–64 KiB** |
 
 The flash and static RAM difference between the two columns is the discovery
 mechanism (§ 3).
@@ -47,15 +49,15 @@ the total.
 
 | Backend, board | FLASH, development | FLASH, production est. | RAM static, development | RAM static, production est. | Fits |
 | --- | --- | --- | --- | --- | --- |
-| Ethernet, RW612 | **~405 KiB** | ~340 KiB | **~205 KiB** | ~175 KiB | 512 KiB flash, 320 KiB RAM class MCU |
-| Thread, RW612 | **~890 KiB** | ~790 KiB | **~255 KiB** | ~215 KiB (~200 as MTD) | 1 MiB flash, 384 KiB RAM; 214 KiB of the flash is radio firmware |
-| Thread, MCXW72 | **~612 KiB** | ~510 KiB | **~207 KiB** of 232 usable | ~165 KiB | a 256 KB part works; ~25 KiB heap left in development, ~65 KiB in production |
-| Wi-Fi, RW612 | **~1.4 MiB** | ~1.3 MiB | **~535 KiB** | ~490 KiB | 2 MiB flash, 768 KiB RAM; 351 KiB radio firmware plus WPA supplicant |
+| Ethernet, RW612 | **~405 KiB** | ~340 KiB | **~203 KiB** | ~175 KiB | 512 KiB flash, 320 KiB RAM class MCU |
+| Thread, RW612 | **~890 KiB** | ~790 KiB | **~253 KiB** | ~215 KiB (~200 as MTD) | 1 MiB flash, 384 KiB RAM; 214 KiB of the flash is radio firmware |
+| Thread, MCXW72 | **~612 KiB** | ~510 KiB | **~205 KiB** of 232 usable | ~165 KiB | a 256 KB part works; ~27 KiB heap left in development, ~65 KiB in production |
+| Wi-Fi, RW612 | **~1.4 MiB** | ~1.3 MiB | **~533 KiB** | ~490 KiB | 2 MiB flash, 768 KiB RAM; 351 KiB radio firmware plus WPA supplicant |
 
 MTD: Minimal Thread Device, a non-routing end device; the measured builds are
 Full Thread Devices that can route.
 
-Of these totals the KNX stack is 110–125 KiB of flash and 15–32 KiB of static
+Of these totals the KNX stack is 110–125 KiB of flash and ~13–30 KiB of static
 RAM (§ 2.1); everything else is platform: Zephyr and its subsystems, crypto,
 and the backend (§ 9.2 breaks it down). Add the C heap on top of static RAM:
 the stack alone peaks at ~24 KiB, the network stacks take more, and a
@@ -128,7 +130,7 @@ RAM does not depend on the configuration beyond the table sizes.
 | OSCORE and SPAKE2+ | ~15 KiB | `oc_oscore_engine`, `oc_oscore_context`, `oc_oscore_crypto`, `spake2plus`, `oscore` |
 | CBOR object model | ~9 KiB | `oc_rep`, TinyCBOR (parser 1.7, encoder 0.7) |
 | Resource interface and core | ~12 KiB | `oc_ri`, `oc_core_res`, `oc_discovery`, `oc_main`, `oc_buffer` |
-| Port, Thread | ~10 KiB | `connectivity_thread` 1.6, `dns-sd-thread` 0.8 (1.5 with the DNS-SD parity rework on branch `dns_sd_thread_rework`), `storage`, `knx_shell` 6 |
+| Port, Thread | ~11 KiB | `connectivity_thread` 1.6, `dns-sd-thread` ~1.5 (DNS-SD parity rework merged), `storage`, `knx_shell` 6 |
 | Port, Ethernet and Port, Wi-Fi (identical) | ~21 KiB | `connectivity_posix` 5.4, `dns-sd_mdns` 8 (mDNS responder), `storage`, `knx_shell` 6 |
 | Helpers, strings, lists, timers | ~5 KiB | |
 
@@ -152,16 +154,16 @@ rings, and the tables scale linearly with their configured capacity.
 | Group object table | 28 × entries | 50 → 1.4 KiB | `CONFIG_KNXIOT_GOT_MAX_ENTRIES` |
 | Publisher table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GPT_MAX_ENTRIES` |
 | Recipient table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GRT_MAX_ENTRIES` |
-| Auth (access token) table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_ATT_MAX_ENTRIES` |
-| OSCORE echo ring | 64 × 48 | 3.0 KiB | fixed (`CONFIG_KNXIOT_ECHO_RING_SIZE`) |
+| Auth (access token) table | ~72 × entries | 20 → ~1.4 KiB | `CONFIG_KNXIOT_ATT_MAX_ENTRIES` |
+| OSCORE echo ring (slot struct only; a live anchor slot also retains a heap message, see § 7.2) | 16 × 48 | ~0.75 KiB | fixed (`CONFIG_KNXIOT_ECHO_RING_SIZE`, Zephyr default 16; other ports default 64) |
 | Request history | 32 × 32 | 1.0 KiB | fixed (`OC_REQUEST_HISTORY_SIZE`) |
 | Replay records | 20 × 56 | 1.1 KiB | fixed |
 | CoAP engine, callbacks, device info | | ~3 KiB | |
-| **Subtotal, Thread** | | **~15 KiB** | |
+| **Subtotal, Thread** | | **~13 KiB** | |
 | mDNS listener thread stack | | 8 KiB | Ethernet and Wi-Fi only |
 | mDNS send and receive buffers | 2 × 2 KiB | 4 KiB | Ethernet and Wi-Fi only |
 | Socket connectivity state (endpoints, interface list) | | 4.8 KiB | Ethernet and Wi-Fi only |
-| **Subtotal, Ethernet, and Subtotal, Wi-Fi** | | **~32 KiB** | |
+| **Subtotal, Ethernet, and Subtotal, Wi-Fi** | | **~30 KiB** | |
 
 Table entries hold fixed fields only. Hrefs, token ids and group-address
 arrays are allocated on the heap when an entry is written (40–120 B per
@@ -212,8 +214,11 @@ overhead per block. The figures are the same for all three backends.
 | OSCORE context (144) | ~152 | until replaced; LRU eviction only on allocation failure |
 | Datapoint resource (132 + runtime data + 3 strings) | ~250 | forever, one per application datapoint |
 | Table-entry strings and group-address arrays | 40–120 per entry | forever |
+| OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~1 190 | until that ring slot is next overwritten (FIFO) or `oc_oscore_free_all_echo_records()` runs; **no timeout** |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
+
+Every outbound s-mode message that arms an echo challenge keeps its plaintext alive in the echo ring (§ 6) until that ring slot is reused, not until the echo is answered. A burst of `CONFIG_KNXIOT_ECHO_RING_SIZE` such sends with no inbound echo responses fills every slot with a retained message: ~1.19 KiB × the ring size, held indefinitely with no timeout (a time-based eviction was rejected: sleepy devices can legitimately answer minutes late). At the Zephyr default of 16 that is ~19 KiB; at the CMake default of 64 used by other ports it is ~74 KiB, more than the free heap on the MCXW72 build (§ 2.2). See § 7.4.
 
 ### 7.3 One request in flight
 
@@ -244,9 +249,9 @@ keeps ~1.25 KiB per request alive for minutes.
 %%{init: {"theme": "base", "themeVariables": {"xyChart": {"plotColorPalette": "#2a78d6", "backgroundColor": "#fcfcfb", "titleColor": "#0b0b0b", "xAxisLabelColor": "#52514e", "yAxisLabelColor": "#52514e", "xAxisTitleColor": "#52514e", "yAxisTitleColor": "#52514e", "xAxisLineColor": "#c3c2b7", "yAxisLineColor": "#c3c2b7", "xAxisTickColor": "#c3c2b7", "yAxisTickColor": "#c3c2b7"}}}}%%
 xychart-beta horizontal
     title "KNX stack heap by scenario (KiB, estimate)"
-    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer"]
+    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer", "All echo-ring anchors retained"]
     y-axis "KiB" 0 --> 40
-    bar [4, 12, 7.4, 12.2, 22, 29]
+    bar [4, 12, 7.4, 12.2, 22, 29, 19]
 ```
 
 | Scenario | Heap | Composition |
@@ -257,6 +262,7 @@ xychart-beta horizontal
 | One PUT with a table page | + 8.2 KiB | request set + CBOR tree of one page |
 | Certification run, peak | **~20–24 KiB** | three overlapping requests, one page parse, one pending ACK, one notification; itemised below |
 | 20 CON requests to an unreachable peer | + 25 KiB, ≤ 155 s | |
+| All 16 echo-ring anchors retained (Zephyr default) | ~19 KiB, no timeout | burst of outbound s-mode sends with no inbound echo responses; each anchor slot's plaintext is only freed when the ring slot is next overwritten or `oc_oscore_free_all_echo_records()` runs, see § 7.2. ~74 KiB at the CMake default of 64 used by other ports |
 
 #### What "certification run, peak" means
 
@@ -288,6 +294,7 @@ bounds.
 | --- | --- | --- |
 | `KNX_PAYLOAD_SIZE` | ±1 KiB per message and per response state | CMake |
 | `CONFIG_KNXIOT_*_MAX_ENTRIES` | 28–88 B static per entry, plus strings when populated | Kconfig |
+| `CONFIG_KNXIOT_ECHO_RING_SIZE` | 48 B static per slot; also bounds the worst-case retained heap of live anchors (~1.19 KiB each, no timeout) against the replay-detection window, see § 7.2. Zephyr default 16 (~19 KiB worst case); other ports default 64 (~74 KiB) via CMake `KNX_ECHO_RING_SIZE` | Kconfig (Zephyr) / CMake (other ports) |
 | `CONFIG_KNXIOT_THREAD_STACK_SIZE` | stack thread; 12 KiB has headroom for NVS writes and SRP calls | Kconfig |
 | `CONFIG_MBEDTLS_HEAP_SIZE` | SPAKE2+ needs the most; 15 KiB proven | Kconfig |
 | `CONFIG_KNXIOT_LOG_LEVEL` | compiles out format strings from the image-wide string pool | Kconfig |
@@ -339,18 +346,18 @@ xychart-beta horizontal
     title "Static RAM by backend (KiB)"
     x-axis ["Ethernet", "Thread", "Wi-Fi"]
     y-axis "KiB" 0 --> 600
-    bar [205, 254, 533]
+    bar [203, 252, 531]
 ```
 
 | | Ethernet | Thread | Wi-Fi |
 | --- | --- | --- | --- |
 | Flash used | **405 KiB** | **891 KiB** | **1 385 KiB** |
 | of which radio firmware blob | — | 214 KiB (CPU2, BLE + 802.15.4) | 351 KiB (CPU1, Wi-Fi) |
-| Static RAM | **205 KiB** | **254 KiB** | **533 KiB** |
+| Static RAM | **~203 KiB** | **~252 KiB** | **~531 KiB** |
 | of which code relocated to SRAM | 8 KiB | 8 KiB | 88 KiB |
-| C heap left (of 960 KiB) | ~763 KiB | ~715 KiB | ~514 KiB |
-| KNX IoT stack flash / static RAM | 124 / 32 KiB | 113 / 15 KiB | 124 / 32 KiB |
-| KNX share of image | 31 % / 16 % | 13 % / 6 % | 9 % / 6 % |
+| C heap left (of 960 KiB) | ~765 KiB | ~717 KiB | ~516 KiB |
+| KNX IoT stack flash / static RAM | 124 / ~30 KiB | 113 / ~13 KiB | 124 / ~30 KiB |
+| KNX share of image | 31 % / ~15 % | 13 % / ~5 % | 9 % / 6 % |
 
 The KNX stack is constant except for the discovery mechanism (§ 3). Everything else in the
 spread is the network backend.
@@ -420,14 +427,14 @@ xychart-beta horizontal
     title "Thread build — static RAM by component (KiB)"
     x-axis ["OpenThread", "Zephyr core", "Kernel", "NXP HAL", "Zephyr networking", "Ethernet driver", "Mbed TLS heap", "KNX IoT stack", "Demo application", "TF-PSA-Crypto", "Input subsystem"]
     y-axis "KiB" 0 --> 80
-    bar [75, 41, 27, 22, 20, 16, 15, 15, 13.5, 10, 4.6]
+    bar [75, 41, 27, 22, 20, 16, 15, 13, 13.5, 10, 4.6]
 ```
 
 | Component | Flash | RAM | Dominant items |
 | --- | --- | --- | --- |
 | OpenThread | ~259 KiB | ~75 KiB | OT instance 50, driver buffer 8.8, OT thread stack 8, iface buffer 4.9 |
 | NXP HAL | 237 KiB | ~22 KiB | **214 KiB CPU2 radio firmware**, IMU stacks 4, lookup tables 8 |
-| KNX IoT stack | 113 KiB | 15 KiB | § 5, § 6 |
+| KNX IoT stack | 113 KiB | ~13 KiB | § 5, § 6 |
 | Zephyr core | ~100 KiB | ~41 KiB | log ring buffer 24, settings/NVS 5, shell stack 5 |
 | Crypto | ~89 KiB | ~25 KiB | TF-PSA-Crypto 57, Mbed TLS 24, X.509 8; Mbed TLS heap 15 |
 | Zephyr networking | ~84 KiB | ~20 KiB | net_buf pools 8, packet slabs 2.5, RX/TX stacks 2.7 |

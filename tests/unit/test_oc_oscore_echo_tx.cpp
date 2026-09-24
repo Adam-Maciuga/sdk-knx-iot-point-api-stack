@@ -70,8 +70,14 @@ extern "C" int __wrap_oc_send_buffer(oc_message_t* message)
   return 0;
 }
 
-/* Ring capacity -- must stay a power of two to match the production macro. */
-static const int ECHO_RING_SIZE = 64;
+/*
+ * Ring capacity, read directly from the production macro (compiled into this
+ * binary via KNX_ECHO_RING_SIZE, must stay a power of two) instead of a
+ * hardcoded duplicate, so the arithmetic below stays correct whichever value
+ * the build is configured with, e.g. -DKNX_ECHO_RING_SIZE=16 to match the
+ * Zephyr port's default.
+ */
+static const int ECHO_RING_SIZE = KNX_ECHO_RING_SIZE;
 
 /*
  * Shared kid used for store/consume.

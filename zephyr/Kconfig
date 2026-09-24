@@ -232,9 +232,10 @@ config KNX_RESET_PROCESS_TIME_S
 
 config KNXIOT_ECHO_RING_SIZE
     int "Echo ring size"
-    default 64
+    default 16
     help
       Corresponds to CMake: KNX_ECHO_RING_SIZE.
+      Details see 'ECHO RING'.
 
 # ── Shell ──────────────────────────────────────────────────────────────────────
 

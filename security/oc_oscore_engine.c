@@ -229,6 +229,10 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
     Roll-over releases the retained plaintext message in whichever slot is reused.
     Both slot kinds share one ring lifetime and are evicted in arrival order.
 
+  - Sleepy devices may have a timeout of > 5 ... 10 minutes, an auto-clearing of slots 
+    after a (CoAp) timeout is not implemented, to catch especially those devices 
+    (otherwise the inbound echo response/own re-request would never happen).
+
 */
 
 #ifndef KNX_ECHO_RING_SIZE
