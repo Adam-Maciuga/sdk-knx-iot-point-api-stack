@@ -64,7 +64,7 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
 
     if (!message)
     {
-        OC_ERR("Failed to allocate OC message\r\n");
+        OC_ERR("Failed to allocate OC message");
         return;
     }
 
@@ -86,7 +86,8 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
     oc_network_event(message);
 }
 
-int oc_connectivity_set_port(uint16_t port) {
+int oc_connectivity_set_port(uint16_t port)
+{
     g_unicast_port = port;
     return 0;
 }
@@ -103,6 +104,7 @@ uint16_t oc_connectivity_thread_get_port(void)
     {
         port = mSocket.mSockName.mPort;
     }
+
     openthread_mutex_unlock();
 
     return port;
@@ -115,64 +117,64 @@ int oc_connectivity_init(void)
     otNetifIdentifier netif = OT_NETIF_THREAD_INTERNAL;
     int ret = -1; // Set default return to fail
 
-	sInstance = openthread_get_default_instance();
+    sInstance = openthread_get_default_instance();
 
-	if (sInstance == NULL)
-	{
-		OC_ERR("Failed to get OpenThread instance\r\n");
-		goto exit;
-	}
+    if (sInstance == NULL)
+    {
+        OC_ERR("Failed to get OpenThread instance");
+        goto exit;
+    }
 
-	sockaddr.mPort = g_unicast_port;
+    sockaddr.mPort = g_unicast_port;
 
-	openthread_mutex_lock();
+    openthread_mutex_lock();
 
-	if (!otUdpIsOpen(sInstance, &mSocket))
-	{
-		error = otUdpOpen(sInstance, &mSocket, HandleUdpReceive, NULL);
+    if (!otUdpIsOpen(sInstance, &mSocket))
+    {
+        error = otUdpOpen(sInstance, &mSocket, HandleUdpReceive, NULL);
 
-		if (error == OT_ERROR_NONE)
-		{
-			error = otUdpBind(sInstance, &mSocket, &sockaddr, netif);
-			if (error != OT_ERROR_NONE)
-			{
-				OC_ERR("otUdpBind failed with %u\r\n", error);
-			}
-			else
-			{
-				ret = 0;
-			}
-		}
-		else
-		{
-			OC_ERR("otUdpOpen failed with %u\r\n", error);
-		}
-	}
-	else
-	{
-		OC_ERR("Socket already open!\r\n");
-	}
+        if (error == OT_ERROR_NONE)
+        {
+            error = otUdpBind(sInstance, &mSocket, &sockaddr, netif);
+            if (error != OT_ERROR_NONE)
+            {
+                OC_ERR("otUdpBind failed with %u", error);
+            }
+            else
+            {
+                ret = 0;
+            }
+        }
+        else
+        {
+            OC_ERR("otUdpOpen failed with %u", error);
+        }
+    }
+    else
+    {
+        OC_ERR("Socket already open!");
+    }
 
-	/* Subscribe to site-local all-CoAP-nodes multicast address so the device
-	 * is discoverable via ETS without manual 'ot ipmaddr add ff05::fd'.
-	 * Safe to call before Thread network is joined — OT stores it locally
-	 * and advertises it once the device attaches to the mesh. Idempotent:
-	 * re-subscribing returns OT_ERROR_ALREADY.
-	 */
-	if (sInstance != NULL)
-	{
-		otError merr = otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
-		if (merr == OT_ERROR_NONE || merr == OT_ERROR_ALREADY)
-		{
-			OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)\r\n");
-		}
-		else
-		{
-			OC_ERR("Multicast subscribe failed with %u\r\n", merr);
-		}
-	}
+    /* Subscribe to site-local all-CoAP-nodes multicast address so the device
+     * is discoverable via ETS without manual 'ot ipmaddr add ff05::fd'.
+     * Safe to call before Thread network is joined. OT stores it locally
+     * and advertises it once the device attaches to the mesh. Idempotent:
+     * re-subscribing returns OT_ERROR_ALREADY.
+     */
+    if (sInstance != NULL)
+    {
+        otError merr = otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
+        if (merr == OT_ERROR_NONE || merr == OT_ERROR_ALREADY)
+        {
+            OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)");
+        }
+        else
+        {
+            OC_ERR("Multicast subscribe failed with %u", merr);
+        }
+    }
 
-	openthread_mutex_unlock();
+    openthread_mutex_unlock();
 
 exit:
     return ret;
@@ -187,23 +189,23 @@ int oc_send_buffer(oc_message_t *message)
     int ret = -1;
     bool locked = false;
 
-	if (message == NULL)
-	{
-		OC_ERR("No messages to send\r\n");
-		goto exit;
-	}
+    if (message == NULL)
+    {
+        OC_ERR("No messages to send");
+        goto exit;
+    }
 
 #ifdef OC_DEBUG
     OC_INF("Outgoing message of size %d bytes to ", message->length);
     PRINTipaddr(message->endpoint);
-#endif /* OC_DEBUG */
+#endif
 
     openthread_mutex_lock();
     locked = true;
 
-    if(!otUdpIsOpen(sInstance, &mSocket))
+    if (!otUdpIsOpen(sInstance, &mSocket))
     {
-        OC_ERR("UDP Socket not opened\r\n");
+        OC_ERR("UDP Socket not opened");
         goto exit;
     }
 
@@ -218,7 +220,7 @@ int oc_send_buffer(oc_message_t *message)
 
     if (otMessage == NULL)
     {
-        OC_ERR("Failed to allocate UDP message\r\n");
+        OC_ERR("Failed to allocate UDP message");
         goto exit;
     }
 
@@ -226,7 +228,7 @@ int oc_send_buffer(oc_message_t *message)
 
     if (error != OT_ERROR_NONE)
     {
-        OC_ERR("Failed to append message\r\n");
+        OC_ERR("Failed to append message");
         goto exit;
     }
 
@@ -234,13 +236,13 @@ int oc_send_buffer(oc_message_t *message)
 
     if (error != OT_ERROR_NONE)
     {
-        OC_ERR("otUdpSend failed with %u\r\n", error);
+        OC_ERR("otUdpSend failed with %u", error);
         goto exit;
     }
 
     otMessage = NULL;
 
-    OC_INF("Sent UDP message\r\n");
+    OC_INF("Sent UDP message");
     ret = 0; // Message sent successful
 exit:
     if (otMessage != NULL)
@@ -258,7 +260,7 @@ exit:
 
 void oc_send_discovery_request(oc_message_t *message)
 {
-    OC_INF("Sending discovery request\r\n");
+    OC_INF("Sending discovery request");
     oc_send_buffer(message);
 }
 
@@ -324,6 +326,7 @@ static oc_endpoint_t *find_unicast_endpoint(void)
                 net_if_get_by_iface(ot_context->iface);
         }
 #endif
+
         return &g_endpoint;
     }
 
@@ -392,7 +395,6 @@ int oc_network_refresh_endpoints(void)
 }
 
 void handle_network_interface_event_callback(oc_interface_event_t event)
-
 {
     if (oc_list_length(oc_network_interface_cb_list) > 0)
     {
