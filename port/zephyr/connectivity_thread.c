@@ -234,14 +234,11 @@ oc_send_discovery_request(oc_message_t *message)
 oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
     const otNetifAddress *addr;
-    struct openthread_context *ot_context;
 
     if (sInstance == NULL)
     {
         return NULL;
     }
-
-    ot_context = openthread_get_default_context();
 
     for (addr = otIp6GetUnicastAddresses(sInstance);
          addr != NULL;
@@ -285,13 +282,16 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
 
         g_endpoint.addr.ipv6.port = g_unicast_port;
 
+#if defined(CONFIG_NET_L2_OPENTHREAD)
+        struct openthread_context *ot_context = openthread_get_default_context();
+
         if ((ot_context != NULL) &&
             (ot_context->iface != NULL))
         {
             g_endpoint.interface_index =
                 net_if_get_by_iface(ot_context->iface);
         }
-
+#endif
         return &g_endpoint;
     }
 
