@@ -39,6 +39,7 @@ extern "C" {
 #include "messaging/coap/oscore.h"
 #include "messaging/coap/oscore_constants.h"
 #include "messaging/coap/coap.h"
+#include "messaging/coap/engine.h"
 #include "oc_buffer.h"
 #include "security/oc_oscore.h"
 #include "security/oc_oscore_context.h"
@@ -758,6 +759,16 @@ protected:
     allocate_events();
     oc_process_start(&oc_oscore_handler, nullptr);
     oc_process_start(&message_buffer_handler, nullptr);
+    /*
+     * Both caches are static/process-lifetime state in engine.c, keyed by
+     * CoAP MID. Several tests below reuse the same MID; without wiping these
+     * here, a test running after an earlier one in the same process sees its
+     * message flagged as a duplicate and silently dropped (only visible when
+     * this binary is run directly rather than via ctest, which forks one
+     * process per TEST_F).
+     */
+    oc_coap_clear_request_history();
+    oc_coap_clear_response_history();
     g_oscore_send_calls = 0;
     g_network_send_calls = 0;
     g_last_network_length = 0;
@@ -797,6 +808,8 @@ protected:
 
   void TearDown() override
   {
+    oc_coap_clear_request_history();
+    oc_coap_clear_response_history();
     oc_oscore_free_all_echo_records();
     oc_oscore_free_all_contexts();
     oc_free_string(&at_.osc_id);
