@@ -30,6 +30,15 @@
 #define OT_NETIF_THREAD_INTERNAL OT_NETIF_THREAD
 #endif
 
+/* otIp6IsLinkLocalUnicast() arrived with OpenThread API version 536
+ * (openthread#11902). Older versions get the same fe80::/10 test. */
+#if OPENTHREAD_API_VERSION < 536
+static inline bool otIp6IsLinkLocalUnicast(const otIp6Address *aAddress)
+{
+    return (aAddress->mFields.m8[0] == 0xfe) && ((aAddress->mFields.m8[1] & 0xc0) == 0x80);
+}
+#endif
+
 #define COAP_PORT_UNSECURED (5683)
 
 OC_LIST(oc_network_interface_cb_list);
