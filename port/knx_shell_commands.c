@@ -210,8 +210,8 @@ static int knx_app_name_cmd(size_t argc, char** argv)
   return 0;
 }
 
-/* KNX Model command */
-static int knx_model_cmd(size_t argc, char** argv)
+/* KNX Order Number command */
+static int knx_order_number_cmd(size_t argc, char** argv)
 {
   (void)argc;
   (void)argv;
@@ -724,7 +724,7 @@ static const knx_shell_command_t knx_iot_subcmd[] = {
   { "fw_version", "Firmware version", knx_fw_version_cmd },
   { "app_version", "Application version", knx_app_version_cmd },
   { "app_name", "Application name", knx_app_name_cmd }, /* TODO add set? */
-  { "model", "Model", knx_model_cmd }, /* TODO add set? */
+  { "order_number", "Order Number", knx_order_number_cmd }, /* TODO add set? */
   { "hostname", "Hostname", knx_hostname_cmd }, /* TODO add set? */
   { "qr_code", "QR code", knx_qr_code_cmd }, /* TODO security!? */
   { "mid", "Manufacturer ID [value]", knx_mid_cmd },

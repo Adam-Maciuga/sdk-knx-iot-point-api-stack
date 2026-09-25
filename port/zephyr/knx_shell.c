@@ -129,7 +129,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(knx_iot_subcmd,
     SHELL_CMD_ARG(fw_version, NULL, "Firmware version", knx_iot_dispatch, 1, 0),
     SHELL_CMD_ARG(app_version, NULL, "Application version", knx_iot_dispatch, 1, 0),
     SHELL_CMD_ARG(app_name, NULL, "Application name", knx_iot_dispatch, 1, 0), /* TODO add set? */
-    SHELL_CMD_ARG(model, NULL, "Model", knx_iot_dispatch, 1, 0), /* TODO add set? */
+    SHELL_CMD_ARG(order_number, NULL, "Order Number", knx_iot_dispatch, 1, 0), /* TODO add set? */
     SHELL_CMD_ARG(hostname, NULL, "Hostname", knx_iot_dispatch, 1, 0), /* TODO add set? */
     SHELL_CMD_ARG(qr_code, NULL, "QR code", knx_iot_dispatch, 1, 0), /* TODO security!? */
     SHELL_CMD_ARG(mid, NULL, "Manufacturer ID [value]", knx_iot_dispatch, 1, 1),

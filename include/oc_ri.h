@@ -326,7 +326,7 @@ typedef enum {
   OC_DEV_HWV,                          /**< Hardware version */
   OC_DEV_FWV,                          /**< Firmware version */
   OC_DEV_HWT,                          /**< The hardware type is a manufacture specific id for a device type (MaC uses this id for compatibility checks) */
-  OC_DEV_MODEL,                        /**< Device model */
+  OC_DEV_ORDER_NUMBER,                 /**< Device order number (former device model) */
   OC_DEV_HOSTNAME,                     /**< Device host name for DNS resolution. */
   OC_DEV_IID,                          /**< KNX installation ID */
   OC_DEV_PM,                           /**< Programming Mode */
