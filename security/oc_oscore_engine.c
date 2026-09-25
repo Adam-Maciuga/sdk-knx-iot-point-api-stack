@@ -190,8 +190,8 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   Two tasks:
 
   (a) Defends the client-side s-mode path against replayed 4.01 unicast echo responses (clause 3.6.4.1.3).
-  (b) A (too) LATE echo response arrives, but can still trigger a re-request (therefore the original
-      message is needed), reason:
+  (b) A (too) LATE echo response arrives, but can still compose and trigger a re-request that includes 
+      the inbound echo option and the original outbound payload (<- therefore the original message is needed):
       -> the outgoing s-mode MULTICAST NON message was fired to N recipients; unlike unicast, a single
          CoAP transaction cannot hold the multiple, asynchronous echo responses that may come back
 
