@@ -1036,6 +1036,10 @@ int coap_receive(oc_message_t* incoming_message)
                                                               inbound_coap_pkt->uri_query, inbound_coap_pkt->uri_query_len,
                                                               OC_BLOCKWISE_SERVER);
 
+            /*
+              no Block1 option here, so a buffer already keyed to this href/endpoint/query
+              is stale from an earlier transfer; drop it rather than let it collide
+            */
             if (request_buffer)
             {
               oc_blockwise_free_request_buffer(request_buffer);
