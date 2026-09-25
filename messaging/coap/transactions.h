@@ -36,8 +36,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef TRANSACTIONS_H
-#define TRANSACTIONS_H
+#pragma once
 
 #include "coap.h"
 #include "util/oc_etimer.h"
@@ -108,5 +107,3 @@ void coap_free_transactions_by_endpoint(const oc_endpoint_t *endpoint);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

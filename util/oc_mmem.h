@@ -31,8 +31,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef OC_MMEM_H
-#define OC_MMEM_H
+#pragma once
 
 #include <stddef.h>
 
@@ -60,5 +59,3 @@ void oc_mmem_free(struct oc_mmem *m, pool pool_type);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

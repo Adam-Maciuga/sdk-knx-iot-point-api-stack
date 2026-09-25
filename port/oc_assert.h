@@ -9,8 +9,7 @@
   @brief platform specific asserts
   @file
 */
-#ifndef OC_ASSERT_H
-#define OC_ASSERT_H
+#pragma once
 
 #include "port/oc_log.h"
 
@@ -82,6 +81,4 @@ static inline void oc_exit(int status)
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

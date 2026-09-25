@@ -36,8 +36,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -193,5 +192,3 @@ typedef enum {
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

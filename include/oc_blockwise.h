@@ -8,8 +8,7 @@
   @brief CoAP block wise transfer implementation
   @file
 */
-#ifndef OC_BLOCKWISE_H
-#define OC_BLOCKWISE_H
+#pragma once
 
 #include "messaging/coap/coap.h"
 #include "messaging/coap/transactions.h"
@@ -253,5 +252,3 @@ void oc_blockwise_scrub_buffers_for_client_cb(void *cb);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_BLOCKWISE_H */

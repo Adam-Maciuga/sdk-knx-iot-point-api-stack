@@ -60,8 +60,7 @@
  * @{
  */
 
-#ifndef OC_TIMER_H
-#define OC_TIMER_H
+#pragma once
 
 #include "port/oc_clock.h"
 
@@ -92,5 +91,3 @@ oc_clock_time_t oc_timer_remaining(struct oc_timer *t);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_TIMER_H */

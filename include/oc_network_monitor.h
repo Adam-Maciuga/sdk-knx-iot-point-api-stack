@@ -8,8 +8,7 @@
   up/down)
   @file
 */
-#ifndef OC_NETWORK_HELPERS_H
-#define OC_NETWORK_HELPERS_H
+#pragma once
 
 #include "oc_network_events.h"
 
@@ -36,5 +35,3 @@ int oc_remove_network_interface_event_callback(interface_event_handler_t cb);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_NETWORK_HELPERS_H */

@@ -10,8 +10,7 @@
   @brief CoAP client.
   @file
 */
-#ifndef OC_CLIENT_STATE_H
-#define OC_CLIENT_STATE_H
+#pragma once
 
 #include "messaging/coap/constants.h"
 #include "messaging/coap/oscore_constants.h"
@@ -188,6 +187,4 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

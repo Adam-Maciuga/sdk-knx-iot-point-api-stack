@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_ENDPOINT_H
-#define OC_ENDPOINT_H
+#pragma once
 
 #include "oc_helpers.h"
 
@@ -258,5 +257,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

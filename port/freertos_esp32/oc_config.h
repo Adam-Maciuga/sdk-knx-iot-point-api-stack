@@ -8,8 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_CONFIG_H
-#define OC_CONFIG_H
+#pragma once
 
 #include <stdint.h>
 #include <time.h>
@@ -64,6 +63,4 @@ typedef uint64_t oc_clock_time_t;
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

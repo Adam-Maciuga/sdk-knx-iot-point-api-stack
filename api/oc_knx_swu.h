@@ -9,8 +9,7 @@
   @file
 */
 
-#ifndef OC_KNX_SWU_INTERNAL_H
-#define OC_KNX_SWU_INTERNAL_H
+#pragma once
 
 #include "oc_core_res.h"
 
@@ -153,6 +152,4 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

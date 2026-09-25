@@ -9,8 +9,7 @@
   @brief request and response payload handling in cbor
   @file
 */
-#ifndef OC_REP_H
-#define OC_REP_H
+#pragma once
 
 #include "cbor.h"
 #include "oc_helpers.h"
@@ -2568,6 +2567,4 @@ size_t oc_rep_to_json_base64_encoded_byte_string(char* buf, size_t buf_size, cha
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

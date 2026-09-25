@@ -14,8 +14,7 @@
  * after oc_main_init() to enable these endpoints in any application.
  */
 
-#ifndef OC_TEST_CONTROL_H
-#define OC_TEST_CONTROL_H
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -57,5 +56,3 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_TEST_CONTROL_H */

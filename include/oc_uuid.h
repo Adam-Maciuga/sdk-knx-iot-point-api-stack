@@ -12,8 +12,7 @@
  * based on its specification in RFC 4122, along with routines
  * to convert between their string and binary representations.
  */
-#ifndef OC_UUID_H
-#define OC_UUID_H
+#pragma once
 
 #include <stdint.h>
 
@@ -96,5 +95,3 @@ void oc_gen_uuid(oc_uuid_t *uuid);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_UUID_H */

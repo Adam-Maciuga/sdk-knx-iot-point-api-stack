@@ -48,8 +48,7 @@
  * @{
  */
 
-#ifndef OC_ETIMER_H
-#define OC_ETIMER_H
+#pragma once
 
 #include "oc_process.h"
 #include "oc_timer.h"
@@ -248,6 +247,5 @@ OC_PROCESS_NAME(oc_etimer_process);
 }
 #endif
 
-#endif /* OC_ETIMER_H */
 /** @} */
 /** @} */

@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef IPCONTEXT_H
-#define IPCONTEXT_H
+#pragma once
 
 #define WIN32_LEAN_AND_MEAN
 // clang-format off
@@ -40,6 +39,4 @@ typedef struct ip_context_t
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -10,8 +10,7 @@
   @brief functions to be called from main, including device callbacks
   @file
 */
-#ifndef OC_MAIN_H
-#define OC_MAIN_H
+#pragma once
 
 #include "oc_api.h"
 
@@ -173,5 +172,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

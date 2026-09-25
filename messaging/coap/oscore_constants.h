@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OSCORE_CONSTANTS_H
-#define OSCORE_CONSTANTS_H
+#pragma once
 
 #define OSCORE_AEAD_NONCE_LEN (13)      // AEAD Nonce length for AES-CCM-16-64-128, 1=len(Sender ID), 7=padded Sender ID, 5=padded Partial IV
 #define OSCORE_PIV_LEN (5)              // Partial IV max length, see AEAD Nonce 
@@ -48,5 +47,3 @@
 #define OSCORE_FLAGS_PIVLEN_BITMASK 0x07
 #define OSCORE_FLAGS_KIDCTX_BITMASK 0x10
 #define OSCORE_FLAGS_KID_BITMASK 0x08
-
-#endif 

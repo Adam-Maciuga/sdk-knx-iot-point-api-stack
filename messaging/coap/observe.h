@@ -31,8 +31,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef OBSERVE_H
-#define OBSERVE_H
+#pragma once
 
 #include "coap.h"
 #include "oc_ri.h"
@@ -135,5 +134,3 @@ uint32_t get_observe_counter(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

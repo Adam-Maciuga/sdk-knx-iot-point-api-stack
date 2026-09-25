@@ -9,8 +9,7 @@
   @brief generic knx helpers
   @file
 */
-#ifndef OC_KNX_HELPERS_H
-#define OC_KNX_HELPERS_H
+#pragma once
 
 #include "oc_ri.h"
 #include <stdbool.h>
@@ -170,6 +169,4 @@ int oc_frame_integer(const int value);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

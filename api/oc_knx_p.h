@@ -13,8 +13,7 @@
   The only difference is that the discoverable field is set on "not
   discoverable" All these none discoverable resources are listed under /p
 */
-#ifndef OC_KNX_P_INTERNAL_H
-#define OC_KNX_P_INTERNAL_H
+#pragma once
 
 #include <stddef.h>
 
@@ -24,6 +23,4 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

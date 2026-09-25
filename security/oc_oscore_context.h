@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_OSCORE_CONTEXT_H
-#define OC_OSCORE_CONTEXT_H
+#pragma once
 
 #include "messaging/coap/oscore_constants.h"
 #include "api/oc_knx_sec.h"
@@ -158,6 +157,4 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

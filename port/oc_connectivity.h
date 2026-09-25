@@ -10,8 +10,7 @@
   @brief platform abstraction of networking
   @file
 */
-#ifndef OC_CONNECTIVITY_H
-#define OC_CONNECTIVITY_H
+#pragma once
 #include "oc_config.h"
 
 #include "oc_buffer_settings.h"
@@ -142,6 +141,4 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

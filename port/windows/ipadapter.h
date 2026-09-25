@@ -5,11 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef IPADAPTER_H
-#define IPADAPTER_H
+#pragma once
 
 #include "ipcontext.h"
 
 ip_context_t * get_ip_context_for_device(void);
-
-#endif

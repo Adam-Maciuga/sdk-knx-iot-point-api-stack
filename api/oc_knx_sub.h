@@ -8,9 +8,6 @@
 @brief knx /sub resource implementations
 @file
 */
-#ifndef OC_KNX_SUB_INTERNAL_H
-#define OC_KNX_SUB_INTERNAL_H
+#pragma once
 
 #include <stddef.h>
-
-#endif /* OC_KNX_SUB_INTERNAL_H */

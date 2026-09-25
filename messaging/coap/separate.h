@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef SEPARATE_H
-#define SEPARATE_H
+#pragma once
 
 #include "coap.h"
 #include "oc_coap.h"
@@ -42,5 +41,3 @@ void coap_separate_clear(oc_separate_response_t *handle, coap_separate_t *separa
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

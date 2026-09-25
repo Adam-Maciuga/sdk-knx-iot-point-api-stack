@@ -8,8 +8,7 @@
   @brief network events (network interfaces going up/down)
   @file
 */
-#ifndef OC_NETWORK_EVENTS_H
-#define OC_NETWORK_EVENTS_H
+#pragma once
 
 #include "port/oc_network_events_mutex.h"
 #include "util/oc_process.h"
@@ -67,5 +66,3 @@ void oc_network_interface_event(oc_interface_event_t event);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_NETWORK_EVENTS_H */

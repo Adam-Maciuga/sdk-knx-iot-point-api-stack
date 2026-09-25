@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_KNX_SEC_INTERNAL_H
-#define OC_KNX_SEC_INTERNAL_H
+#pragma once
 
 #include "oc_ri.h"
 #include "coap.h"
@@ -336,5 +335,3 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

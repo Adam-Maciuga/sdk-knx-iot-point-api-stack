@@ -9,8 +9,7 @@
   @file
 */
 
-#ifndef OC_KNX_INTERNAL_H
-#define OC_KNX_INTERNAL_H
+#pragma once
 
 #include <stddef.h>
 #include "oc_api.h"
@@ -339,6 +338,4 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

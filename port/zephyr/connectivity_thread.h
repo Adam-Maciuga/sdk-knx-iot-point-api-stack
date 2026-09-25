@@ -12,8 +12,7 @@
  * connectivity API lives in port/oc_connectivity.h.
  */
 
-#ifndef CONNECTIVITY_THREAD_H
-#define CONNECTIVITY_THREAD_H
+#pragma once
 
 #include <stdint.h>
 
@@ -36,5 +35,3 @@ uint16_t oc_connectivity_thread_get_port(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* CONNECTIVITY_THREAD_H */

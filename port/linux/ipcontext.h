@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef IPCONTEXT_H
-#define IPCONTEXT_H
+#pragma once
 
 #include "oc_endpoint.h"
 #include <pthread.h>
@@ -69,5 +68,3 @@ fd_set ip_context_rfds_fd_copy(ip_context_t *dev);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* IPCONTEXT_H */

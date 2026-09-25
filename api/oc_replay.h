@@ -4,8 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#ifndef OC_REPLAY_H
-#define OC_REPLAY_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,6 +62,4 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

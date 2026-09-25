@@ -48,8 +48,7 @@
  * of seconds since startup.
  *
  */
-#ifndef OC_CLOCK_H
-#define OC_CLOCK_H
+#pragma once
 
 #include "oc_clock_util.h"
 #include <stdint.h>
@@ -107,5 +106,3 @@ void oc_clock_wait(oc_clock_time_t t);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

@@ -39,8 +39,7 @@
  * @{
  */
 
-#ifndef OC_PROCESS_H
-#define OC_PROCESS_H
+#pragma once
 #include "util/pt/pt.h"
 
 #ifdef __cplusplus
@@ -528,5 +527,3 @@ extern struct oc_process *oc_process_list;
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_PROCESS_H */

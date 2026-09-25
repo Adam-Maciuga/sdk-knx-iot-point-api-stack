@@ -10,8 +10,7 @@
   @brief the various events for the different quues
   @file
 */
-#ifndef OC_EVENTS_H
-#define OC_EVENTS_H
+#pragma once
 
 #include "oc_config.h"
 #include "util/oc_process.h"
@@ -49,5 +48,3 @@ extern oc_process_event_t oc_events[];
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

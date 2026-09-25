@@ -7,8 +7,7 @@
   @brief Base64 encoding and decoding functions
   @file
 */
-#ifndef OC_BASE64_H
-#define OC_BASE64_H
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -77,5 +76,3 @@ int oc_base64_decode(uint8_t *str, size_t len);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_BASE64_H */

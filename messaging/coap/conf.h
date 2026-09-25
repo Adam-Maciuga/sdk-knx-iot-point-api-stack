@@ -36,8 +36,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef CONF_H
-#define CONF_H
+#pragma once
 
 #include "constants.h"
 
@@ -185,5 +184,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

@@ -15,8 +15,7 @@
   as`<functionalblocknumber>_instance`
 
 */
-#ifndef OC_KNX_FB_INTERNAL_H
-#define OC_KNX_FB_INTERNAL_H
+#pragma once
 
 #include <stddef.h>
 
@@ -70,5 +69,3 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t *request);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

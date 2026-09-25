@@ -9,8 +9,7 @@
  * @brief Network interface enumeration and selection API
  */
 
-#ifndef OC_NETWORK_INTERFACE_H
-#define OC_NETWORK_INTERFACE_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -73,5 +72,3 @@ int oc_network_refresh_endpoints(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_NETWORK_INTERFACE_H */

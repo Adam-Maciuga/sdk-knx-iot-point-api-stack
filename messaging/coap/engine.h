@@ -36,8 +36,7 @@
  * This file is part of the Contiki operating system.
  */
 
-#ifndef ENGINE_H
-#define ENGINE_H
+#pragma once
 
 #include "coap.h"
 #include "observe.h"
@@ -121,5 +120,3 @@ void oc_coap_response_cache_store(oc_message_t* message);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

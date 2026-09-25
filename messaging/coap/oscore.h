@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OSCORE_H
-#define OSCORE_H
+#pragma once
 #include "port/oc_connectivity.h"
 
 #ifdef __cplusplus
@@ -59,6 +58,4 @@ extern "C"
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

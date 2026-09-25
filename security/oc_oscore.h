@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_OSCORE_H
-#define OC_OSCORE_H
+#pragma once
 
 #include "util/oc_process.h"
 
@@ -19,5 +18,3 @@ OC_PROCESS_NAME(oc_oscore_handler);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

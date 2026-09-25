@@ -14,8 +14,7 @@
  * the shared responder compiles unchanged. Only the two members the responder uses are provided.
  */
 
-#ifndef IPADAPTER_H
-#define IPADAPTER_H
+#pragma once
 
 #include <stdint.h>
 
@@ -40,6 +39,4 @@ ip_context_t* get_ip_context_for_device(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

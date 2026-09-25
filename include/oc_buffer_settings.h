@@ -8,8 +8,7 @@
   @brief CoAP message buffer setting implementation.
   @file
 */
-#ifndef OC_BUFFER_SETTINGS_H
-#define OC_BUFFER_SETTINGS_H
+#pragma once
 
 #include <stddef.h>
 
@@ -67,6 +66,4 @@ uint16_t oc_get_block_size(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

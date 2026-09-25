@@ -10,8 +10,7 @@
   @file
 
 */
-#ifndef OC_KNX_CLIENT_INTERNAL_H
-#define OC_KNX_CLIENT_INTERNAL_H
+#pragma once
 
 #include "oc_core_res.h"
 #include "oc_knx_fp.h"
@@ -136,5 +135,3 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef DNS_SD_H
-#define DNS_SD_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -108,6 +107,4 @@ void knx_dns_sd_stop(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

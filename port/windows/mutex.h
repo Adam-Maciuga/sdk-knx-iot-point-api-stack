@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef MUTEX_H
-#define MUTEX_H
+#pragma once
 
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
@@ -24,5 +23,3 @@ void mutex_free(HANDLE m);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* MUTEX_H */

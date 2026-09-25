@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_COAP_H
-#define OC_COAP_H
+#pragma once
 
 #include "oc_ri.h"
 #include "util/oc_list.h"
@@ -36,5 +35,3 @@ struct oc_response_buffer_s
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

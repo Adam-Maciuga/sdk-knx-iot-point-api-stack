@@ -7,8 +7,7 @@
   @brief platform abstraction of networking events (mutexes)
   @file
 */
-#ifndef OC_NETWORK_EVENTS_MUTEX_H
-#define OC_NETWORK_EVENTS_MUTEX_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,5 +40,3 @@ void oc_network_event_handler_mutex_destroy(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_NETWORK_EVENTS_MUTEX_H */

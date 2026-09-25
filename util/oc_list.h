@@ -52,8 +52,7 @@
  *
  */
 
-#ifndef OC_LIST_H
-#define OC_LIST_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -147,5 +146,3 @@ void *oc_list_item_next(void *item);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_LIST_H */

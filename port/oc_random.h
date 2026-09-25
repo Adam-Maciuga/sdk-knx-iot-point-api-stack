@@ -40,8 +40,7 @@
   @brief platform abstraction of a random number generator
   @file
 */
-#ifndef OC_RANDOM_H
-#define OC_RANDOM_H
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -90,5 +89,3 @@ int oc_random_fill(uint8_t *buf, size_t len);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

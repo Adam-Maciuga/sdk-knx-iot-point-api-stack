@@ -8,8 +8,7 @@
   @brief CoAP message buffer implementation, e.g. for the payloads being transferred
   @file
 */
-#ifndef OC_BUFFER_H
-#define OC_BUFFER_H
+#pragma once
 
 #include "port/oc_connectivity.h"
 #include "util/oc_process.h"
@@ -61,6 +60,4 @@ void oc_send_message(oc_message_t *message);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

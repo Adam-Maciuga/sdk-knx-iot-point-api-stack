@@ -7,8 +7,7 @@
  * @brief rfc3339 timing conversions.
  * @file
  */
-#ifndef OC_CLOCK_UTIL_H
-#define OC_CLOCK_UTIL_H
+#pragma once
 
 #include "oc_config.h"
 #include <stddef.h>
@@ -42,5 +41,3 @@ size_t oc_clock_encode_time_rfc3339(oc_clock_time_t time, char *out_buf,
  */
 oc_clock_time_t oc_clock_parse_time_rfc3339(const char *in_buf,
                                             size_t in_buf_len);
-
-#endif /* OC_CLOCK_UTIL_H */

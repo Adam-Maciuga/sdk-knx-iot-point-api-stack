@@ -9,8 +9,7 @@
 	@brief KNX mandatory resources implementation.
 	@file
 */
-#ifndef OC_CORE_RES_H
-#define OC_CORE_RES_H
+#pragma once
 
 #include "oc_ri.h"
 #include "oc_knx.h"
@@ -299,5 +298,3 @@ extern "C" {
 	#ifdef __cplusplus
 }
 #endif
-
-#endif 

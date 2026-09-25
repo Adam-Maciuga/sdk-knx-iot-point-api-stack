@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_KNX_DEV_INTERNAL_H
-#define OC_KNX_DEV_INTERNAL_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -104,5 +103,3 @@ void oc_knx_device_restart(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 
