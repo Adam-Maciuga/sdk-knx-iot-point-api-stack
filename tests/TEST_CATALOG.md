@@ -1954,8 +1954,8 @@ load the DUT does not always answer inside that window. Only
 Running the four conditional tests alone:
 
 ```powershell
-.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k 'bonus_iid_too_short'
-.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -RunSlowTests -k '6d_unblocks'
+.\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -k 'bonus_iid_too_short'
+.\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -RunSlowTests -k '6d_unblocks'
 ```
 
 Note the `-k` expression must be a single quoted token; a multi-word expression
