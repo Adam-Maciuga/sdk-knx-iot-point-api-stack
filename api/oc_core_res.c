@@ -93,19 +93,15 @@ int oc_core_set_device_hwt(const char* hardware_type)
 	return 0;
 }
 
-int oc_core_set_device_model(const char* model)
+int oc_core_set_device_order_number(const char* order_number)
 {
-  // fails if NULL, not below/equal len (see KNX specification)
-  const bool all_ok = model && strlen(model) <= 10;
-  if (!all_ok)
-  {
-    // TODO Stack issue #144: EITT default test template data does not follow the rules, so only
-    // a warning until the data is corrected, then oc_assert(all_ok == true) can be enabled.
-    OC_WRN("Device model does not follow the KNX specification (at most 10 characters).");
-  }
-  
+	// fails if NULL, not below/equal len (see KNX specification)
+	const bool all_ok = order_number && strlen(order_number) <= 50;
+
+	oc_assert(all_ok == true);
+
 	// caller MUST ensure above conditions and keep the string valid for the device lifetime
-  oc_device_info.iot_model = model;
+	oc_device_info.order_number = order_number;
 
 	return 0;
 }

@@ -164,8 +164,8 @@ TEST_F(DeviceInfo, SetSerialNumber)
 
 TEST_F(DeviceInfo, SetModel)
 {
-  EXPECT_EQ(oc_core_set_device_model("model-x"), 0);
-  EXPECT_STREQ(oc_core_get_device_info()->iot_model, "model-x");
+  EXPECT_EQ(oc_core_set_device_order_number("order-number-x"), 0);
+  EXPECT_STREQ(oc_core_get_device_info()->order_number, "order-number-x");
 }
 
 TEST_F(DeviceInfo, ManufacturingDateDefaultsToUnixEpoch)

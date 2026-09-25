@@ -44,7 +44,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_dev_hwv;
 extern const oc_resource_t core_resource_dev_fwv;
 extern const oc_resource_t core_resource_dev_hwt;
-extern const oc_resource_t core_resource_dev_model;
+extern const oc_resource_t core_resource_dev_order_number;
 extern const oc_resource_t core_resource_dev_hostname;
 extern const oc_resource_t core_resource_dev_iid;
 extern const oc_resource_t core_resource_dev_pm;
@@ -186,7 +186,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hwt_data;
 const oc_resource_t core_resource_dev_hwt = {
-        &core_resource_dev_model,
+        &core_resource_dev_order_number,
         {NULL, sizeof("/dev/hwt"), "/dev/hwt"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -203,7 +203,7 @@ const oc_resource_t core_resource_dev_hwt = {
         true,
         &core_resource_dev_hwt_data};
 
-static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+static void oc_core_dev_order_number_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
@@ -216,22 +216,22 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, device->iot_model); // note, stack init must be done, otherwise model is NULL
+  oc_rep_i_set_text_string(root, 1, device->order_number); // note, stack init must be done, otherwise model is NULL
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_dev_model_data;
-const oc_resource_t core_resource_dev_model = {
+static oc_resource_data_t core_resource_dev_order_number_data;
+const oc_resource_t core_resource_dev_order_number = {
         &core_resource_dev_hostname,
-        {NULL, sizeof("/dev/model"), "/dev/model"},
+        {NULL, sizeof("/dev/model"), "/dev/model"}, // due to compatibility this href name MUST remain            
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.15"}},
         {NULL, sizeof("urn:knx:dpt.utf8"), "urn:knx:dpt.utf8"},
         {APPLICATION_CBOR, CONTENT_NONE},
         OC_DISCOVERABLE,
-        {oc_core_dev_model_get_handler, NULL, OC_ACL_D, OC_IF_D},
+        {oc_core_dev_order_number_get_handler, NULL, OC_ACL_D, OC_IF_D},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
@@ -240,7 +240,7 @@ const oc_resource_t core_resource_dev_model = {
         0,
         0,
         true,
-        &core_resource_dev_model_data};
+        &core_resource_dev_order_number_data};
 
 static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
 {

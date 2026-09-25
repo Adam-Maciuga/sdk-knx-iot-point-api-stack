@@ -46,7 +46,7 @@ extern const oc_resource_t core_resource_dev_sn;
 extern const oc_resource_t core_resource_dev_hwv;
 extern const oc_resource_t core_resource_dev_fwv;
 extern const oc_resource_t core_resource_dev_hwt;
-extern const oc_resource_t core_resource_dev_model;
+extern const oc_resource_t core_resource_dev_order_number;
 extern const oc_resource_t core_resource_dev_hostname;
 extern const oc_resource_t core_resource_dev_iid;
 extern const oc_resource_t core_resource_dev_ipv6;
@@ -165,7 +165,7 @@ protected:
     oc_device_info_t *dev = oc_core_get_device_info();
     dev->serialnumber = "000000000000";
     dev->hwt = "myhwt";
-    dev->iot_model = "mymodel";
+    dev->order_number = "myordernumber";
     init_string(&dev->iot_hostname, "knxhost");
 
     /* hwv is stored by reference (application-owned), so it needs static
@@ -272,11 +272,11 @@ TEST_F(KnxDevHandlers, HwtGetOk)
 
 TEST_F(KnxDevHandlers, ModelGetWrongAccept)
 {
-  expect_get_wrong_accept(core_resource_dev_model.get_handler.cb);
+  expect_get_wrong_accept(core_resource_dev_order_number.get_handler.cb);
 }
 TEST_F(KnxDevHandlers, ModelGetOk)
 {
-  expect_get_cbor_ok(core_resource_dev_model.get_handler.cb);
+  expect_get_cbor_ok(core_resource_dev_order_number.get_handler.cb);
 }
 
 TEST_F(KnxDevHandlers, HostnameGetWrongAccept)

@@ -450,7 +450,7 @@ static int app_init(void)
   oc_core_set_device_res();
   oc_core_set_device_mid(667);
   oc_core_set_device_hwt("Linux");
-  oc_core_set_device_model("KNX Certification");
+  oc_core_set_device_order_number("KNX Certification");
 
 
   /* Set hardware reference for /swu/hwref (same as EITT template) */

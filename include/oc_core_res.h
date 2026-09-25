@@ -50,8 +50,8 @@ extern "C" {
 		oc_knx_version_info_t fwv;	      // mod: firmware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t apv;				// mod: application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) 
 		const char* hwt;									// fix: knx hardware type, should not be larger than 6 chars
-		const char* iot_model;						// fix: knx model, former mask version, name is specific due to vast amount of "hostname" in other code
-    oc_string_t iot_hostname;					// mod: knx host name
+    const char* order_number;         // fix: knx order number (former called 'model')
+    oc_string_t iot_hostname;					// mod: knx host name (name is specific due to the vast amount of "hostname" in other code)
 		uint32_t mid;											// fix: knx manufacturer id
 		uint64_t fid;											// mod: fabric id
 		uint16_t ia;											// mod: 16-bit knx individual address
@@ -133,12 +133,28 @@ extern "C" {
 	int oc_core_set_device_hwt(const char* hardware_type);
 
 	/**
+	 * @brief sets the order number (string)
+	 *
+	 * @param order_number the device order number. The pointed-to string must remain valid for the device lifetime.
+	 *
+	 * @return int error status, 0 = OK
+	 */
+	int oc_core_set_device_order_number(const char* order_number);
+
+	/**
 	 * @brief sets the model (string)
 	 *
 	 * @param model the device model. The pointed-to string must remain valid for the device lifetime.
+	 *
+	 * @deprecated use oc_core_set_device_order_number instead. Kept for (application) backward compatibility;
+	 *             the actual resource is defined as an 'order number' in the KNX specification.
+	 *
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_model(const char* model);
+	static inline int oc_core_set_device_model(const char* model)
+	{
+		return oc_core_set_device_order_number(model);
+	}
 
 	/**
 	 * @brief sets the host name (string)

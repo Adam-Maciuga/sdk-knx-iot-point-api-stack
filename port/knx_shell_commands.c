@@ -217,7 +217,7 @@ static int knx_model_cmd(size_t argc, char** argv)
   (void)argv;
 
   oc_device_info_t* device = oc_core_get_device_info();
-  knx_shell_print("%s", device->iot_model);
+  knx_shell_print("%s", device->order_number);
   return 0;
 }
 
@@ -646,7 +646,7 @@ static int knx_print_all_cmd(size_t argc, char** argv)
   knx_shell_print("Application version: %d.%d.%d", device->apv.major, device->apv.minor,
                   device->apv.patch);
   knx_shell_print("Application name   : %s", knx_iot_get_application_name());
-  knx_shell_print("Model              : %s", device->iot_model);
+  knx_shell_print("Model              : %s", device->order_number);
   knx_shell_print("Hostname           : %s", oc_string(device->iot_hostname));
 
   /* QR code */
