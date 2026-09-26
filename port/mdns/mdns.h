@@ -1,5 +1,7 @@
 /* mdns.h  -  mDNS/DNS-SD library  -  Public Domain  -  2017 Mattias Jansson
  *
+ * SPDX-License-Identifier: Unlicense
+ *
  * Cross-platform mDNS (RFC 6762) and DNS-SD (RFC 6763) responder primitives in
  * a single header. Originally https://github.com/mjansson/mdns, imported at
  * commit a569c4759bd47e0f2a7bfc4d4c19620445782806 (2025-10-26) and maintained
