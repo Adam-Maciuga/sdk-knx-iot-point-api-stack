@@ -1717,8 +1717,18 @@ passed (windows-test-gcc).
 After the additional removal of the `ldevid` and `idevid` resources: runtime tier **241 passed,
 9 skipped** (746.93s), 0 failed, 0 errors; the EITT plus harness summary was not captured, but the
 container log showed no FAILED or ERROR lines and the same 2 xfails. One test moved from passed to
-skipped compared with the previous run; which one has not been identified (the documented
-`malformed-discovery` skips depend on load). Unit suite: 1645 passed (windows-test-gcc).
+skipped compared with the previous run. A rerun of the runtime tier alone (`-Tier runtime`, `-rs`) gave
+**242 passed, 8 skipped** (738.97s), identical to the run before the removal, so the extra skip was
+intermittent, not caused by the removal. The 8 skips are: `test_security.py:3364` (slow, needs
+`RUN_SLOW_TESTS`), four `test_group_comm.py` cases that cannot add an IPv6 address on `veth-dut`
+(needs `--privileged`), and three `test_group_comm.py` cases (lines 2125 x2 and 2139) where the DUT
+did not issue a discovery GET. These three were reproducible with the class run alone (3 passed,
+3 skipped) while `iid_too_short` passed on its own, so the skips came from DUT state left by the
+earlier tests of the class (per-recipient resolve status and its budget of three attempts), not from
+suite load. The class setup fixture in `test_group_comm.py` now runs per test instead of per class;
+with it the class gives 6 passed, 0 skipped (49.65s). The full-tier counts above were measured before
+that change and have not been re-measured; expect 5 skips instead of 8. Unit suite: 1645 passed
+(windows-test-gcc).
 
 The 2 xfails are the documented EITT 5.10.1.2 (multi-IPv6 deviation) and 5.10.1.4 (`/test/*`
 endpoints inflate `total` on `GET /p`); a rerun of section 5.10 alone reproduced them. The per-tier

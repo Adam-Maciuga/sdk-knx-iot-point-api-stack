@@ -2038,7 +2038,13 @@ class TestUnicastDiscoveryMalformedLengths:
         """Frame a link-format ep record from explicit sn / iid / ia."""
         return f'<>;ep="knx://sn.{sn} knx://ia.{iid}.{ia}"'
 
-    @pytest.fixture(autouse=True, scope="class")
+    # The recipient keeps its resolve status and its budget of three discovery
+    # attempts between triggers, and every reject test spends two GETs on the same
+    # recipient. A class-scoped setup let earlier tests leave it debounced or out of
+    # attempts, so later tests saw no discovery GET and skipped. Running the setup
+    # per test unloads and reloads the tables, which gives each test a fresh,
+    # unresolved recipient.
+    @pytest.fixture(autouse=True)
     @staticmethod
     def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
