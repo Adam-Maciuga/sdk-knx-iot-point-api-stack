@@ -321,7 +321,7 @@ TEST_F(AtSsnStorage, EntryOutsideTableIsSkipped)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * /auth, /auth/o, /auth/at and /a/sen resource handlers
+ * /auth, /auth/o and /auth/at resource handlers
  *
  * The handlers are static but reachable through the non-static const
  * oc_resource_t definitions, the same pattern test_oc_knx_dev.cpp and
@@ -342,7 +342,6 @@ extern const oc_resource_t core_resource_knx_auth_o_osndelay;
 extern const oc_resource_t core_resource_knx_auth_o_replwdo;
 extern const oc_resource_t core_resource_knx_auth_at;
 extern const oc_resource_t core_resource_knx_auth_at_x;
-extern const oc_resource_t core_resource_a_sen;
 }
 
 class SecHandlers : public ::testing::Test {
@@ -549,37 +548,6 @@ TEST_F(SecHandlers, AtEntryDeleteUnknownTokenBadRequest)
                    core_resource_knx_auth_at_x.delete_handler.cb,
                    APPLICATION_CBOR, OC_IF_SEC, nullptr, "auth/at/nosuchtoken"),
             oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-/* ────────────────────────────── /a/sen POST ─────────────────────────────── */
-
-TEST_F(SecHandlers, ASenPostWrongAcceptBadRequest)
-{
-  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
-                   APPLICATION_LINK_FORMAT, OC_IF_SEC),
-            oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(SecHandlers, ASenPostWithoutPayloadBadRequest)
-{
-  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
-                   APPLICATION_CBOR, OC_IF_SEC),
-            oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-TEST_F(SecHandlers, ASenPostRenewCommandChanged)
-{
-  oc_rep_t rep;
-  memset(&rep, 0, sizeof(rep));
-  rep.type = OC_REP_STRING;
-  rep.iname = 2;
-  oc_new_string(&rep.value.string, "renew", strlen("renew"));
-
-  EXPECT_EQ(invoke(core_resource_a_sen, core_resource_a_sen.post_handler.cb,
-                   APPLICATION_CBOR, OC_IF_SEC, nullptr, nullptr, &rep),
-            oc_status_code(OC_STATUS_CHANGED));
-
-  oc_free_string(&rep.value.string);
 }
 
 /* ─────────────────── /auth/at POST: mandatory-property check ─────────────── */

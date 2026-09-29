@@ -243,8 +243,6 @@ extern "C" {
 	 * - /auth/o/rplwdo
 	 * - /auth/o/osndelay
 	 * - /auth
-	 * optional:
-	 * - a/sen
 	 *
 	 */
 	void oc_create_knx_sec_resources(void);

@@ -350,7 +350,7 @@ typedef enum {
   OC_KNX,                              /**< .well-known / knx */
   OC_KNX_FP_G,                         /**< FP/G */
   OC_KNX_FP_G_X,                       /**< FP/G/X */
-#ifdef OC_PUBLISHER_TABLE              /** read the notes above on the enum order! */
+  #ifdef OC_PUBLISHER_TABLE            /** read the notes above on the enum order! */
   OC_KNX_FP_P,                         /**< FP/P */
   OC_KNX_FP_P_X,                       /**< FP/P/X */
   #endif
@@ -372,7 +372,6 @@ typedef enum {
   OC_KNX_SWU_PKGNAMES,                 /**< swu package names*/
   OC_KNX_SWU,                          /**< swu top level */
   OC_KNX_SUB,                          /**< delete all device subscriptions */
-  OC_KNX_A_SEN,                        /**< a/sen resource */
   OC_KNX_AUTH_O_REPLWDO,               /**< oscore replay window*/
   OC_KNX_AUTH_O_OSNDELAY,              /**< oscore osn delay*/
   OC_KNX_AUTH_O,                       /**< auth/o oscore functional block properties list*/

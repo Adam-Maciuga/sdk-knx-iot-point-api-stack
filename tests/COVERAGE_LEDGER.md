@@ -256,14 +256,13 @@ read/write through the public slot pointer `oc_get_auth_at_entry` plus
 The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
 `oc_delete_at_table_entry` in SetUp/TearDown for determinism.
 - `SecHandlers`: the `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`,
-  `/auth/at`, `/auth/at/*` and `/a/sen` handlers, reached through the non-static
+  `/auth/at` and `/auth/at/*` handlers, reached through the non-static
   `const oc_resource_t` definitions with the same stack request/response harness
   as `FpHandlers`. Covered: wrong-Accept → 4.00 on every handler, the CBOR GET
   bodies of `osndelay` and `replwdo`, `osndelay` PUT (no matching int → 4.00,
   valid → 2.04 and the value is observable via `get_oscore_osn_delay_ms`),
   `/auth/at` DELETE → 2.02, the wildcard entry GET/DELETE guards (no token in
-  the invoked URI → 4.00, unknown token → 4.00) and `/a/sen` POST (no payload
-  → 4.00, `renew` string → 2.04).
+  the invoked URI → 4.00, unknown token → 4.00).
   The link-format list bodies of `/auth`, `/auth/o` and `/auth/at` walk the core
   resource table via `oc_check_request_from_index`, so only their deterministic
   guard paths (wrong Accept, `ps=0`, `pn=-1`) are asserted.

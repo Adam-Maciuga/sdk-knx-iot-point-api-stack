@@ -13,8 +13,8 @@
 #include "oc_api.h"
 #include "messaging/coap/observe.h"
 
-// forward declaration for the resource chain (core_resource_a_sen is defined in oc_knx_sec.c)
-extern const oc_resource_t core_resource_a_sen;
+// forward declaration for the resource chain (core_resource_knx_auth_o_replwdo is defined in oc_knx_sec.c)
+extern const oc_resource_t core_resource_knx_auth_o_replwdo;
 
 static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -32,7 +32,7 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_sub_data;
 const oc_resource_t core_resource_sub = {
-  &core_resource_a_sen,
+  &core_resource_knx_auth_o_replwdo,
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },

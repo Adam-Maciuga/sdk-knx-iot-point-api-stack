@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1680 unit tests** (53 files) + **629 runtime tests** across three tiers = **2309 total**
+> **1677 unit tests** (53 files) + **629 runtime tests** across three tiers = **2306 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1680 registered and passed (linux-coverage-gcc, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1652 there.
+> Branch: `work_in_progress` | Unit: 1677 registered (linux-coverage-gcc, derived as 1649 measured on windows-test-gcc + 28 UNIX-only; 1649/1649 passed on windows-test-gcc after the `/a/sen` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1649 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -270,7 +270,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (73 tests)
+### test_oc_knx_sec.cpp — Security Credentials (70 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -282,7 +282,7 @@ Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
 | `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
 | `AtTable` | 5 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token |
 | `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
-| `SecHandlers` | 23 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*` and `/a/sen`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00), `/a/sen` renew command |
+| `SecHandlers` | 20 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
 | `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
 | `SecAtPost` | 5 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit |
 
@@ -1706,6 +1706,15 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 ---
 
 ## Last runtime run status
+
+Latest run, after the removal of the `/a/sen` resource (Docker `linux-test-gcc`, default
+`run-in-docker.ps1 -IncludeUncommitted`, working tree with the removal uncommitted):
+**460 passed, 15 skipped, 2 xfailed, 0 failed, 0 errors** (787.03s). Unit suite alongside it:
+1649 passed, 0 failed (windows-test-gcc). The 2 xfails are the documented EITT 5.10.1.2
+(multi-IPv6 deviation) and 5.10.1.4 (`/test/*` endpoints inflate `total` on `GET /p`); a rerun of
+section 5.10 alone reproduced the same two xfails. The three `/a/sen` unit tests were removed; no
+runtime test referenced `/a/sen`. The per-tier runtime counts in the banner were not re-derived in
+this run, and the older entries below predate the tier split.
 
 Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`,
 no `-IncludeUncommitted`):

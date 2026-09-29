@@ -24,7 +24,6 @@
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_auth_o;
 extern const oc_resource_t core_resource_knx_auth_o_replwdo;
-extern const oc_resource_t core_resource_a_sen;
 extern const oc_resource_t core_resource_knx_auth_at;
 extern const oc_resource_t core_resource_knx_auth_at_x;
 extern const oc_resource_t core_resource_knx_auth;
@@ -358,90 +357,6 @@ const oc_resource_t core_resource_knx_auth_o = {
   0,
   true,
   &core_resource_knx_auth_o_data};
-
-#define LDEVID_RENEW 1
-#define LDEVID_STOP  2
-
-static int a_sen_convert_cmd(char* cmd)
-{
-  if (strncmp(cmd, "renew", strlen("renew")) == 0)
-  {
-    return LDEVID_RENEW;
-  }
-  if (strncmp(cmd, "stop", strlen("stop")) == 0)
-  {
-    return LDEVID_STOP;
-  }
-
-  OC_DBG("convert_cmd command not recognized: %s", cmd);
-  return 0;
-}
-
-static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  int cmd = 0;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  bool changed = false;
-  const oc_rep_t* rep = request->request_payload;
-  while (rep)
-  {
-    OC_DBG("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
-    if (rep->type == OC_REP_STRING)
-    {
-      if (rep->iname == 2)
-      {
-        // 2: "renew"
-        cmd = a_sen_convert_cmd(oc_string_checked(rep->value.string));
-        changed = true;
-        break;
-      }
-    }
-
-    rep = rep->next;
-  }
-
-  // input was set, so create the response
-  if (changed == true)
-  {
-    OC_INF("oc_core_a_sen_post_handler cmd %d ", cmd);
-    /*
-      renew the credentials
-      Note: This is optional for now.
-    */
-    oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-    return;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
-// resource definition, details/comments see on 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_a_sen_data;
-const oc_resource_t core_resource_a_sen = {
-  &core_resource_knx_auth_o_replwdo,
-  {NULL, sizeof("/a/sen"), "/a/sen"},
-  {NULL, 0, NULL},
-  {NULL, 0, NULL},
-  {APPLICATION_CBOR, CONTENT_NONE},
-  OC_DISCOVERABLE,
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {oc_core_a_sen_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {{NULL}, NULL},
-  {{NULL}, NULL},
-  0,
-  0,
-  true,
-  &core_resource_a_sen_data};
 
 /*
   resets the RAM content of an AT-table entry to its empty state (id, scope, profile, oscore object, ga array)
