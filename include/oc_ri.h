@@ -342,8 +342,6 @@ typedef enum {
   OC_APP_X,                            /**< application ID entry */
   OC_A_LSM,                            /**< load state machine */
   OC_KNX_SPAKE,                        /**< spake */
-  OC_KNX_IDEVID,                       /**< IDevID */
-  OC_KNX_LDEVID,                       /**< LDevID */
   OC_KNX_K,                            /**< k */
   OC_KNX_FINGERPRINT,                  /**< FINGERPRINT value of loaded contents */
   OC_KNX_IA,                           /**< .well-known / knx / ia */

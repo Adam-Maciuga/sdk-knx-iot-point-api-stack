@@ -24,8 +24,6 @@ extern "C" {
 extern const oc_resource_t core_resource_knx;
 extern const oc_resource_t core_resource_a_lsm;
 extern const oc_resource_t core_resource_knx_fingerprint;
-extern const oc_resource_t core_resource_knx_ldevid;
-extern const oc_resource_t core_resource_knx_idevid;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -308,47 +306,5 @@ TEST_F(KnxHandlers, FingerprintGetOkWhenRuntime)
   request.accept = APPLICATION_CBOR;
   core_resource_knx_fingerprint.get_handler.cb(&request, OC_IF_NONE, nullptr);
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-}
-
-/* --- /.well-known/knx/ldevid GET (raw cert bytes) --- */
-
-TEST_F(KnxHandlers, LdevidGetReturnsRawBytes)
-{
-  const char *cert = "LDEVIDBYTES";
-  oc_knx_set_ldevid((char *)cert, (int)strlen(cert));
-  request.accept = APPLICATION_PKCS7_CMC_REQUEST;
-  core_resource_knx_ldevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_EQ(response_buffer.content_format, APPLICATION_PKCS7_CMC_RESPONSE);
-  ASSERT_EQ(response_buffer.response_length, strlen(cert));
-  EXPECT_EQ(0, memcmp(buf, cert, strlen(cert)));
-}
-
-TEST_F(KnxHandlers, LdevidGetWrongAcceptIsBadRequest)
-{
-  request.accept = APPLICATION_CBOR;
-  core_resource_knx_ldevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
-}
-
-/* --- /.well-known/knx/idevid GET (raw cert bytes) --- */
-
-TEST_F(KnxHandlers, IdevidGetReturnsRawBytes)
-{
-  const char *cert = "IDEVID0123";
-  oc_knx_set_idevid(cert, (int)strlen(cert));
-  request.accept = APPLICATION_PKCS7_CMC_REQUEST;
-  core_resource_knx_idevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_EQ(response_buffer.content_format, APPLICATION_PKCS7_CMC_RESPONSE);
-  ASSERT_EQ(response_buffer.response_length, strlen(cert));
-  EXPECT_EQ(0, memcmp(buf, cert, strlen(cert)));
-}
-
-TEST_F(KnxHandlers, IdevidGetWrongAcceptIsBadRequest)
-{
-  request.accept = APPLICATION_CBOR;
-  core_resource_knx_idevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 

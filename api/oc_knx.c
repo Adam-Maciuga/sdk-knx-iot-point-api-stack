@@ -30,8 +30,6 @@ extern const oc_resource_t core_resource_knx_fp_g;
 extern const oc_resource_t core_resource_knx_k;
 extern const oc_resource_t core_resource_knx_fingerprint;
 extern const oc_resource_t core_resource_knx_ia;
-extern const oc_resource_t core_resource_knx_ldevid;
-extern const oc_resource_t core_resource_knx_idevid;
 extern const oc_resource_t core_resource_knx_spake;
 
 // ---------------------------Variables
@@ -122,8 +120,6 @@ typedef struct oc_pase_session_t
 } oc_pase_session_t;
 
 static oc_pase_session_t g_pase_session;  // the single active PASE session (params + step + brute-force state)
-static oc_string_t g_idevid;
-static oc_string_t g_ldevid;
 
 // ----------------------------------------------------------------------------
 
@@ -1382,89 +1378,6 @@ const oc_resource_t core_resource_knx_ia = {&core_resource_knx,
                                             true,
                                             &core_resource_knx_ia_data};
 
-static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-  size_t response_length = 0;
-
-  OC_INF("oc_core_knx_ldevid_get_handler");
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
-  {
-    return;
-  }
-  response_length = oc_string_len(g_ldevid);
-  oc_rep_encode_raw((const uint8_t*)oc_string(g_ldevid), (size_t)response_length);
-
-  request->response->response_buffer->content_format = APPLICATION_PKCS7_CMC_RESPONSE;
-  request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
-  request->response->response_buffer->response_length = response_length;
-
-  OC_INF("oc_core_knx_ldevid_get_handler- done");
-}
-
-// resource definition, details/comments see on 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_knx_ldevid_data;
-const oc_resource_t core_resource_knx_ldevid = {&core_resource_knx_k,
-                                                {NULL, sizeof("/.well-known/knx/ldevid"), "/.well-known/knx/ldevid"},
-                                                {NULL, 0, NULL},
-                                                {NULL, 0, NULL},
-                                                {APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE},
-                                                OC_DISCOVERABLE,
-                                                {oc_core_knx_ldevid_get_handler, NULL, OC_ACL_D, OC_IF_D},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {{NULL}, NULL},
-                                                {{NULL}, NULL},
-                                                0,
-                                                0,
-                                                true,
-                                                &core_resource_knx_ldevid_data};
-
-static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-  size_t response_length = 0;
-
-  OC_INF("oc_core_knx_idevid_get_handler");
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
-  {
-    return;
-  }
-  response_length = oc_string_len(g_idevid);
-  oc_rep_encode_raw((const uint8_t*)oc_string(g_idevid), (size_t)response_length);
-
-  request->response->response_buffer->content_format = APPLICATION_PKCS7_CMC_RESPONSE;
-  request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
-  request->response->response_buffer->response_length = response_length;
-
-  OC_INF("oc_core_knx_idevid_get_handler- done");
-}
-
-// resource definition, details/comments see on 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_knx_idevid_data;
-const oc_resource_t core_resource_knx_idevid = {&core_resource_knx_ldevid,
-                                                {NULL, sizeof("/.well-known/knx/idevid"), "/.well-known/knx/idevid"},
-                                                {NULL, 0, NULL},
-                                                {NULL, 0, NULL},
-                                                {APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE},
-                                                OC_DISCOVERABLE,
-                                                {oc_core_knx_idevid_get_handler, NULL, OC_ACL_D, OC_IF_D},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {{NULL}, NULL},
-                                                {{NULL}, NULL},
-                                                0,
-                                                0,
-                                                true,
-                                                &core_resource_knx_idevid_data};
-
-
 static spake_data_t spake_data = {0};
 
 /*
@@ -2009,7 +1922,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_spake_data;
-const oc_resource_t core_resource_knx_spake = {&core_resource_knx_idevid,
+const oc_resource_t core_resource_knx_spake = {&core_resource_knx_k,
                                                {NULL, sizeof("/.well-known/knx/spake"), "/.well-known/knx/spake"},
                                                {NULL, 0, NULL},
                                                {NULL, 0, NULL},
@@ -2056,18 +1969,6 @@ int oc_spake2plus_init_data(void)
   oc_spake_clear_pase_and_init_from_record();
 
   return 0;
-}
-
-void oc_knx_set_idevid(const char* idevid, int len)
-{
-  oc_free_string(&g_idevid);
-  oc_new_string(&g_idevid, idevid, len);
-}
-
-void oc_knx_set_ldevid(char* ldevid, int len)
-{
-  oc_free_string(&g_ldevid);
-  oc_new_string(&g_ldevid, ldevid, len);
 }
 
 void oc_knx_load_fingerprint(void)

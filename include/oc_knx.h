@@ -275,22 +275,6 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
   bool oc_is_device_in_runtime(void);
 
   /**
-   * @brief sets the idevid
-   *
-   * @param idevid the idevid certificate
-   * @param length the length of the certificate
-   */
-  void oc_knx_set_idevid(const char* idevid, int length);
-
-  /**
-   * @brief sets the ldevid
-   *
-   * @param ldevid the ldevid certificate
-   * @param len the length of the certificate
-   */
-  void oc_knx_set_ldevid(char* ldevid, int len);
-
-  /**
    * @brief increase the fingerprint value and writes the value to storage (file system)
    *
    * @note updated on LSM to loaded and on write to /p (if property is set)

@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1677 unit tests** (53 files) + **629 runtime tests** across three tiers = **2306 total**
+> **1673 unit tests** (53 files) + **629 runtime tests** across three tiers = **2302 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1677 registered (linux-coverage-gcc, derived as 1649 measured on windows-test-gcc + 28 UNIX-only; 1649/1649 passed on windows-test-gcc after the `/a/sen` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1649 there.
+> Branch: `work_in_progress` | Unit: 1673 registered (linux-coverage-gcc, derived as 1645 measured on windows-test-gcc + 28 UNIX-only; 1645/1645 passed on windows-test-gcc after the `/a/sen`, `ldevid` and `idevid` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1645 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -622,7 +622,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx.cpp — KNX Core (32 tests)
+### test_oc_knx.cpp — KNX Core (28 tests)
 
 **Source:** `api/oc_knx.c`
 
@@ -633,7 +633,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `IsRedirectedRequestFrom` | 5 | URL routing classification (NULL, empty, /k, /p, other) |
 | `KnxLsm` | 1 | `oc_knx_lsm_state()` returns the device LSM field |
 | `KnxRuntime` | 3 | Runtime-ready true only when loaded and IID set |
-| `KnxHandlers` | 11 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint, `ldevid`/`idevid` GET handlers (JSON/CBOR/accept errors) |
+| `KnxHandlers` | 7 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors) |
 
 ---
 
@@ -1707,14 +1707,22 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 ## Last runtime run status
 
-Latest run, after the removal of the `/a/sen` resource (Docker `linux-test-gcc`, default
-`run-in-docker.ps1 -IncludeUncommitted`, working tree with the removal uncommitted):
-**460 passed, 15 skipped, 2 xfailed, 0 failed, 0 errors** (787.03s). Unit suite alongside it:
-1649 passed, 0 failed (windows-test-gcc). The 2 xfails are the documented EITT 5.10.1.2
-(multi-IPv6 deviation) and 5.10.1.4 (`/test/*` endpoints inflate `total` on `GET /p`); a rerun of
-section 5.10 alone reproduced the same two xfails. The three `/a/sen` unit tests were removed; no
-runtime test referenced `/a/sen`. The per-tier runtime counts in the banner were not re-derived in
-this run, and the older entries below predate the tier split.
+Latest runs (Docker `linux-test-gcc`, default `run-in-docker.ps1 -IncludeUncommitted`, which runs two
+pytest invocations: the EITT plus harness tier, then the hand-written runtime tier).
+
+After the removal of the `/a/sen` resource: EITT plus harness **460 passed, 15 skipped, 2 xfailed**
+(787.03s); runtime tier **242 passed, 8 skipped** (751.76s); 0 failed, 0 errors. Unit suite: 1649
+passed (windows-test-gcc).
+
+After the additional removal of the `ldevid` and `idevid` resources: runtime tier **241 passed,
+9 skipped** (746.93s), 0 failed, 0 errors; the EITT plus harness summary was not captured, but the
+container log showed no FAILED or ERROR lines and the same 2 xfails. One test moved from passed to
+skipped compared with the previous run; which one has not been identified (the documented
+`malformed-discovery` skips depend on load). Unit suite: 1645 passed (windows-test-gcc).
+
+The 2 xfails are the documented EITT 5.10.1.2 (multi-IPv6 deviation) and 5.10.1.4 (`/test/*`
+endpoints inflate `total` on `GET /p`); a rerun of section 5.10 alone reproduced them. The per-tier
+runtime counts in the banner were not re-derived, and the older entries below predate the tier split.
 
 Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`,
 no `-IncludeUncommitted`):

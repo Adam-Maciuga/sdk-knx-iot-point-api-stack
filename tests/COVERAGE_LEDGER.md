@@ -379,9 +379,7 @@ and every read-only GET handler reached via the non-static `const oc_resource_t`
 literals: `oc_core_knx_get_handler` (JSON + CBOR + bad-accept),
 `oc_core_a_lsm_get_handler` (current LSM + bad-accept),
 `oc_core_knx_fingerprint_get_handler` (503+max-age when not in runtime, 2.05 when
-runtime), `oc_core_knx_ldevid_get_handler` / `oc_core_knx_idevid_get_handler`
-(raw PKCS7 cert bytes via the public `oc_knx_set_ldevid`/`oc_knx_set_idevid`
-setters + bad-accept). `oc_rep_new(buf,size)` is set up in the fixture so the
+runtime). `oc_rep_new(buf,size)` is set up in the fixture so the
 handlers' CBOR/raw writes can be read back.
 
 INTEGRATION (concrete reasons):
