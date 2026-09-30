@@ -19,6 +19,7 @@
 #include "oc_rep.h"
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
+#include "messaging/coap/oscore.h"
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
@@ -566,9 +567,30 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
         // do a reset like erase code 2 but not for the access token table, ia, iid, fid -> EITT test
         oc_delete_group_tables();
         oc_delete_group_object_table();
+
+        /*
+          The OSCORE echo ring holds anchors that REFERENCE group object table entries, so they must be
+          dropped together with that table, otherwise a late echo response would regenerate its re-request
+          payload from an entry that meanwhile belongs to a different datapoint.
+
+          The replay records are deliberately NOT cleared here: they protect the server side against
+          replayed inbound requests and are tied to the access token table, not to the group object table.
+        */
+        oc_oscore_free_all_echo_records();
       }
       else if (oc_is_device_in_runtime() && old_lsm_state != LSM_S_LOADED)
       { // extra task on entering LOADED with iid = ok
+
+        /*
+          The group object table was (re)written while LOADING. The OSCORE echo ring holds anchors that
+          REFERENCE group object table entries, so anchors from before the reconfiguration must be dropped
+          here, otherwise a late echo response would regenerate its re-request payload from an entry that
+          meanwhile belongs to a different datapoint.
+
+          Must run BEFORE the datapoint initialization below, which sends read requests and thereby writes
+          new (valid) anchors.
+        */
+        oc_oscore_free_all_echo_records();
 
         // task 1
         oc_register_group_multicasts();
