@@ -122,8 +122,16 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
   // no callback is possible to this (outbound) s-mode POST message, the message needs to generate its own token/mid
   memcpy(&udp_message_update->endpoint, s_mode_message_ep, sizeof(oc_endpoint_t));
 
-  // s-mode message MAY carry a payload, this step is needed (same plain budget offset as used in oc_do_s_mode_message_update)
-  oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+  /*
+    s-mode message MAY carry a payload, this step is needed 
+    (same plain budget offset as used in oc_do_s_mode_message_update)
+
+    - the budget is the FULL application data size KNX_PAYLOAD_SIZE
+    - the message buffer is OC_PDU_SIZE, which is KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET
+    - blockwise transfer is NOT used for s-mode messages, so the payload must fit into the message buffer
+      (otherwise KNX_PAYLOAD_SIZE must be increased)
+  */
+  oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_MAX_APP_DATA_SIZE);
 
   // default it to an CON s-mode message
   coap_message_type_t type = COAP_TYPE_CON;
