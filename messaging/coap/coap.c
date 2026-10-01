@@ -507,7 +507,12 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 */
 static bool coap_parse_option_nibble(uint8_t** current, const uint8_t* end, size_t* value)
 {
-  // 0..12 are used directly, 15 is reserved and rejected later by the option number check
+  // 0..12 are used directly, 15 is reserved and must be processed as a message format error (RFC 7252 clause 3.1)
+  if (*value == 15)
+  {
+    return false;
+  }
+
   const size_t extension_bytes = *value == 13 ? 1 : *value == 14 ? 2 : 0;
 
   if (*current + extension_bytes > end)
@@ -591,16 +596,26 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
   unsigned int option_number = 0;
   while (current_options < data_end) 
   {
-    // application payload marker 0xFF found, currently only checking for 0xF* because rest is reserved
-    if ((current_options[0] & 0xF0) == 0xF0) 
+    /*
+      application payload marker 0xFF found (RFC 7252 clause 3.1)
+      - any other byte with delta nibble 15 is a message format error, rejected by coap_next_option
+    */
+    if (current_options[0] == 0xFF)
     {
       // jump to payload marker + 1
       coap_pkt->payload = ++current_options;
-      
+
       // calculate application payload size = total packet len - (coap header + token + options + payload marker)
       coap_pkt->payload_len = data_len - (uint32_t)(coap_pkt->payload - data);
 
       OC_DBG("calculated payload len from coap options = %" PRIu32, coap_pkt->payload_len);
+
+      // a payload marker followed by a zero-length payload must be processed as a message format error (RFC 7252 clause 3)
+      if (coap_pkt->payload_len == 0)
+      {
+        OC_ERR("payload marker without payload");
+        return BAD_OPTION_4_02;
+      }
 
       if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
       {

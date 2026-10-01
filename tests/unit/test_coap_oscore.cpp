@@ -616,6 +616,33 @@ TEST(OscoreIsOscoreMessage, ReturnsFalseForTruncatedOptionValue)
   EXPECT_FALSE(oscore_is_oscore_message(&msg));
 }
 
+TEST(OscoreIsOscoreMessage, ReturnsFalseForReservedDeltaNibble)
+{
+  // 0xF0..0xFE carry delta nibble 15 without being the payload marker 0xFF, a message format error (RFC 7252 clause 3.1)
+  for (unsigned int b = 0xF0; b < 0xFF; b++)
+  {
+    uint8_t data[] = {0x40, 0x02, 0x12, 0x34, (uint8_t)b, 0x90};
+
+    oc_message_t msg{};
+    msg.data = data;
+    msg.length = sizeof(data);
+
+    EXPECT_FALSE(oscore_is_oscore_message(&msg)) << "byte " << b;
+  }
+}
+
+TEST(OscoreIsOscoreMessage, StopsAtPayloadMarker)
+{
+  // 0x90 behind the payload marker is payload, not an OSCORE option
+  uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xFF, 0x90};
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
 TEST(OscoreIsOscoreMessage, DetectsOscoreOptionFollowedByExtendedDeltaOption)
 {
   /* OSCORE option (9) with a 2-byte value, followed by an option using delta nibble 13. */

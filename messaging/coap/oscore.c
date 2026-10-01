@@ -418,9 +418,9 @@ bool oscore_is_oscore_message(oc_message_t* msg)
 
   while (current_option < data_end)
   {
-    if ((current_option[0] & 0xF0) == 0xF0)
+    // payload marker 0xFF (RFC 7252 clause 3.1), any other byte with delta nibble 15 is rejected by coap_next_option
+    if (current_option[0] == 0xFF)
     {
-      // payload marker 0xFF, currently only checking for 0xF* because rest is reserved
       break;
     }
 

@@ -897,6 +897,52 @@ TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedLength)
   EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
 }
 
+TEST_F(CoapTest, Parse_ReservedDeltaNibbleIsRejected)
+{
+  /* Delta nibble 15 without being the payload marker 0xFF is a message format error (RFC 7252 clause 3.1). */
+  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xF0};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_ReservedDeltaNibbleWithDataIsRejected)
+{
+  /* 0xFE has delta nibble 15 but is not the payload marker. */
+  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFE, 'x'};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_ReservedLengthNibbleIsRejected)
+{
+  /* Uri-Path (11) with length nibble 15 is a message format error (RFC 7252 clause 3.1). */
+  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xBF, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o'};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_PayloadMarkerWithoutPayloadIsRejected)
+{
+  /* A payload marker followed by a zero-length payload is a message format error (RFC 7252 clause 3). */
+  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFF};
+
+  coap_packet_t parsed;
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+}
+
+TEST_F(CoapTest, Parse_PayloadMarkerWithPayloadIsAccepted)
+{
+  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFF, 'x'};
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), COAP_NO_ERROR);
+  EXPECT_EQ(parsed.payload_len, 1u);
+  EXPECT_EQ(parsed.payload[0], 'x');
+}
+
 TEST_F(CoapTest, Parse_TruncatedOptionValue)
 {
   /* Uri-Path (11) declares 5 value bytes but only 2 are present in the datagram. */
@@ -1269,12 +1315,12 @@ TEST_F(CoapPayloadLimitTest, OversizedPayload_IsNotTruncated)
   EXPECT_NE(parsed.payload_len, (uint32_t)(max_app_data - 1));
 }
 
-TEST_F(CoapPayloadLimitTest, EmptyPayload_Accepted)
+TEST_F(CoapPayloadLimitTest, EmptyPayloadAfterMarker_Rejected)
 {
+  // a payload marker followed by a zero-length payload is a message format error (RFC 7252 clause 3)
   build_post_with_payload(0);
 
-  ASSERT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), COAP_NO_ERROR);
-  EXPECT_EQ(parsed.payload_len, 0u);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), BAD_OPTION_4_02);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
