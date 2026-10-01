@@ -16,6 +16,8 @@
 #include "oscore.h"
 #include "oscore_constants.h"
 #include "security/oc_oscore.h"
+#include "security/oc_oscore_context.h"
+#include "oc_endpoint.h"
 
 #define ECHO_RECORD_SIZE (1 + sizeof(uint64_t) + 1 + OSCORE_SENDER_ID_LEN + 1 + 10)
 
@@ -45,7 +47,24 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     size -= ECHO_RECORD_SIZE;
 
     if ((operation & 1) == 0) {
-      oc_oscore_echo_whitelist_append(ssn, kid, kid_len, NULL, 0, NULL);
+      /*
+       * The anchor is taken from three objects: the OSCORE context (sender id),
+       * the CoAP packet (token) and the endpoint (group object + service type).
+       * The group object stays NULL here: the ring only stores the reference,
+       * it never dereferences it, and the regeneration path is not under test.
+       */
+      oc_oscore_context_t ctx;
+      coap_packet_t anchor_packet;
+      oc_endpoint_t endpoint;
+
+      memset(&ctx, 0, sizeof(ctx));
+      memset(&anchor_packet, 0, sizeof(anchor_packet));
+      memset(&endpoint, 0, sizeof(endpoint));
+
+      memcpy(ctx.sender_id, kid, kid_len);
+      ctx.sender_id_len = kid_len;
+
+      oc_oscore_echo_whitelist_append(ssn, &ctx, &anchor_packet, &endpoint);
       continue;
     }
 
