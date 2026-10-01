@@ -8,7 +8,7 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Condition | Value used here |
 | --- | --- |
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
-| Estimated since | figures marked `~` estimated for `e86c2dd6` (2026-10-01), diffed from `9f1f59db`: the echo ring no longer retains a plaintext `oc_message_t` per anchor (§ 6, § 7.2, § 7.4, § 8). Before that, `9f1f59db` was diffed from `7c3603c` for the DNS-SD Thread parity rework (§ 5 Port, Thread) and the access-token table `osc_version`/`osc_hkdf`/`osc_alg` field removal (§ 6). Everything else was refactor/warning-fix only or stayed under the rounding threshold |
+| Estimated since | figures marked `~` estimated for `fa57de3e` (2026-10-01), diffed from `e86c2dd6`: S-Mode/Echo and `/k` hardening added ~0.6 KiB of code to the KNX resources area (§ 5, § 2.1, § 9.1). The echo slot struct changed shape (the retained-message pointer became a group object table reference, plus a service-type byte) but stays 48 B on 32-bit, so § 6 does not move, and § 7.2 / § 7.4 already describe the heap-free ring. Before that, `e86c2dd6` was diffed from `9f1f59db`: the echo ring no longer retains a plaintext `oc_message_t` per anchor (§ 6, § 7.2, § 7.4, § 8). Before that, `9f1f59db` was diffed from `7c3603c`
 | Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) when an anchor still pinned a ~1.19 KiB plaintext copy. Since `e86c2dd6` an anchor holds only a reference to the originating group object table entry and regenerates the re-request payload on demand, so the ring no longer retains heap at all and its cost is the slot struct alone, see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
@@ -24,7 +24,7 @@ move as the stack evolves. For a first estimate it is sufficient.
 
 | | Ethernet, Wi-Fi | Thread |
 | --- | --- | --- |
-| **FLASH** | **125 KiB** | **110 KiB** |
+| **FLASH** | ~126 KiB | ~111 KiB |
 | **RAM, static** | ~30 KiB | ~13 KiB |
 | **RAM, stack thread** | 12 KiB | 12 KiB |
 | **RAM, crypto heap (Mbed TLS)** | 15 KiB | 15 KiB |
@@ -57,7 +57,7 @@ the total.
 MTD: Minimal Thread Device, a non-routing end device; the measured builds are
 Full Thread Devices that can route.
 
-Of these totals the KNX stack is 110–125 KiB of flash and ~13–30 KiB of static
+Of these totals the KNX stack is ~111-126 KiB of flash and ~13-30 KiB of static
 RAM (§ 2.1); everything else is platform: Zephyr and its subsystems, crypto,
 and the backend (§ 9.2 breaks it down). Add the C heap on top of static RAM:
 the stack alone peaks at ~24 KiB, the network stacks take more, and a
@@ -125,7 +125,7 @@ RAM does not depend on the configuration beyond the table sizes.
 
 | Area | Flash | Objects |
 | --- | --- | --- |
-| KNX resources (`/fp`, `/auth`, `/dev`, `/.knx`, `/p`, `/swu`) | ~45 KiB | `oc_knx_fp`, `oc_knx_sec`, `oc_knx_dev`, `oc_knx`, `oc_knx_swu`, `oc_knx_client`, `oc_knx_p`, `oc_knx_fb`, … |
+| KNX resources (`/fp`, `/auth`, `/dev`, `/.knx`, `/p`, `/swu`) | ~46 KiB | `oc_knx_fp`, `oc_knx_sec`, `oc_knx_dev`, `oc_knx`, `oc_knx_swu`, `oc_knx_client`, `oc_knx_p`, `oc_knx_fb`, … |
 | CoAP engine, blockwise, observe, transactions | ~15 KiB | `engine`, `coap`, `oc_blockwise`, `observe`, `transactions`, `separate` |
 | OSCORE and SPAKE2+ | ~15 KiB | `oc_oscore_engine`, `oc_oscore_context`, `oc_oscore_crypto`, `spake2plus`, `oscore` |
 | CBOR object model | ~9 KiB | `oc_rep`, TinyCBOR (parser 1.7, encoder 0.7) |
@@ -214,6 +214,7 @@ overhead per block. The figures are the same for all three backends.
 | OSCORE context (144) | ~152 | until replaced; LRU eviction only on allocation failure |
 | Datapoint resource (132 + runtime data + 3 strings) | ~250 | forever, one per application datapoint |
 | Table-entry strings and group-address arrays | 40–120 per entry | forever |
+| OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~0, was ~1 190 | **removed** since `e86c2dd6`: an anchor references the group object table entry instead and regenerates the payload on demand |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
 
@@ -248,9 +249,9 @@ keeps ~1.25 KiB per request alive for minutes.
 %%{init: {"theme": "base", "themeVariables": {"xyChart": {"plotColorPalette": "#2a78d6", "backgroundColor": "#fcfcfb", "titleColor": "#0b0b0b", "xAxisLabelColor": "#52514e", "yAxisLabelColor": "#52514e", "xAxisTitleColor": "#52514e", "yAxisTitleColor": "#52514e", "xAxisLineColor": "#c3c2b7", "yAxisLineColor": "#c3c2b7", "xAxisTickColor": "#c3c2b7", "yAxisTickColor": "#c3c2b7"}}}}%%
 xychart-beta horizontal
     title "KNX stack heap by scenario (KiB, estimate)"
-    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer"]
+    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer", "All 16 echo-ring anchors armed"]
     y-axis "KiB" 0 --> 40
-    bar [4, 12, 7.4, 12.2, 22, 29]
+    bar [4, 12, 7.4, 12.2, 22, 29, 0]
 ```
 
 | Scenario | Heap | Composition |
@@ -355,7 +356,7 @@ xychart-beta horizontal
 | Static RAM | **~203 KiB** | **~252 KiB** | **~531 KiB** |
 | of which code relocated to SRAM | 8 KiB | 8 KiB | 88 KiB |
 | C heap left (of 960 KiB) | ~765 KiB | ~717 KiB | ~516 KiB |
-| KNX IoT stack flash / static RAM | 124 / ~30 KiB | 113 / ~13 KiB | 124 / ~30 KiB |
+| KNX IoT stack flash / static RAM | ~125 / ~30 KiB | ~114 / ~13 KiB | ~125 / ~30 KiB |
 | KNX share of image | 31 % / ~15 % | 13 % / ~5 % | 9 % / 6 % |
 
 The KNX stack is constant except for the discovery mechanism (§ 3). Everything else in the
