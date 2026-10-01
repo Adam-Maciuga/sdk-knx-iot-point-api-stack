@@ -743,7 +743,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     - sia                     : sync message
     - sia + r + + ga          : read ga
 
-    NOTE: init with default values, such as st=0 for 'undefined', to be able to check later if a value was set or not in the payload
+    NOTE: 
+    - init with default values, such as st=0 for 'undefined', to be able to check later if a value was set or not in the payload
   */
   oc_group_object_notification_t received_notification = {0};
 
@@ -760,8 +761,16 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
+  /*
+    whether the payload actually CARRIED a 'ga' key, which is NOT the same as 'ga == 0': the value zero is
+    indistinguishable from the cleared default of 'received_notification'. Only the ABSENCE of the key marks
+    the 'sia' only sync message of specification clause 3.6.4.1.3, so the dispatch decision at the end of
+    this handler uses this flag, not the value.
+  */
+  bool group_address_found = false;
+
   // scan received payload for sia/st/ga/value
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   while (rep)
   {
@@ -770,7 +779,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       case OC_REP_INT:
       {
         // sia (4), mandatory
-        if (rep->iname == 4)
+        if (rep->iname == KNX_SMODE_KEY_SIA)
         {
           received_notification.sia = (uint32_t)rep->value.integer;
         }
@@ -789,7 +798,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         {
 
           // value (1), object type don't care here, optional
-          if (object->iname == 1)
+          if (object->iname == KNX_SMODE_KEY_VALUE)
           {
             // picks the CBOR object that contains the value
             received_notification.value_object = object;
@@ -800,7 +809,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             case OC_REP_STRING:
             {
               // st (6), optional
-              if (object->iname == 6 && oc_string_len(object->value.string) > 0)
+              if (object->iname == KNX_SMODE_KEY_ST && oc_string_len(object->value.string) > 0)
               {
                 // catch the FIRST char from the string ('w' or 'a' or 'r' )
                 received_notification.st = oc_string(object->value.string)[0];
@@ -810,9 +819,11 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             case OC_REP_INT:
             {
               // ga (7), optional
-              if (object->iname == 7)
+              if (object->iname == KNX_SMODE_KEY_GA)
               {
+                // if more than one ga is present last one wins (no current error handling for multiple ga keys in the s-map)
                 received_notification.ga = (uint32_t)object->value.integer;
+                group_address_found = true;
               }
               break;
             }
@@ -856,7 +867,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   /*
     GO array INDEX with the GA included (out of 0...max GO table entries)
-    - process all GOs in the table with this GA included,
+    - process all GOs in the table with this GA included
     - position of GA in GA array don't care
   */
   int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(received_notification.ga);
@@ -1169,7 +1180,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                     oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, sending_ga, 'a',
                                                      new_request.response->response_buffer->buffer, 
                                                      (int)new_request.response->response_buffer->response_length, 
-                                                     recipient);
+                                                     recipient, go_entry);
                   }
                   else
                   { // unicast: read response uses ia from RCP table (configured by MaC)
@@ -1225,9 +1236,22 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
   else
   { // index not found
-    
-    // - ga is not part of GO table; - sia ONLY (see above)
-    summary_handler_status = OC_STATUS_NOT_FOUND;
+
+    if (!group_address_found)
+    {
+      /*
+        'sia' ONLY (see above) = sync message: a legal s-mode payload per specification clause 3.6.4.1.3,
+        used e.g. by an 'echo re-request' whose value is not available anymore. It carries no GA, so there
+        is nothing to dispatch; the purpose (re-synchronising the sender sequence number) was already
+        fulfilled by the OSCORE layer before this handler was reached.
+      */
+      OC_DBG("/k : 'sia' only sync message, nothing to dispatch");
+    }
+    else
+    {
+      // ga is not part of GO table, and no sia only sync message, hence no dispatch possible
+      summary_handler_status = OC_STATUS_NOT_FOUND;
+    }
   }
 
   if (request->origin && request->origin->flags & MULTICAST)

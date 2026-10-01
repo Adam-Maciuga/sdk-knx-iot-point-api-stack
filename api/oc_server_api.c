@@ -56,18 +56,21 @@ void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code)
 {
   if (request && request->response && request->response->response_buffer)
   {
-    const int length = oc_rep_get_encoded_payload_size();
-    if (length == 0)
+    /*
+      - 'size <= 0' = a failed encoding (-1) and an empty encoding (0) 
+      - 'response_length' is a size_t, so a negative size must never
+        reach it, that would turn into a huge length over a buffer that holds nothing.
+    */
+    int size = oc_rep_get_encoded_payload_size();
+    request->response->response_buffer->content_format = APPLICATION_CBOR;
+    if (size <= 0)
     {
-      // same as 'oc_prepare_no_format_response_no_payload'
+      // nothing encoded or the encoding failed: same as 'oc_prepare_no_format_response_no_payload'
       request->response->response_buffer->content_format = CONTENT_NONE;
-    }
-    else
-    {
-      request->response->response_buffer->content_format = APPLICATION_CBOR;
+      size = 0;
     }
 
-    request->response->response_buffer->response_length = length;
+    request->response->response_buffer->response_length = size;
     request->response->response_buffer->code = oc_status_code(response_code);
   }
 }
@@ -76,18 +79,17 @@ void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
 {
   if (request && request->response && request->response->response_buffer)
   {
-    const int length = oc_rep_get_encoded_payload_size();
-    if (length == 0)
+    // 'size <= 0' covers both a failed encoding (-1) and an empty one (0), see 'oc_prepare_cbor_response'
+    int size = oc_rep_get_encoded_payload_size();
+    request->response->response_buffer->content_format = APPLICATION_JSON;
+    if (size <= 0)
     {
-      // same as 'oc_prepare_no_format_response_no_payload'
+      // nothing encoded or the encoding failed: same as 'oc_prepare_no_format_response_no_payload'
       request->response->response_buffer->content_format = CONTENT_NONE;
-    }
-    else
-    {
-      request->response->response_buffer->content_format = APPLICATION_JSON;
+      size = 0;
     }
 
-    request->response->response_buffer->response_length = length;
+    request->response->response_buffer->response_length = size;
     request->response->response_buffer->code = oc_status_code(response_code);
   }
 }
@@ -722,30 +724,27 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 
 void oc_send_separate_response(oc_separate_response_t* handle, oc_status_t response_code)
 {
-  size_t length = 0;
+  int size = 0;
 
   if (handle->response_state)
   {
-    if (handle->response_state->payload_size != 0)
+    // a blockwise buffered payload already knows its size, otherwise take the freshly encoded one
+    size = handle->response_state->payload_size != 0 ? (int)handle->response_state->payload_size : oc_rep_get_encoded_payload_size();
+    /*
+      only '< 0' here, unlike the 'oc_prepare_*_response' functions above: a size of 0 is a valid
+      empty separate response and must be sent as such, it is not an error.
+      The negative case can only originate from the encoder branch, 'payload_size' is unsigned.
+    */
+    if (size < 0)
     {
-      length = handle->response_state->payload_size;
-    }
-    else
-    {
-      const int encoded_size = oc_rep_get_encoded_payload_size();
-      if (encoded_size < 0)
-      {
-        OC_ERR("Separate response payload encoding failed, sending an internal error instead!");
-        response_code = OC_STATUS_INTERNAL_SERVER_ERROR;
-      }
-      else
-      {
-        length = encoded_size;
-      }
+      // send the error response without a payload and size set to 0, so that the peer can handle it properly
+      OC_ERR("Separate response payload encoding failed, sending an internal error instead!");
+      response_code = OC_STATUS_INTERNAL_SERVER_ERROR;
+      size = 0;
     }
   }
 
-  oc_send_separate_response_with_length(handle, response_code, length);
+  oc_send_separate_response_with_length(handle, response_code, (size_t)size);
 }
 
 void oc_send_empty_separate_response(oc_separate_response_t* handle, oc_status_t response_code)

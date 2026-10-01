@@ -73,6 +73,12 @@ UC2_SENDER_ID = b"\x20\x2a\x3b\x4c\x5d\x6e\x7f"
 UC3_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012381"
 UC3_SENDER_ID = b"\x30\x2a\x3b\x4c\x5d\x6e\x7f"
 
+# Fourth set, used only by the 'sia' only sync class. Sharing UC_SENDER_ID makes
+# the probe answer 4.01 out of the anti-replay window in a full suite run, which
+# would look like the clause 3.6.4.1.3 acceptance had regressed.
+UC4_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012382"
+UC4_SENDER_ID = b"\x40\x2a\x3b\x4c\x5d\x6e\x7f"
+
 # Multicast OSCORE credentials (EITT "MulticastTx" / "MulticastRx")
 MC_SENDER_ID = b"\x10\x2a\x3b\x4c\x5d\x6e\x7f"
 MC_CTX_TX = b"\x10\x2a\x3b"     # our context_id when sending TO device
@@ -1096,7 +1102,81 @@ class TestForeignGaBindingIsLive:
 
 
 # ===========================================================================
-# 5.4.1.3 — Multicast Read Elicits Response
+# 'sia' only sync message (ADDITIONAL, non-EITT)
+# ===========================================================================
+
+def _build_smode_sync(sia=PEER_IA):
+    """Build the 'sia' only s-mode payload: {4: sia}.
+
+    Specification clause 3.6.4.1.3 allows an s-mode message that carries only
+    the 'sia' attribute, with no s map and therefore no group address. A
+    sender uses it for an 'echo re-request' whose value is not available any
+    more; its purpose is re-synchronising the sender sequence number, which
+    the OSCORE layer has already done by the time /k is reached.
+    """
+    return cbor2.dumps({4: sia})
+
+
+class TestSiaOnlySyncMessage:
+    """A 'sia' only /k POST from a foreign sender must be accepted.
+
+    The payload carries no group address, so there is nothing to dispatch and
+    nothing to look up in the GO table. It is nevertheless a legal s-mode
+    message and must NOT be answered with 4.04 Not Found, which is what a
+    plain 'group address not in the GO table' path would produce
+    (api/oc_knx.c, oc_core_knx_k_post_handler).
+
+    This stack no longer EMITS the 'sia' only form itself - the echo
+    re-request either regenerates a full value payload or is abandoned - so
+    the only remaining source is another vendor's device. That makes this an
+    interoperability guard rather than a round trip of our own behaviour.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx):
+        go = [{0: 13, 7: [65535], 8: 0x10, 11: "/p/1"}]
+        _provision_unicast(coap, oscore_ctx, go, scope=[65535],
+                           token_id=UC4_TOKEN_ID, sender_id=UC4_SENDER_ID)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_sia_only_is_accepted(self, coap, oscore_ctx):
+        """Unicast POST /k with {4: sia} -> 2.04 Changed, not 4.04."""
+        uc_ctx = _make_uc_ctx(sender_id=UC4_SENDER_ID)
+
+        # the first unicast request draws an echo challenge, get it out of the way
+        _sync_unicast_ssn(coap, oscore_ctx, uc_ctx)
+
+        resp = coap.oscore_post(
+            uc_ctx, "/k", payload=_build_smode_sync(), timeout=5)
+
+        assert resp is not None, "POST /k with a 'sia' only payload timed out"
+        assert resp.code != "4.04", (
+            "a 'sia' only s-mode message is legal per clause 3.6.4.1.3 and "
+            "must not be treated as an unknown group address (got 4.04)")
+        assert resp.is_successful, (
+            f"expected 2.04 Changed for a 'sia' only sync message, "
+            f"got {resp.code}")
+
+    def test_unicast_sia_only_does_not_change_a_datapoint(self, coap,
+                                                          oscore_ctx):
+        """A 'sia' only message carries no ga and no value, so nothing moves."""
+        _set_datapoint(coap, oscore_ctx, "/p/1", False)
+
+        uc_ctx = _make_uc_ctx(sender_id=UC4_SENDER_ID)
+        _sync_unicast_ssn(coap, oscore_ctx, uc_ctx)
+
+        resp = coap.oscore_post(
+            uc_ctx, "/k", payload=_build_smode_sync(), timeout=5)
+        assert resp is not None, "POST /k with a 'sia' only payload timed out"
+
+        assert _get_datapoint(coap, oscore_ctx, "/p/1").get(1) is False, (
+            "a 'sia' only message must not dispatch to any datapoint")
+
+
+# ===========================================================================
+# 5.4.1.3 - Multicast Read Elicits Response
 # ===========================================================================
 
 class TestMulticastRead:

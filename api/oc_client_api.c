@@ -30,16 +30,17 @@ static oc_message_t* udp_message_update = NULL;
 
 bool oc_do_s_mode_message_update(void* recipient)
 {
-  const int payload_size = oc_rep_get_encoded_payload_size();
+  const int size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 
-  if (payload_size > 0)
+  // 'size > 0' only: a failed encoding (-1) and an empty payload (0) stores nothing
+  if (size > 0)
   {
     /*
       udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
       the gap must be the plain budget: coap_serialize_message() below writes inner AND outer options into one flat message
     */
-    coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
+    coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, size);
 
     udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
 

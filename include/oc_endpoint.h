@@ -12,8 +12,11 @@
 
 #include "messaging/coap/oscore_constants.h"
 
-/* Forward declaration — avoids circular dependency (oc_ri.h includes this header) */
+/* Forward declaration - avoids circular dependency (oc_ri.h includes this header) */
 typedef struct oc_auth_at oc_auth_at_t;
+
+/* Forward declaration - avoids circular dependency (the group object table header includes this one) */
+struct oc_group_object_table_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,7 +102,17 @@ extern "C" {
       (issued by an application)
     */
     uint32_t group_address;                
-    
+
+    /*
+      Originating group object table entry of an OUTBOUND s-mode request, plus its service type.
+      
+      Only set on the multicast s-mode send path; the OSCORE layer copies both into the echo ring anchor,
+      so a late 4.01 echo response can REGENERATE the re-request payload from the group object.
+      Reference only, the group object table owns the entry.
+    */
+    const struct oc_group_object_table_t* s_mode_group_object;
+    char s_mode_service_type;
+
     /* auth/at entry pointer (assigned only on an inbound OSCORE request message)
        - used for matching oscore context of a - to be sent out - outbound response to a former inbound request
        - used for upper layers to check access scopes (on an inbound message)

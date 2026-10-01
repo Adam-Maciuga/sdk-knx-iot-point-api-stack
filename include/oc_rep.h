@@ -55,6 +55,13 @@ void oc_rep_new(uint8_t *payload, int size);
  * This can be used to check if the cbor encode data will fit inside the payload
  * buffer. If the payload buffer is too small -1 is returned.
  *
+ * There are three distinct outcomes, callers must pick their guard accordingly:
+ *  - '-1' the encoding failed (e.g. CborErrorOutOfMemory), there is no usable payload
+ *  - '0'  nothing was encoded, which is a valid result (an empty response)
+ *  - '>0' the number of encoded bytes
+ * Use 'size > 0' / 'size <= 0' when an encoding error and an empty payload are handled the same way,
+ * use 'size < 0' only when an empty payload is a meaningful result that must not be treated as an error.
+ *
  * @return
  *  - the size of the cbor encoded data.
  *  - returns -1 if the cbor encoded data will not fit in the oc_rep_t payload

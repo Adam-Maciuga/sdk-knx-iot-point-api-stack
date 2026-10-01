@@ -1947,8 +1947,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   if ((endpoint->flags & (OSCORE | OSCORE_DECRYPTED)) != (OSCORE | OSCORE_DECRYPTED))
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
-    OC_DBG_OSCORE("access denied for: %s with flags: %d",
-                  oc_string_checked(resource->uri), endpoint->flags);
+    OC_DBG_OSCORE("access denied for: %s with flags: %d", oc_string_checked(resource->uri), endpoint->flags);
     return false;
   }
 
@@ -2002,31 +2001,47 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
         OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
       */
 
-      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
       const oc_rep_t* rep = value_object;
-      bool group_address_found = false;
+      bool group_address_found = false;      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
+      bool s_map_found = false;              // true when the payload carries any object, which is what the /k handler scans for a ga
+      bool sia_found = false;                // true when the payload carries the mandatory 'sia' (4) key
 
       /*
         EVERY ga in the payload must be covered by the access token, not just the
         first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
         authorizing on the first one let a payload carrying the key twice be
         checked against one group address and executed with another.
-        - normal   = {6: "w", 7: 2, 1: true}
-        - abnormal = {6: "w", 7: 2, 7: 99, 1: true} - parser allows this, 
+        
+        - sia only = {4: <ia>} -> no s-map, authorization granted (no r/w action will be performed)
+        - normal   = {6: "w", 7: 2, 1: true} -> s-map 
+        - abnormal = {6: "w", 7: 2, 7: 99, 1: true} -> s-map - parser allows this, 
                      if the authorization loop only checked the first ga (2, covered by the token) instead
                      of scanning all occurrences, the request would be authorized against GA 2 but actually
                      executed against GA 99.
       */
       while (rep)
       {
+        if (rep->type == OC_REP_INT && rep->iname == KNX_SMODE_KEY_SIA)
+        {
+          sia_found = true;
+        }
+
+        /*
+          Any object is scanned, not only the '5' s map: oc_core_knx_k_post_handler takes the ga from
+          every object it walks, so narrowing this scan would let a ga smuggled into another object key
+          reach the handler unauthorized.
+        */
+
         if (rep->type == OC_REP_OBJECT)
         {
-          // s map with st/ga/value (if present on w=write/a=update)
+          // s map (5) with ia/st/ga/value (if present on w=write/a=update)
           const oc_rep_t* s_map = rep->value.object;
+
+          s_map_found = true;
 
           while (s_map)
           {
-            if (s_map->type == OC_REP_INT && s_map->iname == 7)
+            if (s_map->type == OC_REP_INT && s_map->iname == KNX_SMODE_KEY_GA)
             {
               // only GA is of interest
 
@@ -2046,10 +2061,18 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
         rep = rep->next;
       }
 
-      // a: no ga found in request payload at all = request payload error (no access) -> false 
-      // b: acl scopes + method OK + every ga of the request payload is in the access token -> true
+      /*
+        The payload shape decides which fact authorizes:
+        - an object is present -> every ga it carries must be in the access token. No ga at all in it
+          is a request payload error (no access).
+        - no object at all -> a 'sia' only payload { 4: <ia> }, an OSCORE sequence number
+          synchronization request. There is no group address to authorize against, and a device SHALL
+          accept such a request from every peer whose sender context is in the access control list,
+          which is already proven by the message having been decrypted.
+        Note group_address_found can only be true when s_map_found is, so the two arms are exclusive.
+      */
 
-      return group_address_found;
+      return s_map_found ? group_address_found : sia_found;
     }
 
     // acl scopes + method OK

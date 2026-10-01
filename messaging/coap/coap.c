@@ -872,7 +872,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         break;
       
       case COAP_OPTION_ECHO:
-        // NOT listed as class E option: OSCORE RFC 8613, clause 4.1.1
+        /* 
+           NOT listed as class E option: OSCORE RFC 8613, clause 4.1.1, 
+           - earlier defined than RFC 9175, hence not defined in RFC 8613
+           - RFC 9175 defines outer ECHO only in clause 2.5.3, any intended behavior for this is NOT specified in KNX IoT
+             hence ECHO as outer option is not passed through
+        */
         if (!accept_inner_options || option_length > COAP_ECHO_LEN) 
         {
           // echo options must be OSCORE-encrypted for the deduplication to work
@@ -911,7 +916,7 @@ uint16_t coap_get_next_mid(void)
   return ++current_mid;
 }
 
-void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,uint16_t mid) 
+void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 

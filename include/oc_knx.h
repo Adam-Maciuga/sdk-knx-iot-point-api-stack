@@ -167,6 +167,18 @@ extern "C"
    *
    * ** not modelled below
    */
+
+  /*
+    CBOR keys of the s-mode message, see the table above (clause 2.5.9.2, Table 30). Defined once because the
+    payload is walked in three independent places - the encoder, the /k POST handler and the <ga> access check -
+    which must agree on what each key means.
+  */
+  #define KNX_SMODE_KEY_VALUE (1)  // value, object of an application specific type
+  #define KNX_SMODE_KEY_SIA   (4)  // sia, source individual address, unsigned
+  #define KNX_SMODE_KEY_S     (5)  // s, the s-mode message object (map)
+  #define KNX_SMODE_KEY_ST    (6)  // st, service type code, text string of 'w', 'r' or 'a'
+  #define KNX_SMODE_KEY_GA    (7)  // ga, group address, unsigned
+
   typedef struct oc_group_object_notification
   {
     oc_rep_t* value_object; // pointer to CBOR value object, see notes above

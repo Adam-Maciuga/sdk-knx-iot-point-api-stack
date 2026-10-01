@@ -231,7 +231,8 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 }
 
 void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, char service_type,
-                                      const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
+                                      const uint8_t* value_data, int value_size, oc_group_table_t* recipient,
+                                      const oc_group_object_table_t* group_object)
 {
   
   // 'recipient' and 'recipient->grpid' CANT BE invalid here, all tested before this method call -> no extra test here
@@ -261,9 +262,60 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
+  /*
+    carry the originating group object plus the service type on the endpoint: the OSCORE layer copies both
+    into the echo ring anchor, so a late 4.01 echo response can regenerate the re-request payload
+  */
+  group_mcast_endpoint.s_mode_group_object = group_object;
+  group_mcast_endpoint.s_mode_service_type = service_type;
+
   OC_INF("Sending s-mode multicast %c", service_type);
 
   oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, (oc_group_table_t*)recipient);
+}
+
+
+/*
+  Encodes the s-mode envelope { 4: <sia>, 5: { 7: <ga>, 6: <st>, 1: <value> } } into the CURRENT rep encoder.
+
+  The caller owns the encoder target: the send path gets it from 'oc_init_s_mode_message_update', the echo
+  re-request regeneration points it at its own buffer with 'oc_rep_new' beforehand.
+
+  'value_data' is the raw buffer filled by the resource GET callback, which wraps the value in its own
+  BF ... FF object:
+    (a) [0]                 = open object = BF, not copied, the 'value_map' created here already opens one
+    (b) [1 ... size - 2]    = the payload data (1: xxx), this is what gets copied
+    (c) [size - 1]          = close object = FF, not copied, closed here instead
+
+  Passing no value (NULL or size <= 2) yields the read request form without a value member.
+*/
+static void oc_encode_s_mode_envelope(uint32_t group_address, char service_type, const uint8_t* value_data, int value_size)
+{
+  // convert the single char into a string with '\0' for the cbor encoder
+  const char service[] = {service_type, '\0'};
+
+  oc_rep_begin_root_object();                       // BF (1st level)
+  oc_rep_i_set_int(root, KNX_SMODE_KEY_SIA, oc_core_get_device_info()->ia);
+
+  oc_rep_i_set_key(&root_map, KNX_SMODE_KEY_S);     // 5:
+
+  CborEncoder value_map;                            // BF (a)
+  cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
+
+  oc_rep_i_set_int(value, KNX_SMODE_KEY_GA, group_address);        // ga
+
+  oc_rep_i_set_text_string(value, KNX_SMODE_KEY_ST, service);      // 'r/w/a'
+
+  if (value_data && value_size > 2)
+  {
+    // (b)
+    oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
+  }
+
+  // (c)
+  cbor_encoder_close_container_checked(&root_map, &value_map);
+
+  oc_rep_end_root_object();                         // FF (1st level)
 }
 
 // sends a mc (non) or uc (con/non) s-mode message ('non' flag is set by caller in case of mc)
@@ -272,61 +324,21 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
 {
   if (oc_init_s_mode_message_update(endpoint, path, recipient->non))
   {
-    // get local device info (sia) -> always the same
-    const uint16_t sia = oc_core_get_device_info()->ia;
-
-    // convert the single char into a string with '\0' for the cbor encoder
-    const char service[] = {service_type, '\0'};
-    
-    // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
-
-    oc_rep_begin_root_object();                       // BF (1st level)
-    oc_rep_i_set_int(root, 4, sia);                   // 4: <sia>
-
-    oc_rep_i_set_key(&root_map, 5);                   // 5:
-
-    CborEncoder value_map;                            // BF (a)
-    cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
-
-    oc_rep_i_set_int(value, 7, group_address);        // ga
-
-    oc_rep_i_set_text_string(value, 6, service);      // 'r/w/a'
-
-    /* 
-       - on value data && value size > 2 it is a self triggered write request / read response with data
-       - otherwise a read request without data
-       - other combinations = error (no value data and size > 2, ...)
+    /*
+      - on value data && value size > 2 it is a self triggered write request / read response with data
+      - otherwise a read request without data
     */
-    if (value_data && value_size > 2)
-    {
-      /* 
-         copies raw data, the data are prepared by the callback handler with the leading '1' such as with GET to a bool = oc_rep_i_set_boolean (root, 1, true)
+    oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
 
-         (a) [0] = open object = BF (not extra copied, see above 'value_map')
-         (b) [1...size - 1] = payload data (1: xxx)  -> size - 2 , exclude BF/FF
-         (c) [size] = close object = FF
-
-      */
-
-      // (b)
-      oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
-    }
-
-    // (c)
-    cbor_encoder_close_container_checked(&root_map, &value_map);
-
-    // FF (1st level)
-    oc_rep_end_root_object();
-
-    const int16_t smode_payload_len = (int16_t)oc_rep_get_encoded_payload_size();
+    const int size = oc_rep_get_encoded_payload_size();
 
     #ifdef OC_DEBUG
 
     OC_INF("send s-mode to ipv6 address   : ");
     PRINTipaddr(*endpoint);
 
-    OC_INF("send s-mode CBOR payload (%d) : ", smode_payload_len);
-    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), smode_payload_len);
+    OC_INF("send s-mode CBOR payload (%d) : ", size);
+    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), size);
 
     #endif
 
@@ -342,10 +354,10 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     uint8_t smode_payload[OC_MAX_OBSERVE_SIZE];
     
     // > 0 also guards for a returned cbor error code -1 
-    const bool smode_payload_size_ok = smode_payload_len > 0 && smode_payload_len <= OC_MAX_OBSERVE_SIZE;
+    const bool smode_payload_size_ok = size > 0 && size <= OC_MAX_OBSERVE_SIZE;
     if (smode_payload_size_ok)
     {
-      memcpy(smode_payload, oc_rep_get_encoder_buf(), (size_t)smode_payload_len);
+      memcpy(smode_payload, oc_rep_get_encoder_buf(), (size_t)size);
     }
 
     // step 1: called only in case the static buffer was allocated 
@@ -354,10 +366,34 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     // step 2: notify /k observers ONLY on s-mode write -- forward the full S-Mode envelope captured above
     if (service_type == 'w' && smode_payload_size_ok)
     {
-      coap_notify_k_observers(smode_payload, smode_payload_len);
+      coap_notify_k_observers(smode_payload, size);
     }
   }
 }
+
+/*
+  Worst case size of the s-mode envelope { 4: <sia>, 5: { 7: <ga>, 6: <st> } } WITHOUT the value:
+
+    BF                            root map, indefinite length                  = 1
+    04 + sia                      key 4 + uint16 (0x19 xx xx)                  = 1 + 3
+    05                            key 5                                        = 1
+    BF                            value map, indefinite length                 = 1
+    07 + ga                       key 7 + uint32 (0x1A xx xx xx xx)            = 1 + 5
+    06 + st                       key 6 + one char text string (0x61 xx)       = 1 + 2
+    FF FF                         close value map + close root map             = 2
+
+  The value is inserted into the value map as raw CBOR, so the encoder must have this many bytes left on
+  top of it. Rounded up to give the encoder headroom.
+*/
+#define OC_S_MODE_ENVELOPE_OVERHEAD (24)
+
+/*
+  Value budget derived from the budget of the buffer the ENVELOPE is encoded into. Handing the GET handler
+  the full envelope budget would allow a datapoint to produce a value that cannot be wrapped anymore, so
+  the overhead is reserved up front and the overflow is prevented instead of merely detected.
+*/
+#define OC_S_MODE_MAX_VALUE_SIZE(envelope_budget) \
+  ((envelope_budget) > OC_S_MODE_ENVELOPE_OVERHEAD ? (uint16_t)((envelope_budget) - OC_S_MODE_ENVELOPE_OVERHEAD) : (uint16_t)0)
 
 /*
   @brief copies the resource data to a buffer by invoking the GET resource callback handler (see notes)
@@ -411,6 +447,100 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   return oc_rep_get_encoded_payload_size();
 }
 
+/*
+  Re-entrance guard for the echo re-request payload regeneration below.
+
+  The regeneration calls the application GET handler, which is allowed to issue an s-mode message of its
+  own. A nested regeneration is not expected to occur - the 4.01 + Echo of such an outbound message arrives
+  in a later inbound dispatch, not on this stack call - but the application handler is out of our control,
+  so the guard stays as a cheap assertion.
+
+  A nested attempt ABANDONS the re-request (-1) instead of answering: the inner call would overwrite the
+  buffer of the outer one, so emitting a valid looking payload would only mask the corrupted state.
+*/
+static bool g_iam_regenerating_an_echo_payload = false;
+
+int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object, char service_type, uint8_t* buffer)
+{
+  // the buffer cant be NULL here, the caller must have allocated a buffer of OC_MAX_APP_DATA_SIZE for the re-request payload
+
+  // (a) go must be present otherwise we never would have been sent the org. message (an anchor can never 'survive' a GOT reconfiguration)
+  if (!group_object)
+  {
+    return -1;
+  }
+
+  // skip when we are already regenerating (re-entrance, see the guard above)
+  if (g_iam_regenerating_an_echo_payload)
+  {
+    OC_ERR("echo re-request payload: re-entrant regeneration, abandoning the re-request");
+    return -1;
+  }
+
+  
+  // see (a) above, the anchor MUST be present 
+  const char* resource_path = oc_string(group_object->href);
+  const uint32_t group_address = group_object->ga[0];
+
+  /*
+    Regenerate the CURRENT datapoint value. It may differ from the value of the original multicast; that is
+    intended and covered by clause 3.6.4.1.3 ("the value is not valid anymore").
+  */
+  int value_size = 0;
+  uint8_t* value_data = NULL;
+
+  /*
+    The value must leave room for the envelope it is wrapped into, see OC_S_MODE_MAX_VALUE_SIZE.
+    The envelope budget is OC_MAX_APP_DATA_SIZE, the very same budget 'oc_init_s_mode_message_update'
+    gives the original s-mode send, so this folds to a compile time constant.
+  */
+  const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+
+  // only for 'a' or 'w', 'r' does not have a value
+  if (service_type != 'r' && max_value_size > 0)
+  {
+    value_data = (uint8_t*)malloc(max_value_size);
+    if (!value_data)
+    {
+      /*
+        no buffer, no re-request, 
+        - the inbound echo response is still valid
+        - the outbound re-request is skipped until RAM is available 
+      */
+      OC_ERR("echo re-request payload: resource value buffer cannot be allocated, abandoning the re-request");
+      return -1;
+    }
+
+    g_iam_regenerating_an_echo_payload = true;
+    value_size = oc_s_mode_get_resource_value(resource_path, value_data, max_value_size);
+    g_iam_regenerating_an_echo_payload = false;
+  }
+
+  // same envelope as the s-mode send path: { 4: <sia>, 5: { 7: <ga>, 6: <st>, 1: <value> } }
+
+  oc_rep_new(buffer, (int)OC_MAX_APP_DATA_SIZE);
+
+  oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
+
+  free(value_data);
+
+  const int size = oc_rep_get_encoded_payload_size();
+  // 'size <= 0' catches the encoder error (-1) and the empty payload (0), neither can be re-requested
+  if (size <= 0)
+  {
+    /*
+      the value was capped to 'OC_MAX_APP_DATA_SIZE - OC_S_MODE_ENVELOPE_OVERHEAD' above, so a size driven overflow
+      cannot occur here; this only triggers on an internal encoder error, which would hit a 'sia' only
+      payload just the same, so the re-request is abandoned
+    */
+    OC_ERR("echo re-request payload: encoding failed, abandoning the re-request");
+    return -1;
+  }
+
+  OC_DBG("echo re-request payload: regenerated %d byte for ga %04" PRIX32 " service %c", size, group_address, service_type);
+  return size;
+}
+
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type)
 {
   OC_DBG("scope = %d url = %s service type = %c", scope, resource_path, srv_type);
@@ -459,7 +589,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           OC_DBG("grpid > 0, send mc via sending ga");
 
           // multicast read, NO value data needed
-          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, NULL, 0, recipient);
+          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, NULL, 0, recipient, go_entry);
         }
         else
         {
@@ -478,8 +608,13 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
     {
       // issue a write request, with a sending GA that is able to transmit...
 
-      // allocate max resource application value size
-      uint8_t* resource_value_buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+      /*
+        allocate the resource application value size that still leaves room for the s-mode envelope;
+        the envelope is encoded by 'oc_init_s_mode_message_update' into a buffer of OC_MAX_APP_DATA_SIZE
+      */
+      const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+
+      uint8_t* resource_value_buffer = (uint8_t*)malloc(max_value_size);
       if (!resource_value_buffer)
       {
         OC_ERR("resource value buffer cannot be allocated");
@@ -487,7 +622,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
       }
 
       // copy resource value to buffer, return value size  -> buffer must be big enough to carry resource value!
-      const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
+      const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, max_value_size);
       if (recipient)
       {
         if (recipient->grpid > 0)
@@ -495,16 +630,14 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           // mc: request -> grpid is used from RCP table (configured by MaC)
 
           // multicast write, value data needed
-          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient);
+          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient, go_entry);
         }
         else
         {
           // uc: request -> ia is used from RCP table (configured by MaC)
 
           // unicast write, value data needed
-          oc_send_s_mode_unicast_message(sending_ga, srv_type,
-                                         resource_value_buffer, resource_value_size,
-                                         recipient, go_entry);
+          oc_send_s_mode_unicast_message(sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient, go_entry);
         }
       }
 
@@ -799,8 +932,13 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
     recipient->ipv6_adr.port = data->endpoint->addr.ipv6.port;
     recipient->ipv6_adr.interface_index = data->endpoint->interface_index;
 
-    // allocate max resource application value size
-    uint8_t* resource_value_buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+    /*
+      allocate the resource application value size that still leaves room for the s-mode envelope;
+      the envelope is encoded by 'oc_init_s_mode_message_update' into a buffer of OC_MAX_APP_DATA_SIZE
+    */
+    const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+
+    uint8_t* resource_value_buffer = (uint8_t*)malloc(max_value_size);
     if (!resource_value_buffer)
     {
       OC_ERR("resource value buffer cannot be allocated");
@@ -814,7 +952,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
     const char service_type = recipient->ipv6_res.service_type;
 
     // copy resource value to buffer, return value size, -> buffer must be big enough to carry resource value!
-    const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
+    const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, max_value_size);
 
     // since the IPV6 resolving is done, this below call does not end in an endless loop
     oc_send_s_mode_unicast_message(group_address, service_type, resource_value_buffer, resource_value_size, recipient, NULL);

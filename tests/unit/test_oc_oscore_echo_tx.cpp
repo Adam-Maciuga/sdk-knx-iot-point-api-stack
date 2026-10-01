@@ -1,8 +1,8 @@
-﻿/*
+/*
  * Unit tests for security/oc_oscore_engine.c
  *
  * Part 1 (EchoTxRingTest) covers the echo ring: oc_oscore_echo_whitelist_append,
- * oc_oscore_echo_check_and_consume, oc_oscore_echo_get_retained_plaintext,
+ * oc_oscore_echo_check_and_consume, oc_oscore_echo_get_anchor,
  * oc_oscore_free_all_echo_records.
  *
  * Part 2 (OscoreEngine) drives the OSCORE process thread itself: the inbound
@@ -19,8 +19,10 @@
  *         reads the actual compiled KNX_ECHO_RING_SIZE, e.g. 16 on Zephyr):
  *
  *         Anchor slot  (kid_ctx_len == 0)  -- former whitelist role:
- *           one slot per outbound send; carries the retained PLAINTEXT s-mode
- *           message for late-echo re-requests.
+ *           one slot per outbound send; carries a REFERENCE to the originating
+ *           group object table entry plus the service type. NO plaintext message
+ *           is retained any more; a late echo regenerates its re-request payload
+ *           from that group object.
  *
  *         Seen-responder slot  (kid_ctx_len > 0)  -- former blacklist role:
  *           one slot per accepted responder; an exact (ssn, kid, kid_ctx) triple
@@ -41,6 +43,7 @@ extern "C" {
 #include "messaging/coap/coap.h"
 #include "messaging/coap/engine.h"
 #include "oc_buffer.h"
+#include "api/oc_knx_fp.h"
 #include "security/oc_oscore.h"
 #include "security/oc_oscore_context.h"
 #include "security/oc_oscore_crypto.h"
@@ -92,10 +95,41 @@ static uint8_t g_kid[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 static uint8_t g_ctx_a[] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9};
 static uint8_t g_ctx_b[] = {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9};
 
-/* Helper: write a send-anchor (no retained message) for the given ssn and the shared kid. */
+/*
+ * Helper: write a send-anchor from the three objects the production signature takes.
+ * Only the fields the ring reads are populated: ctx->sender_id, pkt->token and the
+ * endpoint's s-mode group object plus service type.
+ */
+static void append_anchor(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+                          const uint8_t* token, uint8_t token_len,
+                          const oc_group_object_table_t* go, char service_type)
+{
+  oc_oscore_context_t ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  if (kid && kid_len > 0) {
+    memcpy(ctx.sender_id, kid, kid_len);
+    ctx.sender_id_len = kid_len;
+  }
+
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  if (token && token_len > 0) {
+    memcpy(pkt.token, token, token_len);
+    pkt.token_len = token_len;
+  }
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.s_mode_group_object = go;
+  ep.s_mode_service_type = service_type;
+
+  oc_oscore_echo_whitelist_append(ssn, &ctx, &pkt, &ep);
+}
+
+/* Helper: write a send-anchor (no group object) for the given ssn and the shared kid. */
 static void store(uint64_t ssn)
 {
-  oc_oscore_echo_whitelist_append(ssn, g_kid, sizeof(g_kid), NULL, 0, NULL);
+  append_anchor(ssn, g_kid, sizeof(g_kid), NULL, 0, NULL, 0);
 }
 
 /* Helper: consume an echo carrying the echoed ssn (as PIV), a kid and a kid_context. */
@@ -143,7 +177,7 @@ protected:
   void SetUp() override { oc_oscore_free_all_echo_records(); }
 };
 
-/* ── Good cases: a sent SSN is honoured exactly once ──────────────────── */
+/* -- Good cases: a sent SSN is honoured exactly once -------------------- */
 
 TEST_F(EchoTxRingTest, StoredSSN_FirstEcho_Accepted)
 {
@@ -161,7 +195,7 @@ TEST_F(EchoTxRingTest, MultipleStored_EachResponderAccepted)
   EXPECT_TRUE(consume(12));
 }
 
-/* ── Within the window: replay of an already-consumed SSN is dropped ──── */
+/* -- Within the window: replay of an already-consumed SSN is dropped ---- */
 
 TEST_F(EchoTxRingTest, TwoResponders_DifferentKidCtx_BothAccepted)
 {
@@ -179,7 +213,7 @@ TEST_F(EchoTxRingTest, SameResponder_SecondEcho_IsReplay)
   EXPECT_TRUE(consume_ctx(10, g_ctx_b, sizeof(g_ctx_b)));
 }
 
-/* ── Outside the white-list: unknown SSN is dropped ───────────────────── */
+/* -- Outside the white-list: unknown SSN is dropped --------------------- */
 
 TEST_F(EchoTxRingTest, UnknownSSN_NoStore_IsDropped)
 {
@@ -192,7 +226,7 @@ TEST_F(EchoTxRingTest, UnknownSSN_AfterStore_IsDropped)
   EXPECT_FALSE(consume(11));
 }
 
-/* ── Outside the white-list: matching SSN but wrong kid is dropped ───────── */
+/* -- Outside the white-list: matching SSN but wrong kid is dropped --------- */
 
 TEST_F(EchoTxRingTest, WrongKid_SameSSN_IsDropped)
 {
@@ -203,7 +237,7 @@ TEST_F(EchoTxRingTest, WrongKid_SameSSN_IsDropped)
   EXPECT_TRUE(consume(10));
 }
 
-/* ── Same kid, different ssn: independent anchors, both accepted ──────────── */
+/* -- Same kid, different ssn: independent anchors, both accepted ------------ */
 
 TEST_F(EchoTxRingTest, SameKid_DifferentSSN_BothAccepted)
 {
@@ -350,7 +384,7 @@ TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseReject
   EXPECT_FALSE(consume_ctx(10, g_ctx_a, sizeof(g_ctx_a)));
 }
 
-/* ── Cleanup: ring keeps only the most recent SIZE entries ───────────── */
+/* -- Cleanup: ring keeps only the most recent SIZE entries ------------- */
 
 TEST_F(EchoTxRingTest, OldestEntry_CleanedAfterOverflow)
 {
@@ -364,7 +398,7 @@ TEST_F(EchoTxRingTest, OldestEntry_CleanedAfterOverflow)
   EXPECT_TRUE(consume(2));
 }
 
-/* ── Clear wipes the white-list ───────────────────────────────────────── */
+/* -- Clear wipes the white-list ----------------------------------------- */
 
 TEST_F(EchoTxRingTest, Clear_DropsPendingEntries)
 {
@@ -375,73 +409,85 @@ TEST_F(EchoTxRingTest, Clear_DropsPendingEntries)
 
 
 
-/* -- Retained plaintext s-mode message (late-echo backup) ---------------
-   The whitelist slot owns a ref-counted reference on the retained message so
-   a LATE echo response (arriving after the s-mode CoAP transaction has
-   self-cleared) can still be answered with a re-request.
+/* -- GO-ref anchor lookup (late-echo backup) ----------------------------
+   The anchor slot stores a REFERENCE to the originating group object table
+   entry plus the service type of the original send. No plaintext message is
+   retained and no ref-counting is involved any more: a LATE echo response
+   (arriving after the s-mode CoAP transaction has self-cleared) is answered
+   with a re-request whose payload is REGENERATED from that group object.
 
-   The append helper takes its OWN reference (no ownership handover); the caller
-   therefore unrefs its reference right after the call, exactly like the real
-   multicast sender path. The ring then holds the sole reference and releases
-   it on slot roll-over or clear.
+   These tests use stand-in oc_group_object_table_t objects; only their address
+   and the service type have to survive the round trip through the ring. */
 
-   These tests allocate a stand-in oc_message_t the same way oc_allocate_message
-   does (struct + OC_PDU_SIZE data buffer, ref_count = 1) so the real
-   oc_message_add_ref / oc_message_unref ref-counting and free-at-zero behaviour
-   is exercised without touching the network allocator. */
-
-/* Allocate a fake message with ref_count = 1, carrying the given token. */
-static oc_message_t* make_msg(const uint8_t* token, uint8_t token_len)
-{
-  oc_message_t* m = (oc_message_t*)calloc(1, sizeof(oc_message_t));
-  m->data = (uint8_t*)calloc(1, OC_PDU_SIZE);
-  m->ref_count = 1;
-  m->length = token_len;
-  if (token && token_len > 0) {
-    memcpy(m->data, token, token_len);
-  }
-  return m;
-}
+static oc_group_object_table_t g_go_a;
+static oc_group_object_table_t g_go_b;
 
 static uint8_t g_tok_a[] = {0x11, 0x22, 0x33, 0x44};
 static uint8_t g_tok_b[] = {0x55, 0x66, 0x77, 0x88};
 
-TEST_F(EchoTxRingTest, Retain_GetByToken_ReturnsSameMessage)
+TEST_F(EchoTxRingTest, Anchor_GetByToken_ReturnsSameGroupObject)
 {
-  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a)); /* ref_count = 1 (test owns it) */
-  oc_oscore_echo_whitelist_append(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* ring adds its own ref -> 2 */
-  oc_message_unref(m); /* caller drops its ref -> 1, ring is sole owner */
+  append_anchor(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), &g_go_a, 'w');
+
+  oc_echo_anchor_t anchor = {};
 
   coap_packet_t pkt_a = make_token_pkt(g_tok_a, sizeof(g_tok_a));
-  EXPECT_EQ(m, oc_oscore_echo_get_retained_plaintext(&pkt_a));
-  EXPECT_EQ(1, m->ref_count);
+  EXPECT_TRUE(oc_oscore_echo_get_anchor(&pkt_a, &anchor));
+  EXPECT_EQ(&g_go_a, anchor.go);
+  EXPECT_EQ('w', anchor.service_type);
 
   /* the (ssn, kid) send-anchor was also laid, so a genuine echo is still accepted */
   EXPECT_TRUE(consume(10));
 
-  oc_oscore_free_all_echo_records(); /* ring drops its (the only) ref -> 0, freed */
+  oc_oscore_free_all_echo_records();
 }
 
-TEST_F(EchoTxRingTest, GetByToken_UnknownToken_ReturnsNull)
+TEST_F(EchoTxRingTest, GetAnchor_UnknownToken_ReturnsFalse)
 {
-  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a));
-  oc_oscore_echo_whitelist_append(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* ring adds its own ref -> 2 */
-  oc_message_unref(m); /* caller drops its ref -> 1, ring owns m */
+  append_anchor(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), &g_go_a, 'w');
+
+  oc_echo_anchor_t anchor = {&g_go_b, 'x'};
 
   coap_packet_t pkt_b = make_token_pkt(g_tok_b, sizeof(g_tok_b));
-  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(&pkt_b));
+  EXPECT_FALSE(oc_oscore_echo_get_anchor(&pkt_b, &anchor));
 
-  oc_oscore_free_all_echo_records(); /* ring frees m */
+  /* the anchor is untouched when nothing matches */
+  EXPECT_EQ(&g_go_b, anchor.go);
+  EXPECT_EQ('x', anchor.service_type);
+
+  oc_oscore_free_all_echo_records();
 }
 
-TEST_F(EchoTxRingTest, Retain_FreeAll_ReleasesRetainedMessage)
+TEST_F(EchoTxRingTest, Anchor_FreeAll_DropsTheGroupObjectReference)
 {
-  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a));
-  oc_oscore_echo_whitelist_append(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* ring adds its own ref -> 2 */
-  oc_message_unref(m); /* caller drops its ref -> 1, ring is sole owner */
-  EXPECT_EQ(1, m->ref_count);
+  append_anchor(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), &g_go_a, 'a');
 
-  oc_oscore_free_all_echo_records(); /* must unref the retained msg -> 0, freed (no leak) */
+  oc_oscore_free_all_echo_records();
+
+  oc_echo_anchor_t anchor = {};
+
+  coap_packet_t pkt_a = make_token_pkt(g_tok_a, sizeof(g_tok_a));
+  EXPECT_FALSE(oc_oscore_echo_get_anchor(&pkt_a, &anchor));
+}
+
+TEST_F(EchoTxRingTest, Anchor_ServiceTypeRoundTripsPerSlot)
+{
+  append_anchor(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), &g_go_a, 'w');
+  append_anchor(11, g_kid, sizeof(g_kid), g_tok_b, sizeof(g_tok_b), &g_go_b, 'r');
+
+  oc_echo_anchor_t anchor = {};
+
+  coap_packet_t pkt_a = make_token_pkt(g_tok_a, sizeof(g_tok_a));
+  ASSERT_TRUE(oc_oscore_echo_get_anchor(&pkt_a, &anchor));
+  EXPECT_EQ(&g_go_a, anchor.go);
+  EXPECT_EQ('w', anchor.service_type);
+
+  coap_packet_t pkt_b = make_token_pkt(g_tok_b, sizeof(g_tok_b));
+  ASSERT_TRUE(oc_oscore_echo_get_anchor(&pkt_b, &anchor));
+  EXPECT_EQ(&g_go_b, anchor.go);
+  EXPECT_EQ('r', anchor.service_type);
+
+  oc_oscore_free_all_echo_records();
 }
 
 
@@ -527,7 +573,7 @@ static uint8_t g_kid_z[] = {0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30};  /* sende
 /* store an anchor for (ssn, kid) where kid is the full byte array */
 static void store_kid(uint64_t ssn, const uint8_t* kid, uint8_t kid_len)
 {
-  oc_oscore_echo_whitelist_append(ssn, kid, kid_len, NULL, 0, NULL);
+  append_anchor(ssn, kid, kid_len, NULL, 0, NULL, 0);
 }
 
 /* consume with the given (ssn, kid) and responder A */
@@ -598,43 +644,46 @@ TEST_F(EchoTxRingTest, MultiKid_Overflow_EvictedSenderDropped_OthersAccepted)
 }
 
 
-TEST_F(EchoTxRingTest, Retain_RingRollOverCleansOldestRetainedMessage)
+TEST_F(EchoTxRingTest, Anchor_RingRollOverDropsOldestAnchor)
 {
-  /* fill exactly ECHO_RING_SIZE retained messages with unique tokens, then add
-     one more: the write index wraps to slot 0 so the FIRST-inserted (oldest) retained
-     message must be cleaned (its ring ref dropped -> freed). */
+  /* fill exactly ECHO_RING_SIZE anchors with unique tokens, then add one more:
+     the write index wraps to slot 0 so the FIRST-inserted (oldest) anchor must
+     be overwritten and is no longer findable. */
   const int cap = ECHO_RING_SIZE;
+
+  /* one distinct stand-in group object per slot, so the round trip is verifiable */
+  std::vector<oc_group_object_table_t> gos((size_t)cap + 1);
 
   for (int i = 0; i < cap; i++) {
     uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
-    oc_message_t* m = make_msg(tok, sizeof(tok));                              /* ref 1 */
-    oc_oscore_echo_whitelist_append((uint64_t)(100 + i), g_kid, sizeof(g_kid),
-                                    tok, sizeof(tok), m);                      /* ring adds ref -> 2 */
-    oc_message_unref(m);                                                       /* caller drops ref -> 1 */
+    append_anchor((uint64_t)(100 + i), g_kid, sizeof(g_kid), tok, sizeof(tok), &gos[(size_t)i], 'w');
   }
 
-  /* every retained message is still findable by its token */
+  /* every anchor is still findable by its token and returns its own group object */
   for (int i = 0; i < cap; i++) {
     uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
     coap_packet_t ring_pkt = make_token_pkt(tok, sizeof(tok));
-    EXPECT_NE(nullptr, oc_oscore_echo_get_retained_plaintext(&ring_pkt));
+    oc_echo_anchor_t anchor = {};
+    EXPECT_TRUE(oc_oscore_echo_get_anchor(&ring_pkt, &anchor));
+    EXPECT_EQ(&gos[(size_t)i], anchor.go);
   }
 
-  /* one more append -> ring wraps to slot 0 -> OLDEST (i == 0) cleaned and FREED */
+  /* one more append -> ring wraps to slot 0 -> OLDEST (i == 0) overwritten */
   uint8_t extra_tok[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
-  oc_message_t* extra = make_msg(extra_tok, sizeof(extra_tok));                /* ref 1 */
-  oc_oscore_echo_whitelist_append((uint64_t)(100 + cap), g_kid, sizeof(g_kid),
-                                   extra_tok, sizeof(extra_tok), extra);       /* ring adds ref -> 2 */
-  oc_message_unref(extra);                                                     /* caller drops ref -> 1 */
+  append_anchor((uint64_t)(100 + cap), g_kid, sizeof(g_kid), extra_tok, sizeof(extra_tok), &gos[(size_t)cap], 'a');
 
-  /* the oldest token is gone (its message was cleaned + freed), the newest is present */
+  /* the oldest token is gone, the newest is present with its own group object */
   uint8_t cleaned_tok[4] = { 0x00, 0xAA, 0xBB, 0xCC };
   coap_packet_t pkt_cleaned = make_token_pkt(cleaned_tok, sizeof(cleaned_tok));
   coap_packet_t pkt_extra   = make_token_pkt(extra_tok, sizeof(extra_tok));
-  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(&pkt_cleaned));
-  EXPECT_EQ(extra, oc_oscore_echo_get_retained_plaintext(&pkt_extra));
 
-  /* cleanup: ring owns all still-retained messages -> free_all releases them */
+  oc_echo_anchor_t anchor = {};
+
+  EXPECT_FALSE(oc_oscore_echo_get_anchor(&pkt_cleaned, &anchor));
+  ASSERT_TRUE(oc_oscore_echo_get_anchor(&pkt_extra, &anchor));
+  EXPECT_EQ(&gos[(size_t)cap], anchor.go);
+  EXPECT_EQ('a', anchor.service_type);
+
   oc_oscore_free_all_echo_records();
 }
 

@@ -8,8 +8,8 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Condition | Value used here |
 | --- | --- |
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
-| Estimated since | figures marked `~` estimated for `9f1f59db` (2026-09-24), diffed from `7c3603c`: the DNS-SD Thread parity rework merged (§ 5 Port, Thread) and the access-token table `osc_version`/`osc_hkdf`/`osc_alg` field removal (§ 6). Everything else in the ~60-commit diff was refactor/warning-fix only or stayed under the rounding threshold |
-| Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) to bound the worst-case heap a burst of unanswered echo challenges can retain, since no timeout is used (sleepy devices may answer minutes late), see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the new Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
+| Estimated since | figures marked `~` estimated for `e86c2dd6` (2026-10-01), diffed from `9f1f59db`: the echo ring no longer retains a plaintext `oc_message_t` per anchor (§ 6, § 7.2, § 7.4, § 8). Before that, `9f1f59db` was diffed from `7c3603c` for the DNS-SD Thread parity rework (§ 5 Port, Thread) and the access-token table `osc_version`/`osc_hkdf`/`osc_alg` field removal (§ 6). Everything else was refactor/warning-fix only or stayed under the rounding threshold |
+| Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) when an anchor still pinned a ~1.19 KiB plaintext copy. Since `e86c2dd6` an anchor holds only a reference to the originating group object table entry and regenerates the re-request payload on demand, so the ring no longer retains heap at all and its cost is the slot struct alone, see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
 | KNX table sizes | certification defaults: 50 group objects, 20 publishers, 20 recipients, 20 access tokens |
@@ -155,7 +155,7 @@ rings, and the tables scale linearly with their configured capacity.
 | Publisher table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GPT_MAX_ENTRIES` |
 | Recipient table | 88 × entries | 20 → 1.7 KiB | `CONFIG_KNXIOT_GRT_MAX_ENTRIES` |
 | Auth (access token) table | ~72 × entries | 20 → ~1.4 KiB | `CONFIG_KNXIOT_ATT_MAX_ENTRIES` |
-| OSCORE echo ring (slot struct only; a live anchor slot also retains a heap message, see § 7.2) | 16 × 48 | ~0.75 KiB | fixed (`CONFIG_KNXIOT_ECHO_RING_SIZE`, Zephyr default 16; other ports default 64) |
+| OSCORE echo ring (slot struct only; an anchor slot references a group object table entry and retains no heap, see § 7.2) | 16 × 48 | ~0.75 KiB | fixed (`CONFIG_KNXIOT_ECHO_RING_SIZE`, Zephyr default 16; other ports default 64) |
 | Request history | 32 × 32 | 1.0 KiB | fixed (`OC_REQUEST_HISTORY_SIZE`) |
 | Replay records | 20 × 56 | 1.1 KiB | fixed |
 | CoAP engine, callbacks, device info | | ~3 KiB | |
@@ -214,11 +214,10 @@ overhead per block. The figures are the same for all three backends.
 | OSCORE context (144) | ~152 | until replaced; LRU eviction only on allocation failure |
 | Datapoint resource (132 + runtime data + 3 strings) | ~250 | forever, one per application datapoint |
 | Table-entry strings and group-address arrays | 40–120 per entry | forever |
-| OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~1 190 | until that ring slot is next overwritten (FIFO) or `oc_oscore_free_all_echo_records()` runs; **no timeout** |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
 
-Every outbound s-mode message that arms an echo challenge keeps its plaintext alive in the echo ring (§ 6) until that ring slot is reused, not until the echo is answered. A burst of `CONFIG_KNXIOT_ECHO_RING_SIZE` such sends with no inbound echo responses fills every slot with a retained message: ~1.19 KiB × the ring size, held indefinitely with no timeout (a time-based eviction was rejected: sleepy devices can legitimately answer minutes late). At the Zephyr default of 16 that is ~19 KiB; at the CMake default of 64 used by other ports it is ~74 KiB, more than the free heap on the MCXW72 build (§ 2.2). See § 7.4.
+The OSCORE echo ring holds no heap. An anchor records only a reference to the originating group object table entry plus the service type; when a late 4.01 echo response arrives the re-request payload is regenerated from that entry into the inbound message's own buffer. The reference cannot go stale: the ring is wiped whenever the load state machine leaves loading, which is the only state in which `/fp/g` may be written. Before `e86c2dd6` each armed anchor instead pinned a ~1.19 KiB plaintext `oc_message_t` with no timeout, so a burst of unanswered challenges retained ~19 KiB at the Zephyr default of 16 and ~74 KiB at the CMake default of 64 - the latter more than the free heap on the MCXW72 build (§ 2.2). That worst case no longer exists.
 
 ### 7.3 One request in flight
 
@@ -249,9 +248,9 @@ keeps ~1.25 KiB per request alive for minutes.
 %%{init: {"theme": "base", "themeVariables": {"xyChart": {"plotColorPalette": "#2a78d6", "backgroundColor": "#fcfcfb", "titleColor": "#0b0b0b", "xAxisLabelColor": "#52514e", "yAxisLabelColor": "#52514e", "xAxisTitleColor": "#52514e", "yAxisTitleColor": "#52514e", "xAxisLineColor": "#c3c2b7", "yAxisLineColor": "#c3c2b7", "xAxisTickColor": "#c3c2b7", "yAxisTickColor": "#c3c2b7"}}}}%%
 xychart-beta horizontal
     title "KNX stack heap by scenario (KiB, estimate)"
-    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer", "All echo-ring anchors retained"]
+    x-axis ["Idle, few table entries", "Idle, all tables populated", "One GET in flight", "One PUT with a table page", "Certification run, peak", "20 CON requests to a dead peer"]
     y-axis "KiB" 0 --> 40
-    bar [4, 12, 7.4, 12.2, 22, 29, 19]
+    bar [4, 12, 7.4, 12.2, 22, 29]
 ```
 
 | Scenario | Heap | Composition |
@@ -262,7 +261,7 @@ xychart-beta horizontal
 | One PUT with a table page | + 8.2 KiB | request set + CBOR tree of one page |
 | Certification run, peak | **~20–24 KiB** | three overlapping requests, one page parse, one pending ACK, one notification; itemised below |
 | 20 CON requests to an unreachable peer | + 25 KiB, ≤ 155 s | |
-| All 16 echo-ring anchors retained (Zephyr default) | ~19 KiB, no timeout | burst of outbound s-mode sends with no inbound echo responses; each anchor slot's plaintext is only freed when the ring slot is next overwritten or `oc_oscore_free_all_echo_records()` runs, see § 7.2. ~74 KiB at the CMake default of 64 used by other ports |
+| All 16 echo-ring anchors armed | ~0 KiB | an anchor references a group object table entry and regenerates its payload on demand, so no heap is retained, see § 7.2. Was ~19 KiB at 16 slots and ~74 KiB at 64 before `e86c2dd6` |
 
 #### What "certification run, peak" means
 
@@ -294,7 +293,7 @@ bounds.
 | --- | --- | --- |
 | `KNX_PAYLOAD_SIZE` | ±1 KiB per message and per response state | CMake |
 | `CONFIG_KNXIOT_*_MAX_ENTRIES` | 28–88 B static per entry, plus strings when populated | Kconfig |
-| `CONFIG_KNXIOT_ECHO_RING_SIZE` | 48 B static per slot; also bounds the worst-case retained heap of live anchors (~1.19 KiB each, no timeout) against the replay-detection window, see § 7.2. Zephyr default 16 (~19 KiB worst case); other ports default 64 (~74 KiB) via CMake `KNX_ECHO_RING_SIZE` | Kconfig (Zephyr) / CMake (other ports) |
+| `CONFIG_KNXIOT_ECHO_RING_SIZE` | 48 B static per slot; retains no heap since `e86c2dd6`, so the size is now a pure replay-detection-window versus static-RAM trade, see § 7.2. Zephyr default 16; other ports default 64 via CMake `KNX_ECHO_RING_SIZE` | Kconfig (Zephyr) / CMake (other ports) |
 | `CONFIG_KNXIOT_THREAD_STACK_SIZE` | stack thread; 12 KiB has headroom for NVS writes and SRP calls | Kconfig |
 | `CONFIG_MBEDTLS_HEAP_SIZE` | SPAKE2+ needs the most; 15 KiB proven | Kconfig |
 | `CONFIG_KNXIOT_LOG_LEVEL` | compiles out format strings from the image-wide string pool | Kconfig |

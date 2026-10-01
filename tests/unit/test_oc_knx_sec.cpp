@@ -1093,3 +1093,71 @@ TEST_F(SecAcl, GaScopeRejectsForeignGaInASecondSMap)
   EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first));
 }
 
+TEST_F(SecAcl, GaScopeSiaOnlySyncAllowed)
+{
+  /*
+    A sequence number synchronization request carries only { 4: <ia> }. There is no group address to
+    authorize against, and the device SHALL accept it from every peer whose sender context is in the
+    access control list - which the decrypted OSCORE message already proves.
+  */
+  res.post_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t sia;
+  memset(&sia, 0, sizeof(sia));
+  sia.type = OC_REP_INT;
+  sia.iname = 4;
+  sia.value.integer = 0x1101;
+
+  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+}
+
+TEST_F(SecAcl, GaScopeSiaWithForeignGaStillDenied)
+{
+  /* the sia relaxation must not cover a payload that does carry a group address */
+  res.post_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t sia, outer, inner;
+  make_ga_payload(&outer, &inner, 9999);
+
+  memset(&sia, 0, sizeof(sia));
+  sia.type = OC_REP_INT;
+  sia.iname = 4;
+  sia.value.integer = 0x1101;
+  sia.next = &outer;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+}
+
+TEST_F(SecAcl, GaScopeSiaWithGaBearingNonSMapObjectDenied)
+{
+  /*
+    oc_core_knx_k_post_handler reads a ga (7) out of every object it walks, not only out of the '5'
+    s map, so a ga smuggled into another object key must not slip through as a 'sia only' payload.
+  */
+  res.post_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
+  token.scope = OC_ACL_GA;
+  ga_list[0] = 1234;
+  token.ga = ga_list;
+  token.ga_len = 1;
+
+  oc_rep_t sia, outer, inner;
+  make_ga_payload(&outer, &inner, 9999);
+  outer.iname = 1;                       // value object, not the s map
+
+  memset(&sia, 0, sizeof(sia));
+  sia.type = OC_REP_INT;
+  sia.iname = 4;
+  sia.value.integer = 0x1101;
+  sia.next = &outer;
+
+  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+}
+

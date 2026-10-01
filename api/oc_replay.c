@@ -14,7 +14,8 @@
 #include "oc_knx_sec.h"
 
 #ifndef OC_MAX_REPLAY_RECORDS
-#define OC_MAX_REPLAY_RECORDS (20) 
+// number belongs to publishers from that we MAY get an inbound message, if less than that the oldest will be evicted.   
+#define OC_MAX_REPLAY_RECORDS (KNX_GPT_MAX_ENTRIES)
 #endif
 
 typedef struct oc_replay_record

@@ -2155,6 +2155,7 @@ void oc_store_group_object_table_entry(int entry)
   oc_rep_end_root_object();
 
   const int size = oc_rep_get_encoded_payload_size();
+  // 'size > 0' only: a failed encoding (-1) and an empty payload (0) stores nothing
   if (size > 0)
   {
     OC_DBG("oc_dump_GO_table_entry: [%s] [%d]: size %d", storage_key, entry, size);
@@ -2447,6 +2448,7 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   oc_rep_end_root_object();
 
   const int size = oc_rep_get_encoded_payload_size();
+  // 'size > 0' only: a failed encoding (-1) and an empty payload (0) stores nothing
   if (size > 0)
   {
     OC_DBG("oc_dump_PUB/RCV_table_entry: [%s] [%s] [%d]: size %d", storage_key, store, entry, size);
@@ -3081,7 +3083,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         {
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
-            oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, sending_ga, 'r', NULL, 0, recipient);
+            oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, sending_ga, 'r', NULL, 0, recipient, go_entry);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)

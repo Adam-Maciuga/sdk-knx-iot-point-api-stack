@@ -28,17 +28,35 @@ extern "C"
   // extra definition to avoid including coap.h in this header file (circular dependency)   
   struct coap_packet_t;
 
+  // extra definition to avoid including the group object table header here (circular dependency)
+  struct oc_group_object_table_t;
+
+  // extra definition to avoid including the OSCORE context header here
+  struct oc_oscore_context_t;
+
   void oc_oscore_free_all_echo_records(void);
 
-  // write an anchor slot (former whitelist append); takes own ref on msg (NULL-safe); caller must unref msg after
-  void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
-                                       const uint8_t* token, uint8_t token_len,
-                                       oc_message_t* msg);
+  void oc_oscore_echo_whitelist_append(uint64_t ssn, const struct oc_oscore_context_t* ctx,
+                                       const struct coap_packet_t* pkt, const oc_endpoint_t* endpoint);
 
-  // look up the retained PLAINTEXT s-mode message by CoAP token; no ownership transfer; NULL if not found
-  oc_message_t* oc_oscore_echo_get_retained_plaintext(const struct coap_packet_t* pkt);
+  /*
+    Anchor of an inbound echo response, copied OUT of the echo ring by value.
 
-  // accept or reject an inbound echo response using the unified ring (anchor + seen-responder scan)
+    The ring is a FIFO whose slots are recycled, and the regeneration path calls the application GET
+    handler, which may send an s-mode message and thereby evict slots. The caller therefore gets a copy,
+    never a pointer into ring storage.
+
+    'go' references the group object table entry (owned by that table, no ownership transfer).
+  */
+  typedef struct
+  {
+    const struct oc_group_object_table_t* go;
+    char service_type;  // 'w', 'r' or 'a' of the original outbound request
+  } oc_echo_anchor_t;
+
+  
+  bool oc_oscore_echo_get_anchor(const struct coap_packet_t* pkt, oc_echo_anchor_t* anchor);
+
   bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt);
 
   bool oscore_is_oscore_message(oc_message_t* msg);

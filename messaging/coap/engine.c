@@ -17,6 +17,7 @@
 #include "api/oc_replay.h"
 #include "api/oc_knx_sec.h"
 #include "api/oc_knx_fp.h"
+#include "api/oc_knx_client.h"
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
@@ -1149,19 +1150,23 @@ int coap_receive(oc_message_t* incoming_message)
       if (inbound_coap_pkt->code == UNAUTHORIZED_4_01 && echo_len != 0)
       {
         /*
-          source of the original s-mode payload for the 'echo re-request':
+          source of the s-mode payload for the 'echo re-request':
+
+          UNICAST s-mode CON/NON:
+          - the still-open s-mode CoAP transaction holds the original message, reparse transaction->message
+
+          MULTICAST s-mode NON:
+          - the transaction does not exist anymore (it was self cleared), and NO plaintext message is
+            retained; the OSCORE echo ring only holds an ANCHOR referencing the originating group object
           
-          UNICAST s-mode NON: 
-          - the payload IS NOT retained in the OSCORE echo ring 
-          - the payload is recovered from the still-open s-mode CoAP transaction, use transaction->message
-          
-          MULTICAST s-mode NON: 
-          - the payload IS retained in the OSCORE echo ring (after clearing the ring slot)
-          - the payload is NOT recovered from the NOT anymore existing s-mode CoAP transaction (was self cleared)
-        
+          - the payload is therefore REGENERATED from that group object, which carries the CURRENT value.
+            IoT spec. clause 3.6.4.1.3 explicitly permits this ("the value is not valid anymore"). If the value
+            cannot be produced, the re-request is abandoned rather than answered.
         */
-        oc_message_t* source_msg = transaction ? transaction->message : oc_oscore_echo_get_retained_plaintext(inbound_coap_pkt);
-        if (source_msg)
+        oc_echo_anchor_t anchor = {0};
+        const bool anchor_found = !transaction && oc_oscore_echo_get_anchor(inbound_coap_pkt, &anchor);
+
+        if (transaction || anchor_found)
         {
           /*
             server side, inbound response, external client is not synchronised:
@@ -1169,11 +1174,75 @@ int coap_receive(oc_message_t* incoming_message)
             - 1: CON (uc) message
             - 2: NON (uc/mc) message
           */
-          OC_DBG("received 4.01 'echo response', must sending 'echo re-request' ... (source: %s)", transaction ? "transaction" : "retained s-mode message");
+          OC_DBG("received 4.01 'echo response', must sending 'echo re-request' ... (source: %s)", transaction ? "transaction" : "regenerated from group object");
 
-          // parse data and copy to 'unicast echo re-request'
           coap_packet_t re_request_coap_packet[1];
-          coap_parse_udp_message(re_request_coap_packet, source_msg->data, source_msg->length);
+
+          /*
+            the multicast branch has no source message, so an oc_message_t is allocated here; its data buffer
+            (OC_PDU_SIZE) holds the regenerated payload and its endpoint carries the freshly composed /k POST
+            destination into 'coap_new_transaction_with_data' (which copies the endpoint)
+          */
+          oc_message_t* source_msg = transaction ? transaction->message : oc_allocate_message();
+
+          if (!source_msg)
+          {
+            /*
+              give up on the 'echo re-request' but DO NOT stop processing here: the inbound 4.01 is still a
+              regular inbound response that must be acknowledged / must clear its transaction further below
+            */
+            OC_ERR("received 4.01 'echo response' but no message could be allocated for the 'echo re-request'");
+            goto echo_re_request_abandoned;
+          }
+
+          if (transaction)
+          {
+            // parse data and copy to 'unicast echo re-request'
+            coap_parse_udp_message(re_request_coap_packet, source_msg->data, source_msg->length);
+          }
+          else
+          {
+            /*
+              regenerate into the carrier's OWN data buffer; it stays valid until the message is released,
+              which happens only after the re-request has been serialized.
+              the budget is OC_MAX_APP_DATA_SIZE, the very same envelope budget 'oc_init_s_mode_message_update'
+              gives the original s-mode send, so a regenerated payload can never exceed what the sender could emit
+            */
+            const int size = oc_create_s_mode_payload_for_go(anchor.go, anchor.service_type, source_msg->data);
+
+            if (size <= 0)
+            {
+              OC_ERR("received 4.01 'echo response' but the 'echo re-request' payload could not be regenerated");
+              oc_message_unref(source_msg);
+              goto echo_re_request_abandoned;
+            }
+
+            /*
+              - compose the /k POST from scratch; a multicast s-mode request is always non-confirmable
+                (the producer forces NON), so the re-request is a NON unicast POST as well
+              
+              - the mid handed in here is a placeholder, it is replaced by the final one further below; it
+                only has to be a value that cannot match an existing client callback in the lookup in between
+            */
+            coap_udp_init_message(re_request_coap_packet, COAP_TYPE_NON, COAP_POST, coap_get_next_mid());
+            coap_set_header_uri_path(re_request_coap_packet, "/k", 2);
+            coap_set_header_content_format(re_request_coap_packet, APPLICATION_CBOR);
+            coap_set_payload(re_request_coap_packet, source_msg->data, (size_t)size);
+
+            // token length of the original send, the bytes themselves are replaced below (8), not all of them may be used
+            re_request_coap_packet->token_len = inbound_coap_pkt->token_len;
+
+            /*
+              destination and security context of the freshly built message: the responder that challenged
+              us, with the sending group address of the originating group object so the OSCORE layer finds
+              the matching sender key
+            */
+            memcpy(&source_msg->endpoint, &incoming_message->endpoint, sizeof(oc_endpoint_t));
+            source_msg->endpoint.group_address = anchor.go->ga[0];
+            source_msg->endpoint.s_mode_group_object = NULL; // must be done, src was not NULL
+            source_msg->endpoint.s_mode_service_type = 0;    // must be done, src was not 0
+            source_msg->length = 0;                          // must be done, will be overwritten by 'coap_oscore_serialize_message' below
+          }
 
           // find a POSSIBLE created client callback by using old mid (before changing mid)
           client_cb = oc_ri_find_client_cb_by_mid(re_request_coap_packet->mid);
@@ -1201,11 +1270,13 @@ int coap_receive(oc_message_t* incoming_message)
           }
 
           /*
-            create new transaction from original s-mode message that includes for 'unicast echo re-request':
-            (-) the original s-mode message payload,
+            create new transaction for the 'unicast echo re-request' that includes:
+            (-) the s-mode payload: 
+                - the original bytes when the ORIGINAL send was unicast (transaction kept),
+                - the regenerated ones when the ORIGINAL send was multicast (no transaction, rebuilt from the anchor)
             (a) echo option from inbound 4.01 'echo response', new mid and new token,
             (b) destination from inbound 4.01 'echo response'
-            (c) type 'unicast'
+            (c) type 'unicast', re-request itself is always unicast
             (d) it will be no new s-mode transaction (in case of NON with a new timeout and kept transaction),
                 send it as a standard CoAP CON/NON message based on coap type (CON with poss. reps, NO with fire and drop after sending)
 
@@ -1219,6 +1290,13 @@ int coap_receive(oc_message_t* incoming_message)
             re_request_coap_packet->token_len,
             source_msg);
 
+          /*
+            the locally allocated carrier of the multicast branch was copied by the call above, but its data
+            buffer still holds the regenerated payload that the serialization below reads, so it is released
+            only AFTER 'coap_oscore_serialize_message' has run
+          */
+          const bool release_source_msg = !transaction;
+
           if (new_transaction)
           {
             /*
@@ -1227,6 +1305,11 @@ int coap_receive(oc_message_t* incoming_message)
             */
             new_transaction->message->length =
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
+
+            if (release_source_msg)
+            {
+              oc_message_unref(source_msg);
+            }
 
             // (c) + (d)
             UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST + S_MODE_CON_REQUEST);
@@ -1242,19 +1325,20 @@ int coap_receive(oc_message_t* incoming_message)
                 - NON: new 'echo re-request' transaction is dropped automatically by 'coap_send_transaction'
                 - CON: new 'echo re-request' transaction is dropped after ack/ timeout by 'coap_send_transaction'
               */
-              OC_DBG("retransmitting original s-mode message with included echo option as 'unicast echo re-request'");
+              OC_DBG("sending s-mode message with included echo option as 'unicast echo re-request'");
               coap_send_transaction(new_transaction);
             }
             else
             {
               /*
-                NOT send out 'unicast echo re-request' s-mode message -> no payload ...,
+                NOT send out 'unicast echo re-request' s-mode message -> serialization produced no bytes,
                 - drop new 're-request' transaction
                 - drop old 'original s-mode message' transaction (if any)
                   - even if another 4.01 echo response may be received later, the new transaction would have again
                     an empty payload
               */
 
+              OC_ERR("serializing the 'unicast echo re-request' produced no bytes, dropping it");
               coap_clear_transaction(new_transaction);
               coap_clear_transaction(transaction);
             }
@@ -1262,12 +1346,24 @@ int coap_receive(oc_message_t* incoming_message)
             // stop further processing on 'unicast echo re-request' message
             return COAP_NO_ERROR;
           }
+
+          // no transaction could be created; the carrier is not owned by anyone else, release it here
+          if (release_source_msg)
+          {
+            oc_message_unref(source_msg);
+          }
         }
         else
         {
-          OC_ERR("received 4.01 'echo response' but no retained s-mode message exists for this inbound token, strange ...");
+          OC_ERR("received 4.01 'echo response' but neither a transaction nor an echo ring anchor exists for this inbound token, strange ...");
         }
       }
+
+      /*
+        the 'echo re-request' could not be built; fall through to the regular inbound response handling
+        below so that a CON 4.01 still gets its empty ACK and an open transaction is still cleared
+      */
+      echo_re_request_abandoned:
 
       #endif
 
