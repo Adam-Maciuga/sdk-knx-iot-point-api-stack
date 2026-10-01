@@ -1290,13 +1290,6 @@ int coap_receive(oc_message_t* incoming_message)
             re_request_coap_packet->token_len,
             source_msg);
 
-          /*
-            the locally allocated carrier of the multicast branch was copied by the call above, but its data
-            buffer still holds the regenerated payload that the serialization below reads, so it is released
-            only AFTER 'coap_oscore_serialize_message' has run
-          */
-          const bool release_source_msg = !transaction;
-
           if (new_transaction)
           {
             /*
@@ -1306,8 +1299,13 @@ int coap_receive(oc_message_t* incoming_message)
             new_transaction->message->length =
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
 
-            if (release_source_msg)
+            if (!transaction)
             {
+              /*
+                only the multicast branch regenerated its own carrier message; its data buffer still holds the
+                regenerated payload that 'coap_oscore_serialize_message' just read above, so it may only be
+                released now, AFTER serialization has run
+              */
               oc_message_unref(source_msg);
             }
 
@@ -1347,8 +1345,11 @@ int coap_receive(oc_message_t* incoming_message)
             return COAP_NO_ERROR;
           }
 
-          // no transaction could be created; the carrier is not owned by anyone else, release it here
-          if (release_source_msg)
+          /*
+            coap_new_transaction_with_data failed (new_transaction == NULL), so nothing holds on to source_msg;
+            release it here if it is the regenerated multicast carrier that we own
+          */
+          if (!transaction)
           {
             oc_message_unref(source_msg);
           }
