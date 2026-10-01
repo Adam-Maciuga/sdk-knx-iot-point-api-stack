@@ -74,8 +74,13 @@ function(kis_add_test TEST_NAME TEST_SOURCE)
         kisClientServer_tail
     )
 
-    # Let CTest discover individual TEST() cases
-    gtest_discover_tests(${TEST_NAME})
+    # Let CTest discover individual TEST() cases.
+    # gtest_discover_tests runs the binary at build time (POST_BUILD), so the listing
+    # competes with every other test target still being compiled and linked. A sanitizer
+    # build lists in well under a second on an idle host, but the default 5 s timeout is
+    # reached under a loaded builder, which aborts the whole build. 60 s absorbs that
+    # contention without masking a binary that genuinely hangs.
+    gtest_discover_tests(${TEST_NAME} DISCOVERY_TIMEOUT 60)
 
     # Record this target so the run_unit_tests aggregate target can depend on it
     set_property(GLOBAL APPEND PROPERTY KIS_UNIT_TEST_TARGETS ${TEST_NAME})
