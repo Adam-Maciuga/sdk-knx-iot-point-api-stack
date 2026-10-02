@@ -21,6 +21,9 @@
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_sec.h"
+#include "oc_replay.h"
+#include "security/oc_oscore_context.h"
+#include "messaging/coap/oscore.h"
 #include "conf.h"
 #include "oc_main.h"
 #include <stdlib.h>
@@ -275,6 +278,14 @@ int oc_main_init(const oc_handler_t* handler)
 
   oc_assert(mandatory_callbacks_defined);                 
 
+  /*
+    start with a clean OSCORE state, in case a former run ended without oc_main_shutdown()
+    (the contexts are rebuilt from the AT table in storage further below)
+  */
+  oc_oscore_free_all_contexts();
+  oc_oscore_free_all_replay_records();
+  oc_oscore_free_all_echo_records();
+
   // set application handlers
   app_callbacks = handler;
 
@@ -291,7 +302,7 @@ int oc_main_init(const oc_handler_t* handler)
     return -1;
   }
 
-  // call one time on startup (must be successful)
+  // call one time on startup, usually calls oc_core_set_device_res that loads all tables 
   if (app_callbacks->init() < 0)
   {
     OC_ERR("Error in stack initialization, application init handler failed");
@@ -403,6 +414,14 @@ void oc_main_shutdown(void)
 
   */
   oc_free_at_table_ram();
+
+  /*
+    drop the OSCORE state derived from the AT table (RAM only, nothing is erased from storage),
+    otherwise a re-init in the same process would start with stale contexts, replay windows and echo anchors
+  */
+  oc_oscore_free_all_contexts();
+  oc_oscore_free_all_replay_records();
+  oc_oscore_free_all_echo_records();
 
   oc_shutdown_device();
 

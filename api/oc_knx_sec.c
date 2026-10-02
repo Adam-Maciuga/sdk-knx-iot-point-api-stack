@@ -1782,7 +1782,7 @@ void oc_delete_at_table(void)
 
   oc_oscore_free_all_contexts();
   oc_oscore_free_all_replay_records();
-  oc_oscore_free_all_echo_records();
+  oc_oscore_free_all_echo_records();  // echo ring contains, kid/kid_ctx -> cant be valid anymore 
 }
 
 void oc_delete_at_table_except_sec_scope_entries(void)
