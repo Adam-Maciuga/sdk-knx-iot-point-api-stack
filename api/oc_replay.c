@@ -20,14 +20,14 @@
 
 typedef struct oc_replay_record
 {
-	uint64_t rx_ssn;														// most recent received client SSN
+  oc_clock_time_t time;                       // time of last received client packet
+  uint64_t rx_ssn;														// most recent received client SSN
 	uint8_t  rx_kid[OSCORE_SENDER_ID_LEN];			// client KID (raw bytes, same layout as oc_endpoint_t)
 	uint8_t  rx_kid_len;
 	uint8_t  rx_kid_ctx[OSCORE_ID_CONTEXT_LEN]; // client KID context (raw bytes, can be empty)
-	uint8_t  rx_kid_ctx_len;
-	oc_clock_time_t time;												// time of last received client packet
-	uint32_t window;														// bitfield of received SSNs, 32-bit = OSCORE RFC default
-	bool in_use;																// whether this record holds valid data
+  uint32_t window;                            // bitfield of received SSNs, 32-bit = OSCORE RFC default
+  uint8_t  rx_kid_ctx_len;
+  bool     in_use;                            // whether this record holds valid data
 } oc_replay_record_t;
 
 static oc_replay_record_t replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
