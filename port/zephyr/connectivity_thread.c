@@ -231,7 +231,8 @@ oc_send_discovery_request(oc_message_t *message)
     oc_send_buffer(message);
 }
 
-oc_endpoint_t *oc_connectivity_get_endpoints(void)
+/* Caller should hold the OpenThread mutex*/
+static oc_endpoint_t *find_unicast_endpoint(void)
 {
     const otNetifAddress *addr;
 
@@ -296,6 +297,15 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
     }
 
     return NULL;
+}
+
+oc_endpoint_t *oc_connectivity_get_endpoints(void)
+{
+    openthread_mutex_lock();
+    oc_endpoint_t *endpoint = find_unicast_endpoint();
+    openthread_mutex_unlock();
+
+    return endpoint;
 }
 
 void
