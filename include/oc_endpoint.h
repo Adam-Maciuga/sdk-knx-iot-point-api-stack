@@ -93,8 +93,7 @@ extern "C" {
       oc_ipv4_addr_t ipv4;                // ipv4 address (not used in OSCORE, but in IP adapter, hence we cannot remove it)
     } addr, addr_local;
 
-    int interface_index;                  // interface index 
-    uint8_t priority;                     // priority
+    int interface_index;                  // interface index
 
     /* 
       sending group address, used to find later the OSCORE context '128-bit sender key'
