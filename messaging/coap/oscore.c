@@ -67,75 +67,56 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
   }
 }
 
-void oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint32_t* ssn) 
+uint32_t oscore_piv_to_ssn(const uint8_t* piv, uint8_t piv_len)
 {
   /*
-   PIV is a big-endian encoded integer; accumulate each byte MSB-first into the numeric value without any endianness detection or byte-swapping.
-   
-   Platform: little-endian (x86, ARM Cortex-M)
-   Platform: big-endian (PowerPC, SPARC)
+    PIV is a big-endian encoded integer; accumulate each byte MSB-first into the numeric value without any
+    endianness detection or byte-swapping. Only << and | on an unsigned value are used, which the C standard
+    guarantees to give the same numeric result on every platform (little- and big-endian).
 
-   Example: piv = { 0xAA, 0xBB, 0xCC }, piv_len = 3
-     i=0: ssn = (0x00000000 << 8) | 0xAA = 0x000000AA
-     i=1: ssn = (0x000000AA << 8) | 0xBB = 0x0000AABB
-     i=2: ssn = (0x0000AABB << 8) | 0xCC = 0x00AABBCC
+    Example: piv = { 0xAA, 0xBB, 0xCC }, piv_len = 3
+      i=0: ssn = (0x00000000 << 8) | 0xAA = 0x000000AA
+      i=1: ssn = (0x000000AA << 8) | 0xBB = 0x0000AABB
+      i=2: ssn = (0x0000AABB << 8) | 0xCC = 0x00AABBCC
 
-     The new code uses only arithmetic operators (<< and |) which always operate on the numeric value of *ssn, never on its memory representation.
-     The C standard guarantees that << and | on unsigned integers produce the same value on every platform.
-  */
-
-  /*
     no length check: the OSCORE option parser (coap_parse_inner_oscore_option) already rejects
     piv_len > OSCORE_SSN_PIV_LEN_MAX, so every PIV reaching this function fits a 32-bit SSN
   */
-  *ssn = 0;
 
+  // local accumulator: one result, no repeated load/store through a pointer that may alias piv
+  uint32_t ssn = 0;
   for (uint8_t i = 0; i < piv_len; i++)
   {
-    *ssn = (*ssn << 8) | piv[i];
+    ssn = (ssn << 8) | piv[i];
   }
+
+  return ssn;
 }
 
 
-int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn) 
+void oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn)
 {
   memset(piv, 0, OSCORE_PIV_LEN);
 
   /*
-    KNX IoT uses a 32-bit SSN space (max = 2^32 - 1 = OSCORE_SSN_MAX), the uint32_t type itself
-    rolls over, so no masking is needed. After a rollover ssn == 0 is caught by the special case
-    below and yields [0x00], piv_len = 1 (a piv_len of 0 is invalid for a request PIV).
+    Minimal-length big-endian encoding (RFC 8613 clause 5): leading zero bytes are omitted, SSN 0 encodes
+    as the single byte 0x00 (a piv_len of 0 is invalid for a request PIV), hence the minimum length is 1.
+
+    The caller must never pass a wrapped SSN: sending at ssn == UINT32_MAX must be refused, otherwise
+    the AEAD nonce would be reused after the rollover to 0.
+
+    Example: ssn = 0x00AABBCC -> len = 3, piv = { 0xAA, 0xBB, 0xCC }
   */
-  if (ssn == 0)
+  const uint8_t len = ssn > 0xFFFFFFu ? 4 : ssn > 0xFFFFu ? 3 : ssn > 0xFFu ? 2 : 1;
+
+  // fill from the least significant byte backwards, platform-independent (no endianness detection)
+  for (uint8_t i = len; i-- > 0; ssn >>= 8)
   {
-    // SSN of zero encodes as a single zero byte (RFC 8613 minimum PIV length = 1)
-    piv[0] = 0;
-    *piv_len = 1;
-    return 0;
+    piv[i] = (uint8_t)ssn;
   }
 
-  /*
-    Emit SSN as big-endian byte sequence (RFC 8613 minimum-length encoding).
-    Strips leading zero bytes using right-shifts on the numeric value.
-    Platform-independent: no endianness detection required.
-
-    Example: ssn = 0x00AABBCC, OSCORE_SSN_PIV_LEN_MAX = 4
-      shift=24: byte = 0x00 -> skip (leading zero)
-      shift=16: byte = 0xAA -> write, piv_len = 1
-      shift= 8: byte = 0xBB -> write, piv_len = 2
-      shift= 0: byte = 0xCC -> write, piv_len = 3
-      Result: piv = { 0xAA, 0xBB, 0xCC }, piv_len = 3
-   */
-
-  *piv_len = 0;
-  for (int shift = (OSCORE_SSN_PIV_LEN_MAX - 1) * 8; shift >= 0; shift -= 8)
-  {
-    const uint8_t byte = (uint8_t)(ssn >> shift);
-    if (*piv_len > 0 || byte != 0)  // skip leading zeros
-      piv[(*piv_len)++] = byte;     // write byte and increment length (from here piv_len is not 0 anymore, so no more skipping)
-  }
-
-  return 0;
+  // single write through the pointer, avoids reloads caused by possible aliasing with piv
+  *piv_len = len;
 }
 
 int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) 

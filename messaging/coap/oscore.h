@@ -17,11 +17,11 @@ extern "C"
   // send an oscore error as CoAP with a CoAP return code (as plain CoAP error or as secured OSCORE error)
   void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured);
 
-  // read big-endian piv (src) into 32-bit ssn (dst), ssn is cleared first; piv_len <= OSCORE_SSN_PIV_LEN_MAX is ensured by the OSCORE option parser
-  void oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint32_t* ssn);
+  // read big-endian piv into a 32-bit ssn (piv_len 0 gives 0); piv_len <= OSCORE_SSN_PIV_LEN_MAX is ensured by the OSCORE option parser
+  uint32_t oscore_piv_to_ssn(const uint8_t* piv, uint8_t piv_len);
 
   // store 32-bit ssn (src) to piv (dst) as minimal-length big-endian, piv is cleared first
-  int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn);
+  void oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn);
 
   // echo ring (single unified FIFO: anchor slots + seen-responder slots); exposed for unit testing and the send / receive paths
 

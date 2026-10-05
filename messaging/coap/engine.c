@@ -695,14 +695,13 @@ int coap_receive(oc_message_t* incoming_message)
 
       if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
       {
-        uint32_t ssn;
         /*
           PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
           piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
 
           -> here not tested again
         */
-        oscore_store_piv_to_ssn(incoming_message->endpoint.piv, incoming_message->endpoint.piv_len, &ssn);
+        const uint32_t ssn = oscore_piv_to_ssn(incoming_message->endpoint.piv, incoming_message->endpoint.piv_len);
 
         replay_state_t sync_state = oc_replay_check_client(ssn, &incoming_message->endpoint);
 

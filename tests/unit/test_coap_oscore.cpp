@@ -108,46 +108,41 @@ TEST_F(OscoreSendError, SecuredRequestLeavesOscoreFlagUntouched)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * oscore_store_piv_to_ssn
+ * oscore_piv_to_ssn
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 TEST(PivToSsn, SingleByte)
 {
   uint8_t piv[] = {0x42};
-  uint32_t ssn = 0xDEAD;
-  oscore_store_piv_to_ssn(piv, 1, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(piv, 1);
   EXPECT_EQ(ssn, 0x42u);
 }
 
 TEST(PivToSsn, ThreeBytes)
 {
   uint8_t piv[] = {0xAA, 0xBB, 0xCC};
-  uint32_t ssn = 0;
-  oscore_store_piv_to_ssn(piv, 3, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(piv, 3);
   EXPECT_EQ(ssn, 0x00AABBCCu);
 }
 
 TEST(PivToSsn, FourBytesMax)
 {
   uint8_t piv[] = {0xFF, 0xFF, 0xFF, 0xFF};
-  uint32_t ssn = 0;
-  oscore_store_piv_to_ssn(piv, 4, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(piv, 4);
   EXPECT_EQ(ssn, OSCORE_SSN_MAX);
 }
 
 TEST(PivToSsn, ZeroLength)
 {
   uint8_t piv[] = {0xFF};
-  uint32_t ssn = 0xDEAD;
-  oscore_store_piv_to_ssn(piv, 0, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(piv, 0);
   EXPECT_EQ(ssn, 0u);
 }
 
 TEST(PivToSsn, SingleZero)
 {
   uint8_t piv[] = {0x00};
-  uint32_t ssn = 0xDEAD;
-  oscore_store_piv_to_ssn(piv, 1, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(piv, 1);
   EXPECT_EQ(ssn, 0u);
 }
 
@@ -159,9 +154,14 @@ TEST(SsnToPiv, Zero)
 {
   uint8_t piv[OSCORE_PIV_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
   uint8_t piv_len = 0;
-  EXPECT_EQ(oscore_store_ssn_to_piv(piv, &piv_len, 0), 0);
+  oscore_store_ssn_to_piv(piv, &piv_len, 0);
   EXPECT_EQ(piv_len, 1);
   EXPECT_EQ(piv[0], 0x00);
+  // tail cleared
+  for (int i = 1; i < OSCORE_PIV_LEN; i++)
+  {
+    EXPECT_EQ(piv[i], 0x00);
+  }
 }
 
 TEST(SsnToPiv, SmallValue)
@@ -196,6 +196,26 @@ TEST(SsnToPiv, MaxFourBytes)
   EXPECT_EQ(piv[3], 0xFF);
 }
 
+TEST(SsnToPiv, LengthBoundaries)
+{
+  // each pair: largest value of a length, smallest value of the next length
+  const struct { uint32_t ssn; uint8_t len; } cases[] = {
+    {0x000000FFu, 1}, {0x00000100u, 2},
+    {0x0000FFFFu, 2}, {0x00010000u, 3},
+    {0x00FFFFFFu, 3}, {0x01000000u, 4},
+  };
+
+  for (const auto& c : cases)
+  {
+    uint8_t piv[OSCORE_PIV_LEN] = {};
+    uint8_t piv_len = 0;
+    oscore_store_ssn_to_piv(piv, &piv_len, c.ssn);
+    EXPECT_EQ(piv_len, c.len) << "ssn=0x" << std::hex << c.ssn;
+    EXPECT_NE(piv[0], 0x00);
+    EXPECT_EQ(oscore_piv_to_ssn(piv, piv_len), c.ssn);
+  }
+}
+
 TEST(SsnToPiv, WrapAround)
 {
   // uint32_t SSN wraps modulo 2^32: OSCORE_SSN_MAX + 1 == 0 -> special zero case
@@ -227,22 +247,16 @@ TEST(PivSsnRoundTrip, SmallValue)
 {
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  uint32_t ssn_out = 0;
-
   oscore_store_ssn_to_piv(piv, &piv_len, 12345);
-  oscore_store_piv_to_ssn(piv, piv_len, &ssn_out);
-  EXPECT_EQ(ssn_out, 12345u);
+  EXPECT_EQ(oscore_piv_to_ssn(piv, piv_len), 12345u);
 }
 
 TEST(PivSsnRoundTrip, LargeValue)
 {
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  uint32_t ssn_out = 0;
-
   oscore_store_ssn_to_piv(piv, &piv_len, 0xDEADBEEF);
-  oscore_store_piv_to_ssn(piv, piv_len, &ssn_out);
-  EXPECT_EQ(ssn_out, 0xDEADBEEFu);
+  EXPECT_EQ(oscore_piv_to_ssn(piv, piv_len), 0xDEADBEEFu);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

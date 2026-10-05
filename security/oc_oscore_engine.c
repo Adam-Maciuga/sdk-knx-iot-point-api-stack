@@ -452,15 +452,13 @@ bool oc_oscore_echo_get_anchor(const struct coap_packet_t* pkt, oc_echo_anchor_t
 */
 bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
 {
-  uint32_t ssn;
-  
   /*
     PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
     piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
 
     -> here not tested again
   */
-  oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
+  const uint32_t ssn = oscore_piv_to_ssn(pkt->piv, pkt->piv_len);
 
   bool send_proof_found = false;
 
@@ -784,14 +782,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
         */
 
-        uint32_t inbound_ssn;
         /*
           PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
           piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
 
           -> here not tested again
         */
-        oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
+        const uint32_t inbound_ssn = oscore_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len);
 
         oc_oscore_context_params_t oscore_params = 
         {

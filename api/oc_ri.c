@@ -1660,15 +1660,13 @@ bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_stat
       use PIV/SSN as observe notification number, 
       as the server may not support observe sequence numbers (RFC 8613, 4.1.3.5)
     */
-    uint32_t notification_num;
-
     /*
       PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
       piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
 
       -> here not tested again
     */
-    oscore_store_piv_to_ssn(endpoint->piv, endpoint->piv_len, &notification_num);
+    const uint32_t notification_num = oscore_piv_to_ssn(endpoint->piv, endpoint->piv_len);
 
     if (notification_num < cb->notification_num)
     {
