@@ -216,16 +216,18 @@ TEST(SsnToPiv, LengthBoundaries)
   }
 }
 
-TEST(SsnToPiv, WrapAround)
+TEST(SsnToPiv, LastSsnBelowExhaustion)
 {
-  // uint32_t SSN wraps modulo 2^32: OSCORE_SSN_MAX + 1 == 0 -> special zero case
+  // OSCORE_SSN_MAX is never sent (exhausted sender context), the last SSN that goes on the wire is OSCORE_SSN_MAX - 1
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  uint32_t ssn = OSCORE_SSN_MAX;
-  ssn++;
-  oscore_store_ssn_to_piv(piv, &piv_len, ssn);
-  EXPECT_EQ(piv_len, 1);
-  EXPECT_EQ(piv[0], 0x00);
+  oscore_store_ssn_to_piv(piv, &piv_len, OSCORE_SSN_MAX - 1u);
+  EXPECT_EQ(piv_len, OSCORE_SSN_PIV_LEN_MAX);
+  EXPECT_EQ(piv[0], 0xFF);
+  EXPECT_EQ(piv[1], 0xFF);
+  EXPECT_EQ(piv[2], 0xFF);
+  EXPECT_EQ(piv[3], 0xFE);
+  EXPECT_EQ(oscore_piv_to_ssn(piv, piv_len), OSCORE_SSN_MAX - 1u);
 }
 
 TEST(SsnToPiv, NeverExceedsFourBytes)

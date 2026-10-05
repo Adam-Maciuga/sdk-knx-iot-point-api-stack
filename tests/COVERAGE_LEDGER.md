@@ -494,9 +494,8 @@ C++ front-end rejects — enum-flag arithmetic (`endpoint.flags |= OSCORE_DECRYP
 → "invalid conversion from int to transport_flags") and out-of-order designated
 initializers for `oc_oscore_context_params_t` in `oc_oscore_send_*`. These appear
 in the send/receive engine functions (not the parsers), but a single TU must
-compile as a whole, so the 3 otherwise-unit-testable static parsers
-(`oscore_parse_outer_message`, `oscore_parse_inner_message`,
-`increment_ssn_in_context`) cannot be reached without refactoring production code.
+compile as a whole, so the 2 otherwise-unit-testable static parsers
+(`oscore_parse_outer_message`, `oscore_parse_inner_message`) cannot be reached without refactoring production code.
 Concrete reason: **not g++-includable (C-only enum arithmetic + designated-init
 ordering)**; the engine send/receive paths are additionally INTEGRATION
 (global OSCORE context store, replay window, network stack, process events).
@@ -505,7 +504,6 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 |----------|--------|
 | oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
-| increment_ssn_in_context (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |
 | oc_oscore_send_unicast_message (static) | INTEGRATION — context lookup, encrypt, network/process events |
 | oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events |

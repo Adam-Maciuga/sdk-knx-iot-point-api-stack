@@ -273,14 +273,20 @@ TEST_F(SmodeLoopback, RecursiveWriteFromPutHandlerIsBounded)
   set_go(1, 14, "/p/2", ga_p2, 1, rwt);
   set_recipient(0, 1, ga_rcp, 1, /*grpid*/ 5);
 
-  oc_resource_t *r1 = oc_new_resource("/p/1", 1);
+  /*
+    oc_new_resource() keeps the path pointer (no copy): it must be writable (char*) and outlive the resource,
+    a string literal is const in C++ and the resource is removed after the test body, hence static arrays
+  */
+  static char path_p1[] = "/p/1";
+  oc_resource_t *r1 = oc_new_resource(path_p1, 1);
   ASSERT_NE(r1, nullptr);
   oc_resource_bind_resource_type(r1, "urn:knx:dpa.417.61");
   oc_resource_set_request_handler(r1, COAP_GET, get_p1, nullptr, OC_ACL_G, OC_IF_I);
   oc_resource_set_request_handler(r1, COAP_PUT, put_p1, nullptr, OC_ACL_G, OC_IF_I);
   oc_add_resource(r1);
 
-  oc_resource_t *r2 = oc_new_resource("/p/2", 1);
+  static char path_p2[] = "/p/2";
+  oc_resource_t *r2 = oc_new_resource(path_p2, 1);
   ASSERT_NE(r2, nullptr);
   oc_resource_bind_resource_type(r2, "urn:knx:dpa.417.51");
   oc_resource_set_request_handler(r2, COAP_GET, get_p2, nullptr, OC_ACL_G, OC_IF_O);
@@ -330,13 +336,19 @@ TEST_F(SmodeLoopback, SingleLevelLoopbackStillUpdatesOtherInputs)
   set_go(1, 15, "/p/3", ga_p3, 1, rw);
   set_recipient(0, 1, ga_rcp, 1, /*grpid*/ 5);
 
-  oc_resource_t *r2 = oc_new_resource("/p/2", 1);
+  /*
+    oc_new_resource() keeps the path pointer (no copy): it must be writable (char*) and outlive the resource,
+    a string literal is const in C++ and the resource is removed after the test body, hence static arrays
+  */
+  static char path_p2[] = "/p/2";
+  oc_resource_t *r2 = oc_new_resource(path_p2, 1);
   ASSERT_NE(r2, nullptr);
   oc_resource_bind_resource_type(r2, "urn:knx:dpa.417.51");
   oc_resource_set_request_handler(r2, COAP_GET, get_p2, nullptr, OC_ACL_G, OC_IF_O);
   oc_add_resource(r2);
 
-  oc_resource_t *r3 = oc_new_resource("/p/3", 1);
+  static char path_p3[] = "/p/3";
+  oc_resource_t *r3 = oc_new_resource(path_p3, 1);
   ASSERT_NE(r3, nullptr);
   oc_resource_bind_resource_type(r3, "urn:knx:dpa.417.61");
   /* /p/3 is an INPUT, so both handlers carry if.i: oc_ri_add_resource() rejects a resource whose

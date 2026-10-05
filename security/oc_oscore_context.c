@@ -416,11 +416,20 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
       storage (RFC 8613 - Appendix B 1.1)
     - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot
       (RFC 8613 - Appendix B 1.1)
-    - the uint32_t SSN wraps modulo 2^32 on this addition (KNX IoT 32-bit SSN space)
+    - the addition saturates at OSCORE_SSN_MAX (KNX IoT 32-bit SSN space): a wrap would restart at a low, already used
+      SSN and reuse AEAD nonce, the context is then exhausted instead, see check_and_increment_ssn_in_context (oc_oscore_context.c)
   */
   if (params->read_ssn_from_storage)
   {
-    ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
+    if (ctx->ssn > OSCORE_SSN_MAX - (OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F))
+    {
+      ctx->ssn = OSCORE_SSN_MAX;
+    }
+    else
+    {
+      ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
+    }
+
     oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
   }
 
@@ -549,4 +558,38 @@ int oc_oscore_context_derive_param(
   }
 
   return HKDF_SHA256(salt, salt_len, secret, secret_len, info, cbor_encoder_get_buffer_size(&e, info), param, param_len);
+}
+
+/*
+  - ssn++ and save to storage each 32 - value (lays within replay window ...)
+
+  - increment = false : CON retransmission, the SSN is used again and not incremented
+
+  - returns false if the SSN space is exhausted (ssn == OSCORE_SSN_MAX, that value is never used as Partial IV),
+    nothing is incremented and the caller must refuse to send
+    - the SSN never wraps, so an AEAD nonce is never reused (RFC 8613, 7.2.1)
+    - a new sender context (re-keying) is needed to send again (== recommissioning by MaC)
+*/
+bool check_and_increment_ssn_in_context(oc_oscore_context_t* ctx, bool increment)
+{
+  if (ctx->ssn >= OSCORE_SSN_MAX)
+  {
+    return false;
+  }
+
+  if (increment)
+  {
+    ctx->ssn++;
+
+    if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
+    { // save ssn to storage every K times
+
+      // TODO 19 Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
+
+      // uses the 'Sender ID' and 'ID Context' from access token 
+      oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
+    }
+  }
+
+  return true;
 }

@@ -148,6 +148,21 @@ void oc_oscore_free_lru_recipient_context(void);
 
 oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
 
+/**
+ * @brief checks that a sender context can still use its SSN as Partial IV and increments the SSN
+ *
+ * - ssn++ and save to storage each OSCORE_SSN_WRITE_FREQ_K (32) values
+ * - increment = false : CON retransmission, the SSN is used again and not incremented
+ * - returns false if the SSN space is exhausted (ssn == OSCORE_SSN_MAX, that value is never used as Partial IV),
+ *   nothing is incremented and the caller must refuse to send. The SSN never wraps, so an AEAD nonce is never
+ *   reused (RFC 8613, 7.2.1); a new sender context (re-keying) is needed to send again.
+ *
+ * @param ctx the sender context
+ * @param increment true to increment the SSN, false to only check
+ * @return true if the SSN may be used, false if exhausted
+ */
+bool check_and_increment_ssn_in_context(oc_oscore_context_t* ctx, bool increment);
+
 // inputs are checked against the own Recipient Contexts (RID)
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 

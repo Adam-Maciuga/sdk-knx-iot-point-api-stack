@@ -176,11 +176,9 @@ replay_state_t oc_replay_check_client(uint32_t rx_ssn, const oc_endpoint_t* endp
 		rec->time = oc_clock_time();
 
 		/*
-			exact difference of two 32-bit SSNs, both widened to 64 bit INT before subtraction,
-			with this a peer whose SSN wrapped from 2^32 - 1 to 0 lands far out of the left window bound
-			-> ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
-      -> terminate any inbound communication is NOT intended, the peer is still a valid publisher, 
-         just not synchronised anymore (yes, the new msg are already received long time ago, ~ 138 years) 
+			exact difference of two 32-bit SSNs, both widened to 64 bit INT before subtraction (no 32-bit overflow)
+			- an SSN far below the recorded one lands out of the left window bound, e.g. a peer that lost its stored SSN
+			  => ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
 		*/
 		const int64_t ssn_diff = (int64_t)rec->rx_ssn - (int64_t)rx_ssn;
 		const uint32_t replay_window_size = get_oscore_replay_window_size();

@@ -306,13 +306,19 @@ TEST_F(SmodeReadAnswer, SecondReadAnswerOnSameGaHasNoTrailingGarbage)
   set_go(1, 14, "/p/2", ga_2, 1, rwt);
   set_recipient(0, 1, ga_rcp, 1, /*grpid*/ 5);
 
-  oc_resource_t *r1 = oc_new_resource("/p/1", 1);
+  /*
+    oc_new_resource() keeps the path pointer (no copy): it must be writable (char*) and outlive the resource,
+    a string literal is const in C++ and the resource is removed after the test body, hence static arrays
+  */
+  static char path_p1[] = "/p/1";
+  oc_resource_t *r1 = oc_new_resource(path_p1, 1);
   ASSERT_NE(r1, nullptr);
   oc_resource_bind_resource_type(r1, "urn:knx:dpa.417.61");
   oc_resource_set_request_handler(r1, COAP_GET, get_first, nullptr, OC_ACL_G, OC_IF_I);
   oc_add_resource(r1);
 
-  oc_resource_t *r2 = oc_new_resource("/p/2", 1);
+  static char path_p2[] = "/p/2";
+  oc_resource_t *r2 = oc_new_resource(path_p2, 1);
   ASSERT_NE(r2, nullptr);
   oc_resource_bind_resource_type(r2, "urn:knx:dpa.417.51");
   oc_resource_set_request_handler(r2, COAP_GET, get_second, nullptr, OC_ACL_G, OC_IF_O);

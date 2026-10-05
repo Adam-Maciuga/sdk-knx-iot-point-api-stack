@@ -240,7 +240,7 @@ TEST_F(OscoreContextTest, StartupPaddingAddedWhenReadFromStorage)
   EXPECT_EQ(ctx->ssn, 1000u + OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F);
 }
 
-TEST_F(OscoreContextTest, StartupPaddingWrapsModulo2Pow32)
+TEST_F(OscoreContextTest, StartupPaddingSaturatesAtSsnMax)
 {
   oc_oscore_context_params_t params = {};
   uint8_t sid[] = {0x01};
@@ -252,8 +252,133 @@ TEST_F(OscoreContextTest, StartupPaddingWrapsModulo2Pow32)
 
   oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
   ASSERT_NE(ctx, nullptr);
-  // (2^32 - 10) + K + F wraps to K + F - 10
-  EXPECT_EQ(ctx->ssn, (uint32_t)(OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F - 10));
+  // (2^32 - 10) + K + F would wrap, it saturates instead (exhausted context)
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+}
+
+TEST_F(OscoreContextTest, StartupPaddingJustFitsBelowSsnMax)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX - (OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F);
+  params.read_ssn_from_storage = true;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+}
+
+TEST_F(OscoreContextTest, CheckAndIncrementSsnIncrementsByOne)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = 100u;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  EXPECT_TRUE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, 101u);
+}
+
+TEST_F(OscoreContextTest, CheckAndIncrementSsnCheckOnlyKeepsSsn)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = 100u;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  // CON retransmission: SSN is used again, not incremented
+  EXPECT_TRUE(check_and_increment_ssn_in_context(ctx, false));
+  EXPECT_EQ(ctx->ssn, 100u);
+}
+
+TEST_F(OscoreContextTest, CheckAndIncrementSsnAcrossStorageCadence)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_WRITE_FREQ_K - 1u;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  // reaches the value K, where the SSN is saved to storage, and keeps counting
+  EXPECT_TRUE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, (uint32_t)OSCORE_SSN_WRITE_FREQ_K);
+  EXPECT_TRUE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_WRITE_FREQ_K + 1u);
+}
+
+TEST_F(OscoreContextTest, CheckAndIncrementSsnLastSsnThenExhausted)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX - 1u;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  // OSCORE_SSN_MAX - 1 is the last SSN that goes on the wire, after it the context is exhausted
+  EXPECT_TRUE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+
+  EXPECT_FALSE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+}
+
+TEST_F(OscoreContextTest, CheckAndIncrementSsnExhaustedRefusesAlsoCheckOnly)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  // CON retransmission with the never-sent value is refused as well, the SSN does not wrap to 0
+  EXPECT_FALSE(check_and_increment_ssn_in_context(ctx, false));
+  EXPECT_FALSE(check_and_increment_ssn_in_context(ctx, true));
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+}
+
+TEST_F(OscoreContextTest, StartupPaddingSaturatedContextIsExhausted)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX - 9u;
+  params.read_ssn_from_storage = true;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_FALSE(check_and_increment_ssn_in_context(ctx, true));
 }
 
 TEST_F(OscoreContextTest, FindByKidAndKidContext)

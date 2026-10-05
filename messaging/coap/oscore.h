@@ -20,7 +20,7 @@ extern "C"
   // read big-endian piv into a 32-bit ssn (piv_len 0 gives 0); piv_len <= OSCORE_SSN_PIV_LEN_MAX is ensured by the OSCORE option parser
   uint32_t oscore_piv_to_ssn(const uint8_t* piv, uint8_t piv_len);
 
-  // store 32-bit ssn (src) to piv (dst) as minimal-length big-endian, piv is cleared first
+  // store 32-bit ssn (src) to piv (dst) as minimal-length big-endian, piv is cleared first, piv_len is set always (1..4)
   void oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn);
 
   // echo ring (single unified FIFO: anchor slots + seen-responder slots); exposed for unit testing and the send / receive paths

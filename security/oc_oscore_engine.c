@@ -170,22 +170,6 @@ static coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, 
   return ret;
 }
 
-// ssn++ (uint32_t, wraps modulo 2^32) and save to storage each 32 - value (lays within replay window ...)
-static void increment_ssn_in_context(oc_oscore_context_t* ctx)
-{
-  ctx->ssn++;
-
-  // 2^32 is a multiple of OSCORE_SSN_WRITE_FREQ_K, so the storage cadence also holds across the wrap
-  if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
-  { // save ssn to storage every K times
-
-    // TODO 19 Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
-
-    // uses the 'Sender ID' and 'ID Context' from access token 
-    oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
-  }
-}
-
 /*
   ECHO RING
   =========
@@ -1198,15 +1182,23 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // request - use the captured SSN as Partial IV, so the anchor carries exactly the SSN that goes on the wire
     oscore_store_ssn_to_piv(piv, &piv_len, anchor_ssn);
 
-    // debugging
-    OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu32, anchor_ssn);
-
     /*
         increment SSN
         - an initial NON request (CON transaction not present) -> a group value write
         - an initial NON request (CON transaction not present) -> a group value read
+
+        fails if the SSN space is exhausted
     */
-    increment_ssn_in_context(oscore_ctx);
+    if (!check_and_increment_ssn_in_context(oscore_ctx, true))
+    {
+      OC_ERR("OSCORE sender SSN exhausted (GA %04" PRIX32 "), request not sent", group_address);
+      oc_message_unref(msg);
+      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      return -1;
+    }
+
+    // debugging
+    OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu32, anchor_ssn);
 
     // compute nonce using 'kid' and PIV
     oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,
@@ -1526,10 +1518,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       Note s-mode uses only requests, see "S-MODE" details (engine.c).
 
       keep SSN
-      - CON retransmissions (counter > 0) use the same SSN
+      - CON retransmissions (counter > 0) use the same SSN, but are refused as well if the SSN space is exhausted
     */
-    if (!is_a_con_repetition)
-      increment_ssn_in_context(oscore_ctx);
+    if (!check_and_increment_ssn_in_context(oscore_ctx, !is_a_con_repetition))
+    {
+      OC_ERR("OSCORE sender SSN exhausted, request not sent");
+      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      return -1;
+    }
 
     outbound_piv = piv;
     outbound_piv_len = piv_len;
@@ -1668,9 +1664,13 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       // use context SSN as Partial IV (before increment)
       oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
 
-      // increment SSN; CON retransmissions reuse the same SSN
-      if (!is_a_con_repetition)
-        increment_ssn_in_context(oscore_ctx);
+      // increment SSN; CON retransmissions reuse the same SSN, but are refused as well if the SSN space is exhausted
+      if (!check_and_increment_ssn_in_context(oscore_ctx, !is_a_con_repetition))
+      {
+        OC_ERR("OSCORE sender SSN exhausted, observe notification not sent");
+        oc_message_unref(from_org_msg_cloned_outgoing_msg);
+        return -1;
+      }
 
       outbound_piv = piv;
       outbound_piv_len = piv_len;

@@ -36,9 +36,9 @@
 
 /*
   KNX IoT maximum Sender Sequence Number: 2^32 - 1 = 4,294,967,295.
-  KNX IoT uses a 32-bit SSN space (4-byte PIV), the SSN is stored as uint32_t everywhere and
-  rolls over modulo (OSCORE_SSN_MAX + 1) by its type. A receiver answers a rolled-over SSN of
-  a peer with an echo challenge (out of the left replay window bound).
+  KNX IoT uses a 32-bit SSN space (4-byte PIV), the SSN is stored as uint32_t everywhere.
+  OSCORE_SSN_MAX is never sent: a sender context with ssn == OSCORE_SSN_MAX is exhausted and refuses to send
+  (no wrap, no AEAD nonce reuse, RFC 8613 7.2.1), see check_and_increment_ssn_in_context (oc_oscore_context.c).
 */
 #define OSCORE_SSN_MAX (0xFFFFFFFFUL)
 
