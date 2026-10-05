@@ -7,16 +7,16 @@
 
 #pragma once
 
-#define OSCORE_AEAD_NONCE_LEN (13)      // AEAD Nonce length for AES-CCM-16-64-128, 1=len(Sender ID), 7=padded Sender ID, 5=padded Partial IV
-#define OSCORE_PIV_LEN (5)              // Partial IV max length, see AEAD Nonce 
-#define OSCORE_SENDER_ID_LEN (7)        // Sender/Recipient ID maxlength, see AEAD Nonce 
-#define OSCORE_OPTION_LEN (2 + 21 + 43) // Option header + Option length + Proxy-uri 
+#define OSCORE_AEAD_NONCE_LEN (13)              // AEAD Nonce length for AES-CCM-16-64-128, 1=len(Sender ID), 7=padded Sender ID, 5=padded Partial IV
+#define OSCORE_PIV_LEN (OSCORE_SSN_PIV_LEN_MAX) // Partial IV max length (buffers), the nonce pads the PIV to 5 bytes itself (RFC 8613, 5.2)
+#define OSCORE_SENDER_ID_LEN (7)                // Sender/Recipient ID maxlength, see AEAD Nonce 
+#define OSCORE_OPTION_LEN (2 + 21 + 43)         // Option header + Option length + Proxy-uri 
 #define OSCORE_MASTER_SECRET_LEN (32)
-#define OSCORE_ID_CONTEXT_LEN (16)      // Arbitrarily chosen upper-bound on OSCORE Context ID length
-#define OSCORE_KEY_LEN (16)             // AES-CCM-16-64-128 uses 128-bit keys
+#define OSCORE_ID_CONTEXT_LEN (16)              // Arbitrarily chosen upper-bound on OSCORE Context ID length
+#define OSCORE_KEY_LEN (16)                     // AES-CCM-16-64-128 uses 128-bit keys
 #define OSCORE_COMMON_IV_LEN   \
-        OSCORE_AEAD_NONCE_LEN           // Same as AEAD Nonce length
-#define OSCORE_AEAD_TAG_LEN (8)         // Size in bytes of AES-CCM-16-64-128 authentication tag
+        OSCORE_AEAD_NONCE_LEN                   // Same as AEAD Nonce length
+#define OSCORE_AEAD_TAG_LEN (8)                 // Size in bytes of AES-CCM-16-64-128 authentication tag
 #define OSCORE_REPLAY_WINDOW_SIZE (8)
 
 /*
@@ -43,8 +43,9 @@
 #define OSCORE_SSN_MAX (0xFFFFFFFFUL)
 
 /*
-  KNX IoT maximum Partial IV length: a 32-bit SSN needs at most 4 bytes (RFC 8613 allows 5 = OSCORE_PIV_LEN).
-  Inbound Partial IVs longer than this are rejected, outbound ones never exceed it.
+  KNX IoT maximum Partial IV length: a 32-bit SSN needs at most 4 bytes (RFC 8613 allows 5), also the size of all
+  Partial IV buffers (OSCORE_PIV_LEN). Inbound Partial IVs longer than this are rejected by the OSCORE option parser
+  before they are copied, outbound ones never exceed it.
 */
 #define OSCORE_SSN_PIV_LEN_MAX (4)
 

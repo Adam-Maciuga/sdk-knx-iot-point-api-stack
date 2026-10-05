@@ -215,7 +215,7 @@ target_include_directories(${COMPONENT_LIB} PRIVATE "${STACK_ROOT}/port/mdns")
 # Note: TODO AB FREERTOS
 # KNX_PAYLOAD_SIZE is hardcoded here to mirror the FORCE behaviour in the root
 # CMakeLists.txt, as in the Zephyr module. It is intentionally not exposed via Kconfig.
-# 768 keeps the total CoAP PDU (payload + outer header + inner header = 1041) below
+# 768 keeps the total CoAP PDU (payload + outer header + inner header = 1040) below
 # COAP_MAX_MESSAGE_SIZE (1152), which api/oc_main.c asserts at compile time.
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
     $<$<BOOL:${CONFIG_KNXIOT_CLIENT}>:OC_CLIENT>

@@ -115,7 +115,7 @@ set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/appl
 set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size, used buffers to defend against replayed 4.01 unicast echo responses")
 
 ## KNX payload size (bytes)
-# 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 273 = 1041)
+# 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 272 = 1040)
 # stays below COAP_MAX_MESSAGE_SIZE (1152), the RFC 7252 clause 4.6 guidance for an unknown path MTU (1280)
 #  - used for stack AND application 'malloc/calloc' calls
 #    such as for application read responses or stack discovery responses

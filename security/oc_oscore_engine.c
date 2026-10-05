@@ -1041,7 +1041,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   memcpy(msg->endpoint.kid_ctx, coap_pkt->kid_ctx, msg->endpoint.kid_ctx_len);
 
   // uc-e: see send_unicast
-  msg->endpoint.piv_len = coap_pkt->piv_len > OSCORE_PIV_LEN ? OSCORE_PIV_LEN : coap_pkt->piv_len;
+  // piv_len <= OSCORE_PIV_LEN is ensured by the OSCORE option parser (coap_parse_inner_oscore_option)
+  msg->endpoint.piv_len = coap_pkt->piv_len;
   memcpy(msg->endpoint.piv, coap_pkt->piv, msg->endpoint.piv_len);
 
   // remove specific echo context, not needed anymore and never auto released (was a sender context)

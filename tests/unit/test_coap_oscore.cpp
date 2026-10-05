@@ -152,7 +152,7 @@ TEST(PivToSsn, SingleZero)
 
 TEST(SsnToPiv, Zero)
 {
-  uint8_t piv[OSCORE_PIV_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  uint8_t piv[OSCORE_PIV_LEN] = {0xFF, 0xFF, 0xFF, 0xFF};
   uint8_t piv_len = 0;
   oscore_store_ssn_to_piv(piv, &piv_len, 0);
   EXPECT_EQ(piv_len, 1);
@@ -232,13 +232,12 @@ TEST(SsnToPiv, LastSsnBelowExhaustion)
 
 TEST(SsnToPiv, NeverExceedsFourBytes)
 {
-  uint8_t piv[OSCORE_PIV_LEN] = {0xEE, 0xEE, 0xEE, 0xEE, 0xEE};
+  uint8_t piv[OSCORE_PIV_LEN] = {0xEE, 0xEE, 0xEE, 0xEE};
   uint8_t piv_len = 0;
   oscore_store_ssn_to_piv(piv, &piv_len, 0x01000000u);
   EXPECT_EQ(piv_len, OSCORE_SSN_PIV_LEN_MAX);
   EXPECT_EQ(piv[0], 0x01);
   EXPECT_EQ(piv[3], 0x00);
-  EXPECT_EQ(piv[4], 0x00);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
