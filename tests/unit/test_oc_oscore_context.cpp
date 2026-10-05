@@ -202,6 +202,60 @@ TEST_F(OscoreContextTest, AddContextReturnsNonNull)
   EXPECT_EQ(ctx->recipient_id[0], 0x02);
 }
 
+/* -- 32-bit sender sequence number ---------------------------------------- */
+
+TEST_F(OscoreContextTest, SsnIsStoredAs32Bit)
+{
+  EXPECT_EQ(sizeof(((oc_oscore_context_t *)0)->ssn), 4u);
+  EXPECT_EQ(sizeof(((oc_oscore_context_params_t *)0)->ssn), 4u);
+}
+
+TEST_F(OscoreContextTest, SsnTakenFromParamsWithoutPadding)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX;
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_EQ(ctx->ssn, OSCORE_SSN_MAX);
+}
+
+TEST_F(OscoreContextTest, StartupPaddingAddedWhenReadFromStorage)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;  // not part of the AT table, so the write back to storage is skipped
+  params.ssn = 1000u;
+  params.read_ssn_from_storage = true;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_EQ(ctx->ssn, 1000u + OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F);
+}
+
+TEST_F(OscoreContextTest, StartupPaddingWrapsModulo2Pow32)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.ssn = OSCORE_SSN_MAX - 9u;
+  params.read_ssn_from_storage = true;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+  // (2^32 - 10) + K + F wraps to K + F - 10
+  EXPECT_EQ(ctx->ssn, (uint32_t)(OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F - 10));
+}
+
 TEST_F(OscoreContextTest, FindByKidAndKidContext)
 {
   oc_oscore_context_params_t params = {};

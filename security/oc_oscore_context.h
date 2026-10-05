@@ -25,10 +25,12 @@ extern "C" {
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any */
+  struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any (must be first, OC_LIST) */
+  oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
   const oc_auth_at_t* auth_at;                      /**< pointer to the access token entry from AT table, that was used to decrypt a received message */
+  uint32_t ssn;                                     /**< sender sequence number (32-bit, KNX IoT) */
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
-  
+
   uint8_t sender_id[OSCORE_SENDER_ID_LEN];          /**< 'Sender ID' (in OSCORE) */
   uint8_t sender_id_len;                            /**< 'Sender ID' (in OSCORE) length */
 
@@ -37,9 +39,6 @@ typedef struct oc_oscore_context_t
 
   uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        /**< 'ID Context' (in OSCORE) */
   uint8_t id_context_len;                           /**< 'ID Context' (in OSCORE) length */
-
-  uint64_t ssn;                                     /**< sender sequence number */
-  oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
 
   // derived parameters
   uint8_t sender_key[OSCORE_KEY_LEN];               /**< 128-bit sender key */
@@ -110,9 +109,9 @@ void oc_oscore_free_contexts_at_id(const oc_auth_at_t* auth_at_entry);
 typedef struct oc_oscore_context_params_t {
   const uint8_t* sender_id;     /**< Sender ID (NULL for a recipient-only context) */
   const uint8_t* recipient_id;  /**< Recipient ID (NULL for a sender-only context) */
-  uint64_t ssn;                 /**< Sender sequence number */
   const uint8_t* id_context;    /**< ID Context */
   const oc_auth_at_t* auth_at;  /**< Pointer to the access token entry in the AT table */
+  uint32_t ssn;                 /**< Sender sequence number (32-bit, KNX IoT) */
   uint8_t id_context_size;      /**< Length of ID Context */
   uint8_t sender_id_size;       /**< Length of sender_id */
   uint8_t recipient_id_size;    /**< Length of recipient_id */

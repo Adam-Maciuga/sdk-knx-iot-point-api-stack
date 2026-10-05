@@ -115,6 +115,36 @@ TEST_F(ReplayTest, FarOlderSSN_OutsideWindow_IsEcho)
   EXPECT_EQ(st, ECHO);
 }
 
+/*
+  32-bit SSN wrap: the peer's SSN rolls over from 2^32 - 1 to 0.
+  The exact (non-modulo) difference puts 0 far left of the window -> ECHO (intended),
+  after the echo exchange oc_replay_add_client re-initialises the record.
+*/
+TEST_F(ReplayTest, SsnWrap_IsEcho_ThenResyncedByAdd)
+{
+  uint8_t kid[] = {0x01};
+  oc_endpoint_t ep = make_endpoint(kid, 1);
+
+  oc_replay_add_client(0xFFFFFFFFu, &ep);
+  EXPECT_EQ(oc_replay_check_client(0xFFFFFFFFu, &ep), REPLAY);
+
+  EXPECT_EQ(oc_replay_check_client(0u, &ep), ECHO);
+
+  oc_replay_add_client(0u, &ep);
+  EXPECT_EQ(oc_replay_check_client(0u, &ep), REPLAY);
+  EXPECT_EQ(oc_replay_check_client(1u, &ep), SYNCED);
+}
+
+TEST_F(ReplayTest, SsnMaxValue_IsSyncedFromBelow)
+{
+  uint8_t kid[] = {0x01};
+  oc_endpoint_t ep = make_endpoint(kid, 1);
+
+  oc_replay_add_client(0xFFFFFFF0u, &ep);
+  EXPECT_EQ(oc_replay_check_client(0xFFFFFFFFu, &ep), SYNCED);
+  EXPECT_EQ(oc_replay_check_client(0xFFFFFFFFu, &ep), REPLAY);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Window sliding
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -127,7 +157,7 @@ TEST_F(ReplayTest, WindowSlides_OldSSN_Evicted)
   oc_replay_add_client(0, &ep);
 
   /* Receive SSN 1..31 — all within window of 32 */
-  for (uint64_t i = 1; i <= 31; i++) {
+  for (uint32_t i = 1; i <= 31; i++) {
     EXPECT_EQ(oc_replay_check_client(i, &ep), SYNCED);
   }
 

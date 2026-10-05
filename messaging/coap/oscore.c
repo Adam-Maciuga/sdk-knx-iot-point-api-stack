@@ -67,7 +67,7 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
   }
 }
 
-int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) 
+void oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint32_t* ssn) 
 {
   /*
    PIV is a big-endian encoded integer; accumulate each byte MSB-first into the numeric value without any endianness detection or byte-swapping.
@@ -84,31 +84,28 @@ int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
      The C standard guarantees that << and | on unsigned integers produce the same value on every platform.
   */
 
+  /*
+    no length check: the OSCORE option parser (coap_parse_inner_oscore_option) already rejects
+    piv_len > OSCORE_SSN_PIV_LEN_MAX, so every PIV reaching this function fits a 32-bit SSN
+  */
   *ssn = 0;
 
   for (uint8_t i = 0; i < piv_len; i++)
   {
     *ssn = (*ssn << 8) | piv[i];
   }
-
-  return 0;
 }
 
 
-int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn) 
+int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint32_t ssn) 
 {
   memset(piv, 0, OSCORE_PIV_LEN);
 
   /*
-    KNX IoT uses a 32-bit SSN space (max = 2^32 - 1 = OSCORE_SSN_MAX) and allows rollover.
-    Fold ssn into [0, OSCORE_SSN_MAX] before encoding so that any value above 2^32 - 1
-    wraps correctly. This also covers the edge case where ssn is an exact multiple of 2^32
-    (e.g. after the first rollover ssn == 2^32): without the mask every byte cast to uint8_t
-    is 0, the leading-zero-skip loop produces piv_len = 0, which is invalid for a request PIV.
-    After masking, ssn == 0 is caught by the special case below and yields [0x00], piv_len = 1.
+    KNX IoT uses a 32-bit SSN space (max = 2^32 - 1 = OSCORE_SSN_MAX), the uint32_t type itself
+    rolls over, so no masking is needed. After a rollover ssn == 0 is caught by the special case
+    below and yields [0x00], piv_len = 1 (a piv_len of 0 is invalid for a request PIV).
   */
-  ssn &= OSCORE_SSN_MAX;
-
   if (ssn == 0)
   {
     // SSN of zero encodes as a single zero byte (RFC 8613 minimum PIV length = 1)
@@ -122,8 +119,7 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
     Strips leading zero bytes using right-shifts on the numeric value.
     Platform-independent: no endianness detection required.
 
-    Example: ssn = 0x00AABBCC, OSCORE_PIV_LEN = 5
-      shift=32: byte = 0x00 -> skip (leading zero, ssn <= 2^32 - 1 after mask)
+    Example: ssn = 0x00AABBCC, OSCORE_SSN_PIV_LEN_MAX = 4
       shift=24: byte = 0x00 -> skip (leading zero)
       shift=16: byte = 0xAA -> write, piv_len = 1
       shift= 8: byte = 0xBB -> write, piv_len = 2
@@ -132,7 +128,7 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
    */
 
   *piv_len = 0;
-  for (int shift = (OSCORE_PIV_LEN - 1) * 8; shift >= 0; shift -= 8)
+  for (int shift = (OSCORE_SSN_PIV_LEN_MAX - 1) * 8; shift >= 0; shift -= 8)
   {
     const uint8_t byte = (uint8_t)(ssn >> shift);
     if (*piv_len > 0 || byte != 0)  // skip leading zeros
@@ -217,10 +213,10 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
 
   if (coap_pkt->piv_len > 0) 
   {
-    if (coap_pkt->piv_len > OSCORE_PIV_LEN)
+    if (coap_pkt->piv_len > OSCORE_SSN_PIV_LEN_MAX)
     {
-      // the 'nnn' flag bits allow 0 ... 7, but RFC 8613, clause 6.1 permits 0 ... 5 only
-      OC_ERR("OSCORE option: partial IV length (%u) exceeds %d", coap_pkt->piv_len, OSCORE_PIV_LEN);
+      // the 'nnn' flag bits allow 0 ... 7, RFC 8613, clause 6.1 permits 0 ... 5, KNX IoT (32-bit SSN) permits 0 ... 4 only
+      OC_ERR("OSCORE option: partial IV length (%u) exceeds %d", coap_pkt->piv_len, OSCORE_SSN_PIV_LEN_MAX);
       return -1;
     }
 

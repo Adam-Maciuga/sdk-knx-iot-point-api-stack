@@ -290,8 +290,9 @@ TEST_F(AtSsnStorage, DeleteEntryErasesSsnEntryOfItsSlot)
 
   /* the persisted SSN of the slot */
   oc_write_ssn_to_storage(e, 1234u);
-  uint64_t ssn = 0;
+  uint32_t ssn = 0;
   ASSERT_EQ(oc_storage_read(key_, (uint8_t *)&ssn, sizeof(ssn)), (long)sizeof(ssn));
+  EXPECT_EQ(sizeof(ssn), 4u);
   EXPECT_EQ(ssn, 1234u);
 
   /* deleting the AT entry erases the SSN entry of its slot too */
@@ -316,8 +317,24 @@ TEST_F(AtSsnStorage, EntryOutsideTableIsSkipped)
   oc_write_ssn_to_storage(&mock, 99u);
   char key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
   ssn_storage_key(-1, key);
-  uint64_t ssn = 0;
+  uint32_t ssn = 0;
   EXPECT_LE(oc_storage_read(key, (uint8_t *)&ssn, sizeof(ssn)), 0L);
+}
+
+TEST_F(AtSsnStorage, WritesFourByteRecordAtMaxSsn)
+{
+  oc_auth_at_t *e = oc_get_auth_at_entry(kSsnSlot);
+  oc_new_string(&e->id, "tok", 3);
+  e->profile = OC_PROFILE_COAP_OSCORE;
+
+  // the persistent SSN record is 4 bytes (KNX IoT 32-bit SSN space)
+  oc_write_ssn_to_storage(e, 0xFFFFFFFFu);
+  uint8_t buf[8];
+  memset(buf, 0, sizeof(buf));
+  ASSERT_EQ(oc_storage_read(key_, buf, sizeof(buf)), 4L);
+  uint32_t ssn = 0;
+  memcpy(&ssn, buf, sizeof(ssn));
+  EXPECT_EQ(ssn, 0xFFFFFFFFu);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -328,7 +328,7 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
    * @param ssn the sender sequence number to be stored
    *
    */
-  void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn);
+  void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint32_t ssn);
 
 #ifdef __cplusplus
 }

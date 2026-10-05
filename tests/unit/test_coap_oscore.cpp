@@ -2,8 +2,8 @@
  * Unit tests for messaging/coap/oscore.c — OSCORE option and PIV/SSN helpers
  *
  * Covers:
- *   oscore_store_piv_to_ssn       — big-endian PIV → uint64_t SSN
- *   oscore_store_ssn_to_piv       — uint64_t SSN → big-endian PIV
+ big-endian PIV -> uint32_t SSN (length limited by the OSCORE option parser)
+ *   oscore_store_ssn_to_piv       - uint32_t SSN -> big-endian PIV
  *   coap_set_header_oscore        — populate OSCORE fields in coap_packet_t
  *   coap_parse_inner_oscore_option — parse raw OSCORE option bytes
  *   coap_serialize_oscore_option  — serialize OSCORE option to buffer
@@ -114,31 +114,31 @@ TEST_F(OscoreSendError, SecuredRequestLeavesOscoreFlagUntouched)
 TEST(PivToSsn, SingleByte)
 {
   uint8_t piv[] = {0x42};
-  uint64_t ssn = 0xDEAD;
-  EXPECT_EQ(oscore_store_piv_to_ssn(piv, 1, &ssn), 0);
+  uint32_t ssn = 0xDEAD;
+  oscore_store_piv_to_ssn(piv, 1, &ssn);
   EXPECT_EQ(ssn, 0x42u);
 }
 
 TEST(PivToSsn, ThreeBytes)
 {
   uint8_t piv[] = {0xAA, 0xBB, 0xCC};
-  uint64_t ssn = 0;
+  uint32_t ssn = 0;
   oscore_store_piv_to_ssn(piv, 3, &ssn);
   EXPECT_EQ(ssn, 0x00AABBCCu);
 }
 
-TEST(PivToSsn, FiveBytes)
+TEST(PivToSsn, FourBytesMax)
 {
-  uint8_t piv[] = {0x01, 0x02, 0x03, 0x04, 0x05};
-  uint64_t ssn = 0;
-  oscore_store_piv_to_ssn(piv, 5, &ssn);
-  EXPECT_EQ(ssn, 0x0102030405ULL);
+  uint8_t piv[] = {0xFF, 0xFF, 0xFF, 0xFF};
+  uint32_t ssn = 0;
+  oscore_store_piv_to_ssn(piv, 4, &ssn);
+  EXPECT_EQ(ssn, OSCORE_SSN_MAX);
 }
 
 TEST(PivToSsn, ZeroLength)
 {
   uint8_t piv[] = {0xFF};
-  uint64_t ssn = 0xDEAD;
+  uint32_t ssn = 0xDEAD;
   oscore_store_piv_to_ssn(piv, 0, &ssn);
   EXPECT_EQ(ssn, 0u);
 }
@@ -146,7 +146,7 @@ TEST(PivToSsn, ZeroLength)
 TEST(PivToSsn, SingleZero)
 {
   uint8_t piv[] = {0x00};
-  uint64_t ssn = 0xDEAD;
+  uint32_t ssn = 0xDEAD;
   oscore_store_piv_to_ssn(piv, 1, &ssn);
   EXPECT_EQ(ssn, 0u);
 }
@@ -198,23 +198,25 @@ TEST(SsnToPiv, MaxFourBytes)
 
 TEST(SsnToPiv, WrapAround)
 {
-  /* SSN > 2^32-1 wraps via OSCORE_SSN_MAX mask */
+  // uint32_t SSN wraps modulo 2^32: OSCORE_SSN_MAX + 1 == 0 -> special zero case
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  /* 0x100000001 & 0xFFFFFFFF = 1 */
-  oscore_store_ssn_to_piv(piv, &piv_len, 0x100000001ULL);
-  EXPECT_EQ(piv_len, 1);
-  EXPECT_EQ(piv[0], 0x01);
-}
-
-TEST(SsnToPiv, ExactPowerOf32)
-{
-  /* 2^32 & 0xFFFFFFFF = 0 → special zero case */
-  uint8_t piv[OSCORE_PIV_LEN] = {};
-  uint8_t piv_len = 0;
-  oscore_store_ssn_to_piv(piv, &piv_len, 1ULL << 32);
+  uint32_t ssn = OSCORE_SSN_MAX;
+  ssn++;
+  oscore_store_ssn_to_piv(piv, &piv_len, ssn);
   EXPECT_EQ(piv_len, 1);
   EXPECT_EQ(piv[0], 0x00);
+}
+
+TEST(SsnToPiv, NeverExceedsFourBytes)
+{
+  uint8_t piv[OSCORE_PIV_LEN] = {0xEE, 0xEE, 0xEE, 0xEE, 0xEE};
+  uint8_t piv_len = 0;
+  oscore_store_ssn_to_piv(piv, &piv_len, 0x01000000u);
+  EXPECT_EQ(piv_len, OSCORE_SSN_PIV_LEN_MAX);
+  EXPECT_EQ(piv[0], 0x01);
+  EXPECT_EQ(piv[3], 0x00);
+  EXPECT_EQ(piv[4], 0x00);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -225,7 +227,7 @@ TEST(PivSsnRoundTrip, SmallValue)
 {
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  uint64_t ssn_out = 0;
+  uint32_t ssn_out = 0;
 
   oscore_store_ssn_to_piv(piv, &piv_len, 12345);
   oscore_store_piv_to_ssn(piv, piv_len, &ssn_out);
@@ -236,7 +238,7 @@ TEST(PivSsnRoundTrip, LargeValue)
 {
   uint8_t piv[OSCORE_PIV_LEN] = {};
   uint8_t piv_len = 0;
-  uint64_t ssn_out = 0;
+  uint32_t ssn_out = 0;
 
   oscore_store_ssn_to_piv(piv, &piv_len, 0xDEADBEEF);
   oscore_store_piv_to_ssn(piv, piv_len, &ssn_out);
@@ -369,15 +371,25 @@ TEST(OscoreOption, ParseInnerPivExceedsOptionValue)
   EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
 }
 
+TEST(OscoreOption, ParseInnerPivFiveBytesRejected)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+
+  // flags=0x05 (nnn=5): RFC 8613 permits it, the KNX IoT 32-bit SSN space does not
+  uint8_t option[] = {0x05, 0x01, 0x02, 0x03, 0x04, 0x05};
+  EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), -1);
+}
+
 TEST(OscoreOption, ParseInnerPivMaximumLengthIsAccepted)
 {
   coap_packet_t pkt;
   memset(&pkt, 0, sizeof(pkt));
 
-  /* flags=0x05 (nnn=5): the maximum length still fits in pkt.piv */
-  uint8_t option[] = {0x05, 0x01, 0x02, 0x03, 0x04, 0x05};
+  // flags=0x04 (nnn=4): the maximum length of a 32-bit SSN
+  uint8_t option[] = {0x04, 0x01, 0x02, 0x03, 0x04};
   EXPECT_EQ(coap_parse_inner_oscore_option(&pkt, option, sizeof(option)), 0);
-  EXPECT_EQ(pkt.piv_len, OSCORE_PIV_LEN);
+  EXPECT_EQ(pkt.piv_len, OSCORE_SSN_PIV_LEN_MAX);
 }
 
 TEST(OscoreOption, ParseInnerMissingKidContextLengthByte)

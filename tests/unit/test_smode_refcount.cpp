@@ -56,7 +56,7 @@
   Only the fields the ring reads are populated: ctx->sender_id, pkt->token and the
   endpoint's s-mode group object plus service type.
 */
-static void append_anchor(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+static void append_anchor(uint32_t ssn, const uint8_t* kid, uint8_t kid_len,
                           const uint8_t* token, uint8_t token_len,
                           const oc_group_object_table_t* go, char service_type)
 {
@@ -269,7 +269,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
   {
     uint8_t tok[4] = { (uint8_t)i, 0xCC, 0xDD, 0xEE };
     static const uint8_t fk[] = {0x01};
-    append_anchor((uint64_t)(200 + i), fk, sizeof(fk), tok, sizeof(tok), &g_go_filler, 'w');
+    append_anchor((uint32_t)(200 + i), fk, sizeof(fk), tok, sizeof(tok), &g_go_filler, 'w');
   }
 
   /* One more append wraps to slot 0 and overwrites the first anchor. */

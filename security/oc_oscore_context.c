@@ -297,7 +297,7 @@ static void oc_context_print_all(void)
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
-            (uint32_t)ctx->ssn);
+            ctx->ssn);
 
     ctx = ctx->next;
   }
@@ -416,6 +416,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
       storage (RFC 8613 - Appendix B 1.1)
     - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot
       (RFC 8613 - Appendix B 1.1)
+    - the uint32_t SSN wraps modulo 2^32 on this addition (KNX IoT 32-bit SSN space)
   */
   if (params->read_ssn_from_storage)
   {
@@ -481,7 +482,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   OC_DBG("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes(ctx->id_context, ctx->id_context_len);
   OC_DBG("### Master Secret : (%2d)\t= ", mastersecret_size);  oc_char_println_hex((const char*)mastersecret, mastersecret_size);
   OC_DBG("### Salt          : (%2d)\t= ", salt_size);  oc_char_println_hex((const char*)salt, salt_size);
-  OC_DBG("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
+  OC_DBG("### SSN           : (%2d)\t= %" PRIu32, (int)sizeof(ctx->ssn), ctx->ssn);
 
   OC_DBG(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));
   OC_DBG(PRINT16BYTEHEX("### derived Response Key : ", ctx->recipient_key));

@@ -35,7 +35,7 @@ typedef enum replay_state
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
  * @param endpoint inbound endpoint carrying kid and kid_ctx
  */
-void oc_replay_add_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint);
+void oc_replay_add_client(uint32_t rx_ssn, const oc_endpoint_t* endpoint);
 
 /**
  * @brief Clear all replay records
@@ -58,7 +58,7 @@ void oc_oscore_free_all_replay_records(void);
  * @return Either client is synchronised (you may accept the frame with the given SSN)
  * or it is not synchronised (either you challenge the frame or deny it completely)
  */
-replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint);
+replay_state_t oc_replay_check_client(uint32_t rx_ssn, const oc_endpoint_t* endpoint);
 
 #ifdef __cplusplus
 }

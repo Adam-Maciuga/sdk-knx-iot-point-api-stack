@@ -36,11 +36,17 @@
 
 /*
   KNX IoT maximum Sender Sequence Number: 2^32 - 1 = 4,294,967,295.
-  KNX IoT uses a 32-bit SSN space (4-byte PIV), independent of OSCORE_PIV_LEN.
-  The SSN is allowed to roll over modulo (OSCORE_SSN_MAX + 1), so this
-  constant is used as a rollover mask rather than a hard stop.
+  KNX IoT uses a 32-bit SSN space (4-byte PIV), the SSN is stored as uint32_t everywhere and
+  rolls over modulo (OSCORE_SSN_MAX + 1) by its type. A receiver answers a rolled-over SSN of
+  a peer with an echo challenge (out of the left replay window bound).
 */
-#define OSCORE_SSN_MAX ((1ULL << 32) - 1)
+#define OSCORE_SSN_MAX (0xFFFFFFFFUL)
+
+/*
+  KNX IoT maximum Partial IV length: a 32-bit SSN needs at most 4 bytes (RFC 8613 allows 5 = OSCORE_PIV_LEN).
+  Inbound Partial IVs longer than this are rejected, outbound ones never exceed it.
+*/
+#define OSCORE_SSN_PIV_LEN_MAX (4)
 
 #define OSCORE_FLAGS_BIT_KID_POSITION 3
 #define OSCORE_FLAGS_BIT_KID_CTX_POSITION 4

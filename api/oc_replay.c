@@ -20,14 +20,14 @@
 
 typedef struct oc_replay_record
 {
-  oc_clock_time_t time;                       // time of last received client packet
-  uint64_t rx_ssn;														// most recent received client SSN
-	uint8_t  rx_kid[OSCORE_SENDER_ID_LEN];			// client KID (raw bytes, same layout as oc_endpoint_t)
+	oc_clock_time_t time;                       // time of last received client packet
+	uint32_t rx_ssn;                            // most recent received client SSN (32-bit, KNX IoT)
+	uint32_t window;                            // bitfield of received SSNs, 32-bit = OSCORE RFC default
+	uint8_t  rx_kid[OSCORE_SENDER_ID_LEN];      // client KID (raw bytes, same layout as oc_endpoint_t)
 	uint8_t  rx_kid_len;
 	uint8_t  rx_kid_ctx[OSCORE_ID_CONTEXT_LEN]; // client KID context (raw bytes, can be empty)
-  uint32_t window;                            // bitfield of received SSNs, 32-bit = OSCORE RFC default
-  uint8_t  rx_kid_ctx_len;
-  bool     in_use;                            // whether this record holds valid data
+	uint8_t  rx_kid_ctx_len;
+	bool     in_use;                            // whether this record holds valid data
 } oc_replay_record_t;
 
 static oc_replay_record_t replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
@@ -117,7 +117,7 @@ static oc_replay_record_t* get_record(const oc_endpoint_t* endpoint)
 	return NULL;  // nothing found
 }
 
-replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint)
+replay_state_t oc_replay_check_client(uint32_t rx_ssn, const oc_endpoint_t* endpoint)
 {
 
 	/*
@@ -175,12 +175,18 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
 		*/
 		rec->time = oc_clock_time();
 
-		// rx_ssn (ssn from received message) = max value used is 32 bit, hence unproblematic
-		const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
+		/*
+			exact difference of two 32-bit SSNs, both widened to 64 bit INT before subtraction,
+			with this a peer whose SSN wrapped from 2^32 - 1 to 0 lands far out of the left window bound
+			-> ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
+      -> terminate any inbound communication is NOT intended, the peer is still a valid publisher, 
+         just not synchronised anymore (yes, the new msg are already received long time ago, ~ 138 years) 
+		*/
+		const int64_t ssn_diff = (int64_t)rec->rx_ssn - (int64_t)rx_ssn;
 		const uint32_t replay_window_size = get_oscore_replay_window_size();
 
-		OC_DBG("new ssn\t= %" PRIx64, rx_ssn);			// 64 bit uint
-    OC_DBG("old ssn\t= %" PRIx64, rec->rx_ssn); // 64 bit uint
+		OC_DBG("new ssn\t= %" PRIx32, rx_ssn);			// 32 bit uint
+		OC_DBG("old ssn\t= %" PRIx32, rec->rx_ssn); // 32 bit uint
     OC_DBG("ssn_diff\t= %" PRIi64, ssn_diff);		// 64 bit int
     OC_DBG("kid (%u)\t= %.*s", (unsigned)endpoint->kid_len, (int)endpoint->kid_len, (const char*)endpoint->kid);
     OC_DBG("kid ctx (%u)\t= %.*s", (unsigned)endpoint->kid_ctx_len, (int)endpoint->kid_ctx_len, (const char*)endpoint->kid_ctx);
@@ -240,7 +246,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
 	return result;
 }
 
-void oc_replay_add_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint)
+void oc_replay_add_client(uint32_t rx_ssn, const oc_endpoint_t* endpoint)
 {
 	oc_replay_record_t* rec = get_record(endpoint);
 

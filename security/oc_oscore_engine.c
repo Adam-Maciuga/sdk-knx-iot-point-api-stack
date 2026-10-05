@@ -170,11 +170,12 @@ static coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, 
   return ret;
 }
 
-// ssn++ and save to storage each 32 - value (lays within replay window ...)
+// ssn++ (uint32_t, wraps modulo 2^32) and save to storage each 32 - value (lays within replay window ...)
 static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 {
   ctx->ssn++;
 
+  // 2^32 is a multiple of OSCORE_SSN_WRITE_FREQ_K, so the storage cadence also holds across the wrap
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   { // save ssn to storage every K times
 
@@ -310,9 +311,9 @@ typedef struct
   struct
   {
     const oc_group_object_table_t* go;
-    uint64_t      ssn;
-    uint8_t       kid[OSCORE_SENDER_ID_LEN];
+    uint32_t      ssn;
     uint8_t       token[COAP_TOKEN_LEN];
+    uint8_t       kid[OSCORE_SENDER_ID_LEN];
     uint8_t       token_len;
     uint8_t       kid_len;
     char          service_type;
@@ -357,7 +358,7 @@ void oc_oscore_free_all_echo_records(void)
 
   'ssn' as this one being used for sending the outbound message 
 */
-void oc_oscore_echo_whitelist_append(uint64_t ssn, const oc_oscore_context_t* ctx, const coap_packet_t* pkt, const oc_endpoint_t* endpoint)
+void oc_oscore_echo_whitelist_append(uint32_t ssn, const oc_oscore_context_t* ctx, const coap_packet_t* pkt, const oc_endpoint_t* endpoint)
 {
   if (!ctx || !pkt || !endpoint)
   {
@@ -451,7 +452,14 @@ bool oc_oscore_echo_get_anchor(const struct coap_packet_t* pkt, oc_echo_anchor_t
 */
 bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
 {
-  uint64_t ssn = 0;
+  uint32_t ssn;
+  
+  /*
+    PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
+    piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
+
+    -> here not tested again
+  */
   oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
 
   bool send_proof_found = false;
@@ -776,7 +784,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
         */
 
-        uint64_t inbound_ssn;
+        uint32_t inbound_ssn;
+        /*
+          PIV length not checked here: the OSCORE option parser (coap_parse_inner_oscore_option, oscore.c) already rejects
+          piv_len > OSCORE_SSN_PIV_LEN_MAX before the PIV is copied into endpoint->piv (oc_oscore_engine.c)
+
+          -> here not tested again
+        */
         oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
 
         oc_oscore_context_params_t oscore_params = 
@@ -1182,13 +1196,13 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
     // capture SSN before increment, it is both the Partial IV of this request and the (ssn, kid) ring anchor
-    const uint64_t anchor_ssn = oscore_ctx->ssn;
+    const uint32_t anchor_ssn = oscore_ctx->ssn;
 
     // request - use the captured SSN as Partial IV, so the anchor carries exactly the SSN that goes on the wire
     oscore_store_ssn_to_piv(piv, &piv_len, anchor_ssn);
 
     // debugging
-    OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu64, anchor_ssn);
+    OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu32, anchor_ssn);
 
     /*
         increment SSN

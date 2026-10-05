@@ -100,7 +100,7 @@ static uint8_t g_ctx_b[] = {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8
  * Only the fields the ring reads are populated: ctx->sender_id, pkt->token and the
  * endpoint's s-mode group object plus service type.
  */
-static void append_anchor(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+static void append_anchor(uint32_t ssn, const uint8_t* kid, uint8_t kid_len,
                           const uint8_t* token, uint8_t token_len,
                           const oc_group_object_table_t* go, char service_type)
 {
@@ -127,13 +127,13 @@ static void append_anchor(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
 }
 
 /* Helper: write a send-anchor (no group object) for the given ssn and the shared kid. */
-static void store(uint64_t ssn)
+static void store(uint32_t ssn)
 {
   append_anchor(ssn, g_kid, sizeof(g_kid), NULL, 0, NULL, 0);
 }
 
 /* Helper: consume an echo carrying the echoed ssn (as PIV), a kid and a kid_context. */
-static bool consume_full(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+static bool consume_full(uint32_t ssn, const uint8_t* kid, uint8_t kid_len,
                          const uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
   coap_packet_t pkt;
@@ -149,13 +149,13 @@ static bool consume_full(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
 }
 
 /* Helper: consume with the shared kid and the given kid_context. */
-static bool consume_ctx(uint64_t ssn, const uint8_t* kid_ctx, uint8_t kid_ctx_len)
+static bool consume_ctx(uint32_t ssn, const uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
   return consume_full(ssn, g_kid, sizeof(g_kid), kid_ctx, kid_ctx_len);
 }
 
 /* Helper: consume with the shared kid and responder A. */
-static bool consume(uint64_t ssn)
+static bool consume(uint32_t ssn)
 {
   return consume_ctx(ssn, g_ctx_a, sizeof(g_ctx_a));
 }
@@ -249,7 +249,25 @@ TEST_F(EchoTxRingTest, SameKid_DifferentSSN_BothAccepted)
   EXPECT_TRUE(consume(11));  /* echo for anchor (11, kid) - not shadowed by the other ssn */
 }
 
-/* -- Attacker scenarios: forged kid_ctx flood and exact replay ------------- */
+/* -- 32-bit SSN wrap: anchors on both sides of the wrap stay independent ---- */
+
+TEST_F(EchoTxRingTest, SsnWrap_AnchorsAtMaxAndZero_BothAccepted)
+{
+  store(OSCORE_SSN_MAX);
+  store(0u);
+  EXPECT_TRUE(consume(0u));
+  EXPECT_TRUE(consume(OSCORE_SSN_MAX));
+  EXPECT_FALSE(consume(OSCORE_SSN_MAX));
+}
+
+TEST_F(EchoTxRingTest, SsnWrap_ZeroDoesNotMatchMaxAnchor)
+{
+  store(OSCORE_SSN_MAX);
+  EXPECT_FALSE(consume(0u));
+  EXPECT_TRUE(consume(OSCORE_SSN_MAX));
+}
+
+/* -- Attacker scenarios
 
 /*
  * One sender stores one anchor (ssn=10, kid).
@@ -373,7 +391,7 @@ TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseReject
 
   /* phase 2: overwrite all ECHO_RING_SIZE slots with anchors for different
      SSNs, so no slot with wl.ssn == 10 remains in the ring */
-  for (uint64_t s = 100; s < 100 + (uint64_t)ECHO_RING_SIZE; s++) {
+  for (uint32_t s = 100; s < 100 + (uint32_t)ECHO_RING_SIZE; s++) {
     store(s);
   }
 
@@ -389,7 +407,7 @@ TEST_F(EchoTxRingTest, Attacker_RingExhaustion_AnchorEvicted_ValidResponseReject
 TEST_F(EchoTxRingTest, OldestEntry_CleanedAfterOverflow)
 {
   /* lay ECHO_RING_SIZE + 1 anchors: the first (ssn 1) is overwritten by the last */
-  for (uint64_t i = 1; i <= (uint64_t)ECHO_RING_SIZE + 1; i++) {
+  for (uint32_t i = 1; i <= (uint32_t)ECHO_RING_SIZE + 1; i++) {
     store(i);
   }
   /* ssn 1 cleaned -> dropped */
@@ -496,12 +514,12 @@ TEST_F(EchoTxRingTest, Anchor_ServiceTypeRoundTripsPerSlot)
 TEST_F(EchoTxRingTest, WithinCapacity_AllSendersAndResponsesAccepted)
 {
   /* store half the ring's anchors (well within capacity) */
-  const uint64_t half = (uint64_t)ECHO_RING_SIZE / 2;
-  for (uint64_t i = 1; i <= half; i++) {
+  const uint32_t half = (uint32_t)ECHO_RING_SIZE / 2;
+  for (uint32_t i = 1; i <= half; i++) {
     store(i);
   }
   /* every echo is accepted and none collides */
-  for (uint64_t i = 1; i <= half; i++) {
+  for (uint32_t i = 1; i <= half; i++) {
     EXPECT_TRUE(consume(i)) << "ssn=" << i;
   }
 }
@@ -516,8 +534,8 @@ TEST_F(EchoTxRingTest, OverflowEviction_LateEchoRejected_NewAnchorAccepted)
     The same sender then uses the next valid ssn (SSN is monotonically
     increasing per Sender Context; reusing an earlier value is forbidden).
   */
-  const uint64_t last_used = (uint64_t)ECHO_RING_SIZE + 1;
-  for (uint64_t i = 1; i <= last_used; i++) {
+  const uint32_t last_used = (uint32_t)ECHO_RING_SIZE + 1;
+  for (uint32_t i = 1; i <= last_used; i++) {
     store(i);
   }
 
@@ -525,7 +543,7 @@ TEST_F(EchoTxRingTest, OverflowEviction_LateEchoRejected_NewAnchorAccepted)
   EXPECT_FALSE(consume(1));
 
   /* next outbound from the same sender: ssn must advance past the last used */
-  const uint64_t next_ssn = last_used + 1;
+  const uint32_t next_ssn = last_used + 1;
   store(next_ssn);
   EXPECT_TRUE(consume(next_ssn));
 }
@@ -544,13 +562,13 @@ TEST_F(EchoTxRingTest, OverflowMixed_EvictedBlSlot_DoesNotFalseReplay)
   EXPECT_TRUE(consume(1)); /* writes BL slot for (ssn=1, kid, ctx_a) */
 
   /* overflow: fill 2 * ECHO_RING_SIZE more anchors to evict every slot */
-  const uint64_t last_stored = (uint64_t)(2 * ECHO_RING_SIZE);
-  for (uint64_t i = 2; i <= last_stored; i++) {
+  const uint32_t last_stored = (uint32_t)(2 * ECHO_RING_SIZE);
+  for (uint32_t i = 2; i <= last_stored; i++) {
     store(i);
   }
 
   /* next outbound must advance past the last stored SSN */
-  const uint64_t next_ssn = last_stored + 1;
+  const uint32_t next_ssn = last_stored + 1;
   store(next_ssn);
   EXPECT_TRUE(consume(next_ssn)); /* must NOT be treated as replay */
 }
@@ -571,13 +589,13 @@ static uint8_t g_kid_y[] = {0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};  /* sende
 static uint8_t g_kid_z[] = {0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30};  /* sender Z */
 
 /* store an anchor for (ssn, kid) where kid is the full byte array */
-static void store_kid(uint64_t ssn, const uint8_t* kid, uint8_t kid_len)
+static void store_kid(uint32_t ssn, const uint8_t* kid, uint8_t kid_len)
 {
   append_anchor(ssn, kid, kid_len, NULL, 0, NULL, 0);
 }
 
 /* consume with the given (ssn, kid) and responder A */
-static bool consume_kid(uint64_t ssn, const uint8_t* kid, uint8_t kid_len)
+static bool consume_kid(uint32_t ssn, const uint8_t* kid, uint8_t kid_len)
 {
   return consume_full(ssn, kid, kid_len, g_ctx_a, sizeof(g_ctx_a));
 }
@@ -624,7 +642,7 @@ TEST_F(EchoTxRingTest, MultiKid_Overflow_EvictedSenderDropped_OthersAccepted)
   store_kid(1, g_kid_x, sizeof(g_kid_x));  /* slot 0: X ssn=1 (will be evicted) */
 
   /* fill remaining RING_SIZE slots alternating Y and Z with ascending SSNs */
-  for (uint64_t i = 1; i <= (uint64_t)ECHO_RING_SIZE / 2; i++) {
+  for (uint32_t i = 1; i <= (uint32_t)ECHO_RING_SIZE / 2; i++) {
     store_kid(i, g_kid_y, sizeof(g_kid_y));
     store_kid(i, g_kid_z, sizeof(g_kid_z));
   }
@@ -634,7 +652,7 @@ TEST_F(EchoTxRingTest, MultiKid_Overflow_EvictedSenderDropped_OthersAccepted)
   EXPECT_FALSE(consume_kid(1, g_kid_x, sizeof(g_kid_x)));
 
   /* last stored Y and Z anchors (ssn = RING_SIZE/2) still present and accepted */
-  uint64_t last = (uint64_t)ECHO_RING_SIZE / 2;
+  uint32_t last = (uint32_t)ECHO_RING_SIZE / 2;
   EXPECT_TRUE(consume_kid(last, g_kid_y, sizeof(g_kid_y)));
   EXPECT_TRUE(consume_kid(last, g_kid_z, sizeof(g_kid_z)));
 
@@ -656,7 +674,7 @@ TEST_F(EchoTxRingTest, Anchor_RingRollOverDropsOldestAnchor)
 
   for (int i = 0; i < cap; i++) {
     uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
-    append_anchor((uint64_t)(100 + i), g_kid, sizeof(g_kid), tok, sizeof(tok), &gos[(size_t)i], 'w');
+    append_anchor((uint32_t)(100 + i), g_kid, sizeof(g_kid), tok, sizeof(tok), &gos[(size_t)i], 'w');
   }
 
   /* every anchor is still findable by its token and returns its own group object */
@@ -670,7 +688,7 @@ TEST_F(EchoTxRingTest, Anchor_RingRollOverDropsOldestAnchor)
 
   /* one more append -> ring wraps to slot 0 -> OLDEST (i == 0) overwritten */
   uint8_t extra_tok[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
-  append_anchor((uint64_t)(100 + cap), g_kid, sizeof(g_kid), extra_tok, sizeof(extra_tok), &gos[(size_t)cap], 'a');
+  append_anchor((uint32_t)(100 + cap), g_kid, sizeof(g_kid), extra_tok, sizeof(extra_tok), &gos[(size_t)cap], 'a');
 
   /* the oldest token is gone, the newest is present with its own group object */
   uint8_t cleaned_tok[4] = { 0x00, 0xAA, 0xBB, 0xCC };

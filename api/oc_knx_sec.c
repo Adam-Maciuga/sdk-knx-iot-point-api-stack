@@ -83,9 +83,9 @@ static bool oc_build_ssn_storage_key(const oc_auth_at_t* entry, char* storage_ke
  * the AT table.
  *
  * @param entry Pointer to the AT table entry
- * @return uint64_t Stored SSN value, or 0 if not found
+ * @return uint32_t Stored SSN value (4-byte record), or 0 if not found
  */
-static uint64_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
+static uint32_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
 {
   char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
 
@@ -94,19 +94,19 @@ static uint64_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
     return 0;
   }
 
-  uint64_t ssn = 0;
+  uint32_t ssn = 0;
   const long bytes_read = oc_storage_read(storage_key, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_read == sizeof(ssn))
   {
-    OC_DBG("Read SSN from storage '%s': %" PRIu64, storage_key, ssn);
+    OC_DBG("Read SSN from storage '%s': %" PRIu32, storage_key, ssn);
     return ssn;
   }
   OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_key);
   return 0;
 }
 
-void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn)
+void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint32_t ssn)
 {
   char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
 
@@ -119,7 +119,7 @@ void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn)
 
   if (bytes_written == sizeof(ssn))
   {
-    OC_DBG("Wrote SSN to storage '%s': %" PRIu64, storage_key, ssn);
+    OC_DBG("Wrote SSN to storage '%s': %" PRIu32, storage_key, ssn);
     return;
   }
   OC_WRN("Wrote NO SSN to storage '%s'", storage_key);
@@ -1884,9 +1884,9 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       if (at_entry->profile == OC_PROFILE_COAP_OSCORE || at_entry->profile == OC_PROFILE_COAP_PASE)
       {
         // always read stored SSN from storage to maintain continuity
-        const uint64_t stored_ssn = oc_read_ssn_from_storage(at_entry);
+        const uint32_t stored_ssn = oc_read_ssn_from_storage(at_entry);
 
-        OC_DBG("loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
+        OC_DBG("loaded SSN from storage: %" PRIu32 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
         /*
                'Client' Side (details see method 'oc_oscore_receive_message' header), create:

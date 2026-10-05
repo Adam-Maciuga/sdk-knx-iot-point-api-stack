@@ -92,7 +92,7 @@ typedef struct oc_client_cb_t
   // OSCORE
   uint8_t piv[OSCORE_PIV_LEN];         /**< partial IV */
   uint8_t piv_len;                     /**< length of the partial IV */
-  uint64_t notification_num;           /**< max 3 byte unsigned notification number, allows the client to detect reordering or loss of notifications [RFC 7641] */
+  uint32_t notification_num;           /**< peer SSN (32-bit, KNX IoT) used as notification number, detects reordering or loss of notifications [RFC 7641] */
 
 } oc_client_cb_t;
 
