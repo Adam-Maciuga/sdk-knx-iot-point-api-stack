@@ -935,10 +935,15 @@ TEST_F(CoapTest, Parse_PayloadMarkerWithoutPayloadIsRejected)
 
 TEST_F(CoapTest, Parse_PayloadMarkerWithPayloadIsAccepted)
 {
-  uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFF, 'x'};
+  /*
+    one reserve byte behind the 6 byte datagram: the parser appends a null-terminator behind the payload,
+    the real message buffer is allocated with one byte more than OC_PDU_SIZE (see oc_allocate_message)
+  */
+  uint8_t data[7] = {0x40, 0x01, 0x00, 0x01, 0xFF, 'x'};
+  const size_t datagram_len = 6;
 
   coap_packet_t parsed;
-  ASSERT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), COAP_NO_ERROR);
+  ASSERT_EQ(coap_parse_udp_message(&parsed, data, datagram_len), COAP_NO_ERROR);
   EXPECT_EQ(parsed.payload_len, 1u);
   EXPECT_EQ(parsed.payload[0], 'x');
 }
