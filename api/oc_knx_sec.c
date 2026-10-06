@@ -1725,18 +1725,20 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
 {
   /*
-    A message without a 'kid' must not match the empty osc_id of an unused slot:
-    0 == 0 plus a zero-length memcmp would otherwise hand out an AT entry that
-    was never provisioned. The 8.4 echo-response caller reaches this without a
-    kid_len > 0 guard of its own.
+    A message without a 'kid' must not match an unused slot (its osc_id is empty).
+
+    - without this check, an empty kid (length 0) equals an empty osc_id (length 0),
+      so we would return an AT entry that was never set up by MaC
+    
+    - note; the 8.4 echo-response code calls this function without first checking that
+      kid_len is greater than 0, so the check must be done here
   */
   if (pkt->kid_len == 0)
   {
     return NULL;
   }
 
-  for (const oc_auth_at_t* entry = g_at_entries;
-       entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
+  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // an entry only counts as provisioned once it carries its id (written last)
     if (oc_string_len(entry->id) == 0)
