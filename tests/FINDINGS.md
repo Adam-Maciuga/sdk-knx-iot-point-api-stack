@@ -554,7 +554,7 @@ Bugs and issues discovered during unit test development.
   suite is 1420 passed, 0 skipped. The runtime suite `-k 5_1` is 130 passed, and its capture of the
   cleared sleep period now shows two goodbye packets instead of an empty one.
 
-## F-018: `if=` of a functional block link ignores `short_urn_form` on `/.well-known/core` - RESOLVED
+## F-018: ~~`if=` of a functional block link ignores `short_urn_form` on `/.well-known/core`~~ - RESOLVED
 
 - **File:** `api/oc_knx_fb.c` (`oc_add_functional_blocks_from_application_to_response`)
 - **Severity:** Low - a well-formed but abbreviated urn on one attribute of one link type. The
@@ -585,7 +585,7 @@ Bugs and issues discovered during unit test development.
   regexes in `test_discovery_pagination.py` match on `rt=` and `ct=` only. The fix was subsequently carried
   by the 380 passed / 5 skipped / 0 failed runtime run (848.00s, `-IncludeUncommitted`).
 
-## F-019: `CONTENT_NONE` marker serialized as a CoAP Content-Format option - RESOLVED
+## F-019: ~~`CONTENT_NONE` marker serialized as a CoAP Content-Format option~~ - RESOLVED
 
 - **Files:** `include/oc_ri.h` (`oc_content_format_t`), `messaging/coap/coap.c` /
   `messaging/coap/coap.h` (`coap_set_header_content_format`, `coap_get_header_accept`,
@@ -651,7 +651,7 @@ Bugs and issues discovered during unit test development.
   explicit Accept, so the `CONTENT_NONE` branch at `oc_ri.c:1153` is never entered. The unit
   round-trip test is what pins that.
 
-## F-020: `oc_add_functional_blocks_from_application_to_response()` misreports success on a full-before-entry page - RESOLVED
+## F-020: ~~`oc_add_functional_blocks_from_application_to_response()` misreports success on a full-before-entry page~~ - RESOLVED
 
 - **File:** `api/oc_knx_fb.c`, `oc_add_functional_blocks_from_application_to_response()`
 - **Severity:** Low - reachable only through a caller that both checks the return value and can
@@ -719,7 +719,7 @@ Bugs and issues discovered during unit test development.
   value (`/f`) always passes `last_entry = total`, so it never enters this function with an
   already-full page. The test-first unit repro is what actually pins the fix.
 
-## F-021: Discovery responses split into two Block2 blocks, which a multicast query cannot reassemble - CLOSED (test-client gap, not a device defect)
+## F-021: ~~Discovery responses split into two Block2 blocks, which a multicast query cannot reassemble~~ - CLOSED (test-client gap, not a device defect)
 
 - **Files:** `CMakeLists.txt` (`KNX_PAYLOAD_SIZE`), and by consequence
   `api/oc_discovery.c` (`/.well-known/core`) and `api/oc_knx_dev.c` (`/dev`).
@@ -781,7 +781,7 @@ Bugs and issues discovered during unit test development.
   was never verified against the tool and is not this suite's concern. The payload budget of 768
   stays as set on purpose. Tracker T12 is FIXED for all paths.
 
-## F-022: Unbounded recursion in the s-mode write loopback (self-DoS + multicast flood) - RESOLVED
+## F-022: ~~Unbounded recursion in the s-mode write loopback (self-DoS + multicast flood)~~ - RESOLVED
 
 - **File:** `api/oc_knx_client.c`, `oc_send_s_mode_mc_or_uc_message()` - the "checking & updating
   internal group objects" block.
@@ -860,7 +860,7 @@ Bugs and issues discovered during unit test development.
   the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
 - **Status:** RESOLVED.
 
-## F-023: Trailing garbage on the second s-mode read answer for a GA with two read-flagged GOs - RESOLVED
+## F-023: ~~Trailing garbage on the second s-mode read answer for a GA with two read-flagged GOs~~ - RESOLVED
 
 - **File:** `api/oc_knx.c`, `oc_core_knx_k_post_handler()` - the `service_r` branch
   ("read with GO table index").
@@ -952,7 +952,7 @@ Bugs and issues discovered during unit test development.
   the working tree**. `tests/runtime/test_observe.py` 19/19 against the working tree.
 - **Status:** RESOLVED.
 
-## F-024: `mdns_socket_listen()` reads past the receive buffer when a question name fills the datagram - RESOLVED
+## F-024: ~~`mdns_socket_listen()` reads past the receive buffer when a question name fills the datagram~~ - RESOLVED
 
 - **File:** `port/mdns/mdns.h`, `mdns_socket_listen()` (vendored third-party `mjansson/mdns` library).
 - **Origin:** found and fixed on `feat/sec-hardening` as *their* **F-026** (fuzz harness `fuzz_mdns`, 6-hour
@@ -1054,7 +1054,7 @@ Bugs and issues discovered during unit test development.
 - **Pinned by:** `SecAtPost.RepeatedPropertyDoesNotSatisfyTheMandatoryCount` (the bypass, now rejected) and `SecAtPost.CreateWithTooFewPropertiesIsRejected`.
 - **Verification:** unit suite **1591 passed, 0 failed**; full runtime tier **207 passed, 43 skipped, 0 failed**.
 
-## F-028: an empty OSCORE `kid` matches an unprovisioned AT table slot - RESOLVED
+## F-028: ~~an empty OSCORE `kid` matches an unprovisioned AT table slot~~ - RESOLVED
 
 - **File:** `api/oc_knx_sec.c`, `oc_core_find_at_entry_by_osc_id()`.
 - **Severity:** Medium-High - the lookup returned an AT entry that was never provisioned. Found while answering the open question of F-027; it is an independent defect that does not need F-027 to trigger.
