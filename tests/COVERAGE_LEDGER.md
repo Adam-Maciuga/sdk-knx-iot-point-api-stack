@@ -300,7 +300,6 @@ or tear down the whole stack and are INTEGRATION.
 | oc_set_factory_presets_cb / oc_get_factory_presets_cb | DONE |
 | oc_set_reset_cb / oc_get_reset_cb | DONE |
 | oc_set_restart_cb / oc_get_restart_cb | DONE |
-| oc_set_hostname_cb / oc_get_hostname_cb | DONE |
 | oc_set_programming_mode_cb / oc_get_programming_mode_cb | DONE |
 | oc_set_lsm_change_cb / oc_get_lsm_change_cb | DONE |
 | oc_set_pdu_size / oc_get_pdu_size | DONE (test_oc_buffer_settings.cpp) |
@@ -810,7 +809,7 @@ Static handlers reached through the public `const oc_resource_t core_resource_de
 | oc_core_dev_port_get_handler (static) | DONE (wrong-accept→4.00). Happy path is integration-level — `knx_dns_sd_get_used_port()`→`get_ip_context_for_device()->port` NULL-derefs without an initialised connectivity layer. |
 | oc_core_dev_ipv6_get_handler (static) | DONE — wrong-accept→4.00; no connectivity endpoints→4.00. Multi-endpoint paging path is integration-level (needs live endpoints). |
 | oc_core_dev_dev_get_handler / oc_core_ap_get_handler (static, link-format lists) | DONE (wrong-accept→4.00). Success path is integration-level — link-format serialisation over the core resource table writes into the transaction response buffer. |
-| oc_core_dev_hostname/iid/fid/pm_put_handler + oc_core_ap_x_put_handler (static) | DONE — wrong-accept→4.00 and empty/invalid-payload→4.00 (ap/pv also wrong-array-size→4.00). Success branches are integration-level (storage writes, DNS-SD re-registration, app-version store). |
+| oc_core_dev_iid/fid/pm_put_handler + oc_core_ap_x_put_handler (static) | DONE — wrong-accept→4.00 and empty/invalid-payload→4.00 (ap/pv also wrong-array-size→4.00); `/dev/hname` has no PUT handler (optional in the specification, removed). Success branches are integration-level (storage writes, DNS-SD re-registration, app-version store). |
 | oc_knx_load_device / oc_knx_device_storage_reset / oc_knx_device_restart (public) | UNTESTABLE in isolation — require an initialised storage backend + device singleton (and DNS-SD); destructive global side effects. |
 
 ### messaging/coap (G4 function-level gap-fill) — DONE except network-send wrappers

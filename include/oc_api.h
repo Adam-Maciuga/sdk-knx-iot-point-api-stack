@@ -241,31 +241,6 @@ extern "C"
   void oc_set_restart_cb(oc_restart_cb_t cb, void* data);
 
   /**
-   * Callback invoked by the stack to set the host name
-   *
-   * @param[in] host_name the host name to be set
-   * @param[in] data the user supplied data
-   *
-   */
-  typedef void (*oc_hostname_cb_t)(oc_string_t host_name, void* data);
-
-  /**
-   * Host name (set) callback.
-   *
-   * The host name callback is called by the stack when the host name will be set (aka PUT request)
-   *
-   * @note
-   * - oc_set_hostname_cb() must be called before oc_main_init()
-   * - called on each external PUT request to the ep dev/hname, but not on a GET request
-   *
-   * @param[in] cb oc_hostname_cb_t function pointer to be called
-   * @param[in] data context pointer that is passed to the oc_restart_cb_t
-   *                 the pointer must be a valid pointer till after oc_main_init()
-   *                 call completes.
-   */
-  void oc_set_hostname_cb(oc_hostname_cb_t cb, void* data);
-
-  /**
    * Set the programming mode callback
    * 
    * 

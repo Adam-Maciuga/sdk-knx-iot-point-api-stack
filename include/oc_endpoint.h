@@ -63,14 +63,12 @@ extern "C" {
   } transport_flags_t;
 
   /*
-    - hostname label = device serial number and leading 'knx-' + 12 x char = 16,
-      such as "knx-00fa10020700", used where the DNS domain is added by the caller (e.g. SRP client)
-    
-      hostname type = the label plus the '.local' domain (6) + /0 = 23,
-      such as "knx-00fa10020700.local", this is the fully qualified name reported by 'dev/hname' as defined by specification (2.6.1.2.3)
+    - default hostname = device serial number with leading 'knx-' (16) plus the '.local' domain (6) + /0 = 23,
+      such as "knx-00fa10020700.local", the fully qualified name reported by 'dev/hname' as defined by
+      specification (2.6.1.2.3), used unless the application sets its own one before the first announcement
+    - HNAME_MAX_SIZE = max length of any (application) hostname without /0
   */
   
-  #define HNAME_LABEL ("knx-%s")
   #define HNAME_TYPE  ("knx-%s.local")
   #define HNAME_MAX_SIZE 64
   

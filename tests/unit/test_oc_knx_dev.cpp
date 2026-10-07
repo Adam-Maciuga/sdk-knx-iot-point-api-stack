@@ -405,13 +405,10 @@ TEST_F(KnxDevHandlers, ApListGetWrongAccept)
 
 /* ── PUT handlers: wrong-accept gate + empty/invalid payload -> 4.00 ──────── */
 
-TEST_F(KnxDevHandlers, HostnamePutWrongAccept)
+/* PUT on '/dev/hname' is optional in the specification and not supported, the resource is read-only */
+TEST_F(KnxDevHandlers, HostnamePutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_hostname.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, HostnamePutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_hostname.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_hostname.put_handler.cb, nullptr);
 }
 
 TEST_F(KnxDevHandlers, IidPutWrongAccept)

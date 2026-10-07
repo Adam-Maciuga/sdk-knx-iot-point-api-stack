@@ -9,8 +9,8 @@
  * The MTU / block-size / max-app-data accessors of this file are already
  * covered by test_oc_buffer_settings.cpp. This file completes the coverage of
  * the remaining device-independent surface:
- * - the seven application callback set/get pairs (swu, factory presets, reset,
- * restart, hostname, programming mode, lsm change), and
+ * - the six application callback set/get pairs (swu, factory presets, reset,
+ * restart, programming mode, lsm change), and
  * - oc_main_initialized before bootstrap, and
  * - _oc_signal_event_loop with no app callbacks registered (NULL-guard path).
  * oc_main_init / oc_main_poll / oc_main_shutdown / oc_shutdown_device (static)
@@ -79,17 +79,6 @@ TEST(MainCallbacks, RestartSetThenGet)
   auto cb = as_cb<oc_restart_cb_t>();
   oc_set_restart_cb(cb, &sentinel);
   const oc_restart_t* got = oc_get_restart_cb();
-  ASSERT_NE(nullptr, got);
-  EXPECT_EQ(cb, got->cb);
-  EXPECT_EQ(&sentinel, got->data);
-}
-
-TEST(MainCallbacks, HostnameSetThenGet)
-{
-  int sentinel = 0;
-  auto cb = as_cb<oc_hostname_cb_t>();
-  oc_set_hostname_cb(cb, &sentinel);
-  oc_hostname_t *got = oc_get_hostname_cb();
   ASSERT_NE(nullptr, got);
   EXPECT_EQ(cb, got->cb);
   EXPECT_EQ(&sentinel, got->data);

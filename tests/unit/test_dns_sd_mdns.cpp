@@ -57,6 +57,7 @@
 
 extern "C" {
 #include "oc_api.h"          /* oc_main_poll */
+#include "oc_core_res.h"     /* oc_core_set_device_hostname */
 #include "oc_endpoint.h"     /* oc_endpoint_t, IPV6 */
 #include "oc_ri.h"           /* oc_ri_init / oc_ri_shutdown */
 #include "port/dns-sd.h"     /* functions under test */
@@ -77,6 +78,8 @@ static const uint16_t DNS_CLASS_IN = 1;
 static const uint16_t MDNS_PORT = 5353;
 
 static const char *const SERIAL = "00fa10020800";
+/* the default host name the stack derives from SERIAL, mDNS announces the device host name */
+static const char *const HOSTNAME = "knx-00fa10020800.local";
 static const uint64_t IID = 0x1199887766;
 static const uint16_t IA = 0x1101;
 static const uint16_t COAP_PORT = 5683;
@@ -336,6 +339,7 @@ protected:
     g_sendto_fails = false;
     oc_mmem_init();
     oc_ri_init();
+    ASSERT_EQ(oc_core_set_device_hostname(HOSTNAME), 0);
 
     memset(&g_fake_ctx, 0, sizeof(g_fake_ctx));
     OC_LIST_STRUCT_INIT(&g_fake_ctx, eps);
@@ -781,6 +785,23 @@ TEST_F(DnsSd, AaaaQueryForTheHostnameGetsTheAaaaAnswer)
     }
   }
   EXPECT_TRUE(found) << "the AAAA answer lacks the endpoint address";
+}
+
+TEST_F(DnsSd, AnApplicationSetHostnameIsAnnounced)
+{
+  /* the application may set its own host name before the first announcement */
+  ASSERT_EQ(oc_core_set_device_hostname("my-device.local"), 0);
+  ASSERT_EQ(publish(false), 0);
+
+  const std::string instance = std::string(SERIAL) + "._knx._udp.local";
+  CapturedPacket answer;
+  ASSERT_TRUE(ask((instance + ".").c_str(), DNS_TYPE_SRV, &answer)) << "no answer";
+  EXPECT_TRUE(contains(answer.bytes, "my-device")) << "the SRV target lacks the application host name";
+  EXPECT_FALSE(contains(answer.bytes, "knx-00fa10020800")) << "the SRV target still uses the default";
+
+  ASSERT_TRUE(ask("my-device.local.", DNS_TYPE_AAAA, &answer)) << "no answer";
+  EXPECT_EQ(answer.first_type, DNS_TYPE_AAAA);
+  EXPECT_EQ(answer.first_name, "my-device.local");
 }
 
 TEST_F(DnsSd, TxtQueryForTheInstanceGetsTheTxtAnswer)

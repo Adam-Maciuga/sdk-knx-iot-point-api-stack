@@ -48,7 +48,6 @@ set(KIS_FUZZ_TARGETS
     fuzz_oscore_aad_nonce
     fuzz_oscore_echo_tx
     fuzz_core_res_wildcard
-    fuzz_knx_dev_put
     fuzz_at_x_get_query
     fuzz_spake2plus_initiator
     fuzz_knx_lsm_post

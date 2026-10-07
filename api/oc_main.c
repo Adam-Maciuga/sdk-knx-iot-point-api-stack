@@ -35,7 +35,6 @@ static const oc_handler_t* app_callbacks;
 static oc_factory_presets_t app_factory_presets = {.cb = NULL, .data = NULL};       
 static oc_reset_t app_reset = {.cb = NULL, .data = NULL};                       
 static oc_restart_t app_restart = {.cb = NULL, .data = NULL};
-static oc_hostname_t app_hostname = {.cb = NULL, .data = NULL};
 static oc_programming_mode_t app_programming_mode = {.cb = NULL, .data = NULL};
 static oc_loadstate_t app_loadstate = {.cb = NULL, .data = NULL};
 static oc_swu_t app_swu = {.cb = NULL, .data = NULL};
@@ -89,17 +88,6 @@ void oc_set_restart_cb(oc_restart_cb_t cb, void* data)
 const oc_restart_t* oc_get_restart_cb(void)
 {
   return &app_restart;
-}
-
-void oc_set_hostname_cb(const oc_hostname_cb_t cb, void* data)
-{
-  app_hostname.cb = cb;
-  app_hostname.data = data;
-}
-
-oc_hostname_t* oc_get_hostname_cb(void)
-{
-  return &app_hostname;
 }
 
 void oc_set_programming_mode_cb(oc_programming_mode_cb_t cb, void* data)

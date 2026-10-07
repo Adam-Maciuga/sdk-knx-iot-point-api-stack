@@ -41,6 +41,7 @@
 
 #include "dns-sd.h"
 #include "oc_api.h"
+#include "oc_core_res.h" // oc_core_get_device_info(): the device host name
 #include "oc_log.h"
 #include "util/oc_list.h" // oc_list_head() for iterating endpoint list
 
@@ -314,6 +315,20 @@ static int ensure_socket(void)
 #define MAX_MDNS_RECORD_SIZE 64
 #define MAX_AAAA_RECORDS 4
 #define MAX_IF_INDICES 8
+#define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + 2) // device host name + root label '.' + NUL
+
+/*
+  Hostname: the device host name plus the root label '.', such as "knx-<sn_lower>.local."
+  (spec 2.6.1.2.3 SHOULD). It is taken from the device info instead of being derived from the
+  serial number, so an application-set host name is announced as well. The host name is set
+  before the first announcement and never changes afterward ('/dev/hname' is read-only).
+*/
+static size_t build_hostname(char out[MDNS_HOSTNAME_SIZE])
+{
+  const oc_device_info_t *const device = oc_core_get_device_info();
+  (void)snprintf(out, MDNS_HOSTNAME_SIZE, "%s.", oc_string_checked(device->iot_hostname));
+  return strlen(out);
+}
 
 /*
  * Collect unique unicast IPv6 interface indices from the endpoint list.
@@ -403,7 +418,7 @@ static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const 
 typedef struct
 {
   char instance_name[MAX_MDNS_RECORD_SIZE];
-  char hostname[MAX_MDNS_RECORD_SIZE];
+  char hostname[MDNS_HOSTNAME_SIZE];
   char sub_sn[MAX_MDNS_RECORD_SIZE];
   char sub_ia[MAX_MDNS_RECORD_SIZE];
   char sp_str[5 + 1];                             // uint16_t max = 65535 (5 digits) + NUL terminator
@@ -428,9 +443,7 @@ static void build_service_records(knx_service_records_t *out, const mdns_knx_rec
   (void)snprintf(out->instance_name, sizeof(out->instance_name), "%s." KNX_SERVICE_TYPE, record->knx.sn);
   const size_t instance_len = strlen(out->instance_name);
 
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
-  (void)snprintf(out->hostname, sizeof(out->hostname), "knx-%s.local.", record->knx.sn);
-  const size_t hostname_len = strlen(out->hostname);
+  const size_t hostname_len = build_hostname(out->hostname);
 
   // Subtype strings 
   (void)snprintf(out->sub_sn, sizeof(out->sub_sn), "_%s._sub._knx._udp.local.", record->knx.sn);
@@ -922,10 +935,8 @@ static int send_srv_response(int sock)
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
   const size_t instance_len = strlen(instance_name);
 
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD)
-  char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
-  const size_t hostname_len = strlen(hostname);
+  char hostname[MDNS_HOSTNAME_SIZE];
+  const size_t hostname_len = build_hostname(hostname);
 
   // Port
   const uint16_t port = knx_dns_sd_get_used_port();
@@ -997,10 +1008,8 @@ static int send_srv_response(int sock)
  */
 static int send_aaaa_response(int sock)
 {
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD)
-  char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", current_advertisement.knx.sn);
-  const size_t hostname_len = strlen(hostname);
+  char hostname[MDNS_HOSTNAME_SIZE];
+  const size_t hostname_len = build_hostname(hostname);
 
   // collect all AAAA records
   mdns_record_t aaaa_records[MAX_AAAA_RECORDS] = {0};
@@ -1177,9 +1186,8 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   char instance_name[MAX_MDNS_RECORD_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, adv_sn);
 
-  // Hostname: "knx-<sn_lower>.local."  (spec 2.6.1.2.3 SHOULD) 
-  char hostname[MAX_MDNS_RECORD_SIZE];
-  (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", adv_sn);
+  char hostname[MDNS_HOSTNAME_SIZE];
+  const size_t hostname_len = build_hostname(hostname);
 
   // The answer leaves on the interface the query arrived on (RFC 6762 section 15)
   select_answer_interface(sock, ifindex);
@@ -1295,7 +1303,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   // ---- 3. AAAA / ANY: hostname -> IPv6 address ----
   if (rtype == MDNS_RECORDTYPE_AAAA || rtype == MDNS_RECORDTYPE_ANY)
   {
-    if (dns_name_equal(qname, qstr.length, hostname, strlen(hostname)))
+    if (dns_name_equal(qname, qstr.length, hostname, hostname_len))
     {
       OC_INF("DNS-SD: Received AAAA query for %s.", hostname);
       ret = send_aaaa_response(sock);

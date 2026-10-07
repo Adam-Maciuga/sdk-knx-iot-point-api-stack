@@ -419,16 +419,6 @@ def corpus_core_res_wildcard():
     }
 
 
-def corpus_knx_dev_put():
-    """oc_core_dev_hostname_put_handler(): PUT /dev/hname CBOR body."""
-    return {
-        "valid_hostname.bin": bytes([0xA1, 0x01, 0x66]) + b"myhost",
-        "empty_string.bin": bytes([0xA1, 0x01, 0x60]),
-        "wrong_type.bin": bytes([0xA1, 0x01, 0x01]),
-        "empty_map.bin": bytes([0xA0]),
-    }
-
-
 def corpus_at_x_get_query():
     """oc_core_auth_at_x_get_handler(): /auth/at/{id} wildcard segment."""
     return {
@@ -549,7 +539,6 @@ CORPORA = {
     "oscore_aad_nonce": corpus_oscore_aad_nonce,
     "oscore_echo_tx": corpus_oscore_echo_tx,
     "core_res_wildcard": corpus_core_res_wildcard,
-    "knx_dev_put": corpus_knx_dev_put,
     "at_x_get_query": corpus_at_x_get_query,
     "spake2plus_initiator": corpus_spake2plus_initiator,
     "knx_lsm_post": corpus_knx_lsm_post,

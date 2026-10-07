@@ -108,27 +108,22 @@ int oc_core_set_device_order_number(const char* order_number)
 
 int oc_core_set_device_hostname(const char* host_name)
 {
+  // fails if NULL or longer than the buffers mDNS/SRP build the announced host name in
+  if (!host_name)
+  {
+    return -1;
+  }
+
+  const size_t host_name_len = strlen(host_name);
+  if (host_name_len > HNAME_MAX_SIZE)
+  {
+    return -1;
+  }
+
 	oc_free_string(&oc_device_info.iot_hostname);
-  oc_new_string(&oc_device_info.iot_hostname, host_name, strlen(host_name));
+  oc_new_string(&oc_device_info.iot_hostname, host_name, host_name_len);
 
 	return 0;
-}
-
-int oc_core_read_and_set_device_hostname(void)
-{
-
-  const oc_device_info_t* const device = oc_core_get_device_info();
-  
-  // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
-  char hostname[HNAME_MAX_SIZE +1] = "";
-  (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
-
-  // read host name from storage (on error = the default host name from above is used,
-  // otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)&hostname, HNAME_MAX_SIZE);
-  oc_core_set_device_hostname(hostname);
-
-  return 0;
 }
 
 uint64_t oc_core_get_device_iid(void)

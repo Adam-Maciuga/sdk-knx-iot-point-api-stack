@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1673 registered (linux-coverage-gcc, derived as 1645 measured on windows-test-gcc + 28 UNIX-only; 1645/1645 passed on windows-test-gcc after the `/a/sen`, `ldevid` and `idevid` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1645 there.
+> Branch: `work_in_progress` | Unit: 1701 registered (linux-coverage-gcc, derived as 1672 measured on windows-test-gcc + 29 UNIX-only; 1672/1672 passed on windows-test-gcc after the `/dev/hname` PUT removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 29 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 29, giving 1672 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -563,7 +563,7 @@ must forward. Verified non-vacuous: transposing one argument in
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `DeviceHostname` | 5 | Set/overwrite/empty hostname, default fallback, `HNAME_SIZE` fit |
+| `DeviceHostname` | 5 | Set/overwrite/empty hostname, NULL and over-`HNAME_MAX_SIZE` rejected (previous name kept) |
 | `DeviceInfo` | 19 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
 | `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
@@ -572,7 +572,7 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (50 tests)
+### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (49 tests)
 
 **Source:** `api/oc_knx_dev.c`
 
@@ -587,12 +587,14 @@ must forward. Verified non-vacuous: transposing one argument in
 | `GetterMatchesDeviceField` | Getter mirrors `device->pm` exactly |
 | `TogglingIsIdempotentPerValue` | Repeated set of same value is stable |
 
-**Resource handlers (`KnxDevHandlers`, 44 tests)** — GET/PUT handlers for the
+**Resource handlers (`KnxDevHandlers`, 43 tests)** — GET/PUT handlers for the
 device resources (`/dev/sn`, `/dev/hwv`, `/dev/fwv`, `/dev/hwt`, `/dev/model`,
 `/dev/hostname`, `/dev/iid`, `/dev/pm`, `/dev/sa`, `/dev/da`, `/dev/fid`,
 `/dev/port`, `/dev/mport`, `/dev/ap/pv`, `/dev/mid`, `/dev/ipv6`, dev/ap lists)
 exercised directly at handler level: wrong-Accept → bad request, happy-path
 content, empty-payload PUT → bad request, and array-size validation.
+`/dev/hname` is read-only (PUT is optional in the specification), so only its
+GET handlers are tested plus a check that no PUT handler is registered.
 
 **Coverage note:** `oc_knx_load_device`, `oc_knx_device_storage_reset`, and
 `oc_knx_device_restart` still require a live request pipeline (storage + OSCORE
@@ -967,13 +969,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_main.cpp — Main Callbacks / State (10 tests)
+### test_oc_main.cpp — Main Callbacks / State (9 tests)
 
 **Source:** `api/oc_main.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `MainCallbacks` | 8 | swu / factory-presets / reset / restart / hostname / programming-mode / lsm-change setter+getter, overwrite |
+| `MainCallbacks` | 7 | swu / factory-presets / reset / restart / programming-mode / lsm-change setter+getter, overwrite |
 | `MainState` | 2 | Not-initialised before bootstrap; signal-event-loop without callbacks is a no-op |
 
 ---
@@ -1121,7 +1123,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (28 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (29 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
@@ -1139,7 +1141,7 @@ The target is registered under `if(UNIX)`, since the source is POSIX-only and
 | `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
 | `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
-| query responder | 10 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type |
+| query responder | 11 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type, application-set host name in SRV target and AAAA |
 
 ---
 

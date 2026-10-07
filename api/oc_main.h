@@ -72,23 +72,6 @@ extern "C" {
   const oc_restart_t* oc_get_restart_cb(void);
 
   /**
-   * @brief The hostname info
-   *
-   */
-  typedef struct oc_hostname_t
-  {
-    oc_hostname_cb_t cb; /**< the callback */
-    void* data;          /**< the callback user data */
-  } oc_hostname_t;
-
-  /**
-   * @brief retrieve the hostname info, e.g. the callback and callback data
-   *
-   * @return oc_hostname_t* the hostname info
-   */
-  oc_hostname_t* oc_get_hostname_cb(void);
-
-  /**
    * @brief The programming mode info
    *
    */

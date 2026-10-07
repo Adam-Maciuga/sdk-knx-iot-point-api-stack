@@ -242,52 +242,6 @@ const oc_resource_t core_resource_dev_order_number = {
         true,
         &core_resource_dev_order_number_data};
 
-static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
-  {
-    return;
-  }
-
-  const oc_rep_t* rep = request->request_payload;
-
-  while (rep) 
-  {
-    if (rep->type == OC_REP_STRING) 
-    {
-      // value (1)
-      if (rep->iname == 1) 
-      {
-        OC_INF("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));	
-
-        char* hostname = oc_string_checked(rep->value.string);
-        const uint8_t hostname_size = oc_string_len(rep->value.string);
-
-        // set hostname for the device and update storage
-        oc_core_set_device_hostname(hostname);
-        oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)hostname, hostname_size);
-
-        // call host name application callback handler
-        const oc_hostname_t* my_hostname = oc_get_hostname_cb();
-        if (my_hostname && my_hostname->cb) 
-        {
-          my_hostname->cb(rep->value.string, my_hostname->data);
-        }
-
-        oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-        return;
-      }
-    }
-
-    rep = rep->next;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
 static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
 {
   (void)data;
@@ -319,7 +273,7 @@ const oc_resource_t core_resource_dev_hostname = {
         {APPLICATION_CBOR, CONTENT_NONE},
         OC_DISCOVERABLE,
         {oc_core_dev_hostname_get_handler, NULL, OC_ACL_D, OC_IF_D},
-        {oc_core_dev_hostname_put_handler, NULL, OC_ACL_P, OC_IF_P},
+        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {{NULL}, NULL},
@@ -1158,6 +1112,16 @@ const oc_resource_t core_resource_dev_mid = {
         1,
         &core_resource_dev_mid_data};
 
+// sets the default host name 'knx-{sn}.local' (spec 2.6.1.2.3), used on load and on a factory reset
+static void oc_knx_set_default_hostname(void)
+{
+  const oc_device_info_t* const device = oc_core_get_device_info();
+
+  char hostname[HNAME_MAX_SIZE + 1];
+  (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
+  (void)oc_core_set_device_hostname(hostname);
+}
+
 void oc_knx_load_device(void) 
 {
   OC_INF("Loading device configuration from persistent storage");
@@ -1179,22 +1143,34 @@ void oc_knx_load_device(void)
   device->fid = oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
   OC_INF("fid (storage) %" PRIu64, device->fid);
 
-  // read host name from storage (on error = the default host name is used, otherwise stored host name)
-  oc_core_read_and_set_device_hostname();
-  OC_INF("hostname (storage) %s", oc_string(device->iot_hostname));
+  /*
+    Host Name 
+
+    - not stored in NVM, 
+    - PUT '/dev/hname' is optional in the iot spec. 
+      - it cannot change FROM outside at runtime
+      - it can change from inside by application at runtime, if not the default 'knx-{sn}.local' is used (spec 2.6.1.2.3).
+
+    - init application runs before load device (load device needs the serial number, see below)
+      (a) if not set by application default is used
+      (b) if set by application, it is used
+  */
+  if (oc_string_len(device->iot_hostname) == 0)
+  { // (a)
+    oc_knx_set_default_hostname();
+  }
+  OC_INF("hostname %s", oc_string(device->iot_hostname));
 
   oc_knx_version_info_t version;
 
   // read application version from storage (on error = '0.0.0')
-  device->apv = oc_storage_read(KNX_STORAGE_KEY_APP_VERSION,
-                                (uint8_t*)&version, sizeof(version)) > 0
+  device->apv = oc_storage_read(KNX_STORAGE_KEY_APP_VERSION, (uint8_t*)&version, sizeof(version)) > 0
     ? version
     : (oc_knx_version_info_t){0, 0, 0};
   OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
 
   // read firmware version from storage (on error = '0.0.0')
-  device->fwv = oc_storage_read(KNX_STORAGE_KEY_FW_VERSION,
-                                (uint8_t*)&version, sizeof(version)) > 0
+  device->fwv = oc_storage_read(KNX_STORAGE_KEY_FW_VERSION, (uint8_t*)&version, sizeof(version)) > 0
     ? version
     : (oc_knx_version_info_t){0, 0, 0};
   OC_INF("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
@@ -1208,8 +1184,7 @@ void oc_knx_load_device(void)
 
   // load security related variables
   uint16_t osc;
-  const uint16_t d_size = oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY,
-                                          (uint8_t*)&osc, sizeof(osc)) > 0
+  const uint16_t d_size = oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0
     ? osc
     : DEFAULT_OSN_DELAY;
 
@@ -1244,10 +1219,8 @@ void oc_knx_device_reset(int reset_mode)
     device->iid = 0;
     device->fid = 0;
 
-    // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
-    char hostname[HNAME_MAX_SIZE + 1];
-    (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
-    oc_core_set_device_hostname(hostname);
+    // back to the default host name, an application-set one is dropped as well (not stored, nothing to write)
+    oc_knx_set_default_hostname();
 
     // delete iot device tables
     oc_delete_group_object_table();
@@ -1270,8 +1243,6 @@ void oc_knx_device_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia));
     oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid));
-    oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname),
-                     oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;

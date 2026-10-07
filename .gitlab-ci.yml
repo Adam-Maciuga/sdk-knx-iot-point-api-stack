@@ -261,7 +261,7 @@ fuzz-seed-replay:
                fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
                fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
                fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce fuzz_oscore_echo_tx \
-               fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
+               fuzz_core_res_wildcard fuzz_at_x_get_query fuzz_spake2plus_initiator \
                fuzz_knx_lsm_post fuzz_auth_at_post; do
         "./$t" "corpus/${t#fuzz_}" -max_total_time="$FUZZ_COVERAGE_SECONDS" -timeout=10 \
           -rss_limit_mb=2048 -artifact_prefix="../../../../fuzz-coverage-crashes/${t}-" \
@@ -322,7 +322,7 @@ fuzz-explore:
                fuzz_endpoint_string_parse fuzz_swu_query_params fuzz_group_object_table \
                fuzz_oscore_context_lookup fuzz_discovery_filter fuzz_spake2plus_wire \
                fuzz_uuid_parse fuzz_oscore_full_decrypt fuzz_replay_window fuzz_oscore_aad_nonce fuzz_oscore_echo_tx \
-               fuzz_core_res_wildcard fuzz_knx_dev_put fuzz_at_x_get_query fuzz_spake2plus_initiator \
+               fuzz_core_res_wildcard fuzz_at_x_get_query fuzz_spake2plus_initiator \
                fuzz_knx_lsm_post fuzz_auth_at_post; do
         seeds="build/linux-fuzz-clang/tests/fuzz/corpus/${t#fuzz_}"
         mkdir -p "fuzz-findings/$t"

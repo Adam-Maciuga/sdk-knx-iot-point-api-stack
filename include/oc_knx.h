@@ -264,9 +264,9 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    *
    * The callback is called by the stack when lsm is changed
    *
-   * @note oc_set_hostname_cb() must be called before oc_main_init().
+   * @note oc_set_lsm_change_cb() must be called before oc_main_init().
    *
-   * @param[in] cb oc_hostname_cb_t function pointer to be called
+   * @param[in] cb oc_lsm_change_cb_t function pointer to be called
    * @param[in] data context pointer that is passed to the oc_restart_cb_t
    *                 the pointer must be a valid pointer till after oc_main_init()
    *                 call completes.

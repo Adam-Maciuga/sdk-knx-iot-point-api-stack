@@ -3,14 +3,12 @@
  * (declared in include/oc_core_res.h).
  *
  * Covers:
- *   oc_core_set_device_hostname          — stores a hostname string on the device
- *   oc_core_read_and_set_device_hostname — reads hostname from storage, falling
- *                                          back to the "knx-<serial>" default
+ *   oc_core_set_device_hostname — stores a hostname string on the device,
+ *                                 rejects NULL and names over HNAME_MAX_SIZE
  *
  * Requirements:
- *   oc_mmem_init() — the hostname/serial are oc_string_t (allocated strings).
- *   Storage is intentionally left UNCONFIGURED so oc_storage_read() returns an
- *   error and the default-hostname fallback path is exercised deterministically.
+ *   oc_mmem_init() — the hostname is an oc_string_t (allocated string).
+ *   Storage is intentionally left UNCONFIGURED, setters that store are no-ops.
  *
  * Note: oc_core_get_device_info() returns a pointer to the static oc_device_info,
  *       so we can read back what the setters wrote without full stack init.
@@ -18,6 +16,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <string>
 
 extern "C" {
 #include "oc_core_res.h"
@@ -34,10 +33,6 @@ protected:
     oc_mmem_init();
   }
 
-  static void set_serial(const char *sn)
-  {
-    oc_core_get_device_info()->serialnumber = sn;
-  }
 };
 
 /* ───────────────────────────── oc_core_set_device_hostname ───────────────── */
@@ -61,28 +56,23 @@ TEST_F(DeviceHostname, SetEmptyString)
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "");
 }
 
-/* ──────────────────────── oc_core_read_and_set_device_hostname ────────────── */
-
-TEST_F(DeviceHostname, ReadAndSetUsesDefaultWhenStorageUnavailable)
+TEST_F(DeviceHostname, SetNullRejectedKeepsPrevious)
 {
-  /* Storage is not configured → oc_storage_read() returns an error → the
-   * device must fall back to the spec-defined "knx-<serial>.local" host name. */
-  set_serial("00fa10020700");
-
-  EXPECT_EQ(oc_core_read_and_set_device_hostname(), 0);
-  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname),
-               "knx-00fa10020700.local");
+  ASSERT_EQ(oc_core_set_device_hostname("kept-host"), 0);
+  EXPECT_EQ(oc_core_set_device_hostname(nullptr), -1);
+  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "kept-host");
 }
 
-TEST_F(DeviceHostname, ReadAndSetDefaultFitsHnameBuffer)
+TEST_F(DeviceHostname, SetMaxLengthAcceptedOneMoreRejected)
 {
-  /* The default "knx-" + 12-char serial + ".local" + NUL must fit in HNAME_MAX_SIZE + 1. */
-  set_serial("aabbccddeeff");
-  ASSERT_EQ(oc_core_read_and_set_device_hostname(), 0);
+  /* mDNS/SRP build the announced name in HNAME_MAX_SIZE based buffers */
+  const std::string max_name(HNAME_MAX_SIZE, 'a');
+  EXPECT_EQ(oc_core_set_device_hostname(max_name.c_str()), 0);
+  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), max_name.c_str());
 
-  const char *hn = oc_string(oc_core_get_device_info()->iot_hostname);
-  EXPECT_STREQ(hn, "knx-aabbccddeeff.local");
-  EXPECT_LE(strlen(hn) + 1, (size_t)HNAME_MAX_SIZE + 1); /* fits in HNAME_MAX_SIZE + 1 */
+  const std::string too_long(HNAME_MAX_SIZE + 1, 'b');
+  EXPECT_EQ(oc_core_set_device_hostname(too_long.c_str()), -1);
+  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), max_name.c_str());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

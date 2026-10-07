@@ -17,7 +17,6 @@ extern "C" {
 #define KNX_STORAGE_KEY_IA          "ia"
 #define KNX_STORAGE_KEY_IID         "iid"
 #define KNX_STORAGE_KEY_FID         "fid"
-#define KNX_STORAGE_KEY_HOSTNAME    "hostname"
 #define KNX_STORAGE_KEY_FINGERPRINT "fingerprint"
 #define KNX_STORAGE_KEY_LSM         "lsm"
 #define KNX_STORAGE_KEY_APP_VERSION "app_ver"
