@@ -287,17 +287,10 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     {
         /* one-time setup: hostname, static subtype, SRP entry and callbacks */
         /*
-          the SRP client appends the domain itself, so only the label of the device host name
-          is registered, such as "knx-<sn>" of "knx-<sn>.local"; the host name is set before the
-          first announcement and never changes afterwards ('/dev/hname' is read-only)
+          the device host name is the label only, such as "knx-<sn>", the SRP client appends the domain itself;
+          copied since SRP keeps the pointer and the device string is reallocated on a factory reset
         */
         (void)snprintf(hostname, sizeof(hostname), "%s", oc_string_checked(device->iot_hostname));
-        const size_t hostname_len = strlen(hostname);
-        const size_t domain_len = sizeof(".local") - 1;
-        if ((hostname_len > domain_len) && (strcmp(&hostname[hostname_len - domain_len], ".local") == 0))
-        {
-            hostname[hostname_len - domain_len] = '\0';
-        }
         (void)snprintf(subtype_sn, sizeof(subtype_sn), "_%s", device->serialnumber);
 
         entry = otSrpClientBuffersAllocateService(inst);

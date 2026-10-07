@@ -108,8 +108,8 @@ int oc_core_set_device_order_number(const char* order_number)
 
 int oc_core_set_device_hostname(const char* host_name)
 {
-  // fails if NULL or longer than the buffers mDNS/SRP build the announced host name in
-  if (!host_name)
+  // fails if NULL, if not a single DNS label (no domain, max 63 characters), the domain is appended where needed
+  if (!host_name || strchr(host_name, '.'))
   {
     return -1;
   }

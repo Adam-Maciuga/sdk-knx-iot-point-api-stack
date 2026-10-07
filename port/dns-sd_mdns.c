@@ -315,18 +315,18 @@ static int ensure_socket(void)
 #define MAX_MDNS_RECORD_SIZE 64
 #define MAX_AAAA_RECORDS 4
 #define MAX_IF_INDICES 8
-#define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + 2) // device host name + root label '.' + NUL
+#define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + sizeof(HNAME_DOMAIN ".")) // host name label + '.local' + root label '.' + NUL
 
 /*
-  Hostname: the device host name plus the root label '.', such as "knx-<sn_lower>.local."
-  (spec 2.6.1.2.3 SHOULD). It is taken from the device info instead of being derived from the
-  serial number, so an application-set host name is announced as well. The host name is set
-  before the first announcement and never changes afterward ('/dev/hname' is read-only).
+  Hostname: the device host name label plus the domain and the root label '.', such as "knx-<sn_lower>.local."
+  (spec 2.6.1.2.3 SHOULD). It is taken from the device info instead of being derived from the serial number, so an
+  application-set host name is announced as well. The host name is set before the first announcement and never
+  changes afterward ('/dev/hname' is read-only).
 */
 static size_t build_hostname(char out[MDNS_HOSTNAME_SIZE])
 {
   const oc_device_info_t *const device = oc_core_get_device_info();
-  (void)snprintf(out, MDNS_HOSTNAME_SIZE, "%s.", oc_string_checked(device->iot_hostname));
+  (void)snprintf(out, MDNS_HOSTNAME_SIZE, "%s" HNAME_DOMAIN ".", oc_string_checked(device->iot_hostname));
   return strlen(out);
 }
 

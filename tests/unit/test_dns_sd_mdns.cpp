@@ -78,8 +78,8 @@ static const uint16_t DNS_CLASS_IN = 1;
 static const uint16_t MDNS_PORT = 5353;
 
 static const char *const SERIAL = "00fa10020800";
-/* the default host name the stack derives from SERIAL, mDNS announces the device host name */
-static const char *const HOSTNAME = "knx-00fa10020800.local";
+/* the default host name label the stack derives from SERIAL, mDNS announces it with '.local' appended */
+static const char *const HOSTNAME = "knx-00fa10020800";
 static const uint64_t IID = 0x1199887766;
 static const uint16_t IA = 0x1101;
 static const uint16_t COAP_PORT = 5683;
@@ -790,7 +790,7 @@ TEST_F(DnsSd, AaaaQueryForTheHostnameGetsTheAaaaAnswer)
 TEST_F(DnsSd, AnApplicationSetHostnameIsAnnounced)
 {
   /* the application may set its own host name before the first announcement */
-  ASSERT_EQ(oc_core_set_device_hostname("my-device.local"), 0);
+  ASSERT_EQ(oc_core_set_device_hostname("my-device"), 0);
   ASSERT_EQ(publish(false), 0);
 
   const std::string instance = std::string(SERIAL) + "._knx._udp.local";

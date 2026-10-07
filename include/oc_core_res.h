@@ -156,16 +156,17 @@ extern "C" {
 	}
 
 	/**
-	 * @brief sets the host name (string), such as "knx-00fa10020700.local"
+	 * @brief sets the host name (string) as DNS label without domain, such as "knx-00fa10020700"
 	 *
 	 * @note the host name MUST be set before the first DNS-SD announcement, e.g. in the application
 	 *       init callback; changing it afterward is not supported (no re-announcement). If the
-	 *       application does not set one, the stack uses the default 'knx-{sn}.local' (spec 2.6.1.2.3).
+	 *       application does not set one, the stack uses the default 'knx-{sn}'. The domain '.local' is
+	 *       appended where needed (GET '/dev/hname' reports 'knx-{sn}.local', spec 2.6.1.2.3).
 	 *       '/dev/hname' is read-only (PUT is optional in the specification and not supported), the
 	 *       host name is not stored.
 	 *
-	 * @param host_name the host name, at most HNAME_MAX_SIZE characters
-	 * @return int error status, 0 = OK, -1 = NULL or too long
+	 * @param host_name the host name label, at most HNAME_MAX_SIZE characters and without '.'
+	 * @return int error status, 0 = OK, -1 = NULL, too long or containing a '.'
 	 */
 	int oc_core_set_device_hostname(const char* host_name);
 

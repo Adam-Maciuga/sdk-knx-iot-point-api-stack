@@ -3,8 +3,8 @@
  * (declared in include/oc_core_res.h).
  *
  * Covers:
- *   oc_core_set_device_hostname — stores a hostname string on the device,
- *                                 rejects NULL and names over HNAME_MAX_SIZE
+ *   oc_core_set_device_hostname — stores a hostname label on the device,
+ *                                 rejects NULL, names over HNAME_MAX_SIZE and names with a '.'
  *
  * Requirements:
  *   oc_mmem_init() — the hostname is an oc_string_t (allocated string).
@@ -61,6 +61,14 @@ TEST_F(DeviceHostname, SetNullRejectedKeepsPrevious)
   ASSERT_EQ(oc_core_set_device_hostname("kept-host"), 0);
   EXPECT_EQ(oc_core_set_device_hostname(nullptr), -1);
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "kept-host");
+}
+
+TEST_F(DeviceHostname, SetWithDomainRejectedKeepsPrevious)
+{
+  /* the host name is a single DNS label, the domain '.local' is appended where needed */
+  ASSERT_EQ(oc_core_set_device_hostname("knx-00fa10020800"), 0);
+  EXPECT_EQ(oc_core_set_device_hostname("knx-00fa10020800.local"), -1);
+  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "knx-00fa10020800");
 }
 
 TEST_F(DeviceHostname, SetMaxLengthAcceptedOneMoreRejected)

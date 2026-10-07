@@ -256,8 +256,12 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
+  // the stored host name is the label only, 'dev/hname' reports the fully qualified name such as 'knx-{sn}.local' (spec 2.6.1.2.3)
+  char hostname[HNAME_MAX_SIZE + sizeof(HNAME_DOMAIN)];
+  (void)snprintf(hostname, sizeof(hostname), "%s" HNAME_DOMAIN, oc_string_checked(device->iot_hostname));
+
   oc_rep_begin_root_object();
-  oc_rep_i_set_text_string(root, 1, oc_string(device->iot_hostname)); // note, stack init must be done, otherwise hostname is NULL
+  oc_rep_i_set_text_string(root, 1, hostname);
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -1112,13 +1116,13 @@ const oc_resource_t core_resource_dev_mid = {
         1,
         &core_resource_dev_mid_data};
 
-// sets the default host name 'knx-{sn}.local' (spec 2.6.1.2.3), used on load and on a factory reset
+// sets the default host name label 'knx-{sn}' (spec 2.6.1.2.3), used on load and on a factory reset
 static void oc_knx_set_default_hostname(void)
 {
   const oc_device_info_t* const device = oc_core_get_device_info();
 
   char hostname[HNAME_MAX_SIZE + 1];
-  (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
+  (void)snprintf(hostname, sizeof(hostname), HNAME_LABEL, device->serialnumber);
   (void)oc_core_set_device_hostname(hostname);
 }
 
@@ -1146,14 +1150,14 @@ void oc_knx_load_device(void)
   /*
     Host Name 
 
-    - not stored in NVM, 
-    - PUT '/dev/hname' is optional in the iot spec. 
+    - not stored in NVM 
+    - PUT '/dev/hname' is optional in the iot spec. and NOT present in this stack
       - it cannot change FROM outside at runtime
-      - it can change from inside by application at runtime, if not the default 'knx-{sn}.local' is used (spec 2.6.1.2.3).
+      - it can change from inside by application at runtime, if not -> the default 'knx-{sn}' is used (spec 2.6.1.2.3).
 
     - init application runs before load device (load device needs the serial number, see below)
       (a) if not set by application default is used
-      (b) if set by application, it is used
+      (b) if set by application, this is used
   */
   if (oc_string_len(device->iot_hostname) == 0)
   { // (a)

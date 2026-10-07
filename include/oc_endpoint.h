@@ -63,14 +63,18 @@ extern "C" {
   } transport_flags_t;
 
   /*
-    - default hostname = device serial number with leading 'knx-' (16) plus the '.local' domain (6) + /0 = 23,
-      such as "knx-00fa10020700.local", the fully qualified name reported by 'dev/hname' as defined by
-      specification (2.6.1.2.3), used unless the application sets its own one before the first announcement
-    - HNAME_MAX_SIZE = max length of any (application) hostname without /0
+    - hostname = the DNS label only, without a domain; the default is the device serial number with leading 'knx-' (16),
+      such as "knx-00fa10020700", used unless the application sets its own one (before the first announcement on startup or later)
+    
+    - HNAME_DOMAIN = the mDNS domain, appended where the fully qualified name is needed, such as "knx-00fa10020700.local"
+      reported by 'dev/hname' (specification 2.6.1.2.3) and announced by mDNS; the SRP client appends its own domain
+    
+    - HNAME_MAX_SIZE = max length of the hostname without /0 (DNS label limit, RFC 1035)
   */
   
-  #define HNAME_TYPE  ("knx-%s.local")
-  #define HNAME_MAX_SIZE 64
+  #define HNAME_LABEL  "knx-%s"
+  #define HNAME_DOMAIN ".local"
+  #define HNAME_MAX_SIZE 63
   
   // reset/set a specific bit from above, used to suppress compiler warnings
   #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))
