@@ -276,6 +276,16 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
         return -1;
     }
 
+    /* The advertisement depends on device data the stack loads from storage during its
+     * initialisation (see oc_knx_load_device()). Until then nothing is announced and the
+     * one-time setup below never sees an unset serial number. The registration at the end of
+     * oc_main_init() is the first one. */
+    if (oc_string_len(device->iot_hostname) == 0)
+    {
+        OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
+        return 0;
+    }
+
     openthread_mutex_lock();
 
     pending.iid = iid;

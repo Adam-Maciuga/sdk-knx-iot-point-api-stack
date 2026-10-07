@@ -44,8 +44,8 @@ size_t knx_shell_command_count(void);
 const knx_shell_command_t* knx_shell_command_get(size_t idx);
 
 /* Run the subcommand named by argv[0] with its arguments.
- * Returns the result of the handler, -EINVAL without a subcommand name and -ENOENT for an
- * unknown one. */
+ * Returns the result of the handler, -EINVAL without a subcommand name, -ENOENT for an
+ * unknown one and -EAGAIN for a command that needs the initialized stack while it is not. */
 int knx_shell_command_run(size_t argc, char** argv);
 
 /* Output functions, provided by the platform shell. Each prints one line, the newline is

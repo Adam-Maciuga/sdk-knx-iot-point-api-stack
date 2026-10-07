@@ -102,6 +102,10 @@ static int knx_shell_result(int rc)
         return ESP_ERR_NOT_FOUND;
     }
 
+    if (rc == -EAGAIN) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return ESP_ERR_INVALID_ARG;
 }
 

@@ -41,6 +41,7 @@
 
 #include "dns-sd.h"
 #include "oc_api.h"
+#include "oc_core_res.h" // oc_core_get_device_info(): Loaded device data gates knx_dns_sd_update_service()
 #include "oc_log.h"
 #include "util/oc_list.h" // oc_list_head() for iterating endpoint list
 
@@ -1497,6 +1498,15 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
   {
     OC_WRN("DNS-SD: Invalid (NULL) serial number provided, cannot update service.");
     return -1;
+  }
+
+  // The advertisement depends on device data the stack loads from storage during its
+  // initialization (see oc_knx_load_device()). Until then nothing is announced, the registration
+  // at the end of oc_main_init() is the first one.
+  if (oc_string_len(oc_core_get_device_info()->iot_hostname) == 0)
+  {
+    OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
+    return 0;
   }
   
   // goodbye for current advertisement (if any, 'goodbye' may be already send out on a previous 'dns stop' call)

@@ -125,8 +125,12 @@ int oc_core_read_and_set_device_hostname(void)
 
   // read host name from storage (on error = the default host name from above is used,
   // otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)&hostname, HNAME_MAX_SIZE);
-  oc_core_set_device_hostname(hostname);
+  // Note: The stored host name carries no string end '\0'. It is read into its own zeroed buffer,
+  // which terminates it at the read length and keeps the default above intact on a failed read.
+  char stored_hostname[HNAME_MAX_SIZE + 1] = "";
+  const long bytes_read = oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)stored_hostname,
+                                          HNAME_MAX_SIZE);
+  oc_core_set_device_hostname(bytes_read > 0 ? stored_hostname : hostname);
 
   return 0;
 }

@@ -1245,9 +1245,18 @@ void oc_knx_device_reset(int reset_mode)
     device->fid = 0;
 
     // set default hostname as 'knx-{sn}.local', such as "knx-00fa10020700.local"
-    char hostname[HNAME_MAX_SIZE + 1];
-    (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
-    oc_core_set_device_hostname(hostname);
+    // Note: Before the stack initialization the serial number is not set yet, the host name then
+    // stays empty and the initialization sets the default (see oc_knx_load_device()).
+    if (device->serialnumber != NULL)
+    {
+      char hostname[HNAME_MAX_SIZE + 1];
+      (void)snprintf(hostname, sizeof(hostname), HNAME_TYPE, device->serialnumber);
+      oc_core_set_device_hostname(hostname);
+    }
+    else
+    {
+      oc_free_string(&device->iot_hostname);
+    }
 
     // delete iot device tables
     oc_delete_group_object_table();
@@ -1267,11 +1276,12 @@ void oc_knx_device_reset(int reset_mode)
     // Note:
     // - The used uc port will be advertised with each mDNS such as on every startup, so no need to store
     // - The used mc port for discovery is fixed, so no need to store
+    // - The factory default is no stored host name, the initialization builds it from the serial
+    //   number (see oc_knx_load_device()), so its record is erased instead of written.
     oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia));
     oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid));
-    oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname),
-                     oc_string_len(device->iot_hostname));
+    oc_storage_erase(KNX_STORAGE_KEY_HOSTNAME);
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
