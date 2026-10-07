@@ -57,6 +57,7 @@
 
 extern "C" {
 #include "oc_api.h"          /* oc_main_poll */
+#include "oc_core_res.h"     /* oc_core_set_device_hostname, the gate of the service update */
 #include "oc_endpoint.h"     /* oc_endpoint_t, IPV6 */
 #include "oc_ri.h"           /* oc_ri_init / oc_ri_shutdown */
 #include "port/dns-sd.h"     /* functions under test */
@@ -337,6 +338,10 @@ protected:
     oc_mmem_init();
     oc_ri_init();
 
+    /* the device hostname stands in for oc_knx_load_device(), the service update announces
+     * nothing before the device data is loaded (the name is knx-<SERIAL>.local) */
+    ASSERT_EQ(oc_core_set_device_hostname("knx-00fa10020800.local"), 0);
+
     memset(&g_fake_ctx, 0, sizeof(g_fake_ctx));
     OC_LIST_STRUCT_INIT(&g_fake_ctx, eps);
     g_fake_ctx.port = COAP_PORT;
@@ -547,6 +552,18 @@ TEST_F(DnsSd, AnnouncementWithoutInterfacesFails)
   oc_list_remove(g_fake_ctx.eps, &g_fake_ep);
 
   EXPECT_EQ(publish(false), -1);
+  advance_ms(1000);
+
+  EXPECT_EQ(packet_count(), 0u);
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+}
+
+TEST_F(DnsSd, UpdateBeforeTheDeviceDataIsLoadedIsPostponed)
+{
+  /* an empty hostname = oc_knx_load_device() has not run yet */
+  ASSERT_EQ(oc_core_set_device_hostname(""), 0);
+
+  EXPECT_EQ(publish(false), 0);
   advance_ms(1000);
 
   EXPECT_EQ(packet_count(), 0u);

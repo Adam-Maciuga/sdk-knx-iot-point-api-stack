@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1673 registered (linux-coverage-gcc, derived as 1645 measured on windows-test-gcc + 28 UNIX-only; 1645/1645 passed on windows-test-gcc after the `/a/sen`, `ldevid` and `idevid` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 28 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 28, giving 1645 there.
+> Branch: `work_in_progress` | Unit: 1674 registered (linux-coverage-gcc, derived as 1645 measured on windows-test-gcc + 29 UNIX-only; 1645/1645 passed on windows-test-gcc after the `/a/sen`, `ldevid` and `idevid` removal, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 29 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 29, giving 1645 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -1121,7 +1121,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (28 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (29 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
@@ -1129,13 +1129,14 @@ Linker `--wrap` of `sendto`, `recvfrom`, `get_ip_context_for_device` and
 `oc_clock_time`: no packet leaves the host, the listener thread receives only
 the queries the test queues, one fake loopback endpoint stands in for the
 connectivity layer, and a test-controlled clock drives the RI timed-event list
-through `oc_main_poll()`.
+through `oc_main_poll()`. The fixture sets the device hostname the way
+`oc_knx_load_device()` does, the service update announces nothing before it.
 The target is registered under `if(UNIX)`, since the source is POSIX-only and
 `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 9 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface |
+| `knx_dns_sd_update_service` | 10 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface, nothing before the device data is loaded |
 | `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
 | `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
