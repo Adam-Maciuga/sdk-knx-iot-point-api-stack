@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1702 registered (linux-coverage-gcc, derived as 1673 measured on windows-test-gcc + 29 UNIX-only; 1673/1673 passed on windows-test-gcc after the hostname label-only change, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 29 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 29, giving 1673 there.
+> Branch: `work_in_progress` | Unit: 1706 registered (linux-coverage-gcc, derived as 1677 measured on windows-test-gcc + 29 UNIX-only; 1677/1677 passed on windows-test-gcc after the stored hostname change, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 29 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 29, giving 1677 there.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -557,13 +557,13 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_core_res.cpp — Core Resources & Device Info (38 tests)
+### test_oc_core_res.cpp — Core Resources & Device Info (42 tests)
 
 **Source:** `api/oc_core_res.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `DeviceHostname` | 6 | Set/overwrite/empty hostname label, NULL, over-`HNAME_MAX_SIZE` and with-domain (`.`) rejected (previous name kept) |
+| `DeviceHostname` | 10 | Set stores the label (store first), overwrite; NULL, empty, over-`HNAME_MAX_SIZE` and with-domain (`.`) rejected (previous name kept); load uses the stored name, no or an invalid (old `.local`) stored name gives the default `knx-<serial>` and stores it; reset sets and stores the default |
 | `DeviceInfo` | 19 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
 | `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |

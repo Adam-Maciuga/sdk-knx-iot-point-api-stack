@@ -54,10 +54,12 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 extern "C" {
 #include "oc_api.h"          /* oc_main_poll */
 #include "oc_core_res.h"     /* oc_core_set_device_hostname */
+#include "port/oc_storage.h" /* oc_storage_config */
 #include "oc_endpoint.h"     /* oc_endpoint_t, IPV6 */
 #include "oc_ri.h"           /* oc_ri_init / oc_ri_shutdown */
 #include "port/dns-sd.h"     /* functions under test */
@@ -339,6 +341,14 @@ protected:
     g_sendto_fails = false;
     oc_mmem_init();
     oc_ri_init();
+
+    /*
+      the host name setter stores first and fails without storage; one directory per process for `ctest -j` (every
+      TEST_F is its own process), named by the pid since a test name would exceed the 64 byte storage path limit
+    */
+    char dir[32];
+    (void)snprintf(dir, sizeof(dir), "dnssd_%ld", (long)getpid());
+    oc_storage_config(dir);
     ASSERT_EQ(oc_core_set_device_hostname(HOSTNAME), 0);
 
     memset(&g_fake_ctx, 0, sizeof(g_fake_ctx));

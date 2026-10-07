@@ -68,7 +68,8 @@ typedef struct
 } knx_srp_values_t;
 
 static otSrpClientBuffersServiceEntry *entry = NULL;   /**< SRP service entry, allocated once */
-static char hostname[HNAME_MAX_SIZE + 1];             /**< device host name label, domain appended by SRP */
+static char hostname[HNAME_MAX_SIZE + 1];             /**< host name label handed to SRP, domain appended by SRP */
+static char pending_hostname[HNAME_MAX_SIZE + 1];     /**< most recent device host name, taken over once SRP released hostname */
 static char subtype_sn[SUBTYPE_SN_SIZE];              /**< "_<sn>" */
 static char subtype_ia[SUBTYPE_IA_SIZE];              /**< "_ia<iid>-<ia>" */
 static const char *subtypes[4];                       /**< NULL-terminated label array for the entry */
@@ -139,6 +140,15 @@ static bool ensure_host(otInstance *inst)
     {
         return host->mState != OT_SRP_CLIENT_ITEM_STATE_TO_REMOVE &&
                host->mState != OT_SRP_CLIENT_ITEM_STATE_REMOVING;
+    }
+
+    /*
+      SRP keeps the pointer to hostname until the host is removed, so a host name changed since (set and store, factory
+      reset; knx_dns_sd_stop() first) is taken over only once the removal completed
+    */
+    if (host->mState == OT_SRP_CLIENT_ITEM_STATE_REMOVED)
+    {
+        memcpy(hostname, pending_hostname, sizeof(hostname));
     }
 
     otError err = otSrpClientSetHostName(inst, hostname);
@@ -283,14 +293,13 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     pending.pm = pm;
     stopped = false;
 
+    // the device host name CAN BE CHANGED at runtime (therefore we need to set here always)
+    // it is a label only, such as "knx-<sn>", the SRP client appends the domain itself
+    (void)snprintf(pending_hostname, sizeof(pending_hostname), "%s", oc_string_checked(device->iot_hostname));
+
     if (entry == NULL)
     {
-        /* one-time setup: hostname, static subtype, SRP entry and callbacks */
-        /*
-          the device host name is the label only, such as "knx-<sn>", the SRP client appends the domain itself;
-          copied since SRP keeps the pointer and the device string is reallocated on a factory reset
-        */
-        (void)snprintf(hostname, sizeof(hostname), "%s", oc_string_checked(device->iot_hostname));
+        /* one-time setup: static subtype, SRP entry and callbacks */
         (void)snprintf(subtype_sn, sizeof(subtype_sn), "_%s", device->serialnumber);
 
         entry = otSrpClientBuffersAllocateService(inst);

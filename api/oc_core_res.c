@@ -22,6 +22,8 @@
 #include "oc_knx_swu.h"
 #include "oc_knx_sec.h"
 #include "oc_knx_sub.h"
+#include "oc_main.h"
+#include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_storage.h"
 
@@ -106,24 +108,93 @@ int oc_core_set_device_order_number(const char* order_number)
 	return 0;
 }
 
+// a host name is a single DNS label (no domain, 1..63 characters, RFC 1035), the domain is appended where needed
+static bool oc_core_is_valid_hostname(const char* host_name)
+{
+  return host_name && host_name[0] != '\0' && !strchr(host_name, '.') && strlen(host_name) <= HNAME_MAX_SIZE;
+}
+
 int oc_core_set_device_hostname(const char* host_name)
 {
-  // fails if NULL, if not a single DNS label (no domain, max 63 characters), the domain is appended where needed
-  if (!host_name || strchr(host_name, '.'))
+  // validate before the goodbye, an invalid host name must not drop the current announcement
+  if (!oc_core_is_valid_hostname(host_name))
   {
     return -1;
   }
 
+  // store first, a host name that is not stored is not used either (RAM and announcement stay unchanged)
   const size_t host_name_len = strlen(host_name);
-  if (host_name_len > HNAME_MAX_SIZE)
+  if (oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)host_name, host_name_len) != (long)host_name_len)
   {
     return -1;
   }
 
-	oc_free_string(&oc_device_info.iot_hostname);
+  /*
+    (a) after the stack init the host name is announced already, so the old one gets its DNS-SD goodbye first (mDNS builds
+        it from the current host name) and the new one is announced next, 
+    (b) the new host name is stored and used 
+        for the first announcement on init; if not (a)
+        for the next announcement on a host name change; if (a)
+  */
+  const bool reannounce = oc_main_initialized();
+
+  if (reannounce)
+  { // (a)
+    knx_dns_sd_stop();
+  }
+
+  // (b)
+  oc_free_string(&oc_device_info.iot_hostname);
   oc_new_string(&oc_device_info.iot_hostname, host_name, host_name_len);
 
-	return 0;
+  if (reannounce)
+  { // (a)
+    knx_dns_sd_update_service(oc_device_info.serialnumber, oc_device_info.iid, oc_device_info.ia, oc_device_info.pm);
+  }
+
+  return 0;
+}
+
+/*
+    Host Name
+
+    - PUT '/dev/hname' is optional in the iot spec. and NOT present in this stack
+      - it cannot change FROM outside at runtime
+      - it can change from inside by application (oc_core_set_device_hostname), stored in NVM, e.g. in the
+        application init callback or by a web interface at runtime
+
+    - init application runs before load device (load device needs the serial number for the default)
+      (a) a valid one stored in NVM is used (set by the application in init or earlier, or a stored default)
+      (b) otherwise the default 'knx-{sn}' is used (spec 2.6.1.2.3) and stored, like the ia/iid defaults
+*/
+void oc_core_load_device_hostname(void)
+{
+  /*
+    zeroed and read with max HNAME_MAX_SIZE, so the last byte always stays the terminator; nothing stored leaves it
+    empty, which is no valid host name, so the validity check alone decides
+  */
+  char hostname[HNAME_MAX_SIZE + 1] = { 0 };
+  (void)oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)hostname, HNAME_MAX_SIZE);
+
+  if (oc_core_is_valid_hostname(hostname))
+  { // (a)
+    oc_free_string(&oc_device_info.iot_hostname);
+    oc_new_string(&oc_device_info.iot_hostname, hostname, strlen(hostname));
+  }
+  else
+  { // (b)
+    oc_core_reset_device_hostname();
+  }
+}
+
+void oc_core_reset_device_hostname(void)
+{
+  // default host name label 'knx-{sn}' (spec 2.6.1.2.3), set and stored
+  char hostname[HNAME_MAX_SIZE + 1];
+  (void)snprintf(hostname, sizeof(hostname), HNAME_LABEL, oc_device_info.serialnumber);
+  oc_free_string(&oc_device_info.iot_hostname);
+  oc_new_string(&oc_device_info.iot_hostname, hostname, strlen(hostname));
+  oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)hostname, strlen(hostname));
 }
 
 uint64_t oc_core_get_device_iid(void)

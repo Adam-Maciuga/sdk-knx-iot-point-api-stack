@@ -158,17 +158,38 @@ extern "C" {
 	/**
 	 * @brief sets the host name (string) as DNS label without domain, such as "knx-00fa10020700"
 	 *
-	 * @note the host name MUST be set before the first DNS-SD announcement, e.g. in the application
-	 *       init callback; changing it afterward is not supported (no re-announcement). If the
-	 *       application does not set one, the stack uses the default 'knx-{sn}'. The domain '.local' is
-	 *       appended where needed (GET '/dev/hname' reports 'knx-{sn}.local', spec 2.6.1.2.3).
-	 *       '/dev/hname' is read-only (PUT is optional in the specification and not supported), the
-	 *       host name is not stored.
+	 * @note stored in NVM, so it survives a restart; each call writes it (no compare with the stored one), if the write fails
+	 *       nothing changes (RAM and announcement keep the old one) and -1 is returned. Once the stack is
+	 *       initialized, each call re-announces (DNS-SD goodbye for the old one, then the new one), e.g. for a change
+	 *       from a web interface at runtime. Without one, the stack uses and stores the default 'knx-{sn}'; a
+	 *       factory reset stores the default again. The domain '.local' is appended where needed (GET '/dev/hname'
+	 *       reports 'knx-{sn}.local', spec 2.6.1.2.3). '/dev/hname' is read-only (PUT is optional in the specification
+	 *       and not supported).
 	 *
-	 * @param host_name the host name label, at most HNAME_MAX_SIZE characters and without '.'
-	 * @return int error status, 0 = OK, -1 = NULL, too long or containing a '.'
+	 * @param host_name the host name label, 1...HNAME_MAX_SIZE characters and without '.'
+	 * 
+	 * @return int error status, 0 = OK, -1 = NULL, empty, too long, containing a '.' or not stored (nothing changed)
 	 */
 	int oc_core_set_device_hostname(const char* host_name);
+
+	/**
+	 * @brief loads the host name on startup (stack internal, called after the application init callback)
+	 *
+	 * @note the host name is taken in this order:
+	 *       1. the stored one, if it is a valid label (an invalid one, such as an old 'knx-{sn}.local', is ignored)
+	 *       2. otherwise the default 'knx-{sn}' (spec 2.6.1.2.3), stored by oc_core_reset_device_hostname(), so an
+	 *          invalid stored one is overwritten
+	 */
+	void oc_core_load_device_hostname(void);
+
+	/**
+	 * @brief sets and stores the default host name 'knx-{sn}' (stack internal: factory reset, and startup without a
+	 *        valid stored host name)
+	 *
+	 * @note RAM and storage only, no DNS-SD: on a factory reset the caller sends the goodbye and re-announces, on
+	 *       startup nothing is announced yet
+	 */
+	void oc_core_reset_device_hostname(void);
 
 	/**
 	 * @brief sets the installation identifier (iid) and store it

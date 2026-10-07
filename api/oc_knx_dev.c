@@ -1116,16 +1116,6 @@ const oc_resource_t core_resource_dev_mid = {
         1,
         &core_resource_dev_mid_data};
 
-// sets the default host name label 'knx-{sn}' (spec 2.6.1.2.3), used on load and on a factory reset
-static void oc_knx_set_default_hostname(void)
-{
-  const oc_device_info_t* const device = oc_core_get_device_info();
-
-  char hostname[HNAME_MAX_SIZE + 1];
-  (void)snprintf(hostname, sizeof(hostname), HNAME_LABEL, device->serialnumber);
-  (void)oc_core_set_device_hostname(hostname);
-}
-
 void oc_knx_load_device(void) 
 {
   OC_INF("Loading device configuration from persistent storage");
@@ -1147,22 +1137,8 @@ void oc_knx_load_device(void)
   device->fid = oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
   OC_INF("fid (storage) %" PRIu64, device->fid);
 
-  /*
-    Host Name 
-
-    - not stored in NVM 
-    - PUT '/dev/hname' is optional in the iot spec. and NOT present in this stack
-      - it cannot change FROM outside at runtime
-      - it can change from inside by application at runtime, if not -> the default 'knx-{sn}' is used (spec 2.6.1.2.3).
-
-    - init application runs before load device (load device needs the serial number, see below)
-      (a) if not set by application default is used
-      (b) if set by application, this is used
-  */
-  if (oc_string_len(device->iot_hostname) == 0)
-  { // (a)
-    oc_knx_set_default_hostname();
-  }
+  
+  oc_core_load_device_hostname();
   OC_INF("hostname %s", oc_string(device->iot_hostname));
 
   oc_knx_version_info_t version;
@@ -1223,8 +1199,8 @@ void oc_knx_device_reset(int reset_mode)
     device->iid = 0;
     device->fid = 0;
 
-    // back to the default host name, an application-set one is dropped as well (not stored, nothing to write)
-    oc_knx_set_default_hostname();
+    // back to the default host name, stored like the other defaults
+    oc_core_reset_device_hostname();
 
     // delete iot device tables
     oc_delete_group_object_table();

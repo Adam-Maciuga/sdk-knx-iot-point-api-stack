@@ -4,7 +4,10 @@
  *
  * Covers:
  *   oc_core_set_device_hostname — stores a hostname label on the device,
- *                                 rejects NULL, names over HNAME_MAX_SIZE and names with a '.'
+ *                                 rejects NULL, empty names, names over HNAME_MAX_SIZE and names with a '.'
+ *   oc_core_load_device_hostname  — the stored name, an invalid or no stored name
+ *                                 gives the default "knx-<serial>" (stored)
+ *   oc_core_reset_device_hostname — back to the default "knx-<serial>" (stored)
  *
  * Requirements:
  *   oc_mmem_init() — the hostname is an oc_string_t (allocated string).
@@ -24,6 +27,8 @@ extern "C" {
 #include "oc_helpers.h"
 #include "oc_ri.h"
 #include "util/oc_mmem.h"
+#include "oc_knx_dev.h"       /* KNX_STORAGE_KEY_HOSTNAME */
+#include "port/oc_storage.h"
 }
 
 class DeviceHostname : public ::testing::Test {
@@ -31,8 +36,24 @@ protected:
   void SetUp() override
   {
     oc_mmem_init();
+
+    /*
+      the setter stores first and fails without storage; one directory per test, since ctest runs every TEST_F as its
+      own process and `ctest -j` would otherwise race on a shared file
+    */
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "hn_%s", info->name());
+    oc_storage_config(dir);
+    (void)oc_storage_erase(KNX_STORAGE_KEY_HOSTNAME);
   }
 
+  static std::string stored_hostname(void)
+  {
+    char buf[HNAME_MAX_SIZE + 1] = { 0 };
+    (void)oc_storage_read(KNX_STORAGE_KEY_HOSTNAME, (uint8_t *)buf, HNAME_MAX_SIZE);
+    return buf;
+  }
 };
 
 /* ───────────────────────────── oc_core_set_device_hostname ───────────────── */
@@ -41,6 +62,7 @@ TEST_F(DeviceHostname, SetStoresValue)
 {
   EXPECT_EQ(oc_core_set_device_hostname("my-host"), 0);
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "my-host");
+  EXPECT_EQ(stored_hostname(), "my-host");
 }
 
 TEST_F(DeviceHostname, SetOverwritesPrevious)
@@ -50,10 +72,12 @@ TEST_F(DeviceHostname, SetOverwritesPrevious)
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "second-host");
 }
 
-TEST_F(DeviceHostname, SetEmptyString)
+TEST_F(DeviceHostname, SetEmptyRejectedKeepsPrevious)
 {
-  EXPECT_EQ(oc_core_set_device_hostname(""), 0);
-  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "");
+  /* a DNS label has at least 1 character (RFC 1035) */
+  ASSERT_EQ(oc_core_set_device_hostname("kept-host"), 0);
+  EXPECT_EQ(oc_core_set_device_hostname(""), -1);
+  EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "kept-host");
 }
 
 TEST_F(DeviceHostname, SetNullRejectedKeepsPrevious)
@@ -69,6 +93,47 @@ TEST_F(DeviceHostname, SetWithDomainRejectedKeepsPrevious)
   ASSERT_EQ(oc_core_set_device_hostname("knx-00fa10020800"), 0);
   EXPECT_EQ(oc_core_set_device_hostname("knx-00fa10020800.local"), -1);
   EXPECT_STREQ(oc_string(oc_core_get_device_info()->iot_hostname), "knx-00fa10020800");
+}
+
+TEST_F(DeviceHostname, LoadUsesStored)
+{
+  ASSERT_EQ(oc_core_set_device_hostname("stored-host"), 0);
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->iot_hostname = oc_string_t{};
+  oc_core_load_device_hostname();
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "stored-host");
+}
+
+TEST_F(DeviceHostname, LoadWithoutStoredUsesAndStoresDefault)
+{
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->iot_hostname = oc_string_t{};
+  dev->serialnumber = "00fa10020700";
+  oc_core_load_device_hostname();
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-00fa10020700");
+  EXPECT_EQ(stored_hostname(), "knx-00fa10020700");
+}
+
+TEST_F(DeviceHostname, LoadInvalidStoredUsesAndStoresDefault)
+{
+  /* an old entry with the domain, as stored by earlier firmware */
+  char old_entry[] = "knx-00fa10020700.local";
+  ASSERT_GT(oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t *)old_entry, strlen(old_entry)), 0);
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->serialnumber = "00fa10020700";
+  oc_core_load_device_hostname();
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-00fa10020700");
+  EXPECT_EQ(stored_hostname(), "knx-00fa10020700");
+}
+
+TEST_F(DeviceHostname, ResetSetsAndStoresDefault)
+{
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->serialnumber = "aabbccddeeff";
+  ASSERT_EQ(oc_core_set_device_hostname("my-host"), 0);
+  oc_core_reset_device_hostname();
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-aabbccddeeff");
+  EXPECT_EQ(stored_hostname(), "knx-aabbccddeeff");
 }
 
 TEST_F(DeviceHostname, SetMaxLengthAcceptedOneMoreRejected)
