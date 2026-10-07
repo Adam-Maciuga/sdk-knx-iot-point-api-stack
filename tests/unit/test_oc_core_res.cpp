@@ -99,7 +99,7 @@ TEST_F(DeviceHostname, LoadUsesStored)
 {
   ASSERT_EQ(oc_core_set_device_hostname("stored-host"), 0);
   oc_device_info_t *dev = oc_core_get_device_info();
-  dev->iot_hostname = oc_string_t{};
+  oc_free_string(&dev->iot_hostname); /* empty RAM, freed so ASan sees no leak */
   oc_core_load_device_hostname();
   EXPECT_STREQ(oc_string(dev->iot_hostname), "stored-host");
 }
@@ -107,7 +107,7 @@ TEST_F(DeviceHostname, LoadUsesStored)
 TEST_F(DeviceHostname, LoadWithoutStoredUsesAndStoresDefault)
 {
   oc_device_info_t *dev = oc_core_get_device_info();
-  dev->iot_hostname = oc_string_t{};
+  oc_free_string(&dev->iot_hostname); /* empty RAM, freed so ASan sees no leak */
   dev->serialnumber = "00fa10020700";
   oc_core_load_device_hostname();
   EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-00fa10020700");
