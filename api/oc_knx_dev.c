@@ -988,7 +988,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_pn = KNX_PAGE_NUMBER;
   int query_ps = KNX_PAGE_SIZE;
 
-  int first_entry = OC_APP_X;                   // first entry number of a resource that will be placed on a page
+  int first_entry = OC_APP_PV;                  // first entry number of a resource that will be placed on a page
   int last_entry = OC_KNX_SPAKE;                // last entry number of a resource that will be placed on a page
   const int total = last_entry - first_entry;   // total entries of this resource
   bool more_request_needed = false;

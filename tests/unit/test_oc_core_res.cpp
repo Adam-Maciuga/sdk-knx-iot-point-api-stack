@@ -318,6 +318,96 @@ TEST(CoreResourceByIndex, FirstIndexReturnsResource)
   ASSERT_NE(r, nullptr);
 }
 
+/*
+  every oc_core_resource_t value must name the resource at that position in the linked list,
+  the lookup walks 'next' pointers by index, a missing or reordered link shifts all later resources
+*/
+static const struct {
+  oc_core_resource_t index;
+  const char *uri;
+} core_resource_order[] = {
+  { OC_DEV_SN, "/dev/sn" },
+  { OC_DEV_HWV, "/dev/hwv" },
+  { OC_DEV_FWV, "/dev/fwv" },
+  { OC_DEV_HWT, "/dev/hwt" },
+  { OC_DEV_ORDER_NUMBER, "/dev/model" },
+  { OC_DEV_HOSTNAME, "/dev/hname" },
+  { OC_DEV_IID, "/dev/iid" },
+  { OC_DEV_PM, "/dev/pm" },
+  { OC_DEV_IPV6, "/dev/ipv6" },
+  { OC_DEV_SA, "/dev/sna" },
+  { OC_DEV_DA, "/dev/da" },
+  { OC_DEV_FID, "/dev/fid" },
+  { OC_DEV_PORT, "/dev/port" },
+  { OC_DEV_MPORT, "/dev/mport" },
+  { OC_DEV_MID, "/dev/mid" },
+  { OC_DEV, "/dev" },
+  { OC_APP, "/ap" },
+  { OC_APP_PV, "/ap/pv" },
+  { OC_A_LSM, "/a/lsm" },
+  { OC_KNX_SPAKE, "/.well-known/knx/spake" },
+  { OC_KNX_K, "/k" },
+  { OC_KNX_FINGERPRINT, "/.well-known/knx/f" },
+  { OC_KNX_IA, "/.well-known/knx/ia" },
+  { OC_KNX, "/.well-known/knx" },
+  { OC_KNX_FP_G, "/fp/g" },
+  { OC_KNX_FP_G_X, "/fp/g/*" },
+#ifdef OC_PUBLISHER_TABLE
+  { OC_KNX_FP_P, "/fp/p" },
+  { OC_KNX_FP_P_X, "/fp/p/*" },
+#endif
+  { OC_KNX_FP_R, "/fp/r" },
+  { OC_KNX_FP_R_X, "/fp/r/*" },
+  { OC_KNX_P, "/p" },
+  { OC_KNX_F, "/f" },
+  { OC_KNX_F_X, "/f/*" },
+  { OC_KNX_SWU_PROTOCOL, "/swu/protocol" },
+  { OC_KNX_SWU_HWREF, "/swu/hwref" },
+  { OC_KNX_SWU_METHOD, "/swu/method" },
+  { OC_KNX_SWU_LASTUPDATE, "/swu/lastupdate" },
+  { OC_KNX_SWU_RESULT, "/swu/result" },
+  { OC_KNX_SWU_STATE, "/swu/state" },
+  { OC_KNX_SWU_UPDATE, "/swu/update" },
+  { OC_KNX_SWU_PKGV, "/swu/pkgv" },
+  { OC_KNX_SWU_PKGCMD, "/a/swu" },
+  { OC_KNX_SWU_PKGBYTES, "/swu/pkgbytes" },
+  { OC_KNX_SWU_PKGNAMES, "/swu/pkgname" },
+  { OC_KNX_SWU, "/swu" },
+  { OC_KNX_SUB, "/sub" },
+  { OC_KNX_AUTH_O_REPLWDO, "/auth/o/replwdo" },
+  { OC_KNX_AUTH_O_OSNDELAY, "/auth/o/osndelay" },
+  { OC_KNX_AUTH_O, "/auth/o" },
+  { OC_KNX_AUTH_AT, "/auth/at" },
+  { OC_KNX_AUTH_AT_X, "/auth/at/*" },
+  { OC_KNX_AUTH, "/auth" },
+  { WELLKNOWNCORE, "/.well-known/core" },
+};
+
+TEST(CoreResourceByIndex, TableCoversEveryEnumValue)
+{
+  ASSERT_EQ(sizeof(core_resource_order) / sizeof(core_resource_order[0]), (size_t)OC_NUM_CORE_RESOURCES);
+  for (size_t i = 0; i < sizeof(core_resource_order) / sizeof(core_resource_order[0]); i++) {
+    EXPECT_EQ((size_t)core_resource_order[i].index, i);
+  }
+}
+
+TEST(CoreResourceByIndex, EnumMatchesLinkedListUri)
+{
+  for (const auto &entry : core_resource_order) {
+    const oc_resource_t *r = oc_core_get_core_resource_by_index(entry.index);
+    ASSERT_NE(r, nullptr) << "index " << entry.index;
+    EXPECT_STREQ(oc_string(r->uri), entry.uri) << "index " << entry.index;
+  }
+}
+
+TEST(CoreResourceByIndex, ListEndsAfterWellKnownCore)
+{
+  /* no resource past WELLKNOWNCORE, else the walk never reaches the extra ones */
+  const oc_resource_t *last = oc_core_get_core_resource_by_index(WELLKNOWNCORE);
+  ASSERT_NE(last, nullptr);
+  EXPECT_EQ(last->next, nullptr);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_check_request_query_value_on_urn_knx
  * ═══════════════════════════════════════════════════════════════════════════ */

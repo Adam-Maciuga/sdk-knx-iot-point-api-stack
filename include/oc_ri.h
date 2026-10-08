@@ -339,7 +339,7 @@ typedef enum {
   OC_DEV_MID,                          /**< /dev/mid the manufacturer ID */
   OC_DEV,                              /**< core link */
   OC_APP,                              /**< application ID (list) */
-  OC_APP_X,                            /**< application ID entry */
+  OC_APP_PV,                           /**< application program version */
   OC_A_LSM,                            /**< load state machine */
   OC_KNX_SPAKE,                        /**< spake */
   OC_KNX_K,                            /**< k */

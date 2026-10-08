@@ -298,11 +298,11 @@ const oc_resource_t* oc_core_get_core_resource_by_index(int index)
 
 	/*
 	 * walk the linked list to the specified index, less readable, optimized, often used
-	 * - ptr cannot be NULL since all (57) resources are linked in code
+	 * - ptr cannot be NULL since all (OC_NUM_CORE_RESOURCES) resources are linked in code
 	 * - index 0 = dev_sn,
 	 * - index 1 = dev_hwv,
 	 * - ...
-	 * - index 57 = well-known 
+	 * - index WELLKNOWNCORE = well-known (e.g. 52)
 	 *
 	 */
 	while (index--) 
