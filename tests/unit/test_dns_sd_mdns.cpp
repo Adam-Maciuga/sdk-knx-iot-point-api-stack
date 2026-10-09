@@ -6,7 +6,12 @@
  *                                 later (RFC 6762 section 8.3), a restart of the
  *                                 repeat on a change within that second
  *                                 (RFC 6762 section 8.4), NULL serial number,
- *                                 rollback of the record on a send failure
+ *                                 rollback of the record on a send failure,
+ *                                 postponed while the stack is not initialized
+ *   oc_core_set_device_hostname - no packet before the stack is initialized,
+ *                                 the first announcement uses the latest host
+ *                                 name, a change afterwards sends the goodbye
+ *                                 for the old name and announces the new one
  *   knx_dns_sd_set_sleep_period - SP in the TXT record, the TXT goodbye when SP
  *                                 goes back to 0, the same repeat as above
  *   knx_dns_sd_stop             - the goodbye cancels a pending repeat
@@ -20,7 +25,7 @@
  *   oc_mmem_init() and oc_ri_init() - the repeat is a delayed callback on the
  *   RI timed-event list, and oc_main_poll() drives that list.
  *
- * Four symbols are redirected with the GNU linker --wrap facility, see
+ * Five symbols are redirected with the GNU linker --wrap facility, see
  * tests/unit/CMakeLists.txt:
  *   sendto                    - records every packet, nothing leaves the host
  *   recvmsg                   - hands the listener thread the queries the test
@@ -32,6 +37,8 @@
  *                               oc_connectivity_init()
  *   oc_clock_time             - a test-controlled clock, so the one-second
  *                               delay needs no real sleep
+ *   oc_main_initialized       - a test flag, true by default, since the tests
+ *                               do not run oc_main_init()
  *
  * The query responder runs on the real listener thread of dns-sd_mdns.c, which
  * polls its socket every 100 ms. The responder tests therefore wait for the
@@ -330,6 +337,14 @@ extern "C" oc_clock_time_t __wrap_oc_clock_time(void)
   return g_now;
 }
 
+/* the stack is not started by these tests, oc_main_initialized() reports this flag instead */
+static std::atomic<bool> g_initialized{true};
+
+extern "C" bool __wrap_oc_main_initialized(void)
+{
+  return g_initialized;
+}
+
 /* -- fixture ---------------------------------------------------------------- */
 
 class DnsSd : public ::testing::Test {
@@ -349,7 +364,12 @@ protected:
     char dir[32];
     (void)snprintf(dir, sizeof(dir), "dnssd_%ld", (long)getpid());
     oc_storage_config(dir);
+
+    /* set before the stack is initialized, so the setter does not re-announce; the tests then run initialized */
+    g_initialized = false;
+    oc_core_get_device_info()->serialnumber = SERIAL;
     ASSERT_EQ(oc_core_set_device_hostname(HOSTNAME), 0);
+    g_initialized = true;
 
     memset(&g_fake_ctx, 0, sizeof(g_fake_ctx));
     OC_LIST_STRUCT_INIT(&g_fake_ctx, eps);
@@ -369,6 +389,7 @@ protected:
   void TearDown() override
   {
     g_sendto_fails = false;
+    g_initialized = true;
     /* the sleep period is file-static state that knx_dns_sd_stop() keeps */
     if (knx_dns_sd_get_current_record().knx.sp != 0) {
       knx_dns_sd_set_sleep_period(0);
@@ -569,14 +590,59 @@ TEST_F(DnsSd, AnnouncementWithoutInterfacesFails)
 
 TEST_F(DnsSd, UpdateBeforeTheDeviceDataIsLoadedIsPostponed)
 {
-  /* an empty hostname = oc_knx_load_device() has not run yet */
-  ASSERT_EQ(oc_core_set_device_hostname(""), 0);
+  /* not initialized = oc_knx_load_device() has not run yet */
+  g_initialized = false;
 
   EXPECT_EQ(publish(false), 0);
   advance_ms(1000);
 
   EXPECT_EQ(packet_count(), 0u);
   EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+}
+
+TEST_F(DnsSd, HostnameChangeBeforeInitSendsNothing)
+{
+  /* nothing is announced yet, so there is no goodbye for the old name and no announcement of the new one */
+  g_initialized = false;
+  ASSERT_EQ(oc_core_set_device_hostname("my-device"), 0);
+  advance_ms(1000);
+
+  EXPECT_EQ(packet_count(), 0u);
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+}
+
+TEST_F(DnsSd, FirstAnnouncementUsesTheHostnameSetBeforeInit)
+{
+  /* the application sets its host name in its init callback, before the stack is initialized */
+  g_initialized = false;
+  ASSERT_EQ(oc_core_set_device_hostname("my-device"), 0);
+  ASSERT_EQ(oc_core_set_device_hostname("my-device-2"), 0);
+
+  /* the registration at the end of oc_main_init() */
+  g_initialized = true;
+  ASSERT_EQ(publish(false), 0);
+
+  ASSERT_EQ(packet_count(), 1u);
+  EXPECT_EQ(count_goodbyes(), 0u) << "a goodbye for a name that was never announced";
+  EXPECT_TRUE(contains(packet_at(0).bytes, "my-device-2")) << "the announcement lacks the latest host name";
+  EXPECT_FALSE(contains(packet_at(0).bytes, HOSTNAME)) << "the announcement still uses the previous host name";
+}
+
+TEST_F(DnsSd, HostnameChangeAfterInitSendsGoodbyeThenTheNewName)
+{
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(1000);
+  clear_packets();
+
+  /* a change at runtime, such as from a web interface */
+  ASSERT_EQ(oc_core_set_device_hostname("my-device"), 0);
+
+  ASSERT_GE(packet_count(), 2u);
+  EXPECT_EQ(packet_at(0).first_ttl, 0u) << "the first packet is no goodbye";
+  EXPECT_TRUE(contains(packet_at(0).bytes, HOSTNAME)) << "the goodbye lacks the old host name";
+  EXPECT_NE(packet_at(1).first_ttl, 0u) << "the second packet is no announcement";
+  EXPECT_TRUE(contains(packet_at(1).bytes, "my-device")) << "the announcement lacks the new host name";
+  EXPECT_FALSE(contains(packet_at(1).bytes, HOSTNAME)) << "the announcement still uses the old host name";
 }
 
 /* -- knx_dns_sd_set_sleep_period ------------------------------------------- */

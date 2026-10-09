@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1673 unit tests** (53 files) + **629 runtime tests** across three tiers = **2302 total**
+> **1715 unit tests** (55 files) + **629 runtime tests** across three tiers = **2344 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit: 1706 registered (linux-coverage-gcc, derived as 1677 measured on windows-test-gcc + 29 UNIX-only; 1677/1677 passed on windows-test-gcc after the stored hostname change, GCC/CTest, 100% passed). `linux-coverage-gcc` is Linux/UNIX, so it includes the 29 `test_dns_sd_mdns.cpp` cases that are registered under `if(UNIX)` only; a windows-test-gcc run excludes those 29, giving 1677 there.
+> Branch: `dev_hname_handling` | Unit (2026-10-09): 1715/1715 passed on `linux-test-gcc` (Docker CI image, serial CTest run) and 1682/1682 on `windows-test-gcc` (GCC/CTest). The 33 `test_dns_sd_mdns.cpp` cases are registered under `if(UNIX)` only, so a windows-test-gcc run has 33 fewer. With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -18,7 +18,7 @@
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 53 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -557,15 +557,15 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_core_res.cpp — Core Resources & Device Info (42 tests)
+### test_oc_core_res.cpp — Core Resources & Device Info (47 tests)
 
 **Source:** `api/oc_core_res.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `DeviceHostname` | 10 | Set stores the label (store first), overwrite; NULL, empty, over-`HNAME_MAX_SIZE` and with-domain (`.`) rejected (previous name kept); load uses the stored name, no or an invalid (old `.local`) stored name gives the default `knx-<serial>` and stores it; reset sets and stores the default |
+| `DeviceHostname` | 12 | Set stores the label (store first), overwrite; NULL, empty, over-`HNAME_MAX_SIZE` and with-domain (`.`) rejected (previous name kept); load uses the stored name, no or an invalid (old `.local`) stored name gives the default `knx-<serial>` and stores it; `oc_core_reset_device_hostname_to_default` sets and stores the default (returns 0); a failed store returns -1 and RAM still holds the default, at reset and at load without storage |
 | `DeviceInfo` | 19 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
-| `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
+| `CoreResourceByIndex` | 6 | Resource-by-index bounds (negative, out-of-range, first); every `oc_core_resource_t` value names the resource at that position in the linked list (URI per index, with and without `OC_PUBLISHER_TABLE`), the table covers all `OC_NUM_CORE_RESOURCES`, the list ends after `/.well-known/core` |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
 | `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |
 | `CheckResourceByIf` | 4 | Interface match (exact, wildcard, mismatch, no-if default) |
@@ -1123,22 +1123,24 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (29 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (33 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
-Linker `--wrap` of `sendto`, `recvfrom`, `get_ip_context_for_device` and
-`oc_clock_time`: no packet leaves the host, the listener thread receives only
-the queries the test queues, one fake loopback endpoint stands in for the
-connectivity layer, and a test-controlled clock drives the RI timed-event list
-through `oc_main_poll()`. The fixture sets the device hostname the way
-`oc_knx_load_device()` does, the service update announces nothing before it.
-The target is registered under `if(UNIX)`, since the source is POSIX-only and
-`--wrap` is a GNU ld feature.
+Linker `--wrap` of `sendto`, `recvmsg`, `get_ip_context_for_device`,
+`oc_clock_time` and `oc_main_initialized`: no packet leaves the host, the
+listener thread receives only the queries the test queues, one fake loopback
+endpoint stands in for the connectivity layer, a test-controlled clock drives
+the RI timed-event list through `oc_main_poll()`, and a test flag stands in for
+the stack initialization (no `oc_main_init()`, the service update announces
+nothing while it is false). The fixture sets the device hostname while the flag
+is false, then runs initialized. The target is registered under `if(UNIX)`,
+since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 10 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface, nothing before the device data is loaded |
+| `knx_dns_sd_update_service` | 10 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface, nothing before the stack is initialized |
+| host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the latest host name set before (no goodbye); a change afterwards sends the goodbye with the old name, then announces the new one |
 | `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
 | `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
