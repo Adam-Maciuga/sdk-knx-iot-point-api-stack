@@ -12,6 +12,8 @@
  *                                 the first announcement uses the latest host
  *                                 name, a change afterwards sends the goodbye
  *                                 for the old name and announces the new one
+ *   oc_knx_device_set_programming_mode - the same for the programming mode
+ *                                 (the _pm subtype), on and off
  *   knx_dns_sd_set_sleep_period - SP in the TXT record, the TXT goodbye when SP
  *                                 goes back to 0, the same repeat as above
  *   knx_dns_sd_stop             - the goodbye cancels a pending repeat
@@ -66,6 +68,7 @@
 extern "C" {
 #include "oc_api.h"          /* oc_main_poll */
 #include "oc_core_res.h"     /* oc_core_set_device_hostname */
+#include "oc_knx_dev.h"      /* oc_knx_device_set_programming_mode */
 #include "port/oc_storage.h" /* oc_storage_config */
 #include "oc_endpoint.h"     /* oc_endpoint_t, IPV6 */
 #include "oc_ri.h"           /* oc_ri_init / oc_ri_shutdown */
@@ -643,6 +646,65 @@ TEST_F(DnsSd, HostnameChangeAfterInitSendsGoodbyeThenTheNewName)
   EXPECT_NE(packet_at(1).first_ttl, 0u) << "the second packet is no announcement";
   EXPECT_TRUE(contains(packet_at(1).bytes, "my-device")) << "the announcement lacks the new host name";
   EXPECT_FALSE(contains(packet_at(1).bytes, HOSTNAME)) << "the announcement still uses the old host name";
+}
+
+TEST_F(DnsSd, ProgrammingModeChangeBeforeInitSendsNothing)
+{
+  /* nothing is announced yet, so there is no goodbye for the old record and no announcement of the new one */
+  g_initialized = false;
+  oc_knx_device_set_programming_mode(true);
+  advance_ms(1000);
+
+  EXPECT_EQ(packet_count(), 0u);
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+  oc_knx_device_set_programming_mode(false);
+}
+
+TEST_F(DnsSd, FirstAnnouncementUsesTheProgrammingModeSetBeforeInit)
+{
+  /* the application (or the shell) sets the programming mode before the stack is initialized */
+  g_initialized = false;
+  oc_knx_device_set_programming_mode(true);
+
+  /* the registration at the end of oc_main_init(), taken from the device info */
+  g_initialized = true;
+  const oc_device_info_t *dev = oc_core_get_device_info();
+  ASSERT_EQ(knx_dns_sd_update_service(SERIAL, IID, IA, dev->pm), 0);
+
+  ASSERT_EQ(packet_count(), 1u);
+  EXPECT_EQ(count_goodbyes(), 0u) << "a goodbye for a record that was never announced";
+  EXPECT_TRUE(contains(packet_at(0).bytes, "_pm")) << "the announcement lacks the _pm subtype";
+  EXPECT_TRUE(knx_dns_sd_get_current_record().knx.pm);
+  oc_knx_device_set_programming_mode(false);
+}
+
+TEST_F(DnsSd, ProgrammingModeChangeAfterInitSendsGoodbyeThenTheNewRecord)
+{
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(1000);
+  clear_packets();
+
+  /* programming mode on at runtime, such as PUT /dev/pm or the device button */
+  oc_knx_device_set_programming_mode(true);
+
+  ASSERT_GE(packet_count(), 2u);
+  EXPECT_EQ(packet_at(0).first_ttl, 0u) << "the first packet is no goodbye";
+  EXPECT_FALSE(contains(packet_at(0).bytes, "_pm")) << "the goodbye is not for the record without programming mode";
+  EXPECT_NE(packet_at(1).first_ttl, 0u) << "the second packet is no announcement";
+  EXPECT_TRUE(contains(packet_at(1).bytes, "_pm")) << "the announcement lacks the _pm subtype";
+  EXPECT_TRUE(knx_dns_sd_get_current_record().knx.pm);
+
+  /* and off again: goodbye for the _pm record, then the record without it */
+  advance_ms(1000);
+  clear_packets();
+  oc_knx_device_set_programming_mode(false);
+
+  ASSERT_GE(packet_count(), 2u);
+  EXPECT_EQ(packet_at(0).first_ttl, 0u) << "the first packet is no goodbye";
+  EXPECT_TRUE(contains(packet_at(0).bytes, "_pm")) << "the goodbye lacks the _pm subtype";
+  EXPECT_NE(packet_at(1).first_ttl, 0u) << "the second packet is no announcement";
+  EXPECT_FALSE(contains(packet_at(1).bytes, "_pm")) << "the announcement still has the _pm subtype";
+  EXPECT_FALSE(knx_dns_sd_get_current_record().knx.pm);
 }
 
 /* -- knx_dns_sd_set_sleep_period ------------------------------------------- */

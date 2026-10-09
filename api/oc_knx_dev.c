@@ -1277,10 +1277,30 @@ bool oc_knx_device_in_programming_mode(void)
 
 void oc_knx_device_set_programming_mode(bool programming_mode) 
 {
+  /*
+    (a) after the stack init the pm is announced already, the update sends the DNS-SD goodbye for the old record and
+        announces the new one
+    (b) the new pm is set and used
+        for the first announcement on init; if not (a)
+        for the next announcement on a pm change; if (a)
+
+    no knx_dns_sd_stop() first, unlike oc_core_set_device_hostname(): the pm changes only the service (_pm subtype),
+    not the host
+    - mDNS: the update sends the goodbye for the old record itself, a stop would also close the socket and stop the
+      query responder on every pm toggle
+    - Thread: the update removes and re-adds the service only, a stop would remove the SRP host as well and
+      re-register it
+  */
+  const bool reannounce = oc_main_initialized();
+
+  // (b)
   oc_device_info_t* const device = oc_core_get_device_info();
   device->pm = programming_mode;
 
-  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+  if (reannounce)
+  { // (a)
+    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+  }
 }
 
 void oc_knx_device_restart(void) 
