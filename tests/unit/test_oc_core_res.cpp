@@ -7,7 +7,7 @@
  *                                 rejects NULL, empty names, names over HNAME_MAX_SIZE and names with a '.'
  *   oc_core_load_device_hostname  — the stored name, an invalid or no stored name
  *                                 gives the default "knx-<serial>" (stored)
- *   oc_core_reset_device_hostname — back to the default "knx-<serial>" (stored)
+ *   oc_core_reset_device_hostname_to_default — back to the default "knx-<serial>" (stored), -1 when not stored (RAM set anyway)
  *
  * Requirements:
  *   oc_mmem_init() — the hostname is an oc_string_t (allocated string).
@@ -131,9 +131,35 @@ TEST_F(DeviceHostname, ResetSetsAndStoresDefault)
   oc_device_info_t *dev = oc_core_get_device_info();
   dev->serialnumber = "aabbccddeeff";
   ASSERT_EQ(oc_core_set_device_hostname("my-host"), 0);
-  oc_core_reset_device_hostname();
+  EXPECT_EQ(oc_core_reset_device_hostname_to_default(), 0);
   EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-aabbccddeeff");
   EXPECT_EQ(stored_hostname(), "knx-aabbccddeeff");
+}
+
+TEST_F(DeviceHostname, ResetStoreFailsReturnsErrorAndSetsDefault)
+{
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->serialnumber = "aabbccddeeff";
+  ASSERT_EQ(oc_core_set_device_hostname("my-host"), 0);
+
+  /* the parent directory does not exist, so the storage write fails */
+  oc_storage_config("hn_missing_parent/hn_reset");
+  EXPECT_EQ(oc_core_reset_device_hostname_to_default(), -1);
+
+  /* the device still needs a host name to announce, RAM holds the default */
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-aabbccddeeff");
+}
+
+TEST_F(DeviceHostname, LoadStoreFailsUsesDefault)
+{
+  oc_device_info_t *dev = oc_core_get_device_info();
+  oc_free_string(&dev->iot_hostname); /* empty RAM, freed so ASan sees no leak */
+  dev->serialnumber = "00fa10020700";
+
+  /* no storage at all: nothing to read and the default cannot be stored, RAM holds the default anyway */
+  oc_storage_config("hn_missing_parent/hn_load");
+  oc_core_load_device_hostname();
+  EXPECT_STREQ(oc_string(dev->iot_hostname), "knx-00fa10020700");
 }
 
 TEST_F(DeviceHostname, SetMaxLengthAcceptedOneMoreRejected)

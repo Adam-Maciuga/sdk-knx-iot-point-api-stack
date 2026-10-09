@@ -122,10 +122,11 @@ int oc_core_set_device_hostname(const char* host_name)
     return -1;
   }
 
-  // store first, a host name that is not stored is not used either (RAM and announcement stay unchanged)
+  // store first, a host name that is not stored in NVM -> NVM + RAM stay unchanged
   const size_t host_name_len = strlen(host_name);
   if (oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)host_name, host_name_len) != (long)host_name_len)
   {
+    OC_ERR("Failed to store caller host name '%s' in NVM", host_name);
     return -1;
   }
 
@@ -183,18 +184,39 @@ void oc_core_load_device_hostname(void)
   }
   else
   { // (b)
-    oc_core_reset_device_hostname();
+    oc_core_reset_device_hostname_to_default();
   }
 }
 
-void oc_core_reset_device_hostname(void)
+int oc_core_reset_device_hostname_to_default(void)
 {
   // default host name label 'knx-{sn}' (spec 2.6.1.2.3), set and stored
-  char hostname[HNAME_MAX_SIZE + 1];
-  (void)snprintf(hostname, sizeof(hostname), HNAME_LABEL, oc_device_info.serialnumber);
+  char host_name[HNAME_MAX_SIZE + 1];
+  (void)snprintf(host_name, sizeof(host_name), HNAME_LABEL, oc_device_info.serialnumber);
+
+  /*
+     1. set default in RAM 
+     2. store default in NVM
+
+     A host name that is NOT stored in NVM -> NVM remains as is, RAM will be reset to default.
+     - if read NVM fails on startup (such as after a failed factory reset)
+       the default hostname will be set in ANY case (otherwise hostname is empty or un-initialized RAM and not valid)
+     - if write NVM fails on factory reset
+       the default hostname will be set in ANY case (otherwise the device cannot be reached anymore)
+  */
+
+  const size_t host_name_len = strlen(host_name);
+
   oc_free_string(&oc_device_info.iot_hostname);
-  oc_new_string(&oc_device_info.iot_hostname, hostname, strlen(hostname));
-  oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)hostname, strlen(hostname));
+  oc_new_string(&oc_device_info.iot_hostname, host_name, host_name_len);
+
+  if (oc_storage_write(KNX_STORAGE_KEY_HOSTNAME, (uint8_t*)host_name, host_name_len) != (long)host_name_len)
+  {
+    OC_ERR("Failed to store default host name '%s' in NVM", host_name);
+    return -1;
+  }
+
+  return 0;
 }
 
 uint64_t oc_core_get_device_iid(void)

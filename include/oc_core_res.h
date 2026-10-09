@@ -177,8 +177,8 @@ extern "C" {
 	 *
 	 * @note the host name is taken in this order:
 	 *       1. the stored one, if it is a valid label (an invalid one, such as an old 'knx-{sn}.local', is ignored)
-	 *       2. otherwise the default 'knx-{sn}' (spec 2.6.1.2.3), stored by oc_core_reset_device_hostname(), so an
-	 *          invalid stored one is overwritten
+	 *       2. otherwise the default 'knx-{sn}' (spec 2.6.1.2.3), stored by oc_core_reset_device_hostname_to_default(),
+	 *          so an invalid stored one is overwritten
 	 */
 	void oc_core_load_device_hostname(void);
 
@@ -187,9 +187,12 @@ extern "C" {
 	 *        valid stored host name)
 	 *
 	 * @note RAM and storage only, no DNS-SD: on a factory reset the caller sends the goodbye and re-announces, on
-	 *       startup nothing is announced yet
+	 *       startup nothing is announced yet. Unlike oc_core_set_device_hostname(), RAM is set first and in any case,
+	 *       so the device always has a host name; if the write fails, NVM keeps the previous one.
+	 *
+	 * @return int error status, 0 = OK, -1 = not stored (RAM holds the default, NVM unchanged)
 	 */
-	void oc_core_reset_device_hostname(void);
+	int oc_core_reset_device_hostname_to_default(void);
 
 	/**
 	 * @brief sets the installation identifier (iid) and store it

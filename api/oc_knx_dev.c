@@ -1200,7 +1200,7 @@ void oc_knx_device_reset(int reset_mode)
     device->fid = 0;
 
     // back to the default host name, stored like the other defaults
-    oc_core_reset_device_hostname();
+    oc_core_reset_device_hostname_to_default();
 
     // delete iot device tables
     oc_delete_group_object_table();
