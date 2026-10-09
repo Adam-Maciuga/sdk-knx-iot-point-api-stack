@@ -67,7 +67,7 @@ typedef struct
     uint16_t sp;
 } knx_srp_values_t;
 
-static otSrpClientBuffersServiceEntry *entry = NULL;   /**< SRP service entry, allocated once */
+static otSrpClientBuffersServiceEntry *entry = NULL;  /**< SRP service entry, allocated once */
 static char hostname[HNAME_MAX_SIZE + 1];             /**< host name label handed to SRP, domain appended by SRP */
 static char pending_hostname[HNAME_MAX_SIZE + 1];     /**< most recent device host name, taken over once SRP released hostname */
 static char subtype_sn[SUBTYPE_SN_SIZE];              /**< "_<sn>" */
@@ -77,7 +77,6 @@ static char sp_value[SP_VALUE_SIZE];                  /**< "<seconds>" for the S
 static otDnsTxtEntry txt_sp;                          /**< key "SP", value sp_value */
 
 static knx_srp_values_t pending;   /**< most recent values requested by the stack */
-static bool host_named = false;    /**< host name handed to the SRP client */
 static bool reapply = false;       /**< pending values must still be applied to the entry */
 static bool stopped = true;        /**< knx_dns_sd_stop() called, nothing should be registered */
 
@@ -136,7 +135,14 @@ static bool ensure_host(otInstance *inst)
 {
     const otSrpClientHostInfo *host = otSrpClientGetHostInfo(inst);
 
-    if (host_named && (host->mState != OT_SRP_CLIENT_ITEM_STATE_REMOVED))
+    /*
+      the SRP host state alone tells whether the host name is in use, no own flag needed:
+      - otSrpClientSetHostName() moves the host from REMOVED to TO_ADD (OpenThread srp_client.cpp, Client::SetHostName)
+      - knx_dns_sd_stop() moves it to TO_REMOVE / REMOVING, and to REMOVED once the server confirmed
+      so any state but REMOVED means named: registered or on the way (true), or still being removed (false, wait for
+      the callback)
+    */
+    if (host->mState != OT_SRP_CLIENT_ITEM_STATE_REMOVED)
     {
         return host->mState != OT_SRP_CLIENT_ITEM_STATE_TO_REMOVE &&
                host->mState != OT_SRP_CLIENT_ITEM_STATE_REMOVING;
@@ -145,16 +151,17 @@ static bool ensure_host(otInstance *inst)
     /*
       SRP keeps the pointer to hostname until the host is removed, so a host name changed since (set and store, factory
       reset; knx_dns_sd_stop() first) is taken over only once the removal completed
+      - no state check needed here: the return above leaves only REMOVED, so SRP no longer uses hostname
+      - copied from pending_hostname, never from device->iot_hostname: this mostly runs in srp_client_callback on the
+        OpenThread thread, while the KNX thread may free and reallocate iot_hostname (oc_core_set_device_hostname)
+        outside the OpenThread mutex
     */
-    if (host->mState == OT_SRP_CLIENT_ITEM_STATE_REMOVED)
-    {
-        memcpy(hostname, pending_hostname, sizeof(hostname));
-    }
+    memcpy(hostname, pending_hostname, sizeof(hostname));
 
     otError err = otSrpClientSetHostName(inst, hostname);
     if (err == OT_ERROR_INVALID_STATE)
     {
-        /* host in the middle of a removal (or already registered under this name) */
+        /* not expected, the host is REMOVED here; safety net, kept as before */
         return host->mState == OT_SRP_CLIENT_ITEM_STATE_REGISTERED ||
                host->mState == OT_SRP_CLIENT_ITEM_STATE_ADDING ||
                host->mState == OT_SRP_CLIENT_ITEM_STATE_TO_ADD;
@@ -165,7 +172,6 @@ static bool ensure_host(otInstance *inst)
         return false;
     }
     (void)otSrpClientEnableAutoHostAddress(inst);
-    host_named = true;
     return true;
 }
 
@@ -295,6 +301,13 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
 
     // the device host name CAN BE CHANGED at runtime (therefore we need to set here always)
     // it is a label only, such as "knx-<sn>", the SRP client appends the domain itself
+    /*
+      copied to pending_hostname, not to hostname:
+      - SRP keeps the pointer to hostname until the host is removed, a rename (knx_dns_sd_stop() first) arrives here
+        while the old host is still being removed; ensure_host() takes it over once the host is REMOVED
+      - copied here under the OpenThread mutex on the KNX thread, so the SRP callback reads a stable copy instead of
+        iot_hostname, which the KNX thread may free and reallocate
+    */
     (void)snprintf(pending_hostname, sizeof(pending_hostname), "%s", oc_string_checked(device->iot_hostname));
 
     if (entry == NULL)
@@ -370,6 +383,5 @@ void knx_dns_sd_stop(void)
     {
         OC_WRN("DNS-SD: SRP deregistration failed: %d", err);
     }
-    host_named = false;
     openthread_mutex_unlock();
 }
