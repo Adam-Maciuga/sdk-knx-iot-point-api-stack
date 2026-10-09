@@ -285,19 +285,23 @@ static void srp_autostart_callback(const otSockAddr *server, void *ctx)
 int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
     (void)serial_no;   /* the device info carries the lower-case serial number */
-    otInstance *inst = openthread_get_default_instance();
-    const oc_device_info_t *device = oc_core_get_device_info();
 
-    if ((inst == NULL) || (device == NULL))
+    otInstance *inst = openthread_get_default_instance();
+
+
+    if (!inst)
     {
         OC_WRN("DNS-SD: OpenThread not initialised yet!");
         return -1;
     }
 
-    /* The advertisement depends on device data the stack loads from storage during its
-     * initialisation (see oc_knx_load_device()). Until then nothing is announced and the
-     * one-time setup below never sees an unset serial number. The registration at the end of
-     * oc_main_init() is the first one. */
+    /*
+       The advertisement depends on device data the stack loads from storage during its
+       initialisation (see oc_knx_load_device()). Until then nothing is announced and the
+       one-time setup below never sees an unset serial number. The registration at the end of
+       oc_main_init() is the first one.
+
+     */
     if (!oc_main_initialized())
     {
         OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
@@ -310,6 +314,9 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     pending.ia = ia;
     pending.pm = pm;
     stopped = false;
+
+    // device cant be NULL
+    const oc_device_info_t* device = oc_core_get_device_info();
 
     // the device host name CAN BE CHANGED at runtime (therefore we need to set here always)
     // it is a label only, such as "knx-<sn>", the SRP client appends the domain itself
