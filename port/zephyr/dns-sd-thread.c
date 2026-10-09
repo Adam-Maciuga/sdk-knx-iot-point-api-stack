@@ -49,6 +49,8 @@
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
 
+#include "api/oc_main.h"
+
 #define KNX_SRP_SERVICE_NAME "_knx._udp"
 
 /* subtype labels: "_" + serial number (SN_STR_LEN_MAX hex chars, oc_knx.h), "_ia" + 16 hex + "-" + 4 hex */
@@ -290,6 +292,16 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     {
         OC_WRN("DNS-SD: OpenThread not initialised yet!");
         return -1;
+    }
+
+    /* The advertisement depends on device data the stack loads from storage during its
+     * initialisation (see oc_knx_load_device()). Until then nothing is announced and the
+     * one-time setup below never sees an unset serial number. The registration at the end of
+     * oc_main_init() is the first one. */
+    if (!oc_main_initialized())
+    {
+        OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
+        return 0;
     }
 
     openthread_mutex_lock();

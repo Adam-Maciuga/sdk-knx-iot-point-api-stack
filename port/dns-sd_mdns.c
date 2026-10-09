@@ -30,6 +30,7 @@
  * mdns_socket_listen() reads it from the IPV6_PKTINFO ancillary data. The
  * define must precede the first system header, see port/linux/ipadapter.c.
  */
+#include "api/oc_main.h"
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
@@ -1505,6 +1506,15 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
   {
     OC_WRN("DNS-SD: Invalid (NULL) serial number provided, cannot update service.");
     return -1;
+  }
+
+  // The advertisement depends on device data the stack loads from storage during its
+  // initialization (see oc_knx_load_device()). Until then nothing is announced, the registration
+  // at the end of oc_main_init() is the first one.
+  if (!oc_main_initialized())
+  {
+    OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
+    return 0;
   }
   
   // goodbye for current advertisement (if any, 'goodbye' may be already send out on a previous 'dns stop' call)

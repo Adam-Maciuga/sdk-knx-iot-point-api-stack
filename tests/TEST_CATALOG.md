@@ -1131,13 +1131,14 @@ Linker `--wrap` of `sendto`, `recvfrom`, `get_ip_context_for_device` and
 `oc_clock_time`: no packet leaves the host, the listener thread receives only
 the queries the test queues, one fake loopback endpoint stands in for the
 connectivity layer, and a test-controlled clock drives the RI timed-event list
-through `oc_main_poll()`.
+through `oc_main_poll()`. The fixture sets the device hostname the way
+`oc_knx_load_device()` does, the service update announces nothing before it.
 The target is registered under `if(UNIX)`, since the source is POSIX-only and
 `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 9 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface |
+| `knx_dns_sd_update_service` | 10 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface, nothing before the device data is loaded |
 | `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
 | `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |

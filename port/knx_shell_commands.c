@@ -765,6 +765,17 @@ int knx_shell_command_run(size_t argc, char** argv)
     return -EINVAL;
   }
 
+  // The KNX-IoT stack commands read and change the device state. They only run while the stack
+  // is up and running, any call before its initialization or after its shutdown is refused.
+  // The two resets are the exception, a device with a broken storage must stay resettable.
+  const bool reset_command = (strcmp(argv[0], "factory_reset") == 0) ||
+                             (strcmp(argv[0], "clear_tables") == 0);
+  if (!reset_command && !oc_main_initialized())
+  {
+    knx_shell_error("The KNX-IoT stack is not running, %s is not available!", argv[0]);
+    return -EAGAIN;
+  }
+
   for (size_t i = 0; i < knx_shell_command_count(); i++)
   {
     if (strcmp(argv[0], knx_iot_subcmd[i].name) != 0)

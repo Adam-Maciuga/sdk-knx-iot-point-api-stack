@@ -567,6 +567,18 @@ TEST_F(DnsSd, AnnouncementWithoutInterfacesFails)
   EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
 }
 
+TEST_F(DnsSd, UpdateBeforeTheDeviceDataIsLoadedIsPostponed)
+{
+  /* an empty hostname = oc_knx_load_device() has not run yet */
+  ASSERT_EQ(oc_core_set_device_hostname(""), 0);
+
+  EXPECT_EQ(publish(false), 0);
+  advance_ms(1000);
+
+  EXPECT_EQ(packet_count(), 0u);
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+}
+
 /* -- knx_dns_sd_set_sleep_period ------------------------------------------- */
 
 TEST_F(DnsSd, SleepPeriodAppearsInTheTxtRecord)

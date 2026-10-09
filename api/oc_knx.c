@@ -2020,6 +2020,12 @@ int oc_spake2plus_init_data(void)
 void oc_knx_load_fingerprint(void)
 {
   g_fingerprint = 0; // set to zero for reading error cases
+  /* 
+     The read result needs no check.
+     - an absent key keeps the 0 from above, a failed read can at worst leave a wrong value, 
+       which only looks like a changed configuration to a MaC
+     - the fingerprint has no meaning of its own, it only has to differ after a change
+  */
   oc_storage_read(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
