@@ -411,22 +411,16 @@ TEST_F(KnxDevHandlers, HostnamePutNotSupported)
   EXPECT_EQ(core_resource_dev_hostname.put_handler.cb, nullptr);
 }
 
-TEST_F(KnxDevHandlers, IidPutWrongAccept)
+/* PUT on '/dev/iid' is optional in the specification and not supported, the IID is written via '/.well-known/knx/ia' */
+TEST_F(KnxDevHandlers, IidPutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_iid.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, IidPutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_iid.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_iid.put_handler.cb, nullptr);
 }
 
-TEST_F(KnxDevHandlers, FidPutWrongAccept)
+/* PUT on '/dev/fid' is optional in the specification and not supported, the FID is written via '/.well-known/knx/ia' */
+TEST_F(KnxDevHandlers, FidPutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_fid.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, FidPutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_fid.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_fid.put_handler.cb, nullptr);
 }
 
 TEST_F(KnxDevHandlers, PmPutWrongAccept)

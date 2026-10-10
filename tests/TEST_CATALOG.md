@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1723 unit tests** (55 files) + **729 runtime tests** across three tiers = **2452 total**
+> **1721 unit tests** (55 files) + **729 runtime tests** across three tiers = **2450 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit (2026-10-10): 1686/1686 passed on `windows-test-gcc` (GCC/CTest); the 1723 total adds the 37 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only (last measured on `linux-test-gcc` 2026-10-09 at 1719/1719, before the 4 `KnxFingerprintStorage` tests). With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
+> Branch: `work_in_progress` | Unit (2026-10-10): 1684/1684 passed on `windows-test-gcc` (GCC/CTest); the 1721 total adds the 37 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only (last measured on `linux-test-gcc` 2026-10-09 at 1719/1719, before the 4 `KnxFingerprintStorage` tests). With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
 > Runtime (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`): EITT plus harness **460 passed, 15 skipped, 2 xfailed** (477 collected, 783.96s); runtime tier **247 passed, 5 skipped** (252 collected, 707.44s); 0 failed, 0 errors - fully green. The per-tier EITT/harness split above was not re-derived. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -572,7 +572,7 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (49 tests)
+### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (47 tests)
 
 **Source:** `api/oc_knx_dev.c`
 
@@ -587,13 +587,14 @@ must forward. Verified non-vacuous: transposing one argument in
 | `GetterMatchesDeviceField` | Getter mirrors `device->pm` exactly |
 | `TogglingIsIdempotentPerValue` | Repeated set of same value is stable |
 
-**Resource handlers (`KnxDevHandlers`, 43 tests)** — GET/PUT handlers for the
+**Resource handlers (`KnxDevHandlers`, 41 tests)** — GET/PUT handlers for the
 device resources (`/dev/sn`, `/dev/hwv`, `/dev/fwv`, `/dev/hwt`, `/dev/model`,
 `/dev/hostname`, `/dev/iid`, `/dev/pm`, `/dev/sa`, `/dev/da`, `/dev/fid`,
 `/dev/port`, `/dev/mport`, `/dev/ap/pv`, `/dev/mid`, `/dev/ipv6`, dev/ap lists)
 exercised directly at handler level: wrong-Accept → bad request, happy-path
 content, empty-payload PUT → bad request, and array-size validation.
-`/dev/hname` is read-only (PUT is optional in the specification), so only its
+`/dev/hname`, `/dev/iid` and `/dev/fid` are read-only (PUT is optional in the
+specification; IID and FID are written via `/.well-known/knx/ia`), so only their
 GET handlers are tested plus a check that no PUT handler is registered.
 
 **Coverage note:** `oc_knx_load_device`, `oc_knx_device_storage_reset`, and

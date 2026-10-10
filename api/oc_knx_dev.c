@@ -287,50 +287,6 @@ const oc_resource_t core_resource_dev_hostname = {
         true,
         &core_resource_dev_hostname_data};
 
-static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
-  {
-    return;
-  }
-
-  const oc_rep_t* rep = request->request_payload;
-
-  while (rep) 
-  {
-    if (rep->type == OC_REP_INT) 
-    {
-      if (rep->iname == 1) 
-      {
-        OC_INF("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer);
-
-        if (oc_core_set_and_store_device_iid(rep->value.integer)) 
-        {
-          if (oc_is_device_in_runtime()) 
-          { 
-            oc_register_group_multicasts();
-            oc_init_datapoints_at_initialization();
-
-            OC_INF("Re-register DNS-SD service after writing IID)");
-            const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(device);
-          }
-
-          oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-          return;
-        }
-      }
-    }
-
-    rep = rep->next;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
 static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
 {
   (void)data;
@@ -360,7 +316,7 @@ const oc_resource_t core_resource_dev_iid = {
         {APPLICATION_CBOR, CONTENT_NONE},
         OC_DISCOVERABLE,
         {oc_core_dev_iid_get_handler, NULL, OC_ACL_D, OC_IF_D},
-        {oc_core_dev_iid_put_handler, NULL, OC_ACL_P, OC_IF_P},
+        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {{NULL}, NULL},
@@ -771,40 +727,6 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
-  {
-    return;
-  }
-
-  const oc_rep_t* rep = request->request_payload;
-  
-  while (rep) 
-  {
-    if (rep->type == OC_REP_INT) 
-    {
-      if (rep->iname == 1) 
-      {
-        OC_INF("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
-
-        if (oc_core_set_and_store_device_fid(rep->value.integer)) 
-        {
-          oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-          return;
-        }
-      }
-    }
-
-    rep = rep->next;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_fid_data;
 const oc_resource_t core_resource_dev_fid = {
@@ -815,7 +737,7 @@ const oc_resource_t core_resource_dev_fid = {
         {APPLICATION_CBOR, CONTENT_NONE},
         OC_DISCOVERABLE,
         {oc_core_dev_fid_get_handler, NULL, OC_ACL_D, OC_IF_D},
-        {oc_core_dev_fid_put_handler, NULL, OC_ACL_P, OC_IF_P},
+        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {{NULL}, NULL},

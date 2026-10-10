@@ -1367,6 +1367,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       }
       else if (rep->iname == 25)
       {
+        //  note, the PUT dev/fid handler is optional, a MaC may omit the fid in THIS request but a server must support it (see iot spec., table 14)
         OC_DBG("received 25 (fid): %" PRIi64, rep->value.integer);
         fid_ok = oc_core_set_and_store_device_fid(rep->value.integer);
       }
