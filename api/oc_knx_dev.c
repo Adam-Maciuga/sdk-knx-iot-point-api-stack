@@ -1284,12 +1284,15 @@ void oc_knx_device_set_programming_mode(bool programming_mode)
         for the first announcement on init; if not (a)
         for the next announcement on a pm change; if (a)
 
-    no knx_dns_sd_stop() first, unlike oc_core_set_device_hostname(): the pm changes only the service (_pm subtype),
-    not the host
-    - mDNS: the update sends the goodbye for the old record itself, a stop would also close the socket and stop the
-      query responder on every pm toggle
-    - Thread: the update removes and re-adds the service only, a stop would remove the SRP host as well and
-      re-register it
+    no knx_dns_sd_stop() before the update, unlike oc_core_set_device_hostname()
+    - the pm is part of the service only (_pm subtype PTR), the host (name, SRV target, AAAA) stays the same
+    - mDNS: the update sends the goodbye for the old record by itself, built from the cached advertisement (old pm) and
+      the live host name (unchanged), so it withdraws exactly what was announced; a host name change needs the stop
+      before the new name is set, because the goodbye would otherwise carry the new name and the old records stay in
+      the caches
+    - mDNS: a stop would also close the socket and the query responder, needless work on every pm toggle
+    - Thread: the update removes and re-adds the service only, a stop would also remove the SRP host and register it
+      again
   */
   const bool reannounce = oc_main_initialized();
 
