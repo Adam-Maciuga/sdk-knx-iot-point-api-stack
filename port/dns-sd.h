@@ -24,8 +24,9 @@ extern "C" {
           Sends the new announcement a second time one second later (RFC 6762, section 8.3 and 8.4).
           The repeat runs on the RI event loop, so the caller keeps polling with oc_main_poll().
 
-   @param device the device info (oc_core_get_device_info()), the record is built from its current serial number,
-                 iid, ia, pm and host name, so a caller cannot pass stale or mixed values
+   @param device the device info, must be oc_core_get_device_info(), the record is built from its current serial number,
+                 iid, ia, pm and host name; no copy or other struct: mDNS takes the host name from
+                 oc_core_get_device_info() regardless, a copy would mix its values with the live host name
 
    @return int 0 on success, -1 on error (also for a NULL device or a NULL serial number)
   

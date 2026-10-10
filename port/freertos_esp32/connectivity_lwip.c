@@ -562,11 +562,7 @@ static void network_interface_event_handler(oc_interface_event_t event)
   {
     setup_multicast_interface();
     oc_register_group_multicasts();
-    oc_device_info_t* device = oc_core_get_device_info();
-    if (device != NULL)
-    {
-      knx_dns_sd_update_service(device);
-    }
+    knx_dns_sd_update_service(oc_core_get_device_info());
   }
   else if (event == NETWORK_INTERFACE_DOWN)
   {
