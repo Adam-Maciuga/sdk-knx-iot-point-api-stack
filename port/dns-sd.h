@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "oc_knx.h"
+#include "oc_core_res.h" // oc_device_info_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,12 +24,10 @@ extern "C" {
           Sends the new announcement a second time one second later (RFC 6762, section 8.3 and 8.4).
           The repeat runs on the RI event loop, so the caller keeps polling with oc_main_poll().
 
-   @param serial_no KNX serial number
-   @param iid KNX Installation ID, set to 0 if the device has not been commissioned yet
-   @param ia KNX Individual Address, set to 0 if the device has not been commissioned yet
-   @param pm True if the device is in Programming Mode, false otherwise
+   @param device the device info (oc_core_get_device_info()), the record is built from its current serial number,
+                 iid, ia, pm and host name, so a caller cannot pass stale or mixed values
 
-   @return int 0 on success, -1 on error
+   @return int 0 on success, -1 on error (also for a NULL device or a NULL serial number)
   
    @note
    DNS-SD <domain>
@@ -44,7 +43,7 @@ extern "C" {
 
    
  */
-int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm);
+int knx_dns_sd_update_service(const oc_device_info_t *device);
 
 /**
  * @brief Set the advertised sleep period within the mDNS service.

@@ -78,7 +78,7 @@ extern "C" bool __wrap_oc_main_initialized(void)
   __wrap_knx_dns_sd_update_service: no-op stand-in; the real function requires
   an initialised mDNS/DNS-SD backend which is not available in unit tests.
 */
-extern "C" int __wrap_knx_dns_sd_update_service(char *, uint64_t, uint16_t, bool)
+extern "C" int __wrap_knx_dns_sd_update_service(const oc_device_info_t *)
 {
   return 0;
 }

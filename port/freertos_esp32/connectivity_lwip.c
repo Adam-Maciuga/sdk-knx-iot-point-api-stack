@@ -565,7 +565,7 @@ static void network_interface_event_handler(oc_interface_event_t event)
     oc_device_info_t* device = oc_core_get_device_info();
     if (device != NULL)
     {
-      knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+      knx_dns_sd_update_service(device);
     }
   }
   else if (event == NETWORK_INTERFACE_DOWN)

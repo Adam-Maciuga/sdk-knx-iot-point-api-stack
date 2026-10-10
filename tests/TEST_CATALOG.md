@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1718 unit tests** (55 files) + **629 runtime tests** across three tiers = **2347 total**
+> **1719 unit tests** (55 files) + **629 runtime tests** across three tiers = **2348 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
@@ -10,7 +10,7 @@
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `dev_hname_handling` | Unit (2026-10-09): 1718/1718 passed on `linux-test-gcc` (Docker CI image, serial CTest run) and 1682/1682 on `windows-test-gcc` (GCC/CTest). The 36 `test_dns_sd_mdns.cpp` cases are registered under `if(UNIX)` only, so a windows-test-gcc run has 36 fewer. With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
+> Branch: `dev_hname_handling` | Unit (2026-10-09): 1719/1719 passed on `linux-test-gcc` (Docker CI image, serial CTest run) and 1682/1682 on `windows-test-gcc` (GCC/CTest). The 37 `test_dns_sd_mdns.cpp` cases are registered under `if(UNIX)` only, so a windows-test-gcc run has 37 fewer. With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
 > Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
@@ -1123,7 +1123,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (36 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (37 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
@@ -1139,7 +1139,7 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 10 | First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL serial, rollback on send failure, no interface, nothing before the stack is initialized |
+| `knx_dns_sd_update_service` | 11 | Record built from the device info: first announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL device, NULL serial, rollback on send failure, no interface, nothing before the stack is initialized |
 | host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the latest host name set before (no goodbye); a change afterwards sends the goodbye with the old name, then announces the new one |
 | programming mode (`oc_knx_device_set_programming_mode`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the `_pm` subtype set before (no goodbye); on and off afterwards each send the goodbye for the old record, then announce the new one with or without `_pm` |
 | `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |

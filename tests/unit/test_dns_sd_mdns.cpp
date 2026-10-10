@@ -5,7 +5,8 @@
  *   knx_dns_sd_update_service   - one announcement at once, a repeat one second
  *                                 later (RFC 6762 section 8.3), a restart of the
  *                                 repeat on a change within that second
- *                                 (RFC 6762 section 8.4), NULL serial number,
+ *                                 (RFC 6762 section 8.4), NULL device or serial
+ *                                 number, the record built from the device info,
  *                                 rollback of the record on a send failure,
  *                                 postponed while the stack is not initialized
  *   oc_core_set_device_hostname - no packet before the stack is initialized,
@@ -417,9 +418,15 @@ protected:
     (void)oc_main_poll();
   }
 
+  /* the record is built from the device info, so the values go there first */
   static int publish(bool pm)
   {
-    return knx_dns_sd_update_service(SERIAL, IID, IA, pm);
+    oc_device_info_t *dev = oc_core_get_device_info();
+    dev->serialnumber = SERIAL;
+    dev->iid = IID;
+    dev->ia = IA;
+    dev->pm = pm;
+    return knx_dns_sd_update_service(dev);
   }
 
   static void queue_query(const char *name, uint16_t qtype)
@@ -541,7 +548,19 @@ TEST_F(DnsSd, ChangeSendsGoodbyeForTheOldRecordFirst)
 
 TEST_F(DnsSd, NullSerialNumberIsRejected)
 {
-  EXPECT_EQ(knx_dns_sd_update_service(NULL, IID, IA, false), -1);
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->serialnumber = NULL;
+  EXPECT_EQ(knx_dns_sd_update_service(dev), -1);
+  dev->serialnumber = SERIAL;
+  advance_ms(0);
+
+  EXPECT_EQ(packet_count(), 0u);
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+}
+
+TEST_F(DnsSd, NullDeviceIsRejected)
+{
+  EXPECT_EQ(knx_dns_sd_update_service(NULL), -1);
   advance_ms(0);
 
   EXPECT_EQ(packet_count(), 0u);
@@ -668,8 +687,7 @@ TEST_F(DnsSd, FirstAnnouncementUsesTheProgrammingModeSetBeforeInit)
 
   /* the registration at the end of oc_main_init(), taken from the device info */
   g_initialized = true;
-  const oc_device_info_t *dev = oc_core_get_device_info();
-  ASSERT_EQ(knx_dns_sd_update_service(SERIAL, IID, IA, dev->pm), 0);
+  ASSERT_EQ(knx_dns_sd_update_service(oc_core_get_device_info()), 0);
 
   ASSERT_EQ(packet_count(), 1u);
   EXPECT_EQ(count_goodbyes(), 0u) << "a goodbye for a record that was never announced";

@@ -316,7 +316,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 
             OC_INF("Re-register DNS-SD service after writing IID)");
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+            knx_dns_sd_update_service(device);
           }
 
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -1229,7 +1229,7 @@ void oc_knx_device_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
      // reannounce mDNS advertisement with new data
-    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(device);
 
     return;
   }
@@ -1265,7 +1265,7 @@ void oc_knx_device_reset(int reset_mode)
     // don't reset security related "replay window size" and "osn delay"
 
     // reannounce mDNS advertisement with new data
-    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(device);
   }
 }
 
@@ -1299,7 +1299,7 @@ void oc_knx_device_set_programming_mode(bool programming_mode)
 
   if (reannounce)
   { // (a)
-    knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(device);
   }
 }
 
@@ -1339,5 +1339,5 @@ void oc_knx_device_restart(void)
   oc_init_datapoints_at_initialization();
 
   // reannounce mDNS advertisement with new data
-  knx_dns_sd_update_service(device->serialnumber, device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(device);
 }

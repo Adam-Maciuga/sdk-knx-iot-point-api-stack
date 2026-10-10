@@ -282,14 +282,17 @@ static void srp_autostart_callback(const otSockAddr *server, void *ctx)
 
 /* ------------------------------------------------------------- public API */
 
-int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(const oc_device_info_t *device)
 {
-    (void)serial_no;   /* the device info carries the lower-case serial number */
-
     otInstance *inst = openthread_get_default_instance();
 
-
-    if (!inst)
+   if (!device || !device->serialnumber)
+    {
+      OC_WRN("DNS-SD: Invalid (NULL) device or serial number provided, cannot update service.");
+      return -1;
+    }  
+  
+   if (!inst)
     {
         OC_WRN("DNS-SD: OpenThread not initialised yet!");
         return -1;
@@ -310,13 +313,10 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
 
     openthread_mutex_lock();
 
-    pending.iid = iid;
-    pending.ia = ia;
-    pending.pm = pm;
+    pending.iid = device->iid;
+    pending.ia = device->ia;
+    pending.pm = device->pm;
     stopped = false;
-
-    // device cant be NULL
-    const oc_device_info_t* device = oc_core_get_device_info();
 
     // the device host name CAN BE CHANGED at runtime (therefore we need to set here always)
     // it is a label only, such as "knx-<sn>", the SRP client appends the domain itself

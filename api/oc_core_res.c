@@ -150,7 +150,7 @@ int oc_core_set_device_hostname(const char* host_name)
 
   if (reannounce)
   { // (a)
-    knx_dns_sd_update_service(oc_device_info.serialnumber, oc_device_info.iid, oc_device_info.ia, oc_device_info.pm);
+    knx_dns_sd_update_service(&oc_device_info);
   }
 
   return 0;

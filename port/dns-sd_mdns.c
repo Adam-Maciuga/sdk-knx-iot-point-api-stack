@@ -1499,12 +1499,11 @@ static void stop_listener(void)
 /* Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(const oc_device_info_t *device)
 {
-  
-  if (!serial_no)
+  if (!device || !device->serialnumber)
   {
-    OC_WRN("DNS-SD: Invalid (NULL) serial number provided, cannot update service.");
+    OC_WRN("DNS-SD: Invalid (NULL) device or serial number provided, cannot update service.");
     return -1;
   }
 
@@ -1551,10 +1550,10 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
   const bool prev_valid = current_advertisement.valid;
 
   // assign
-  memcpy(current_advertisement.knx.sn, serial_no, SN_STR_LEN_MAX);
-  current_advertisement.knx.iid = iid;
-  current_advertisement.knx.ia = ia;
-  current_advertisement.knx.pm = pm;
+  memcpy(current_advertisement.knx.sn, device->serialnumber, SN_STR_LEN_MAX);
+  current_advertisement.knx.iid = device->iid;
+  current_advertisement.knx.ia = device->ia;
+  current_advertisement.knx.pm = device->pm;
   current_advertisement.valid = true; // mark as valid for the first time
 
   // new announcement
