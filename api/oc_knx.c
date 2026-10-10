@@ -35,7 +35,7 @@ extern const oc_resource_t core_resource_knx_spake;
 
 // ---------------------------Variables
 
-static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
+static uint32_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters, 4 bytes: it only has to differ after a change
 
 typedef enum spake_keys_t
 {
@@ -2025,6 +2025,9 @@ void oc_knx_load_fingerprint(void)
      - an absent key keeps the 0 from above, a failed read can at worst leave a wrong value, 
        which only looks like a changed configuration to a MaC
      - the fingerprint has no meaning of its own, it only has to differ after a change
+     - an 8-byte record of an older firmware reads as its low 4 bytes (file storage, little endian), or the read fails
+       and keeps the 0 (ESP32 NVS rejects a read into a buffer smaller than the stored value); both only look like a
+       changed configuration, the next increase writes 4 bytes
   */
   oc_storage_read(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
