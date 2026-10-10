@@ -1,17 +1,17 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1719 unit tests** (55 files) + **629 runtime tests** across three tiers = **2348 total**
+> **1723 unit tests** (55 files) + **729 runtime tests** across three tiers = **2452 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
-> **runtime** 245 in `tests/runtime/` (hand-written, 19 files) + **harness**
+> **runtime** 252 in `tests/runtime/` (hand-written, 20 files) + **harness**
 > 194 in `tests/eitt/harness_tests/` (interpreter/GUI, no DUT). The shared
 > infrastructure they build on is `tests/common/`. The runtime tier was 385 until 2026-09-11, when
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `dev_hname_handling` | Unit (2026-10-09): 1719/1719 passed on `linux-test-gcc` (Docker CI image, serial CTest run) and 1682/1682 on `windows-test-gcc` (GCC/CTest). The 37 `test_dns_sd_mdns.cpp` cases are registered under `if(UNIX)` only, so a windows-test-gcc run has 37 fewer. With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
-> Runtime (Docker `linux-test-gcc`, full suite, committed HEAD): last full run was 380 passed, 5 skipped, 0 failed, 0 errors (385 collected, 849.06s) - fully green. Re-verified in this session after starting Docker Desktop; matches the prior baseline exactly. The 5 skips are the documented expected ones: `test_5_3_1_6d_unblocks_after_timeout` and `test_5_4_1_9_init_flag_sends_read_on_restart` (both gated), plus 3 `malformed-discovery` timing-artifact skips under cumulative load (see README notes). See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit (2026-10-10): 1686/1686 passed on `windows-test-gcc` (GCC/CTest); the 1723 total adds the 37 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only (last measured on `linux-test-gcc` 2026-10-09 at 1719/1719, before the 4 `KnxFingerprintStorage` tests). With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
+> Runtime (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`): EITT plus harness **460 passed, 15 skipped, 2 xfailed** (477 collected, 783.96s); runtime tier **247 passed, 5 skipped** (252 collected, 707.44s); 0 failed, 0 errors - fully green. The per-tier EITT/harness split above was not re-derived. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -624,7 +624,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx.cpp — KNX Core (28 tests)
+### test_oc_knx.cpp — KNX Core (32 tests)
 
 **Source:** `api/oc_knx.c`
 
@@ -636,6 +636,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxLsm` | 1 | `oc_knx_lsm_state()` returns the device LSM field |
 | `KnxRuntime` | 3 | Runtime-ready true only when loaded and IID set |
 | `KnxHandlers` | 7 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors) |
+| `KnxFingerprintStorage` | 4 | 4-byte fingerprint record: absent key starts at 0, load continues from the stored value, an older 8-byte record keeps its low half and is rewritten as 4 bytes, wrap at `UINT32_MAX` |
 
 ---
 
@@ -1712,6 +1713,21 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 ---
 
 ## Last runtime run status
+
+Latest run (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the 4-byte fingerprint
+(`g_fingerprint` `uint64_t` -> `uint32_t`, 4 new `KnxFingerprintStorage` unit tests) and the removed dead `if (device)` checks
+before `knx_dns_sd_update_service()` in the Linux, Windows, Zephyr and ESP32 interface-up handlers:
+
+- EITT plus harness: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 783.96s).
+- Runtime tier: **247 passed, 5 skipped** (252 collected, 707.44s), all 19 `test_observe.py` cases passed.
+- 0 failed, 0 errors. Unit suite: 1686 passed (windows-test-gcc).
+
+The 10 run-time EITT/harness skips: 2 `test_gui_interfaces.py` (no GUI in the container), EITT 5.3.14.1 (optional
+`PUT auth/o/replwdo`, not implemented) and the 7 EITT 5.4.2.x cases ("Preliminary - Not for Certification", the
+interpreter sends no Observe option), all via `tests/eitt/interpreter/overrides.yaml`. The 5 runtime-tier skips are
+`test_security.py::TestSpake2PlusBruteForce::test_spake_lockout_unblocks_after_timeout` (needs `RUN_SLOW_TESTS`) and the
+4 `test_group_comm.py::TestReadOnInitNetworkGate` cases (cannot control the DUT network scope without `--privileged`).
+This matches the 5 skips expected after the per-test class setup in `test_group_comm.py` (see the entry below).
 
 Latest runs (Docker `linux-test-gcc`, default `run-in-docker.ps1 -IncludeUncommitted`, which runs two
 pytest invocations: the EITT plus harness tier, then the hand-written runtime tier).

@@ -19,6 +19,8 @@ extern "C" {
 #include "oc_rep.h"
 #include "messaging/coap/oc_coap.h"
 #include "util/oc_mmem.h"
+#include "api/oc_knx_dev.h" /* KNX_STORAGE_KEY_FINGERPRINT */
+#include "port/oc_storage.h"
 
 /* static handlers are reachable via these non-static const resource literals */
 extern const oc_resource_t core_resource_knx;
@@ -308,3 +310,84 @@ TEST_F(KnxHandlers, FingerprintGetOkWhenRuntime)
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_knx_load_fingerprint / oc_knx_increase_fingerprint - 4-byte storage
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class KnxFingerprintStorage : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    /*
+      one directory per test, since ctest runs every TEST_F as its own process and `ctest -j` would otherwise race on
+      a shared file
+    */
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "fgp_%s", info->name());
+    oc_storage_config(dir);
+    (void)oc_storage_erase(KNX_STORAGE_KEY_FINGERPRINT);
+  }
+
+  void TearDown() override { (void)oc_storage_erase(KNX_STORAGE_KEY_FINGERPRINT); }
+
+  /*
+    the fingerprint itself is static, the stored record shows its value and size; the buffer is larger than the
+    record, so the read length is the stored size
+  */
+  static long read_stored(uint64_t *value)
+  {
+    *value = 0;
+    return oc_storage_read(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)value, sizeof(*value));
+  }
+};
+
+TEST_F(KnxFingerprintStorage, AbsentKeyIncreaseStoresFourBytes)
+{
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  EXPECT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 1u);
+}
+
+TEST_F(KnxFingerprintStorage, LoadContinuesFromStoredValue)
+{
+  uint32_t value = 41;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&value, sizeof(value)), 4);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  ASSERT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 42u);
+}
+
+TEST_F(KnxFingerprintStorage, OldEightByteRecordKeepsLowHalf)
+{
+  /* a record of a firmware with a 64-bit fingerprint, the file storage reads its low 4 bytes (little endian) */
+  uint64_t old_value = 0x0000000100000005ULL;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&old_value, sizeof(old_value)), 8);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  EXPECT_EQ(read_stored(&stored), 4) << "the next increase replaces the 8-byte record by a 4-byte one";
+  EXPECT_EQ(stored, 6u);
+}
+
+TEST_F(KnxFingerprintStorage, IncreaseWrapsAtFourBytes)
+{
+  uint32_t value = UINT32_MAX;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&value, sizeof(value)), 4);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  ASSERT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 0u);
+}
