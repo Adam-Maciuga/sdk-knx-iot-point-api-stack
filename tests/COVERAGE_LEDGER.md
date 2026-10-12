@@ -239,9 +239,8 @@ tables + network.
 ### api/oc_knx_sec.c — DONE (string helper + OSCORE config getters/setter + AT-table slot accessors and content ops + /auth CoAP handlers + ACL gate); storage / OSCORE auth are integration-level
 
 Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`.
-OSCORE config lives
-in file-static RAM: `get_oscore_replay_window_size` (const RFC default 32),
-`get_oscore_osn_delay_ms` / `set_oscore_osn_delay_ms` (round-trip, restored).
+OSCORE config: `get_oscore_replay_window_size` (const RFC default 32),
+osn delay in the device instance `oc_device_info_t.osn_delay` (default checked), `set_and_store_oscore_osn_delay_ms` (range -EINVAL, failed NVM write -EIO keeps RAM).
 The AT table is the file-static `g_at_entries[KNX_ATT_MAX_ENTRIES]`, reached for
 read/write through the public slot pointer `oc_get_auth_at_entry` plus
 `oc_core_get_at_table_size`:
@@ -260,7 +259,7 @@ The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
   `const oc_resource_t` definitions with the same stack request/response harness
   as `FpHandlers`. Covered: wrong-Accept → 4.00 on every handler, the CBOR GET
   bodies of `osndelay` and `replwdo`, `osndelay` PUT (no matching int → 4.00,
-  valid → 2.04 and the value is observable via `get_oscore_osn_delay_ms`),
+  valid → 2.04 and the value is observable via `oc_core_get_device_info()->osn_delay`),
   `/auth/at` DELETE → 2.02, the wildcard entry GET/DELETE guards (no token in
   the invoked URI → 4.00, unknown token → 4.00).
   The link-format list bodies of `/auth`, `/auth/o` and `/auth/at` walk the core

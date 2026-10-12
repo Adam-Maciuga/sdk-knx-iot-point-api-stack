@@ -54,6 +54,7 @@ extern "C" {
 		uint32_t mid;											// fix: knx manufacturer id
 		uint64_t fid;											// mod: fabric id
 		uint16_t ia;											// mod: 16-bit knx individual address
+		uint16_t osn_delay;								// mod: oscore osn delay (ms) of /auth/o/osndelay, dpt.TimePeriodMsec (U16), placed in the padding before iid
 		uint64_t iid;											// mod: 40-bit knx installation id
 		bool pm;													// mod: knx programming mode
 		oc_lsm_state_t lsm_s;							// mod: knx lsm states

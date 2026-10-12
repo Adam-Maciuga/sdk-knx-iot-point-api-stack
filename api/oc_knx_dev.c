@@ -1093,14 +1093,11 @@ void oc_knx_load_device(void)
     : LSM_S_UNLOADED;
   OC_INF("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
 
-  // load security related variables
-  uint16_t osc;
-  const uint16_t d_size = oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0
-    ? osc
+  uint16_t osn_delay;
+  device->osn_delay = oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&osn_delay, sizeof(osn_delay)) > 0
+    ? osn_delay
     : DEFAULT_OSN_DELAY;
-
-  set_oscore_osn_delay_ms(d_size);
-  OC_INF("oscore osn delay (storage) %u ms", d_size);
+  OC_INF("oscore osn delay (storage) %u ms", device->osn_delay);
 
   /* NOTE:
      - The used uc port will be advertised with each mDNS such as on every 
@@ -1129,6 +1126,7 @@ void oc_knx_device_reset(int reset_mode)
     device->ia = 0xFFFF;
     device->iid = 0;
     device->fid = 0;
+    device->osn_delay = DEFAULT_OSN_DELAY;
 
     // back to the default host name, stored like the other defaults
     oc_core_reset_device_hostname_to_default();
@@ -1158,10 +1156,7 @@ void oc_knx_device_reset(int reset_mode)
     store_failed |= oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia)) != (long)sizeof(device->ia);
     store_failed |= oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid)) != (long)sizeof(device->iid);
     store_failed |= oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid)) != (long)sizeof(device->fid);
-
-    // reset security related variables to default values
-    uint16_t d_size = DEFAULT_OSN_DELAY;
-    store_failed |= oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size)) != (long)sizeof(d_size);
+    store_failed |= oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&device->osn_delay, sizeof(device->osn_delay)) != (long)sizeof(device->osn_delay);
 
     if (store_failed)
     {

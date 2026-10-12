@@ -7,9 +7,11 @@
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "api/oc_knx_dev.h"
 #include "api/oc_knx_sec.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
@@ -36,15 +38,33 @@ extern const oc_resource_t core_resource_well_known_core;
 static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
 
 // static RAM variables
-static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
 // init all with '0' (also in at table included strings next/ptr/size)
 static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
 uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
-uint16_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
-void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
+
+int set_and_store_oscore_osn_delay_ms(int64_t milliseconds)
+{
+  // format = dpt.TimePeriodMsec (U16)
+  if (milliseconds < 0 || milliseconds > UINT16_MAX)
+  {
+    return -EINVAL;
+  }
+
+  // store first, an osn delay that is not stored in NVM -> NVM + RAM stay unchanged
+  const uint16_t delay = (uint16_t)milliseconds;
+  if (oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&delay, sizeof(delay)) != (long)sizeof(delay))
+  {
+    OC_ERR("Failed to store osn delay %u ms in NVM", delay);
+    return -EIO;
+  }
+
+  oc_core_get_device_info()->osn_delay = delay;
+  return 0;
+}
+
 int32_t get_at_index(const oc_auth_at_t* entry)
 {
   if (!entry)
@@ -159,7 +179,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, get_oscore_osn_delay_ms());
+  oc_rep_i_set_uint(root, 1, oc_core_get_device_info()->osn_delay);
   oc_rep_end_root_object();
 
   OC_INF("oc_core_knx_auth_o_osndelay_get_handler - done");
@@ -176,7 +196,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
     if (rep->type == OC_REP_INT)
@@ -184,7 +204,20 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
       if (rep->iname == 1)
       {
         OC_DBG("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int)rep->type, (int)rep->value.integer);
-        set_oscore_osn_delay_ms((uint16_t)rep->value.integer); 
+        const int result = set_and_store_oscore_osn_delay_ms(rep->value.integer);
+
+        // a failed NVM write is a server error (5.00), an out of range value is a client error (4.00)
+        if (result == -EIO)
+        {
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+          return;
+        }
+        if (result == -EINVAL)
+        {
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }

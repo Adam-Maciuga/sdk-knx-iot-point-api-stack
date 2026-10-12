@@ -31,9 +31,10 @@
 // common device 0 data pointer - cannot be NULL
 static oc_device_info_t oc_device_info = 
 {
-  // default manufacturing date fallback (application will set actual date on startup, see Application Init/Startup)
-  .mfg_date = "1970-01-01T00:00:00Z" 
-};	
+  
+  .mfg_date = "1970-01-01T00:00:00Z", // default manufacturing date fallback (application will set actual date on startup, see Application Init/Startup)
+  .osn_delay = DEFAULT_OSN_DELAY      // default oscore osn delay until the stored one is loaded on startup
+};
 
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {

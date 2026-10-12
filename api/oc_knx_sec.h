@@ -294,13 +294,6 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
    */
 	uint32_t get_oscore_replay_window_size(void);
 
-	/**
-   * @brief get OSCORE OSN Delay Time
-   *
-   * @return delay time (ms)
-   */
-  uint16_t get_oscore_osn_delay_ms(void);
-
   /**
    * @brief get the access token table index from an entry
    *
@@ -310,16 +303,16 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
    * @return index -1 (entry is not part of the table or entry is NULL)
    */
   int32_t get_at_index(const oc_auth_at_t* entry);
-  
+
 	/**
-   * @brief set OSCORE OSN Delay Time
+   * @brief sets the OSCORE OSN Delay Time and store it
    *
-   * @param milliseconds time
+   * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
    *
-   * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible)
-   *
+   * @param milliseconds time (dpt.TimePeriodMsec, U16)
+   * @return int 0 = OK, -EINVAL = out of U16 range, -EIO = not stored (nothing changed in both cases)
    */
-  void set_oscore_osn_delay_ms(uint16_t milliseconds);
+  int set_and_store_oscore_osn_delay_ms(int64_t milliseconds);
 
 	/**
    * @brief write SSN to storage

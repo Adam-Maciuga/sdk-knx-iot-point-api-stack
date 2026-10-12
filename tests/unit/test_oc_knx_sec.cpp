@@ -10,11 +10,14 @@
  */
 
 #include <gtest/gtest.h>
+#include <cerrno>
 #include <cstring>
 #include <vector>
 
 extern "C" {
+#include "api/oc_knx_dev.h"
 #include "api/oc_knx_sec.h"
+#include "oc_core_res.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/constants.h"
 #include "messaging/coap/oc_coap.h" /* full def of oc_response_buffer_s */
@@ -56,7 +59,7 @@ TEST(AtProfileToString, Unknown)
   EXPECT_STREQ(oc_at_profile_to_string(OC_PROFILE_UNKNOWN), "");
 }
 /* ═══════════════════════════════════════════════════════════════════════════
- * OSCORE config getters/setter (file-static RAM variables)
+ * OSCORE config getters/setter (replay window const, osn delay in the device instance)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 TEST(OscoreConfig, ReplayWindowSizeIsRfcDefault)
@@ -65,14 +68,9 @@ TEST(OscoreConfig, ReplayWindowSizeIsRfcDefault)
   EXPECT_EQ(get_oscore_replay_window_size(), 32u);
 }
 
-TEST(OscoreConfig, OsnDelayRoundTrips)
+TEST(OscoreConfig, OsnDelayDefaultInDeviceInstance)
 {
-  const uint16_t original = get_oscore_osn_delay_ms();
-  set_oscore_osn_delay_ms(1234);
-  EXPECT_EQ(get_oscore_osn_delay_ms(), 1234u);
-  set_oscore_osn_delay_ms(0);
-  EXPECT_EQ(get_oscore_osn_delay_ms(), 0u);
-  set_oscore_osn_delay_ms(original); /* restore */
+  EXPECT_EQ(oc_core_get_device_info()->osn_delay, DEFAULT_OSN_DELAY);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -368,6 +366,9 @@ protected:
   oc_response_t response;
   oc_response_buffer_t response_buffer;
 
+  /* the osndelay PUT handler stores the value, so storage must be configured */
+  static void SetUpTestSuite() { oc_storage_config(kSecStoreDir); }
+
   void SetUp() override { oc_mmem_init(); }
 
   int invoke(const oc_resource_t &res, oc_request_callback_t cb,
@@ -439,7 +440,7 @@ TEST_F(SecHandlers, OsnDelayPutWithoutPayloadBadRequest)
 
 TEST_F(SecHandlers, OsnDelayPutStoresValue)
 {
-  const uint16_t original = get_oscore_osn_delay_ms();
+  const uint16_t original = oc_core_get_device_info()->osn_delay;
 
   oc_rep_t rep;
   memset(&rep, 0, sizeof(rep));
@@ -451,9 +452,49 @@ TEST_F(SecHandlers, OsnDelayPutStoresValue)
                    core_resource_knx_auth_o_osndelay.put_handler.cb,
                    APPLICATION_CBOR, OC_IF_D, nullptr, nullptr, &rep),
             oc_status_code(OC_STATUS_CHANGED));
-  EXPECT_EQ(get_oscore_osn_delay_ms(), 321);
+  EXPECT_EQ(oc_core_get_device_info()->osn_delay, 321);
 
-  set_oscore_osn_delay_ms(original); /* restore the file-static default */
+  uint16_t stored = 0;
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(stored, 321);
+
+  oc_storage_erase(KNX_STORAGE_KEY_OSN_DELAY);
+  oc_core_get_device_info()->osn_delay = original; /* restore the default */
+}
+
+TEST_F(SecHandlers, OsnDelayPutOutOfRangeBadRequest)
+{
+  const uint16_t original = oc_core_get_device_info()->osn_delay;
+
+  oc_rep_t rep;
+  memset(&rep, 0, sizeof(rep));
+  rep.type = OC_REP_INT;
+  rep.iname = 1;
+  rep.value.integer = 0x10000;
+
+  EXPECT_EQ(invoke(core_resource_knx_auth_o_osndelay,
+                   core_resource_knx_auth_o_osndelay.put_handler.cb,
+                   APPLICATION_CBOR, OC_IF_D, nullptr, nullptr, &rep),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_get_device_info()->osn_delay, original);
+}
+
+TEST(OscoreConfig, OsnDelaySetAndStoreRange)
+{
+  EXPECT_EQ(set_and_store_oscore_osn_delay_ms(-1), -EINVAL);
+  EXPECT_EQ(set_and_store_oscore_osn_delay_ms(0x10000), -EINVAL);
+}
+
+TEST(OscoreConfig, OsnDelaySetAndStoreFailsKeepsRam)
+{
+  const uint16_t original = oc_core_get_device_info()->osn_delay;
+
+  /* the parent directory does not exist, so the storage write fails */
+  oc_storage_config("sec_missing_parent/sec_osn");
+  EXPECT_EQ(set_and_store_oscore_osn_delay_ms(777), -EIO);
+  EXPECT_EQ(oc_core_get_device_info()->osn_delay, original);
+
+  oc_storage_config(kSecStoreDir);
 }
 
 /* ──────────────────────────── /auth/o/replwdo GET ────────────────────────── */

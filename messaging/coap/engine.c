@@ -18,6 +18,7 @@
 #include "api/oc_knx_sec.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_client.h"
+#include "oc_core_res.h"
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
@@ -410,7 +411,7 @@ static void coap_send_response_with_empty_application_payload_with_delay(const c
     - adjust between 0 and up to max configured delay, note 0 means no delay and the response will be sent soon on next callback check
     - unicast, no delay
   */
-  const uint16_t max_delay_ms = get_oscore_osn_delay_ms();
+  const uint16_t max_delay_ms = oc_core_get_device_info()->osn_delay;
   const bool is_multicast = src_ctx->endpoint.flags & MULTICAST;
   const uint16_t delay_ms = is_multicast && max_delay_ms > 0 ? (uint16_t)(oc_random_value() % max_delay_ms) : 0;
 
