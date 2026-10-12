@@ -74,9 +74,12 @@ extern "C" {
   void oc_core_set_device_sn(const char* serialnumber);
 
 	/**
-   * @brief Set device resources by loading knx publisher/recipient/security tables and init's the 
-   *        (socket) connectivity for the device, including the CoAP unicast default port (5683 or random, 
-   *        see COAP_DEFAULT_PORT in CMake) and the multicast discovery port (5683)
+   * @brief Init device resources 
+   *        - knx publisher/recipient/security tables from NVM 
+   *        - init's the (socket) connectivity for the device 
+   *        - init's the CoAP unicast default port (5683 or random, see COAP_DEFAULT_PORT in CMake)
+   *				- init's the CoAP multicast discovery port (5683)
+   *        - swu resources (last update timestamp from NVM)
    *
    */
   void oc_core_set_device_res(void);
