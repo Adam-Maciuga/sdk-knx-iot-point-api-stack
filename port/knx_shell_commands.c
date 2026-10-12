@@ -303,8 +303,12 @@ static int knx_fid_cmd(size_t argc, char** argv)
     return err;
   }
 
-  oc_core_set_and_store_device_fid(fid);
-  return 0;
+  const int err_store = oc_core_set_and_store_device_fid(fid);
+  if (err_store != 0)
+  {
+    knx_shell_error("Failed to set fabric identifier: %s", argv[1]);
+  }
+  return err_store;
 }
 
 /* KNX IA command: print if called without argument, set if argument is given */
@@ -335,8 +339,12 @@ static int knx_ia_cmd(size_t argc, char** argv)
   }
 
   const uint16_t addr = (ia_a << 12) | (ia_l << 8) | ia_d;
-  oc_core_set_and_store_device_ia(addr);
-  return 0;
+  const int err_store = oc_core_set_and_store_device_ia(addr);
+  if (err_store != 0)
+  {
+    knx_shell_error("Failed to set individual address: %s", argv[1]);
+  }
+  return err_store;
 }
 
 /* KNX IID command: print if called without argument, set if argument is given */
@@ -376,8 +384,12 @@ static int knx_iid_cmd(size_t argc, char** argv)
 
   const uint64_t iid = ((uint64_t)byte_5 << 32) | ((uint64_t)byte_4 << 24) |
                        ((uint64_t)byte_3 << 16) | ((uint64_t)byte_2 << 8) | byte_1;
-  oc_core_set_and_store_device_iid(iid);
-  return 0;
+  const int err_store = oc_core_set_and_store_device_iid(iid);
+  if (err_store != 0)
+  {
+    knx_shell_error("Failed to set installation ID: %s", argv[1]);
+  }
+  return err_store;
 }
 
 /* KNX Programming Mode command: print if called without argument, set if argument is given */

@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <cerrno>
 #include <cstring>
 #include <string>
 
@@ -176,13 +177,22 @@ TEST_F(DeviceHostname, SetMaxLengthAcceptedOneMoreRejected)
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Device-info setters/getters — write the static oc_device_info and (where
- * applicable) attempt a storage write that is a no-op when storage is not
- * configured. We assert the in-memory device-info reflects the change.
+ * applicable) the storage; ia/iid/fid store first and keep RAM unchanged
+ * when the storage write fails.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 class DeviceInfo : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
+  void SetUp() override
+  {
+    oc_mmem_init();
+
+    /* ia/iid/fid store first and fail without storage; one directory per test, see DeviceHostname */
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "di_%s", info->name());
+    oc_storage_config(dir);
+  }
 };
 
 TEST_F(DeviceInfo, SetFirmwareVersion)
@@ -278,29 +288,29 @@ TEST_F(DeviceInfo, SetManufacturingDateOverwritesPrevious)
 
 TEST_F(DeviceInfo, SetAndStoreIaInRange)
 {
-  EXPECT_TRUE(oc_core_set_and_store_device_ia(0x1234));
+  EXPECT_EQ(oc_core_set_and_store_device_ia(0x1234), 0);
   EXPECT_EQ(oc_core_get_device_info()->ia, 0x1234);
 }
 
 TEST_F(DeviceInfo, SetAndStoreIaRejectsNegative)
 {
-  EXPECT_FALSE(oc_core_set_and_store_device_ia(-1));
+  EXPECT_EQ(oc_core_set_and_store_device_ia(-1), -EINVAL);
 }
 
 TEST_F(DeviceInfo, SetAndStoreIaRejectsTooLarge)
 {
-  EXPECT_FALSE(oc_core_set_and_store_device_ia(0x10000));
+  EXPECT_EQ(oc_core_set_and_store_device_ia(0x10000), -EINVAL);
 }
 
 TEST_F(DeviceInfo, SetAndStoreIidInRange)
 {
-  EXPECT_TRUE(oc_core_set_and_store_device_iid(0xABCDEF));
+  EXPECT_EQ(oc_core_set_and_store_device_iid(0xABCDEF), 0);
   EXPECT_EQ(oc_core_get_device_iid(), 0xABCDEFu);
 }
 
 TEST_F(DeviceInfo, SetAndStoreIidRejectsNegative)
 {
-  EXPECT_FALSE(oc_core_set_and_store_device_iid(-5));
+  EXPECT_EQ(oc_core_set_and_store_device_iid(-5), -EINVAL);
 }
 
 TEST_F(DeviceInfo, SetAndStoreApplicationVersion)
@@ -315,13 +325,65 @@ TEST_F(DeviceInfo, SetAndStoreApplicationVersion)
 
 TEST_F(DeviceInfo, SetAndStoreFidInRange)
 {
-  EXPECT_TRUE(oc_core_set_and_store_device_fid(0x99));
+  EXPECT_EQ(oc_core_set_and_store_device_fid(0x99), 0);
   EXPECT_EQ(oc_core_get_device_info()->fid, 0x99u);
 }
 
 TEST_F(DeviceInfo, SetAndStoreFidRejectsNegative)
 {
-  EXPECT_FALSE(oc_core_set_and_store_device_fid(-1));
+  EXPECT_EQ(oc_core_set_and_store_device_fid(-1), -EINVAL);
+}
+
+TEST_F(DeviceInfo, SetAndStoreIaStoresValue)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_ia(0x1234), 0);
+  uint16_t stored = 0;
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_IA, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(stored, 0x1234);
+}
+
+TEST_F(DeviceInfo, SetAndStoreIidStoresValue)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_iid(0xABCDEF), 0);
+  int64_t stored = 0;
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_IID, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(stored, 0xABCDEF);
+}
+
+TEST_F(DeviceInfo, SetAndStoreFidStoresValue)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_fid(0x99), 0);
+  int64_t stored = 0;
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(stored, 0x99);
+}
+
+TEST_F(DeviceInfo, SetAndStoreIaStoreFailsKeepsRam)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_ia(0x1234), 0);
+
+  /* the parent directory does not exist, so the storage write fails */
+  oc_storage_config("di_missing_parent/di_ia");
+  EXPECT_EQ(oc_core_set_and_store_device_ia(0x5678), -EIO);
+  EXPECT_EQ(oc_core_get_device_info()->ia, 0x1234);
+}
+
+TEST_F(DeviceInfo, SetAndStoreIidStoreFailsKeepsRam)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_iid(0xABCDEF), 0);
+
+  oc_storage_config("di_missing_parent/di_iid");
+  EXPECT_EQ(oc_core_set_and_store_device_iid(0x123456), -EIO);
+  EXPECT_EQ(oc_core_get_device_iid(), 0xABCDEFu);
+}
+
+TEST_F(DeviceInfo, SetAndStoreFidStoreFailsKeepsRam)
+{
+  ASSERT_EQ(oc_core_set_and_store_device_fid(0x99), 0);
+
+  oc_storage_config("di_missing_parent/di_fid");
+  EXPECT_EQ(oc_core_set_and_store_device_fid(0x77), -EIO);
+  EXPECT_EQ(oc_core_get_device_info()->fid, 0x99u);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

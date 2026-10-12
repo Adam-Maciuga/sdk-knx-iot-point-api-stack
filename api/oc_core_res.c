@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include "oc_core_res.h"
@@ -60,19 +61,26 @@ int oc_core_set_device_mfd(const char* time)
   return 0;
 }
 
-bool oc_core_set_and_store_device_ia(int64_t ia)
+int oc_core_set_and_store_device_ia(int64_t ia)
 {
   // max IA number as 16 bit, 0 = in KNX not allowed but here accepted (specification does not limit it)
   #define MAX_IA (0xFFFF)
 
-  if (ia >= 0 && ia <= MAX_IA)
+  if (ia < 0 || ia > MAX_IA)
   {
-    oc_device_info.ia = (uint16_t)ia;
-    oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&oc_device_info.ia, sizeof(oc_device_info.ia));
-
-    return true;
+    return -EINVAL;
   }
-  return false;
+
+  // store first, an ia that is not stored in NVM -> NVM + RAM stay unchanged
+  uint16_t new_ia = (uint16_t)ia;
+  if (oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&new_ia, sizeof(new_ia)) != (long)sizeof(new_ia))
+  {
+    OC_ERR("Failed to store ia %u in NVM", new_ia);
+    return -EIO;
+  }
+
+  oc_device_info.ia = new_ia;
+  return 0;
 }
 
 int oc_core_set_device_hwt(const char* hardware_type)
@@ -224,18 +232,25 @@ uint64_t oc_core_get_device_iid(void)
 	return oc_device_info.iid;
 }
 
-bool oc_core_set_and_store_device_iid(int64_t iid)
+int oc_core_set_and_store_device_iid(int64_t iid)
 {
   // max IID number as 40 bit, 0 = allowed (specification does not limit it)
   #define MAX_IID (0xFFFFFFFFFF)
 
-  if (iid >= 0 && iid <= MAX_IID)
+  if (iid < 0 || iid > MAX_IID)
   {
-    oc_device_info.iid = iid;
-    oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid));
-    return true;
+    return -EINVAL;
   }
-  return false;
+
+  // store first, an iid that is not stored in NVM -> NVM + RAM stay unchanged
+  if (oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid)) != (long)sizeof(iid))
+  {
+    OC_ERR("Failed to store iid %" PRIi64 " in NVM", iid);
+    return -EIO;
+  }
+
+  oc_device_info.iid = iid;
+  return 0;
 }
 
 int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version)
@@ -245,18 +260,25 @@ int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* vers
   return 0;
 }
 
-bool oc_core_set_and_store_device_fid(int64_t fid)
+int oc_core_set_and_store_device_fid(int64_t fid)
 {
   // max FID number as 40 bit, 0 = allowed (specification does not limit it)
   #define MAX_FID (0xFFFFFFFFFF)
 
-  if (fid >= 0 && fid <= MAX_FID)
+  if (fid < 0 || fid > MAX_FID)
   {
-    oc_device_info.fid = fid;
-    oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid));
-    return true;
+    return -EINVAL;
   }
-  return false;
+
+  // store first, a fid that is not stored in NVM -> NVM + RAM stay unchanged
+  if (oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) != (long)sizeof(fid))
+  {
+    OC_ERR("Failed to store fid %" PRIi64 " in NVM", fid);
+    return -EIO;
+  }
+
+  oc_device_info.fid = fid;
+  return 0;
 }
 
 void oc_core_set_device_sn(const char* serialnumber)

@@ -119,11 +119,12 @@ extern "C" {
 	/**
 	 * @brief sets and stores the individual address
 	 *
+	 * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
+	 *
 	 * @param ia the individual address
-	 * @return false = error, ia out of 16-bit range
-	 * @return true = OK 
+	 * @return int 0 = OK, -EINVAL = ia out of 16-bit range, -EIO = not stored (nothing changed in both cases)
 	 */
-	bool oc_core_set_and_store_device_ia(int64_t ia);
+	int oc_core_set_and_store_device_ia(int64_t ia);
 
 	/**
 	 * @brief sets the hardware type (string)
@@ -200,20 +201,22 @@ extern "C" {
 	/**
 	 * @brief sets the installation identifier (iid) and store it
 	 *
+	 * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
+	 *
 	 * @param iid the KNX installation id
-	 * @return false = error, iid out of 40-bit range
-	 * @return true = OK 
+	 * @return int 0 = OK, -EINVAL = iid out of 40-bit range, -EIO = not stored (nothing changed in both cases)
 	 */
-  bool oc_core_set_and_store_device_iid(int64_t iid);
+  int oc_core_set_and_store_device_iid(int64_t iid);
 
 	/**
-	 * @brief sets the fabric identifier (fid)
+	 * @brief sets the fabric identifier (fid) and store it
+	 *
+	 * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
 	 *
 	 * @param fid the fabric id
-	 * @return false = error, fid out of 40-bit range
-	 * @return true = OK 
+	 * @return int 0 = OK, -EINVAL = fid out of 40-bit range, -EIO = not stored (nothing changed in both cases)
 	 */
-  bool oc_core_set_and_store_device_fid(int64_t fid);
+  int oc_core_set_and_store_device_fid(int64_t fid);
 
   /**
    * @brief sets the device manufacturing date

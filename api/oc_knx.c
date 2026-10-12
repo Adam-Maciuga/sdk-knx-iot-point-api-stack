@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include "oc_knx.h"
@@ -1345,9 +1346,9 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
   (void)data;
   (void)iface_mask;
 
-  bool ia_ok = false;    // is mandatory, per default not ok
-  bool iid_ok = false;   // is mandatory, per default not ok
-  bool fid_ok = true;    // is optional, per default ok
+  int ia_result = -EINVAL;   // is mandatory, per default not ok
+  int iid_result = -EINVAL;  // is mandatory, per default not ok
+  int fid_result = 0;        // is optional, per default ok
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1363,47 +1364,57 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 12)
       {
         OC_DBG("received 12 (ia) : %" PRIi64, rep->value.integer);
-        ia_ok = oc_core_set_and_store_device_ia(rep->value.integer);
+        ia_result = oc_core_set_and_store_device_ia(rep->value.integer);
       }
       else if (rep->iname == 25)
       {
         //  note, the PUT dev/fid handler is optional, a MaC may omit the fid in THIS request but a server must support it (see iot spec., table 14)
         OC_DBG("received 25 (fid): %" PRIi64, rep->value.integer);
-        fid_ok = oc_core_set_and_store_device_fid(rep->value.integer);
+        fid_result = oc_core_set_and_store_device_fid(rep->value.integer);
       }
       else if (rep->iname == 26)
       {
         OC_DBG("received 26 (iid): %" PRIi64, rep->value.integer);
-        iid_ok = oc_core_set_and_store_device_iid(rep->value.integer);
+        iid_result = oc_core_set_and_store_device_iid(rep->value.integer);
       }
     }
     rep = rep->next;
   }
 
-  // check iid/ia and fid  
-  if (iid_ok && ia_ok && fid_ok)
+  /*
+    - a failed NVM write is a server error (5.00), not the client's fault 
+    - a missing or out of range ia/iid/fid is a client error (4.00)
+    - second or third NVM write error leaves the already written elements in NVM, the client can/will retry 
+      and maybe the new write-request will THEN be succeeded (e.g. a transient flash write error, or a retry after a reset)
+  */
+  if (ia_result == -EIO || iid_result == -EIO || fid_result == -EIO)
   {
-    if (oc_is_device_in_runtime())
-    {
-      oc_register_group_multicasts();
-      oc_init_datapoints_at_initialization();
-    }
-
-    /*
-      Always re-publish mDNS when IA changes, regardless of runtime state.
-      The conformance tests expect an announcement and query-response for the new IA subtype
-      even when the device is not yet in loaded/runtime state.
-    */
-    OC_DBG("Re-register mDNS after writing iid + ia)");
-    const oc_device_info_t* const  device = oc_core_get_device_info();
-    knx_dns_sd_update_service(device);
-
-    oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+    return;
   }
-  else
+
+  if (ia_result != 0 || iid_result != 0 || fid_result != 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+    return;
   }
+
+  if (oc_is_device_in_runtime())
+  {
+    oc_register_group_multicasts();
+    oc_init_datapoints_at_initialization();
+  }
+
+  /*
+    Always re-publish mDNS when IA changes, regardless of runtime state.
+    The conformance tests expect an announcement and query-response for the new IA subtype
+    even when the device is not yet in loaded/runtime state.
+  */
+  OC_DBG("Re-register mDNS after writing iid + ia)");
+  const oc_device_info_t* const  device = oc_core_get_device_info();
+  knx_dns_sd_update_service(device);
+
+  oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
