@@ -1147,11 +1147,13 @@ void oc_knx_device_reset(int reset_mode)
     // clear the CoAP response cache
     oc_coap_clear_response_history();
 
-    // writing all above reset values to storage (LSM already written)
-    // Note:
-    // - The used uc port will be advertised with each mDNS such as on every startup, so no need to store
-    // - The used mc port for discovery is fixed, so no need to store
-    // - RAM holds the defaults in any case (the device must run with them), a failed write is only logged
+    /*
+      writing all above reset values to storage (LSM already written)
+      Note:
+      - The used uc port will be advertised with each mDNS such as on every startup, so no need to store
+      - The used mc port for discovery is fixed, so no need to store
+      - RAM holds the defaults in any case (the device must run with them), a failed write is only logged
+    */
     bool store_failed = false;
     store_failed |= oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia)) != (long)sizeof(device->ia);
     store_failed |= oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid)) != (long)sizeof(device->iid);
