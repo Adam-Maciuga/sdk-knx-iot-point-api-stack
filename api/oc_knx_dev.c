@@ -1109,7 +1109,7 @@ void oc_knx_load_device(void)
   */
 }
 
-void oc_knx_device_reset(int reset_mode) 
+void oc_knx_device_reset(int reset_mode)
 {
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1151,13 +1151,20 @@ void oc_knx_device_reset(int reset_mode)
     // Note:
     // - The used uc port will be advertised with each mDNS such as on every startup, so no need to store
     // - The used mc port for discovery is fixed, so no need to store
-    oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia));
-    oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid));
-    oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid));
+    // - RAM holds the defaults in any case (the device must run with them), a failed write is only logged
+    bool store_failed = false;
+    store_failed |= oc_storage_write(KNX_STORAGE_KEY_IA, (uint8_t*)&device->ia, sizeof(device->ia)) != (long)sizeof(device->ia);
+    store_failed |= oc_storage_write(KNX_STORAGE_KEY_IID, (uint8_t*)&device->iid, sizeof(device->iid)) != (long)sizeof(device->iid);
+    store_failed |= oc_storage_write(KNX_STORAGE_KEY_FID, (uint8_t*)&device->fid, sizeof(device->fid)) != (long)sizeof(device->fid);
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
-    oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
+    store_failed |= oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size)) != (long)sizeof(d_size);
+
+    if (store_failed)
+    {
+      OC_ERR("Failed to store the reset defaults (ia, iid, fid, osn delay) in NVM");
+    }
 
      // reannounce mDNS advertisement with new data
     knx_dns_sd_update_service(device);
