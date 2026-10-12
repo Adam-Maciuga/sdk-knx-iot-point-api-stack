@@ -89,10 +89,11 @@ extern "C" {
 	 *
 	 * @param version the xxx number of xxx.yyy.zzz
 	 *
-	 * @note according to the type definition it is a U5U5U6,
-	 *       please consider the range (no active range check is implemented)
+	 * @note 
+	 * - according to the type definition it is a U5U5U6, please consider the range (no active range check is implemented)
+	 * - stored first, RAM is set only if the write-request succeeds (NVM + RAM stay unchanged otherwise)
 	 *
-	 * @return int error status, 0 = OK
+	 * @return int 0 = OK, -EIO = not stored (nothing changed)
 	 */
   int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version);
 
@@ -239,9 +240,10 @@ extern "C" {
    * @param version major version
    *
    * @note according to the type definition it is a U16U16U8 with vendor id, device type, app. version,
-   *       no active range check is yet implemented for the U8 range of patch (app. version)
+   *       the caller MUST ensure the U8 range of patch (app. version), no range check here
+   * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
    *
-   * @return int error status, 0 = OK
+   * @return int 0 = OK, -EIO = not stored (nothing changed)
    */
 	int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version);
 

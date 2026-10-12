@@ -37,10 +37,18 @@ static oc_device_info_t oc_device_info =
 
 int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
-	oc_device_info.fwv = *version;
-  oc_storage_write(KNX_STORAGE_KEY_FW_VERSION, (uint8_t*)version, sizeof(oc_knx_version_info_t));
+  /*
+    store first, a fwv that is not stored in NVM -> NVM + RAM stay unchanged; setting RAM anyway gains nothing, the
+    load on startup (after the application init) replaces it with the stored one
+  */
+  if (oc_storage_write(KNX_STORAGE_KEY_FW_VERSION, (uint8_t*)version, sizeof(*version)) != (long)sizeof(*version))
+  {
+    OC_ERR("Failed to store fwv %u.%u.%u in NVM", version->major, version->minor, version->patch);
+    return -EIO;
+  }
 
-	return 0;
+  oc_device_info.fwv = *version;
+  return 0;
 }
 
 int oc_core_set_device_hwv(const oc_knx_version_info_t* version)
@@ -255,8 +263,14 @@ int oc_core_set_and_store_device_iid(int64_t iid)
 
 int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version)
 {
-	oc_device_info.apv = *version;
-  oc_storage_write(KNX_STORAGE_KEY_APP_VERSION, (uint8_t*)version, sizeof(oc_knx_version_info_t));
+  // store first, an apv that is not stored in NVM -> NVM + RAM stay unchanged
+  if (oc_storage_write(KNX_STORAGE_KEY_APP_VERSION, (uint8_t*)version, sizeof(*version)) != (long)sizeof(*version))
+  {
+    OC_ERR("Failed to store apv %u.%u.%u in NVM", version->major, version->minor, version->patch);
+    return -EIO;
+  }
+
+  oc_device_info.apv = *version;
   return 0;
 }
 

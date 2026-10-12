@@ -862,7 +862,11 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
     const int64_t* array = oc_int_array(rep->value.array);
     const size_t array_size = oc_int_array_size(rep->value.array);
 
-    if (array_size != 3) 
+    // U16U16U8, checked before the cast to the 16-bit fields, otherwise an out of range value is silently truncated
+    if (array_size != 3 
+        || array[0] < 0 || array[0] > UINT16_MAX 
+        || array[1] < 0 || array[1] > UINT16_MAX 
+        || array[2] < 0 || array[2] > UINT8_MAX)
     {
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
       return;
@@ -871,7 +875,12 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
     // prepare version info, major, minor, patch, see xxx.ap definition how it is interpreted
     oc_knx_version_info_t app_version = {.major = (uint16_t)array[0], .minor = (uint16_t)array[1], .patch = (uint16_t)array[2]};
 
-    oc_core_set_and_store_device_application_version(&app_version);
+    // a failed NVM write is a server error (5.00), not the client's fault
+    if (oc_core_set_and_store_device_application_version(&app_version) != 0)
+    {
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+      return;
+    }
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;

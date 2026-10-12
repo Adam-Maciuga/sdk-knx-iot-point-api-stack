@@ -358,6 +358,53 @@ TEST_F(DeviceInfo, SetAndStoreFidStoresValue)
   EXPECT_EQ(stored, 0x99);
 }
 
+TEST_F(DeviceInfo, SetAndStoreFwvStoresValue)
+{
+  oc_knx_version_info_t version = {1, 2, 3};
+  ASSERT_EQ(oc_core_set_and_store_device_fwv(&version), 0);
+  oc_knx_version_info_t stored = {0, 0, 0};
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_FW_VERSION, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(memcmp(&stored, &version, sizeof(version)), 0);
+}
+
+TEST_F(DeviceInfo, SetAndStoreApvStoresValue)
+{
+  oc_knx_version_info_t version = {7, 8, 9};
+  ASSERT_EQ(oc_core_set_and_store_device_application_version(&version), 0);
+  oc_knx_version_info_t stored = {0, 0, 0};
+  ASSERT_EQ(oc_storage_read(KNX_STORAGE_KEY_APP_VERSION, (uint8_t *)&stored, sizeof(stored)), (long)sizeof(stored));
+  EXPECT_EQ(memcmp(&stored, &version, sizeof(version)), 0);
+}
+
+TEST_F(DeviceInfo, SetAndStoreFwvStoreFailsKeepsRam)
+{
+  oc_knx_version_info_t version = {1, 2, 3};
+  ASSERT_EQ(oc_core_set_and_store_device_fwv(&version), 0);
+
+  /* the parent directory does not exist, so the storage write fails */
+  oc_storage_config("di_missing_parent/di_fwv");
+  oc_knx_version_info_t other = {4, 5, 6};
+  EXPECT_EQ(oc_core_set_and_store_device_fwv(&other), -EIO);
+  const oc_device_info_t *d = oc_core_get_device_info();
+  EXPECT_EQ(d->fwv.major, 1);
+  EXPECT_EQ(d->fwv.minor, 2);
+  EXPECT_EQ(d->fwv.patch, 3);
+}
+
+TEST_F(DeviceInfo, SetAndStoreApvStoreFailsKeepsRam)
+{
+  oc_knx_version_info_t version = {2, 1, 0};
+  ASSERT_EQ(oc_core_set_and_store_device_application_version(&version), 0);
+
+  oc_storage_config("di_missing_parent/di_apv");
+  oc_knx_version_info_t other = {3, 3, 3};
+  EXPECT_EQ(oc_core_set_and_store_device_application_version(&other), -EIO);
+  const oc_device_info_t *d = oc_core_get_device_info();
+  EXPECT_EQ(d->apv.major, 2);
+  EXPECT_EQ(d->apv.minor, 1);
+  EXPECT_EQ(d->apv.patch, 0);
+}
+
 TEST_F(DeviceInfo, SetAndStoreIaStoreFailsKeepsRam)
 {
   ASSERT_EQ(oc_core_set_and_store_device_ia(0x1234), 0);
