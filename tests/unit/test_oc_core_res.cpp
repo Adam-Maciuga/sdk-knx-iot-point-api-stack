@@ -251,8 +251,8 @@ TEST_F(DeviceInfo, SetManufacturerId)
 
 TEST_F(DeviceInfo, SetHardwareType)
 {
-  EXPECT_EQ(oc_core_set_device_hwt("MYHW"), 0);
-  EXPECT_STREQ(oc_core_get_device_info()->hwt, "MYHW");
+  EXPECT_EQ(oc_core_set_device_hwt("0012AB34CD56EF78"), 0);
+  EXPECT_STREQ(oc_core_get_device_info()->hwt, "0012AB34CD56EF78");
 }
 
 TEST_F(DeviceInfo, SetSerialNumber)

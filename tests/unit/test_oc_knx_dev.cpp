@@ -165,7 +165,7 @@ protected:
      * handlers, so give them values with static lifetime. */
     oc_device_info_t *dev = oc_core_get_device_info();
     dev->serialnumber = "000000000000";
-    dev->hwt = "myhwt";
+    dev->hwt = "0012AB34CD56EF78";
     dev->order_number = "myordernumber";
     init_string(&dev->iot_hostname, "knxhost");
 
