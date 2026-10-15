@@ -119,14 +119,11 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth
 
 oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len)
 {
-  // search for a transaction by token
-  coap_transaction_t* t = coap_get_transaction_by_token(pkt);
-
+  // search for a transaction by token (including unicast s-mode NON transactions), if not found by mid (CON only)
+  coap_transaction_t* t = coap_get_transaction_by_token(pkt, false);
   if (!t)
   {
-    // not found by token, search by mid
     t = coap_get_transaction_by_mid(pkt->mid);
-
     if (!t)
     {
       // nothing found by token or mid
@@ -138,6 +135,32 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
   {
     *request_piv = t->message->endpoint.piv;
     *request_piv_len = t->message->endpoint.piv_len;
+  }
+
+  /*
+    unicast s-mode CON/NON request
+    
+    (a) an own fresh request carries no access token of an inbound message, it was protected
+        with the group address context (uc-c), the PIV used for sending is recorded on the transaction endpoint, a response
+        without a recorded PIV is refused (also after the PIV was consumed by an outbound 'echo re-request')
+    
+    (b) NON (header-only transaction) is matched by token only, a NON response carries a mid of the peer that may collide
+        with a pending CON transaction
+
+    |transaction                         | auth_at | s-mode flag        | context lookup
+    -------------------------------------+---------+--------------------+---------------
+    |own s-mode CON                      | NULL    | S_MODE_CON_REQUEST | group address
+    |own s-mode NON (header-only)        | NULL    | S_MODE_NON_REQUEST | group address
+    |outbound msg to an inbound request  | set     | none               | access token
+  */
+  if (!t->message->endpoint.auth_at_of_inbound_msg && (t->message->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST)))
+  { // (a) && (b)
+    if (t->message->endpoint.piv_len == 0)
+    {
+      return NULL;
+    }
+
+    return oc_oscore_find_context_by_group_address(t->message->endpoint.group_address);
   }
 
   return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg);

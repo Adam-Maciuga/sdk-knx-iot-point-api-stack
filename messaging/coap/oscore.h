@@ -34,6 +34,7 @@ extern "C"
   // extra definition to avoid including the OSCORE context header here
   struct oc_oscore_context_t;
 
+  // frees all echo records in th echo ring
   void oc_oscore_free_all_echo_records(void);
 
   void oc_oscore_echo_whitelist_append(uint32_t ssn, const struct oc_oscore_context_t* ctx,

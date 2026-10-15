@@ -223,6 +223,13 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
 
+  /*
+    carry the originating group object plus the service type on the endpoint: the OSCORE layer copies both into the
+    echo ring anchor, a 4.01 echo response regenerates the re-request payload from it (a unicast NON drops its PDU)
+  */
+  group_ucast_endpoint.s_mode_group_object = group_object;
+  group_ucast_endpoint.s_mode_service_type = service_type;
+
   OC_INF("Sending s-mode unicast %c", service_type);
 
   // send unicast message, confirmable or non-confirmable by 'non' flag in recipient table entry
@@ -947,15 +954,15 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
     OC_INF("IPv6 resolved for IA 0x%04x", (uint16_t)recipient->ia);
 
-    const char* resource_path = oc_string(recipient->ipv6_res.group_object->href);
-    const uint32_t group_address = recipient->ipv6_res.group_object->ga[0];
-    const char service_type = recipient->ipv6_res.service_type;
+    const char* href = oc_string(recipient->ipv6_res.group_object->href);
+    const uint32_t ga = recipient->ipv6_res.group_object->ga[0];
+    const char srv = recipient->ipv6_res.service_type;
 
     // copy resource value to buffer, return value size, -> buffer must be big enough to carry resource value!
-    const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, max_value_size);
+    const int resource_value_size = oc_s_mode_get_resource_value(href, resource_value_buffer, max_value_size);
 
     // since the IPV6 resolving is done, this below call does not end in an endless loop
-    oc_send_s_mode_unicast_message(group_address, service_type, resource_value_buffer, resource_value_size, recipient, NULL);
+    oc_send_s_mode_unicast_message(ga, srv, resource_value_buffer, resource_value_size, recipient, recipient->ipv6_res.group_object);
 
     // release value buffer, free ignores NULL ptr
     free(resource_value_buffer);

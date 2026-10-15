@@ -318,7 +318,6 @@ static uint8_t         g_echo_idx;
   clears 'bl.kid_ctx_len' and thereby marks the slot as an anchor slot.
 */
 
-// clear the ring and reset the write index
 void oc_oscore_free_all_echo_records(void)
 {
   memset(g_echo_ring, 0, sizeof(g_echo_ring));
@@ -847,7 +846,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       if (!at_entry)
       {
         /*
-           'kid' from 'unicast echo response' not found as part of my onw access token table,
+           'kid' from 'unicast echo response'
             the inbound sender is not known to the server
             - uc 4.01, MaC misconfiguration (a UNICAST echo response)
         */
@@ -1001,7 +1000,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   if (ret != 0)
   {
     /*
-      response + encrypted problem = 8.4 step 5  = stop processing
+      response + encrypted problem
       request + encrypted problem = 8.2 step 6 = return unsecured 4.00
     */
 
@@ -1056,7 +1055,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   if (oscore_parse_inner_message(payload_buffer, coap_pkt->payload_len, coap_pkt) != COAP_NO_ERROR)
   {
     /*
-       (outer coap code) response + inner options problem = ignore
+       (outer coap code) response + inner
        (outer coap code ) request + inner options problem = return 4.02 secured (EITT test 5.10.5.3)
     */
 
@@ -1361,14 +1360,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     (uc-a) context will be retrieved by kid
      - uc outbound (server) response -> after former inbound (ext) CON/NON request
      - example: do "Piggybacked Response" or "Separate Response"
+     - example: do "Echo Response" (inbound request was unsynced)
 
     (uc-c) context retried by group address
      - uc outbound (client) s-mode request
      - example: do client application initial CON/NON r/w request via '/k'
 
-    (uc-e) context retried by NEW context
-     - uc outbound (server) response -> after former UNSYNCED inbound (ext) CON/NON request
-     - example: do "Echo Response"
    */
 
   const oc_auth_at_t* at_entry = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg;
@@ -1439,7 +1436,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   uint8_t piv[OSCORE_PIV_LEN], piv_len = 0;
   uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
-  coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt);
+  coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt, true);
   bool is_a_con_repetition = transaction && transaction->retransmit_counter > 0;
 
   /*
@@ -1530,6 +1527,27 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     outbound_piv = piv;
     outbound_piv_len = piv_len;
+
+    /*
+      unicast s-mode CON/NON, initial send only (a CON repetition keeps the first PIV):
+      - add the outbound PIV to transaction, binds a later inbound echo response without echo kid context to this request (AAD)  
+      - append the (ssn, kid) to echo ring, a later inbound echo response with echo kid context is accepted only on this send-proof
+        (same as for multicast)
+    */
+    const transport_flags_t s_mode_flags = from_org_msg_cloned_outgoing_msg->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST);
+    if (s_mode_flags && !is_a_con_repetition)
+    {
+      // get either s-mode NON or s-mode CON transaction
+      coap_transaction_t* s_mode_transaction = coap_get_transaction_by_token(coap_pkt, false);
+      if (s_mode_transaction)
+      { // s-mode CON or s-mode NON
+        memcpy(s_mode_transaction->message->endpoint.piv, piv, piv_len);
+        s_mode_transaction->message->endpoint.piv_len = piv_len;
+      }
+
+      uint32_t ssn = oscore_piv_to_ssn(outbound_piv, outbound_piv_len);
+      oc_oscore_echo_whitelist_append(ssn, oscore_ctx, coap_pkt, &from_org_msg_cloned_outgoing_msg->endpoint);
+    }
 
     #ifdef OC_CLIENT
 

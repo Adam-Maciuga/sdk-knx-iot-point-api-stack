@@ -215,6 +215,9 @@ overhead per block. The figures are the same for all three backends.
 | Datapoint resource (132 + runtime data + 3 strings) | ~250 | forever, one per application datapoint |
 | Table-entry strings and group-address arrays | 40–120 per entry | forever |
 | OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~0, was ~1 190 | **removed** since `e86c2dd6`: an anchor references the group object table entry instead and regenerates the payload on demand |
+regenerates the payload from the group object |
+| Unicast s-mode CON transaction (`fp/r` default) | ~1 246 (transaction ~56 + full `oc_message_t` ~1 190) | until ACK, at most `MAX_RETRANSMIT` (~45 s); the full PDU is kept for retransmission and for re-parsing on a 4.01 echo |
+| Unicast s-mode echo-ring anchor (CON and NON) | 0 heap, one existing ring slot | until consumed or overwritten; added on the first send only (no anchor for CON repetitions), matches a 4.01 echo with a 10-byte kid context |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
 

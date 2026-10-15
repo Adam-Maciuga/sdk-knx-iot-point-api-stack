@@ -106,10 +106,10 @@ extern "C" {
 
     /*
       Originating group object table entry of an OUTBOUND s-mode request, plus its service type.
-      
-      Only set on the multicast s-mode send path; the OSCORE layer copies both into the echo ring anchor,
-      so a late 4.01 echo response can REGENERATE the re-request payload from the group object.
-      Reference only, the group object table owns the entry.
+
+      Set on the s-mode send paths (uc CON/NON and mc NON), cleared on a regenerated echo re-request; the OSCORE layer
+      copies both into the echo ring anchor, so a late 4.01 echo response can REGENERATE the re-request payload from the
+      group object. Reference only, the group object table owns the entry.
     */
     const struct oc_group_object_table_t* s_mode_group_object;
     char s_mode_service_type;

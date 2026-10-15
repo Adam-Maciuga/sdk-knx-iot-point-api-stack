@@ -41,6 +41,7 @@ import pytest
 
 from transport.coap_client import (APPLICATION_CBOR, CoapClient,
                          knx_group_multicast_address)
+from transport.coap_client import _encode_option as _encode_coap_option
 from fixtures import (DEVICE_PASSWORD, ALL_SCOPES, MC_SCOPE,
                       auth_prepare, ia_prepare, set_lsm)
 from transport.knx_oscore import OscoreContext
@@ -2070,6 +2071,372 @@ class TestUnicastNonReResolution:
         assert result.get("second_discovery", False), (
             "DUT did not issue a second discovery GET; the recipient was "
             "not re-resolved after 4 missing NON responses")
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Unicast NON s-mode 4.01 Echo re-request
+# ===========================================================================
+
+def _protect_echo_kid_ctx_response(ectx, request_kid, request_piv, echo):
+    """Protect a 4.01 Echo response carrying the request PIV plus a 10 byte
+    kid context. The DUT decrypts with a fresh recipient context (id = osc id
+    of the AT, id context = the 10 bytes): nonce from (osc id, PIV), AAD from
+    (request kid, PIV), recipient key of that context.
+    """
+    from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+    plaintext = bytes([0x81]) + ectx._encode_option(252, echo)
+    nonce = ectx._build_nonce(ectx.recipient_id, request_piv)
+    aad = ectx._build_aad(request_kid, request_piv)
+    return AESCCM(ectx.recipient_key, tag_length=8).encrypt(nonce, plaintext,
+                                                            aad)
+
+
+def _protect_unicast_echo_response(ctx, request_kid, request_piv, echo):
+    """Protect a 4.01 Echo response to a DUT unicast request.
+
+    The response carries no own PIV, so nonce and AAD both reuse the
+    request kid/PIV (RFC 8613 8.3). The DUT sender context of a group AT has
+    an empty recipient id, so it decrypts with the key derived for id="".
+    An empty OSCORE option keeps kid_ctx_len != 10, so the DUT resolves the
+    context through its unicast NON transaction (oc_oscore_find_context_by_token_mid).
+    """
+    from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+    plaintext = bytes([0x81]) + ctx._encode_option(252, echo)
+    nonce = ctx._build_nonce(request_kid, request_piv)
+    aad = ctx._build_aad(request_kid, request_piv)
+    key = ctx._empty_sender_id_key()
+    return AESCCM(key, tag_length=8).encrypt(nonce, plaintext, aad)
+
+
+def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
+                                                  dut_iid, echo,
+                                                  timeout=15.0,
+                                                  replay_window=0.0,
+                                                  echo_kid_ctx=False):
+    """Answer discovery, capture the first unicast POST /k (CON or NON),
+    reply with a protected 4.01 Echo and capture the regenerated re-request.
+
+    With echo_kid_ctx the 4.01 carries a 10 byte random kid context (the
+    EITT shape), which the DUT only accepts against its echo ring anchor.
+    Without it the DUT resolves the context through the transaction.
+    CON retransmissions of the first request (same token) are ignored.
+
+    With replay_window > 0 the same protected 4.01 is replayed after the
+    re-request and any further POST within the window is captured as 'third'.
+
+    Returns dict with 'first', 'second', 'third' ((msg, addr) or None)
+    and 'ctx'.
+    """
+    scope_id = 0
+    if device_iface:
+        try:
+            scope_id = socket.if_nametoindex(device_iface)
+        except (OSError, AttributeError):
+            pass
+
+    mc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    mc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    mc_sock.bind(("", 5683))
+    uc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    uc_sock.bind(("", 0))
+
+    joined = []
+    for maddr in ("ff02::fd", "ff05::fd"):
+        try:
+            mreq = struct.pack("16sI",
+                               socket.inet_pton(socket.AF_INET6, maddr),
+                               scope_id)
+            mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                               socket.IPV6_JOIN_GROUP, mreq)
+            joined.append(mreq)
+        except OSError:
+            pass
+
+    result = {"first": None, "second": None, "third": None, "ctx": None}
+    deadline = time.monotonic() + timeout
+    discovery_answered = False
+    echo_response = None
+
+    try:
+        while time.monotonic() < deadline and result["second"] is None:
+            sock = uc_sock if discovery_answered else mc_sock
+            sock.settimeout(min(max(deadline - time.monotonic(), 0.01), 0.5))
+            try:
+                data, addr = sock.recvfrom(4096)
+            except socket.timeout:
+                continue
+            if len(data) < 4:
+                continue
+
+            code_class = data[1] >> 5
+            code_detail = data[1] & 0x1F
+            tkl = data[0] & 0x0F
+            mid = struct.unpack("!H", data[2:4])[0]
+            token = data[4:4 + tkl]
+
+            if code_class == 0 and code_detail == 1 and not discovery_answered:
+                ep = (f'<>;ep="knx://sn.aabbccddeeff '
+                      f'knx://ia.{dut_iid:x}.{peer_ia:x}"')
+                hdr = struct.pack("!BBH", (1 << 6) | (1 << 4) | tkl,
+                                  (2 << 5) | 5, mid + 1)
+                uc_sock.sendto(hdr + token + b"\xC1\x28\xFF" + ep.encode(),
+                               addr)
+                discovery_answered = True
+                continue
+
+            if not (code_class == 0 and code_detail == 2):
+                continue
+
+            msg = CoapClient.parse_coap_message(data)
+            if result["first"] is None:
+                result["first"] = (msg, addr)
+                piv, kid_ctx, kid = _parse_oscore_option(msg["options"][9])
+                # our sender key = DUT recipient key (osc id of the AT), DUT sender id = request kid
+                ctx = OscoreContext(master_secret=UC15_MS,
+                                    sender_id=UC15_SENDER_ID,
+                                    recipient_id=kid or b"",
+                                    id_context=kid_ctx)
+                result["ctx"] = ctx
+                if echo_kid_ctx:
+                    rnd_ctx = os.urandom(10)
+                    # DUT creates a recipient context with id=osc_id and id context=rnd: key, IV, nonce, AAD from that
+                    ectx = OscoreContext(master_secret=UC15_MS,
+                                         sender_id=UC15_SENDER_ID,
+                                         recipient_id=UC15_SENDER_ID,
+                                         id_context=rnd_ctx)
+                    ct = _protect_echo_kid_ctx_response(ectx, kid or b"", piv,
+                                                        echo)
+                    opt = ectx._build_oscore_option(piv, kid=kid or b"",
+                                                    kid_context=rnd_ctx)
+                    opt_enc = _encode_coap_option(9, opt)
+                else:
+                    ct = _protect_unicast_echo_response(ctx, kid or b"",
+                                                        piv, echo)
+                    opt_enc = b"\x90"
+                # outer: NON 2.04, same token, OSCORE option (9)
+                hdr = struct.pack("!BBH", (1 << 6) | (1 << 4) | tkl,
+                                  (2 << 5) | 4, (mid + 7) & 0xFFFF)
+                echo_response = (hdr + token + opt_enc + b"\xFF" + ct, addr)
+                uc_sock.sendto(*echo_response)
+            elif msg["token"] != result["first"][0]["token"]:
+                result["second"] = (msg, addr)
+
+        if result["second"] is not None and replay_window > 0:
+            uc_sock.sendto(*echo_response)
+            replay_deadline = time.monotonic() + replay_window
+            while time.monotonic() < replay_deadline and result["third"] is None:
+                uc_sock.settimeout(max(replay_deadline - time.monotonic(), 0.01))
+                try:
+                    data, addr = uc_sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                if len(data) >= 4 and data[1] == 0x02:
+                    third = CoapClient.parse_coap_message(data)
+                    if third["token"] != result["first"][0]["token"]:
+                        result["third"] = (third, addr)
+    finally:
+        for mreq in joined:
+            try:
+                mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                                   socket.IPV6_LEAVE_GROUP, mreq)
+            except OSError:
+                pass
+        mc_sock.close()
+        uc_sock.close()
+
+    return result
+
+
+class TestUnicastNonEchoReRequest:
+    """Unicast NON s-mode: a 4.01 Echo response to a NON POST /k makes the
+    DUT send a re-request carrying the Echo option with a regenerated payload.
+
+    The NON transaction keeps only a header message (no PDU), so the DUT must
+    find it by token for OSCORE context resolution and regenerate the payload
+    from the group object referenced on the endpoint.
+
+    GO table:  ga=[65535, 1], cflag=0x40 (transmit), href=/p/3
+    RCP table: ga=[65535], ia=PEER_IA, at=UC15_TOKEN_ID, non=True
+    AT:        unicast 5.4.1.15 credentials
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
+        _install_go_table(coap, oscore_ctx, go)
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID,
+                "non": True}]
+        _install_rcp_table(coap, oscore_ctx, rcp)
+        _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
+                    UC15_SENDER_ID, UC15_MS)
+        set_lsm(coap, oscore_ctx, 2)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_non_echo_re_request(self, coap, oscore_ctx,
+                                         device_iface):
+        echo = os.urandom(8)
+        result = {}
+
+        def _responder():
+            result.update(_serve_discovery_echo_and_capture_re_request(
+                device_iface, PEER_IA, DUT_IID, echo, timeout=15.0,
+                replay_window=2.0))
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)
+
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+        t.join(timeout=20)
+
+        if result.get("first") is None:
+            pytest.skip("DUT did not send unicast NON POST "
+                        "(discovery resolution may have failed)")
+
+        first, _ = result["first"]
+        assert first["type"] == 1, (
+            f"Expected NON (type=1), got type={first['type']}")
+
+        assert result.get("second") is not None, (
+            "DUT did not send an 'echo re-request' after the 4.01 Echo "
+            "response to its unicast NON request")
+
+        second, _ = result["second"]
+        assert second["token"] != first["token"] or \
+            second["mid"] != first["mid"], "re-request is a plain resend"
+
+        code, payload, inner_opts, _, _, _ = (
+            result["ctx"].unprotect_request(second["options"][9],
+                                            second["payload"]))
+        assert code == 0x02, f"Expected inner POST, got {code:#04x}"
+        assert inner_opts.get(252) == echo, (
+            f"Echo option not mirrored: {inner_opts.get(252)!r}")
+        data = cbor2.loads(payload)
+        assert data[4] == DUT_IA, f"SIA should be {DUT_IA:#x}"
+        assert data[5][7] == 65535 and data[5][6] == "w", (
+            f"Unexpected regenerated s-mode payload: {data}")
+
+        # a replayed 4.01 to the same request must not cause another re-request (PIV consumed)
+        assert result.get("third") is None, (
+            "DUT sent another 'echo re-request' on a replayed 4.01 Echo "
+            "response")
+
+
+def _setup_unicast_echo(coap, oscore_ctx, device_iface, non):
+    if device_iface is None:
+        pytest.skip("Multicast tests require DEVICE_IFACE env var")
+    auth_prepare(coap, oscore_ctx)
+    ia_prepare(coap, oscore_ctx)
+    set_lsm(coap, oscore_ctx, 4)
+    set_lsm(coap, oscore_ctx, 1)
+    go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
+    _install_go_table(coap, oscore_ctx, go)
+    rcp = {0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID}
+    if non:
+        rcp["non"] = True
+    _install_rcp_table(coap, oscore_ctx, [rcp])
+    _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
+                UC15_SENDER_ID, UC15_MS)
+    set_lsm(coap, oscore_ctx, 2)
+
+
+def _run_unicast_echo(coap, oscore_ctx, device_iface, expected_type,
+                      echo_kid_ctx):
+    """Trigger a unicast s-mode send, answer it with a protected 4.01 Echo
+    and assert one regenerated re-request carrying the Echo option."""
+    echo = os.urandom(8)
+    result = {}
+
+    def _responder():
+        result.update(_serve_discovery_echo_and_capture_re_request(
+            device_iface, PEER_IA, DUT_IID, echo, timeout=15.0,
+            replay_window=2.0, echo_kid_ctx=echo_kid_ctx))
+
+    t = threading.Thread(target=_responder)
+    t.start()
+    time.sleep(0.3)
+
+    _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+    t.join(timeout=20)
+
+    if result.get("first") is None:
+        pytest.skip("DUT did not send unicast POST "
+                    "(discovery resolution may have failed)")
+
+    first, _ = result["first"]
+    assert first["type"] == expected_type, (
+        f"Expected type={expected_type}, got type={first['type']}")
+
+    assert result.get("second") is not None, (
+        "DUT did not send an 'echo re-request' after the 4.01 Echo response")
+
+    second, _ = result["second"]
+    _, _, inner_opts, _, _, _ = result["ctx"].unprotect_request(
+        second["options"][9], second["payload"])
+    assert inner_opts.get(252) == echo, (
+        f"Echo option not mirrored: {inner_opts.get(252)!r}")
+
+    assert result.get("third") is None, (
+        "DUT sent another 'echo re-request' on a replayed 4.01 Echo "
+        "response")
+
+
+class TestUnicastNonEchoKidCtxReRequest:
+    """Unicast NON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape):
+    accepted only against the echo ring anchor of the unicast send."""
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        _setup_unicast_echo(coap, oscore_ctx, device_iface, non=True)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_non_echo_kid_ctx_re_request(self, coap, oscore_ctx,
+                                                 device_iface):
+        _run_unicast_echo(coap, oscore_ctx, device_iface, 1, True)
+
+
+class TestUnicastConEchoKidCtxReRequest:
+    """Unicast CON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape):
+    accepted only against the echo ring anchor of the unicast send."""
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        _setup_unicast_echo(coap, oscore_ctx, device_iface, non=False)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_con_echo_kid_ctx_re_request(self, coap, oscore_ctx,
+                                                 device_iface):
+        _run_unicast_echo(coap, oscore_ctx, device_iface, 0, True)
+
+
+class TestUnicastConEchoReRequest:
+    """Unicast CON s-mode, 4.01 Echo without kid context: the context is
+    resolved through the CON transaction (group address + recorded PIV)."""
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        _setup_unicast_echo(coap, oscore_ctx, device_iface, non=False)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_con_echo_re_request(self, coap, oscore_ctx,
+                                         device_iface):
+        _run_unicast_echo(coap, oscore_ctx, device_iface, 0, False)
 
 
 # ===========================================================================

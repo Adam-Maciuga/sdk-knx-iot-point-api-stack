@@ -122,7 +122,7 @@ TEST_F(CoapTransactions, GetByTokenFindsTransaction)
 
   coap_packet_t pkt = make_pkt(token, sizeof(token));
   coap_transaction_t *found =
-      coap_get_transaction_by_token(&pkt);
+      coap_get_transaction_by_token(&pkt, true);
   EXPECT_EQ(found, t);
 }
 
@@ -130,7 +130,7 @@ TEST_F(CoapTransactions, GetByTokenReturnsNullWhenNotFound)
 {
   uint8_t token[] = {0xFF};
   coap_packet_t pkt = make_pkt(token, sizeof(token));
-  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
 }
 
 TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
@@ -144,7 +144,8 @@ TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
   ASSERT_NE(t, nullptr);
 
   coap_packet_t pkt = make_pkt(token, sizeof(token));
-  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, false), t);
 }
 
 TEST_F(CoapTransactions, GetAnyByMidFindsSModeNon)
@@ -277,7 +278,7 @@ TEST_F(CoapTransactions, ZeroLengthTokenMatch)
   /* Zero-length token match: both have token_len==0 */
   coap_packet_t pkt = make_pkt(empty_token, 0);
   coap_transaction_t *found =
-      coap_get_transaction_by_token(&pkt);
+      coap_get_transaction_by_token(&pkt, true);
   EXPECT_EQ(found, t);
 }
 
