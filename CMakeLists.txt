@@ -127,7 +127,7 @@ set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size, used buffers to defend
 ## KNX_ECHO_RING_SIZE 
 #  The size should be carefully chosen for an embedded device, in accordance to the 
 #  individual outgoing senders and its possible 4.01 echo responders. Each ring buffer hosts 
-#  some security data and a reference to the original (outgoing) heap-allocated request.
+#  some security data and a reference to the original (outgoing) group object reference / sending group address.
 #  Each ring buffer keeps the request alive until the slot will be overwritten. 
 #  Details see 'ECHO RING'.  
 
