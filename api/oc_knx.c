@@ -21,6 +21,7 @@
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
 #include "messaging/coap/oscore.h"
+#include "messaging/coap/transactions.h"
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
@@ -557,53 +558,61 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
       // store new state (even it is the old one)
       oc_knx_set_and_store_lsm(new_lsm_state);
 
-      if (new_lsm_state == LSM_S_UNLOADED && old_lsm_state != LSM_S_UNLOADED)
-      { // extra task on entering UNLOADED
+      if (new_lsm_state != old_lsm_state)
+      { // real state transition (NOP and repeated (same) events do nothing)
 
-        // don't stop mdns advertisement on unloaded -> ia/iid/... are valid and NOT changed 
-        
-        // drop multicast memberships before clearing the tables
+        /*
+          Table 26: only in LOADED the loaded data SHALL be considered valid, no runtime communication takes
+          place in any other state (2.5.8.1). So on every transition everything derived from the current tables
+          is dropped first, before they may be rewritten (LOADING), reset (UNLOADED) or used again (LOADED):
+
+          - multicast memberships, computed from the current tables (re-registered on entering LOADED)
+
+          - pending unicast s-mode transactions, they reference the group object table (NON) or carry a PDU
+            built from the configuration being replaced (CON)
+
+          - the OSCORE echo ring, its anchors REFERENCE group object table entries; a late echo response would
+            otherwise regenerate its re-request payload from an entry that may belong to a different datapoint
+
+          The replay records are deliberately NOT cleared here: they protect the server side against replayed
+          inbound requests and are tied to the access token table, not to the group object table.
+        */
         oc_unregister_group_multicasts();
-
-        // do a reset like erase code 2 but not for the access token table, ia, iid, fid -> EITT test
-        oc_delete_group_tables();
-        oc_delete_group_object_table();
-
-        /*
-          The OSCORE echo ring holds anchors that REFERENCE group object table entries, so they must be
-          dropped together with that table, otherwise a late echo response would regenerate its re-request
-          payload from an entry that meanwhile belongs to a different datapoint.
-
-          The replay records are deliberately NOT cleared here: they protect the server side against
-          replayed inbound requests and are tied to the access token table, not to the group object table.
-        */
-        oc_oscore_free_all_echo_records();
-      }
-      else if (oc_is_device_in_runtime() && old_lsm_state != LSM_S_LOADED)
-      { // extra task on entering LOADED with iid = ok
-
-        /*
-          The group object table was (re)written while LOADING. The OSCORE echo ring holds anchors that
-          REFERENCE group object table entries, so anchors from before the reconfiguration must be dropped
-          here, otherwise a late echo response would regenerate its re-request payload from an entry that
-          meanwhile belongs to a different datapoint.
-
-          Must run BEFORE the datapoint initialization below, which sends read requests and thereby writes
-          new (valid) anchors.
-        */
+        coap_free_s_mode_transactions();
         oc_oscore_free_all_echo_records();
 
-        // task 1
-        oc_register_group_multicasts();
-        oc_init_datapoints_at_initialization();
+        switch (new_lsm_state)
+        {
+          case LSM_S_UNLOADED:
+            // don't stop mdns advertisement on unloaded -> ia/iid/... are valid and NOT changed
 
-        OC_INF("Re-register DNS-SD service after a LSM went to loaded");
-        knx_dns_sd_update_service(device);
+            // do a reset like erase code 2 but not for the access token table, ia, iid, fid remains -> EITT test
+            oc_delete_group_tables();
+            oc_delete_group_object_table();
+            break;
 
-        // task 2
-        oc_knx_increase_fingerprint();
-        OC_INF("Increase fingerprint after a LSM went to loaded");
+          case LSM_S_LOADED:
+            if (oc_is_device_in_runtime())
+            { // iid = ok
 
+              // task 1
+              oc_register_group_multicasts();
+              oc_init_datapoints_at_initialization();
+
+              OC_INF("Re-register DNS-SD service after a LSM went to loaded");
+              knx_dns_sd_update_service(device);
+
+              // task 2
+              oc_knx_increase_fingerprint();
+              OC_INF("Increase fingerprint after a LSM went to loaded");
+            }
+            break;
+
+          case LSM_S_LOADING:
+          default:
+            // nothing more than dropping the runtime state above
+            break;
+        }
       }
 
       // inform user
