@@ -812,9 +812,12 @@ static void oc_udp_add_socks_to_fd_set(ip_context_t *dev) {
 
 static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev, 
         fd_set *fds, oc_message_t *message) {
+  // destination address of a datagram (IPV6_PKTINFO), only used to decide on the MULTICAST flag
+  oc_ipv6_addr_t mcast_dest = { 0 };
+
   if (FD_ISSET(dev->server_sock, fds)) {
     int count = recv_msg(dev->server_sock, message->data, OC_PDU_SIZE,
-            &message->endpoint, false, &message->mcast_dest);
+            &message->endpoint, false, &mcast_dest);
     if (count < 0) {
       return ADAPTER_STATUS_ERROR;
     }
@@ -828,7 +831,7 @@ static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev,
 
   if (FD_ISSET(dev->mcast_sock, fds)) {
     int count = recv_msg(dev->mcast_sock, message->data, OC_PDU_SIZE,
-            &message->endpoint, true, &message->mcast_dest);
+            &message->endpoint, true, &mcast_dest);
     if (count < 0) {
       return ADAPTER_STATUS_ERROR;
     }
@@ -838,7 +841,7 @@ static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev,
     // multicast destination.  On Linux the mcast_sock may also receive
     // unicast traffic (e.g. from ::1 loopback); tagging those as MULTICAST
     // causes the OSCORE engine to choose the wrong encryption path.
-    if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)message->mcast_dest.address)) {
+    if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)mcast_dest.address)) {
       message->endpoint.flags = IPV6 | MULTICAST;
     } else {
       message->endpoint.flags = IPV6;

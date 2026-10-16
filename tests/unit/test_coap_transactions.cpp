@@ -266,7 +266,7 @@ TEST_F(CoapTransactions, MultipleTransactionsCoexist)
   EXPECT_EQ(coap_get_transaction_by_mid(1102), c);
 }
 
-TEST_F(CoapTransactions, ZeroLengthTokenMatch)
+TEST_F(CoapTransactions, ZeroLengthTokenNeverMatches)
 {
   oc_endpoint_t ep = make_endpoint(5683);
   uint8_t empty_token[] = {0};
@@ -275,11 +275,10 @@ TEST_F(CoapTransactions, ZeroLengthTokenMatch)
       coap_new_transaction(1200, empty_token, 0, &ep);
   ASSERT_NE(t, nullptr);
 
-  /* Zero-length token match: both have token_len==0 */
+  /* a tokenless packet must not match a tokenless transaction (zero length memcmp guard) */
   coap_packet_t pkt = make_pkt(empty_token, 0);
-  coap_transaction_t *found =
-      coap_get_transaction_by_token(&pkt, true);
-  EXPECT_EQ(found, t);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, false), nullptr);
 }
 
 /* ---------------- coap_new_transaction_with_data ------------------------- */

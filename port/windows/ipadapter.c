@@ -695,9 +695,12 @@ static DWORD WINAPI network_event_thread(LPVOID data) {
           break;
         }
 
+        // destination address of a datagram (IPV6_PKTINFO), only used to decide on the MULTICAST flag
+        oc_ipv6_addr_t mcast_dest = { 0 };
+
         if (i == SERVER6) {
           int count = recv_msg(dev->server_sock, message->data, OC_PDU_SIZE,
-                               &message->endpoint, false, &message->mcast_dest);
+                               &message->endpoint, false, &mcast_dest);
           if (count < 0) {
             oc_message_unref(message);
             continue;
@@ -709,7 +712,7 @@ static DWORD WINAPI network_event_thread(LPVOID data) {
 
         if (i == MCAST6) {
           int count = recv_msg(dev->mcast_sock, message->data, OC_PDU_SIZE,
-                               &message->endpoint, true, &message->mcast_dest);
+                               &message->endpoint, true, &mcast_dest);
           if (count < 0) {
             oc_message_unref(message);
             continue;
@@ -719,7 +722,7 @@ static DWORD WINAPI network_event_thread(LPVOID data) {
           // multicast destination.  The mcast_sock may also receive unicast
           // traffic (e.g. from ::1 loopback); tagging those as MULTICAST
           // causes the OSCORE engine to choose the wrong encryption path.
-          if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)message->mcast_dest.address)) {
+          if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)mcast_dest.address)) {
             message->endpoint.flags = IPV6 | MULTICAST;
           } else {
             message->endpoint.flags = IPV6;
