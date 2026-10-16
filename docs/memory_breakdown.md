@@ -8,7 +8,7 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Condition | Value used here |
 | --- | --- |
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
-| Estimated since | latest change (uncommitted on `smode-none-optimization`, diffed from `601dd825`): the unused `mcast_dest` (`oc_ipv6_addr_t`, 20 B) and `soft_ref_cb` (function pointer, 4 B) members are removed from `oc_message_t`; Linux and Windows decide the MULTICAST flag from a local instead (Zephyr and FreeRTOS already did). On 32-bit `oc_message_t` shrinks from 140 to ~116 B, so every heap message is ~24 B smaller (§ 7.2), no static RAM or flash figure moves. Before that, `6a76097e` (2026-10-12, diffed from `72dd0f88`): the
+so every heap message is ~24 B smaller (§ 7.2), no static RAM or flash figure moves. In addition `oc_endpoint_t` fields are reordered by alignment (`next` stays first) which removes padding: 100 -> 96 B on 32-bit (120 -> 112 B on 64-bit), so `oc_message_t` (~112 B), blockwise state, client callback, observer and separate-response entries are each 4 B smaller (§ 7.2).
 | Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) when an anchor still pinned a ~1.19 KiB plaintext copy. Since `e86c2dd6` an anchor holds only a reference to the originating group object table entry and regenerates the re-request payload on demand, so the ring no longer retains heap at all and its cost is the slot struct alone, see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
@@ -203,20 +203,20 @@ overhead per block. The figures are the same for all three backends.
 
 | Item | Bytes each | Lifetime |
 | --- | --- | --- |
-| CoAP message (`oc_message_t` ~116 + PDU ~1 040) | ~1 165 | transient; for CON until ACK |
-| Blockwise response state (164) + app buffer (768) + href | ~980 | per handled request, freed with the response |
-| Blockwise request state, requests with payload | ~980 | until dispatched |
+| CoAP message (`oc_message_t` ~112 + PDU ~1 040) | ~1 161 |
+| Blockwise response state (160) + app buffer (768) + href | ~976 |
+| Blockwise request state, requests with payload | ~976 |
 | CoAP transaction (48) | ~56 | until ACK, ≤ 155 s |
-| Client callback (176) + uri/query | ~220 | until response, ≤ 318 s |
+| Client callback (172) + uri/query | ~216 |
 | Parsed CBOR node (`oc_rep_t` 40) + value string | ~48 + string | while the payload is handled |
-| Observer (152) + URL | ~190 | while observed |
+| Observer (148) + URL | ~186 |
 | Observe notification buffer | ~520 | transient |
 | OSCORE context (~136) | ~144 | until replaced; LRU eviction only on allocation failure |
 | Datapoint resource (132 + runtime data + 3 strings) | ~250 | forever, one per application datapoint |
 | Table-entry strings and group-address arrays | 40–120 per entry | forever |
 | OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~0, was ~1 190 | **removed** since `e86c2dd6`: an anchor references the group object table entry instead and regenerates the payload on demand |
 regenerates the payload from the group object |
-| Unicast s-mode CON transaction (`fp/r` default) | ~1 221 (transaction ~56 + full `oc_message_t` ~1 165) |
+| ~1 217 (transaction ~56 + full `oc_message_t` ~1 161) |
 | Unicast s-mode echo-ring anchor (CON and NON) | 0 heap, one existing ring slot | until consumed or overwritten; added on the first send only (no anchor for CON repetitions), matches a 4.01 echo with a 10-byte kid context |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.

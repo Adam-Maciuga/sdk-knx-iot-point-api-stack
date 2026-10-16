@@ -81,56 +81,54 @@ extern "C" {
   #define SET_BIT(flags, bit)((flags) |= (bit))
 
   /**
-   * @brief endpoint information,
-   *        an endpoint combines uc/mc IP addresses, transport flags and some security keying material
+   * @brief endpoint information, an endpoint combines uc/mc IP addresses, transport flags and some security keying material
+   *
+   * @note fields are ordered by alignment (pointers, 32-bit, 16-bit, bytes) to avoid padding,
+           'next' must remain the first member (OC_LIST)
    */
   typedef struct oc_endpoint_t
   {
-    struct oc_endpoint_t* next;           // pointer to the next structure
-    enum transport_flags flags;           // transport flags such as mc,uc, oscore
-
-    union dev_addr
-    {
-      oc_ipv6_addr_t ipv6;                // ipv6 address
-      oc_ipv4_addr_t ipv4;                // ipv4 address (not used in OSCORE, but in IP adapter, hence we cannot remove it)
-    } addr, addr_local;
-
-    int interface_index;                  // interface index
-
-    /* 
-      sending group address, used to find later the OSCORE context '128-bit sender key'
-      that must be used for encryption of s-mode multicast/unicast request message
-      (issued by an application)
-    */
-    uint32_t group_address;                
+    struct oc_endpoint_t* next;             // pointer to the next structure
 
     /*
-      Originating group object table entry of an OUTBOUND s-mode request, plus its service type.
+      Originating group object table entry of an OUTBOUND s-mode request, plus its service type (s_mode_service_type).
 
       Set on the s-mode send paths (uc CON/NON and mc NON), cleared on a regenerated echo re-request; the OSCORE layer
       copies both into the echo ring anchor, so a late 4.01 echo response can REGENERATE the re-request payload from the
       group object. Reference only, the group object table owns the entry.
     */
     const struct oc_group_object_table_t* s_mode_group_object;
-    char s_mode_service_type;
 
-    /* auth/at entry pointer (assigned only on an inbound OSCORE request message)
-       - used for matching oscore context of a - to be sent out - outbound response to a former inbound request
-       - used for upper layers to check access scopes (on an inbound message)
+    /*
+      auth/at entry pointer (assigned only on an inbound OSCORE request message)
+        - used for matching oscore context of a - to be sent out - outbound response to a former inbound request
+        - used for upper layers to check access scopes (on an inbound message)
     */
     const oc_auth_at_t* auth_at_of_inbound_msg;
 
-    // OSCORE Partial IV (not empty) from inbound request
-    uint8_t piv[OSCORE_PIV_LEN]; // stores inbound PIV, used for possible echo responses that needs the same PIV
-    uint8_t piv_len;              
+    enum transport_flags flags;             // transport flags such as mc,uc, oscore
+    int interface_index;                    // interface index
 
-    // OSCORE 'kid' (not empty) from inbound request
-    uint8_t kid[OSCORE_SENDER_ID_LEN]; 
-    uint8_t kid_len;
+    /*
+      sending group address, used to find later the OSCORE context '128-bit sender key'
+      that must be used for encryption of s-mode multicast/unicast request message
+      (issued by an application)
+    */
+    uint32_t group_address;
 
-    // OSCORE 'kid_context' (not empty) from inbound request
-    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; 
-    uint8_t kid_ctx_len;
+    union dev_addr
+    {
+      oc_ipv6_addr_t ipv6;                  // ipv6 address
+      oc_ipv4_addr_t ipv4;                  // ipv4 address (not used in OSCORE, but in IP adapter, hence we cannot remove it)
+    } addr, addr_local;
+
+    uint8_t piv[OSCORE_PIV_LEN];            // OSCORE Partial IV (not empty) from inbound request, used for echo responses (same PIV)
+    uint8_t kid[OSCORE_SENDER_ID_LEN];      // OSCORE 'kid' (not empty) from inbound request
+    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // OSCORE 'kid_context' (not empty) from inbound request
+    uint8_t piv_len;                        // length of piv
+    uint8_t kid_len;                        // length of kid
+    uint8_t kid_ctx_len;                    // length of kid_ctx
+    char s_mode_service_type;               // service type of the outbound s-mode request (see s_mode_group_object)
 
   } oc_endpoint_t;
 
