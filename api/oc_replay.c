@@ -161,87 +161,64 @@ replay_state_t oc_replay_check_client(uint32_t rx_ssn, const oc_endpoint_t* endp
 	*/
 
 	/*
-		 default: no record found -> challenge with echo option, either on first pub message
-		          or after a release of an old recipient context
+		no record found -> challenge with echo option, either on first pub message
+		or after a release of an old recipient context
 	*/
-	replay_state_t result = ECHO;
 	oc_replay_record_t* rec = get_record(endpoint);
-
-	if (rec)
+	if (!rec)
 	{
-		/*
-			 received message matched existing record, so this record is useful &
-			 should be kept around - update the time (to prevent a release from heap)
-		*/
-		rec->time = oc_clock_time();
-
-		/*
-			exact difference of two 32-bit SSNs, both widened to 64 bit INT before subtraction (no 32-bit overflow)
-			- an SSN far below the recorded one lands out of the left window bound, e.g. a peer that lost its stored SSN
-			  => ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
-		*/
-		const int64_t ssn_diff = (int64_t)rec->rx_ssn - (int64_t)rx_ssn;
-		const uint32_t replay_window_size = get_oscore_replay_window_size();
-
-		OC_DBG("new ssn\t= %" PRIx32, rx_ssn);			// 32 bit uint
-		OC_DBG("old ssn\t= %" PRIx32, rec->rx_ssn); // 32 bit uint
-    OC_DBG("ssn_diff\t= %" PRIi64, ssn_diff);		// 64 bit int
-    OC_DBG("kid (%u)\t= %.*s", (unsigned)endpoint->kid_len, (int)endpoint->kid_len, (const char*)endpoint->kid);
-    OC_DBG("kid ctx (%u)\t= %.*s", (unsigned)endpoint->kid_ctx_len, (int)endpoint->kid_ctx_len, (const char*)endpoint->kid_ctx);
-    OC_DBG("wnd old\t= %" PRIx32, rec->window); // 32 bit field
-
-		if (ssn_diff >= 0)
-		{
-			/*
-			 received SSN <= max value of received SSN, either:
-			 - in window
-			 - out of left window bound (diff >= window size)
-			 example: diff from 0...31 = is in 32-bit window; diff >= 32 is on left side
-			*/
-			if (ssn_diff >= replay_window_size)
-			{
-        OC_DBG("wnd new\t= %" PRIx32, rec->window);
-        OC_DBG("outside window (size %" PRIu32 ") left bound by %" PRIi64, replay_window_size, ssn_diff);
-				result = ECHO; // not known if it was (ever) received before
-			}
-			else if (rec->window & ((uint32_t)1 << ssn_diff))
-			{
-				// diff < size -> inside window, already received before -> replay
-				OC_DBG("wnd new\t= %" PRIx32, rec->window);
-        OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%" PRIX32 ") -> replay", replay_window_size, ssn_diff, (uint32_t)1 << ssn_diff);
-				result = REPLAY; // known that it was received before
-			}
-			else
-			{
-				// SSN not received before, tick the bit; DO NOT update rx_ssn (not the max)
-				rec->window |= (uint32_t)1 << ssn_diff;
-				OC_DBG("wnd new\t= %" PRIx32, rec->window);
-        OC_DBG("inside window (size %" PRIu32 ") at bit %" PRIi64 " (%" PRIX32 ") -> synced", replay_window_size, ssn_diff, (uint32_t)1 << ssn_diff);
-				result = SYNCED;
-			}
-		}
-		else
-		{
-			/*
-				received SSN > max value of received SSN -> fresh message, slide the window
-				note: shifting by >= type width is undefined behaviour, so zero manually
-			*/
-			if (-ssn_diff >= replay_window_size)
-				rec->window = 0;           // 1 << 32 or higher = undefined for a 32-bit value
-			else
-				rec->window <<= -ssn_diff; // 1 << 31 or lower = ok for a 32-bit value
-
-			// set bit 0; DO remember SSN, it is now the max value of received SSN's
-			rec->window |= 1;
-			rec->rx_ssn = rx_ssn;
-
-			OC_DBG("wnd new\t= %" PRIx32, rec->window);
-      OC_DBG("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
-			result = SYNCED;
-		}
+		return ECHO;
 	}
 
-	return result;
+	// record matched -> keep it around, update the time (to prevent a release from heap)
+	rec->time = oc_clock_time();
+
+	/*
+		exact difference of two 32-bit SSNs, both widened to 64 bit INT before subtraction (no 32-bit overflow)
+		- an SSN far below the recorded one lands out of the left window bound, e.g. a peer that lost its stored SSN
+			=> ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
+	*/
+	const int64_t ssn_diff = (int64_t)rec->rx_ssn - (int64_t)rx_ssn;
+	const int64_t wnd_size = get_oscore_replay_window_size();
+
+	OC_DBG("ssn new/old = %" PRIx32 "/%" PRIx32 ", diff = %" PRIi64 ", wnd = %" PRIx32, rx_ssn, rec->rx_ssn, ssn_diff, rec->window);
+	OC_DBG("kid (%u)\t= %.*s", (unsigned)endpoint->kid_len, (int)endpoint->kid_len, (const char*)endpoint->kid);
+	OC_DBG("kid ctx (%u)\t= %.*s", (unsigned)endpoint->kid_ctx_len, (int)endpoint->kid_ctx_len, (const char*)endpoint->kid_ctx);
+
+	if (ssn_diff >= wnd_size)
+	{
+		OC_DBG("left of window by %" PRIi64 " -> echo", ssn_diff);
+		return ECHO; // not known if it was (ever) received before
+	}
+
+	if (ssn_diff >= 0)
+	{
+		const uint32_t bit = (uint32_t)1 << ssn_diff;
+		if (rec->window & bit)
+		{
+		  OC_DBG("inside window at bit %" PRIi64 " -> replay", ssn_diff);
+			return REPLAY; // SSN received before
+		}
+
+		rec->window |= bit;
+		OC_DBG("inside window at bit %" PRIi64 " -> synced, wnd = %" PRIx32, ssn_diff, rec->window);
+		return SYNCED; // SSN NOT received before, tick the bit; DO NOT update rx_ssn (not the max)
+	}
+
+	// fresh message: slide the window (shift >= type width is undefined -> zero manually), set bit 0, remember new max SSN
+	if (-ssn_diff >= wnd_size)
+	{
+		rec->window = 0;
+	}
+	else
+	{
+		rec->window <<= -ssn_diff;
+	}
+	rec->window |= 1;
+	rec->rx_ssn = rx_ssn;
+
+	OC_DBG("right of window by %" PRIi64 " -> synced, wnd = %" PRIx32, -ssn_diff, rec->window);
+	return SYNCED;
 }
 
 void oc_replay_add_client(uint32_t rx_ssn, const oc_endpoint_t* endpoint)
