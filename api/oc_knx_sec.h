@@ -101,13 +101,14 @@ extern "C" {
 	 * | id        | 0          | string      | full ctx identifier                | -                         |
 	 * | ms        | 8:4:2      | byte string | Master Secret value (shall be PSK) | -                         |
 	 * | version   | 8:4:1      | uint        | OSCORE Version                     | 1                         |
-	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HKDF SHA-256 (-10)        |
+	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HMAC 256/256 (5)          |
 	 * | alg       | 8:4:4      | integer     | AEAD Algorithm                     | AES-CCM-16-64-128 (10)    |
 	 * | salt      | 8:4:5      | byte string | Master Salt                        | Default empty byte string |
 	 * | contextId | 8:4:6      | byte string | OSCORE ID Context value            | omit                      |
 	 * | osc_id    | 8:4:0      | byte string | OSCORE SID                         | -                         |
 	 *
-	 * HKDF SHA-256, AES-CCM-16-64-128 -> https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+	 * AES-CCM-16-64-128 -> https://www.iana.org/assignments/cose#header-algorithm-parameters
+	 * HMAC 256/256      -> https://www.rfc-editor.org/info/rfc9053/#section-3.1.1
 	 *
 	 * Example payload:
 	 * ```
@@ -130,7 +131,7 @@ extern "C" {
 	  oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
 	                            	// (8:4:1) OSCORE cnf:osc:version (not used)  
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
-		                        		// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value -10 (not used) 
+		                        		// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value 5 (not used) 
                     						// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (not used) 
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid -> 'kid_context' (in msg) / 'ID Context'  (OSC) / osc:contextid (OSC Profile) - max 16 byte string 
