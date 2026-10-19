@@ -64,8 +64,8 @@ TEST(AtProfileToString, Unknown)
 
 TEST(OscoreConfig, ReplayWindowSizeIsRfcDefault)
 {
-  /* g_oscore_replay_window_size is a const initialised to 32 (RFC OSCORE). */
-  EXPECT_EQ(get_oscore_replay_window_size(), 32u);
+  /* OSCORE_REPLAY_WINDOW_SIZE is the RFC 8613 default of 32 SSNs. */
+  EXPECT_EQ(OSCORE_REPLAY_WINDOW_SIZE, 32);
 }
 
 TEST(OscoreConfig, OsnDelayDefaultInDeviceInstance)

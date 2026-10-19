@@ -239,7 +239,7 @@ tables + network.
 ### api/oc_knx_sec.c — DONE (string helper + OSCORE config getters/setter + AT-table slot accessors and content ops + /auth CoAP handlers + ACL gate); storage / OSCORE auth are integration-level
 
 Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`.
-OSCORE config: `get_oscore_replay_window_size` (const RFC default 32),
+OSCORE config: `OSCORE_REPLAY_WINDOW_SIZE` (RFC default 32),
 osn delay in the device instance `oc_device_info_t.osn_delay` (default checked), `set_and_store_oscore_osn_delay_ms` (range -EINVAL, failed NVM write -EIO keeps RAM).
 The AT table is the file-static `g_at_entries[KNX_ATT_MAX_ENTRIES]`, reached for
 read/write through the public slot pointer `oc_get_auth_at_entry` plus

@@ -291,13 +291,6 @@ extern "C" {
 	 */
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 
-	/**
-   * @brief get OSCORE Replay Window Size
-   *
-   * @return window size
-   */
-	uint32_t get_oscore_replay_window_size(void);
-
   /**
    * @brief get the access token table index from an entry
    *

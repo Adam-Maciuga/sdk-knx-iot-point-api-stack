@@ -37,16 +37,11 @@ extern const oc_resource_t core_resource_well_known_core;
 // AT and SSN storage data
 // See the KNX_STORAGE_KEY_ATT_ENTRY and KNX_STORAGE_KEY_SSNT_ENTRY keys in oc_knx_sec.h
 
-// static const, maybe changed in a later stack version
-static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
-
 // static RAM variables
 // init all with '0' (also in at table included strings next/ptr/size)
 static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
-
-uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
 
 int set_and_store_oscore_osn_delay_ms(int64_t milliseconds)
 {
@@ -263,7 +258,7 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size); // use direct access
+  oc_rep_i_set_uint(root, 1, OSCORE_REPLAY_WINDOW_SIZE);
   oc_rep_end_root_object();
 
   OC_INF("oc_core_knx_auth_o_replwdo_get_handler - done");

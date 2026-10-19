@@ -96,7 +96,7 @@ variables:
 
 "5.3. Security::5.3.14 PUT /{base-path}/auth/o/replwdo (Optional)::5.3.14.1. Set the replay window size":
   action: skip
-  reason: "Optional feature (suite title '(Optional)', template Hitem V34 'marked as optional') not implemented by the stack (no PUT handler, oc_knx_sec.c:258, g_oscore_replay_window_size hardcoded 32); the reference certification run never executed it either (traces/5_3.xml contains GETs to auth/o/replwdo but no PUT)"
+  reason: "Optional feature (suite title '(Optional)', template Hitem V34 'marked as optional') not implemented by the stack (no PUT handler, oc_knx_sec.c, OSCORE_REPLAY_WINDOW_SIZE fixed at 32); the reference certification run never executed it either (traces/5_3.xml contains GETs to auth/o/replwdo but no PUT)"
 
 # --- Accepted response-code substitutions ------------------------------------
 # Where a test PLANS one error code but the device answers another, and the

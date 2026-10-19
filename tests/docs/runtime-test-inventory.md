@@ -796,7 +796,7 @@ template 5.2.8.1 may still expect).
 ## 7. Open questions
 
 1. **`5.3.14.1` (PUT `/auth/o/replwdo`)** is in the template, `skip`-ped by the branch
-   (no PUT handler, `oc_knx_sec.c:258`, `g_oscore_replay_window_size` hard-coded 32),
+   (no PUT handler, `oc_knx_sec.c`, `OSCORE_REPLAY_WINDOW_SIZE` fixed at 32),
    and has **no upstream test either**. Genuine gap on both sides — is the resource
    meant to stay read-only, or is the PUT handler planned?
 2. **Observe tier placement.** The 19 observe tests carry `5.4.2.x` numbers that

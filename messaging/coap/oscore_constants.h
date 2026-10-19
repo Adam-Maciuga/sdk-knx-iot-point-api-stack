@@ -17,7 +17,7 @@
 #define OSCORE_COMMON_IV_LEN   \
         OSCORE_AEAD_NONCE_LEN                   // Same as AEAD Nonce length
 #define OSCORE_AEAD_TAG_LEN (8)                 // Size in bytes of AES-CCM-16-64-128 authentication tag
-#define OSCORE_REPLAY_WINDOW_SIZE (8)
+#define OSCORE_REPLAY_WINDOW_SIZE (32)          // Replay window in SSNs, RFC 8613 default; bound by the 32-bit bitfield in oc_replay.c
 
 /*
   Worst case length of the OSCORE option VALUE as produced by coap_serialize_oscore_option() (RFC 8613, clause 6.1):

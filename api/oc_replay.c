@@ -7,6 +7,7 @@
  * This file was created with the assistance of AI tools.
  * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
+#include <assert.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -34,6 +35,11 @@ typedef struct oc_replay_record
 } oc_replay_record_t;
 
 static oc_replay_record_t replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
+
+/*
+  The window is a bitfield with one bit per SSN, a larger window would shift past its width (undefined behaviour)
+*/
+static_assert(OSCORE_REPLAY_WINDOW_SIZE <= sizeof(replay_records[0].window) * 8, "OSCORE_REPLAY_WINDOW_SIZE exceeds the window bitfield");
 
 // clear all replay window records
 void oc_oscore_free_all_replay_records(void)
@@ -182,7 +188,7 @@ replay_state_t oc_replay_check_client(uint32_t rx_ssn, const oc_endpoint_t* endp
 			=> ECHO, intended, the peer re-synchronises via the echo exchange (oc_replay_add_client)
 	*/
 	const int64_t ssn_diff = (int64_t)rec->rx_ssn - (int64_t)rx_ssn;
-	const int64_t wnd_size = get_oscore_replay_window_size();
+	const int64_t wnd_size = OSCORE_REPLAY_WINDOW_SIZE;
 
 	OC_DBG("ssn new/old = %" PRIx32 "/%" PRIx32 ", diff = %" PRIi64 ", wnd = %" PRIx32, rx_ssn, rec->rx_ssn, ssn_diff, rec->window);
 	OC_DBG("kid (%u)\t= %.*s", (unsigned)endpoint->kid_len, (int)endpoint->kid_len, (const char*)endpoint->kid);
