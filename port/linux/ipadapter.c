@@ -3,6 +3,9 @@
  * Copyright (c) 2024-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #define _GNU_SOURCE

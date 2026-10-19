@@ -3,6 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
+ *
  * KNX-IoT connectivity backend using Zephyr's POSIX/BSD socket API.
  * Used for both Wi-Fi and Ethernet L2 backends (see zephyr/CMakeLists.txt).
  * Implements the oc_connectivity_*  and  oc_network_event_handler_mutex_*
