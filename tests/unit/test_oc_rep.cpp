@@ -9,6 +9,9 @@
  * Setup: each test allocates a CBOR buffer, encodes data, parses it back
  *        into an oc_rep_t via oc_parse_rep, verifies via oc_rep_get_* helpers,
  *        then frees.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

@@ -8,6 +8,9 @@
  *   - Group table persistence: store/load round trip for the Recipient and
  *     Publisher tables (driven through the public loader
  *     oc_create_knx_table_resources), including the 'non' boolean flag.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

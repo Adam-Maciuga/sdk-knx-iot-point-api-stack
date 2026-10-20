@@ -15,6 +15,9 @@
  *
  * Note: oc_core_get_device_info() returns a pointer to the static oc_device_info,
  *       so we can read back what the setters wrote without full stack init.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

@@ -5,6 +5,9 @@
  * Tests pure functions that need no stack initialization.
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

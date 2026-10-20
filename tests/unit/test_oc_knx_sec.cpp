@@ -7,6 +7,9 @@
  * full stack initialization (no oc_main_init, no storage, no device).
  * The AtSsnStorage tests at the end are the exception, they use the
  * file-based storage port in a local test directory.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

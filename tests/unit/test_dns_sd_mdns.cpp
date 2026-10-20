@@ -47,6 +47,9 @@
  * polls its socket every 100 ms. The responder tests therefore wait for the
  * answer with a bounded poll (3 s), and the negative cases wait 300 ms for an
  * answer that never comes.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>

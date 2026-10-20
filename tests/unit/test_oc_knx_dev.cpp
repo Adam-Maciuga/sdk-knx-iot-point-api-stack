@@ -26,6 +26,9 @@
  *
  * No full stack init is required: oc_core_get_device_info() returns a pointer to
  * the static device struct, and oc_rep_new() sets up a standalone CBOR encoder.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 
