@@ -51,7 +51,7 @@ extern "C" {
 		const oc_knx_version_info_t* hwv;	// fix: hardware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t fwv;	      // mod: firmware ver, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t apv;				// mod: application ver, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version) 
-		const char* hwt;									// fix: knx hardware type, exactly 8 byte (16 upper case hex chars incl. '\0'), string is handed over from application on start
+		const char* hwt;									// fix: knx hardware type, exactly 6 byte (12 upper case hex chars incl. '\0'), string is handed over from application on start
     const char* order_number;         // fix: knx order number (former called 'model')
     oc_string_t iot_hostname;					// mod: knx host name (name is specific due to the vast amount of "hostname" in other code)
 		uint32_t mid;											// fix: knx manufacturer id

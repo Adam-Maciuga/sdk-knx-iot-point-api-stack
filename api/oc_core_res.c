@@ -98,12 +98,12 @@ int oc_core_set_and_store_device_ia(int64_t ia)
 int oc_core_set_device_hwt(const char* hardware_type)
 {
   // fails if NULL, not exactly the len or not a valid uppercase hexadecimal value with MSB = '0' (see KNX specification)
-  const bool all_ok = hardware_type && strlen(hardware_type) == 16 && oc_charstream_validate_is_upper(hardware_type) && hardware_type[0] == '0';
+  const bool all_ok = hardware_type && strlen(hardware_type) == 12 && oc_charstream_validate_is_upper(hardware_type) && hardware_type[0] == '0';
   if (!all_ok)
   {
     // TODO Stack issue #144
     // EITT default test template data does not follow the rules -> warning until the data is corrected, then oc_assert(all_ok == true) can be enabled.
-    OC_WRN("Hardware type does not follow the KNX specification (16 uppercase hexadecimal characters, MSB \"00\").");
+    OC_WRN("Hardware type does not follow the KNX specification (12 uppercase hexadecimal characters, MSB \"00\").");
   }
 
   // caller MUST ensure above conditions and keep the string valid for the device lifetime
