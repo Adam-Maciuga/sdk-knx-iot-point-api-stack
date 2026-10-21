@@ -1,17 +1,17 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1721 unit tests** (55 files) + **729 runtime tests** across three tiers = **2450 total**
+> **1748 unit tests** (55 files) + **733 runtime tests** across three tiers = **2481 total**
 >
 > Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
 > 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
-> **runtime** 252 in `tests/runtime/` (hand-written, 20 files) + **harness**
+> **runtime** 256 in `tests/runtime/` (hand-written, 20 files) + **harness**
 > 194 in `tests/eitt/harness_tests/` (interpreter/GUI, no DUT). The shared
 > infrastructure they build on is `tests/common/`. The runtime tier was 385 until 2026-09-11, when
 > every test the template already covers was removed — see "Runtime tier cleanup"
 > below.
 >
-> Branch: `work_in_progress` | Unit (2026-10-10): 1684/1684 passed on `windows-test-gcc` (GCC/CTest); the 1721 total adds the 37 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only (last measured on `linux-test-gcc` 2026-10-09 at 1719/1719, before the 4 `KnxFingerprintStorage` tests). With `ctest -j8` on Linux, 4 storage tests (`OcStorage` 3, `AtSsnStorage` 1) failed and passed again when run serially: parallel runs share the storage directory.
-> Runtime (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`): EITT plus harness **460 passed, 15 skipped, 2 xfailed** (477 collected, 783.96s); runtime tier **247 passed, 5 skipped** (252 collected, 707.44s); 0 failed, 0 errors - fully green. The per-tier EITT/harness split above was not re-derived. See "Last runtime run status" at the end of Part 2.
+> Branch: `work_in_progress` | Unit (2026-10-21): 1747/1748 passed on `linux-test-gcc` (Docker, `ctest -j8`), the 1748 total includes the 43 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The one failure, `AtSsnStorage.WritesFourByteRecordAtMaxSsn`, passed 5 times in a row when the `AtSsnStorage` tests ran serially: parallel runs share the storage directory `knx_storage_sec_unit_test` (known since 2026-10-10).
+> Runtime (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`): EITT plus harness **460 passed, 15 skipped, 2 xfailed** (477 collected, 788.52s); runtime tier **251 passed, 5 skipped** (256 collected, 729.69s); 0 failed, 0 errors - fully green. The per-tier EITT/harness split above was not re-derived. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -1125,7 +1125,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (37 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (43 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
@@ -1148,6 +1148,8 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 | `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
 | query responder | 11 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type, application-set host name in SRV target and AAAA |
+| AAAA records per interface | 4 | RFC 6762 section 15: an announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on; a query from an interface without an own address gets no answer; an unknown receive interface gets every address |
+| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface; a ULA sender leaves it unknown |
 
 ---
 
@@ -1715,7 +1717,17 @@ truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
 
 ## Last runtime run status
 
-Latest run (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the 4-byte fingerprint
+Latest run (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the mDNS answer interface fix
+(AAAA records filtered to the interface a packet leaves on, receive interface from the zone of a link-local sender on Windows,
+6 new `test_dns_sd_mdns.cpp` unit tests):
+
+- EITT plus harness: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 788.52s).
+- Runtime tier: **251 passed, 5 skipped** (256 collected, 729.69s).
+- 0 failed, 0 errors. Unit suite: 1747/1748 passed (linux-test-gcc, `ctest -j8`); the `AtSsnStorage` parallel-storage flake above.
+
+No stack C code was changed to make a test pass.
+
+Previous run (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the 4-byte fingerprint
 (`g_fingerprint` `uint64_t` -> `uint32_t`, 4 new `KnxFingerprintStorage` unit tests) and the removed dead `if (device)` checks
 before `knx_dns_sd_update_service()` in the Linux, Windows, Zephyr and ESP32 interface-up handlers:
 

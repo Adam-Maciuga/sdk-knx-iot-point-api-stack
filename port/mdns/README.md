@@ -34,7 +34,9 @@ Changes since the import:
   interface the packet arrived on (`IPV6_PKTINFO`, the `ifindex` parameter of
   `mdns_record_callback_fn`), so `port/dns-sd_mdns.c` answers on the link the
   query came from (RFC 6762 section 15, multiple interfaces). Windows keeps
-  `recvfrom()` and reports interface 0.
+  `recvfrom()`. Where `IPV6_PKTINFO` delivers no interface, Windows always,
+  `mdns_ifindex_from_source()` takes it from the zone (`sin6_scope_id`) of a
+  link-local sender address; a ULA or global sender leaves it unknown (0).
 - Every `-1` that is not the result of a failing system call sets `errno`
   itself: `ENOBUFS` when the answer records do not fit the buffer,
   `EAFNOSUPPORT` when `mdns_multicast_send()` gets a socket that is not IPv6.

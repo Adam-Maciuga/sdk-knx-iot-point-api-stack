@@ -319,7 +319,7 @@ static int ensure_socket(void)
 #define MAX_MDNS_RECORD_SIZE 64
 #define MAX_AAAA_RECORDS 4
 #define MAX_IF_INDICES 8
-#define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + sizeof(HNAME_DOMAIN ".")) // host name label + '.local' + root label '.' + NUL
+#define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + sizeof(HNAME_DOMAIN) + 1) // host name label + '.local' and NUL (=sizeof) + root label '.'
 
 /*
   Hostname: the device host name label plus the domain and the root label '.', such as "knx-<sn_lower>.local."
@@ -335,81 +335,99 @@ static size_t build_hostname(char out[MDNS_HOSTNAME_SIZE])
 }
 
 /*
+ * Return the first unicast IPv6 endpoint from ep onwards on interface 'ifindex' (0: any interface), NULL if there is none.
+ * 
+ * @note Pass the list head to start, ep->next of the last hit to continue.
+ */
+static const oc_endpoint_t* next_endpoint_on_interface(const oc_endpoint_t* ep, unsigned int ifindex)
+{
+  for (; ep; ep = ep->next)
+  {
+    // unicast IPv6 endpoint on the requested interface
+    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && (ifindex == 0 || (unsigned int)ep->interface_index == ifindex))
+    {
+      return ep;
+    }
+  }
+  return NULL;
+}
+
+/*
+ * The head of the device's endpoint list, NULL when there is no IP context.
+ */
+static const oc_endpoint_t* device_endpoints(void)
+{
+  const ip_context_t* ctx = get_ip_context_for_device();
+  return ctx ? (const oc_endpoint_t*)oc_list_head(ctx->eps) : NULL;
+}
+
+/*
  * Collect unique unicast IPv6 interface indices from the endpoint list.
- * Returns the number of indices written into out[] (0..MAX_IF_INDICES).
+ * Returns the number of indices written into out[] (0...MAX_IF_INDICES).
  */
 static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
 {
   int count = 0;
-  const ip_context_t *ctx = get_ip_context_for_device();
-  if (!ctx)
+  for (const oc_endpoint_t* ep = next_endpoint_on_interface(device_endpoints(), 0); ep && count < MAX_IF_INDICES;
+       ep = next_endpoint_on_interface(ep->next, 0))
   {
-    return 0;
-  }
-  const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
-  while (ep && count < MAX_IF_INDICES)
-  {
-    // pick ipv6, non-multicast IPv6 endpoints -> unicast server
-    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && ep->interface_index > 0)
+    // unicast IPv6 endpoints with a known interface only
+    if (ep->interface_index <= 0)
     {
-      const unsigned int idx = (unsigned int)ep->interface_index;
-      bool already = false;
-      for (int j = 0; j < count; ++j)
-      {
-        if (out[j] == idx)
-        {
-          // interface already in list, skip it
-          already = true;
-          break;
-        }
-      }
-      if (!already)
-      {
-        // interface not in list, add it, increase count
-        out[count++] = idx;
-      }
+      continue;
     }
-    ep = ep->next;
+    /*
+      Add the index only if it is not in the list yet. 
+      - first write to the free slot out[count], so the search always finds it there 
+      - only if the search stops at that slot (j == count), the index is new and count grows, otherwise the
+        slot is overwritten by the next one
+
+      Example, endpoints on the interfaces 10, 73, 73, 54 in this order:
+        - index 10: out = {10},             search stops at j = 0 == count 0 -> new,       count = 1
+        - index 73: out = {10, 73},         search stops at j = 1 == count 1 -> new,       count = 2
+        - index 73: out = {10, 73, 73},     search stops at j = 1 != count 2 -> duplicate, count stays 2
+        - index 54: out = {10, 73, 54},     search stops at j = 2 == count 2 -> new,       count = 3 (54 overwrites 73 in slot out[2])
+    */
+    out[count] = (unsigned int)ep->interface_index;
+    int j = 0;
+    while (out[j] != out[count])
+    {
+      j++;
+    }
+    count += (j == count); // +1 or +0 ...
   }
   return count;
 }
 
 /*
-  Populate out[] with AAAA records for every unicast IPv6 endpoint, binding
-  each record's name to hostname/hostname_len.
- 
+  Populate out[] with AAAA records for every unicast IPv6 endpoint on interface ifindex, binding each record's name to hostname/hostname_len.
+
+  @NOTE
+  
+  The entries contain only the IPv6 addresses of the interface through which the packet leaves the device (RFC 6762, Section 15). 
+  An IPv6 address belonging to a different interface - specifically a link-local address - is unreachable from this network segment 
+  a MaC in that segment attempting to use such an address would be sending data to an address that does not exist within its 
+  own network segment at all.
+
   - returns the number of records written into out[] (0...MAX_AAAA_RECORDS)
   - parameter 'out' must be preallocated AND wiped with zero with at least MAX_AAAA_RECORDS elements
+  - parameter 'ifindex' 0 is an unknown interface and takes the endpoints of every interface
  */
-static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const char *hostname, size_t hostname_len)
+static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const char *hostname, size_t hostname_len, unsigned int ifindex)
 {
-  const ip_context_t *ctx = get_ip_context_for_device();
-
-  if (!ctx)
-  {
-    return 0;
-  }
-
   uint16_t count = 0;
-
-  const oc_endpoint_t *ep = (oc_endpoint_t *)oc_list_head(ctx->eps);
-  while (ep && count < MAX_AAAA_RECORDS)
+  for (const oc_endpoint_t* ep = next_endpoint_on_interface(device_endpoints(), ifindex); ep && count < MAX_AAAA_RECORDS;
+       ep = next_endpoint_on_interface(ep->next, ifindex))
   {
-    // pick ipv6, non-multicast IPv6 endpoints -> unicast server
-    if ((ep->flags & (IPV6 | MULTICAST)) == IPV6)
-    {
-      // note that 'out' is wiped with zero before calling this function, so we can safely set the fields we need and leave the rest zeroed
+    // note that 'out' is wiped with zero before calling this function, so we can safely set the fields we need and leave the rest zeroed
+    out[count].name.str    = hostname;
+    out[count].name.length = hostname_len;
+    out[count].type        = MDNS_RECORDTYPE_AAAA;
+    out[count].data.aaaa.addr.sin6_family = AF_INET6;
+    out[count].data.aaaa.addr.sin6_port   = htons(ep->addr.ipv6.port);
+    memcpy(&out[count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
 
-      out[count].name.str    = hostname;
-      out[count].name.length = hostname_len;
-      out[count].type        = MDNS_RECORDTYPE_AAAA;
-      out[count].data.aaaa.addr.sin6_family = AF_INET6;
-      out[count].data.aaaa.addr.sin6_port   = htons(ep->addr.ipv6.port);
-      memcpy(&out[count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
-
-      count++;
-    }
-    ep = ep->next;
+    count++;
   }
   OC_DBG("DNS-SD: %d IPv6 endpoints found for AAAA records", count);
   return count;
@@ -438,8 +456,9 @@ typedef struct
  *
  * @param out  receives the record array and all buffers it points into; must outlive the send call
  * @param record the advertisement data to describe
+ * @param ifindex the interface the records leave on, its addresses become the AAAA records (0: unknown, all)
  */
-static void build_service_records(knx_service_records_t *out, const mdns_knx_record_t *record)
+static void build_service_records(knx_service_records_t *out, const mdns_knx_record_t *record, unsigned int ifindex)
 {
   memset(out, 0, sizeof(*out));
 
@@ -464,7 +483,7 @@ static void build_service_records(knx_service_records_t *out, const mdns_knx_rec
   out->additional[0].data.srv.name.length = hostname_len;
 
   // AAAA records: fills at most MAX_AAAA_RECORDS entries from SRV ( = 1 ) onwards
-  uint16_t add_count = 1 + collect_aaaa_records(&out->additional[1], out->hostname, hostname_len);
+  uint16_t add_count = 1 + collect_aaaa_records(&out->additional[1], out->hostname, hostname_len, ifindex);
 
   // subtype PTR: serial number 
   out->additional[add_count].name.str = out->sub_sn;
@@ -533,22 +552,11 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
   }
 
   knx_service_records_t svc;
-  build_service_records(&svc, record);
-
-  // Answer: PTR _knx._udp.local. -> instance
-  const mdns_record_t answer =
-  {
-    .name.str = KNX_SERVICE_TYPE,
-    .name.length = strlen(KNX_SERVICE_TYPE),
-    .type = MDNS_RECORDTYPE_PTR,
-    .data.ptr.name.str = svc.instance_name,
-    .data.ptr.name.length = strlen(svc.instance_name)
-  };
 
   /*
     Send multicast on every IPv6 interface. Collect unique interface indices from the endpoint list,
-    then send the announcement once per interface via IPV6_MULTICAST_IF. This ensures the packet 
-    reaches all local network segments.
+    then send the announcement once per interface via IPV6_MULTICAST_IF. This ensures the packet
+    reaches all local network segments. Each packet carries the AAAA records of its own interface.
   */
 
   // collect unique unicast IPv6 interface indices
@@ -564,8 +572,20 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
 
   int summary = 0;
 
-  for (int iface_idx = 0; iface_idx < if_count; iface_idx++) 
+  for (int iface_idx = 0; iface_idx < if_count; iface_idx++)
   {
+    build_service_records(&svc, record, if_indices[iface_idx]);
+
+    // Answer: PTR _knx._udp.local. -> instance
+    const mdns_record_t answer =
+    {
+      .name.str = KNX_SERVICE_TYPE,
+      .name.length = strlen(KNX_SERVICE_TYPE),
+      .type = MDNS_RECORDTYPE_PTR,
+      .data.ptr.name.str = svc.instance_name,
+      .data.ptr.name.length = strlen(svc.instance_name)
+    };
+
     setsockopt(mdns_sock6, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                (const char *)&if_indices[iface_idx], sizeof(if_indices[iface_idx]));
 
@@ -682,50 +702,19 @@ static int open_mdns_listen_socket_ipv6(void)
   mreq.ipv6mr_multiaddr.s6_addr[15] = 0xFB;
 
   int joined = 0;
-  ip_context_t *ctx = get_ip_context_for_device();
-  if (ctx) 
+  unsigned int if_indices[MAX_IF_INDICES];
+  const int if_count = collect_if_indices(if_indices);
+  for (int i = 0; i < if_count; i++)
   {
-    const oc_endpoint_t *ep = (const oc_endpoint_t *)oc_list_head(ctx->eps);
-    
-    // collect unique interface indices
-    unsigned int tried[MAX_IF_INDICES];
-    int tried_count = 0;
-    while (ep && tried_count < MAX_IF_INDICES) 
+    mreq.ipv6mr_interface = if_indices[i];
+    if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (const char *)&mreq, sizeof(mreq)) == 0)
     {
-      /*
-        Pick ipv6, non-multicast endpoints -> collect their interface index.
-      */
-      if ((ep->flags & (IPV6 | MULTICAST)) == IPV6 && ep->interface_index > 0) 
-      {
-        const unsigned int idx = (unsigned int)ep->interface_index;
-        bool dup = false;
-        for (int j = 0; j < tried_count; ++j)
-        {
-          if (tried[j] == idx)
-          {
-            dup = true;
-            break;
-          }
-        }
-
-        if (!dup)
-        {
-          tried[tried_count++] = idx;
-          mreq.ipv6mr_interface = idx;
-          if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
-                         (const char *)&mreq, sizeof(mreq)) == 0)
-          {
-            OC_INF("mDNS: Joined FF02::FB on interface %u.", idx);
-            joined++;
-          }
-          else
-          {
-            OC_DBG("mDNS: IPV6_JOIN_GROUP failed on interface %u!", idx);
-          }
-        }
-      }
-
-      ep = ep->next;
+      OC_INF("mDNS: Joined FF02::FB on interface %u.", if_indices[i]);
+      joined++;
+    }
+    else
+    {
+      OC_DBG("mDNS: IPV6_JOIN_GROUP failed on interface %u!", if_indices[i]);
     }
   }
 
@@ -883,11 +872,12 @@ static bool is_knx_subtype_query(const char *qname, size_t q_len)
  * @param ptr_name   The name for the PTR answer record. For a general
  *                   browse this is "_knx._udp.local.", for a subtype
  *                   browse this is e.g. "_pm._sub._knx._udp.local." etc.
+ * @param ifindex    The interface the answer leaves on (0: unknown).
  *
  * Used both by the proactive announcement and the query callback.
  * Returns 0 on success, <0 on error.
  */
-static int send_query_response(int sock, const char *ptr_name)
+static int send_query_response(int sock, const char *ptr_name, unsigned int ifindex)
 {
   // socket is already open from inbound query listener, so we can just build the records and send them
   
@@ -902,7 +892,7 @@ static int send_query_response(int sock, const char *ptr_name)
      instance fully without needing to make additional queries.
   */
   knx_service_records_t svc;
-  build_service_records(&svc, &current_advertisement);
+  build_service_records(&svc, &current_advertisement, ifindex);
 
   // Answer: PTR -- the name must match the query the client sent
   const mdns_record_t answer =
@@ -930,9 +920,9 @@ static int send_query_response(int sock, const char *ptr_name)
  * @brief Send an SRV answer for our service instance.
  *
  * Answer:      SRV {instance}._knx._udp.local. -> knx-{sn}.local. : port
- * Additional:  AAAA knx-{sn}.local. -> IPv6 addresses
+ * Additional:  AAAA knx-{sn}.local. -> IPv6 addresses of interface ifindex (0: unknown, all)
  */
-static int send_srv_response(int sock)
+static int send_srv_response(int sock, unsigned int ifindex)
 {
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
   char instance_name[MAX_MDNS_RECORD_SIZE];
@@ -965,7 +955,7 @@ static int send_srv_response(int sock)
     The trailing slot after the AAAA records is reserved for the TXT record.
   */
   mdns_record_t additional[MAX_AAAA_RECORDS + 1] = {0};
-  uint16_t add_count = collect_aaaa_records(additional, hostname, hostname_len);
+  uint16_t add_count = collect_aaaa_records(additional, hostname, hostname_len, ifindex);
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
@@ -1009,15 +999,17 @@ static int send_srv_response(int sock)
  *
  * Answer:      AAAA knx-{sn}.local. -> first IPv6 address
  * Additional:  remaining AAAA records (if more than one address)
+ *
+ * Only the addresses of interface ifindex are sent (0: unknown, all).
  */
-static int send_aaaa_response(int sock)
+static int send_aaaa_response(int sock, unsigned int ifindex)
 {
   char hostname[MDNS_HOSTNAME_SIZE];
   const size_t hostname_len = build_hostname(hostname);
 
   // collect all AAAA records
   mdns_record_t aaaa_records[MAX_AAAA_RECORDS] = {0};
-  const uint16_t aaaa_count = collect_aaaa_records(aaaa_records, hostname, hostname_len);
+  const uint16_t aaaa_count = collect_aaaa_records(aaaa_records, hostname, hostname_len, ifindex);
 
   if (aaaa_count == 0)
   {
@@ -1099,8 +1091,8 @@ static int send_txt_response(int sock)
  * mDNS is link-scoped, an answer belongs on the link the query came from (RFC 6762
  * section 15, multiple interfaces). IPV6_MULTICAST_IF on the listen socket routes the
  * multicast answer through that interface, the mechanism send_announcement() uses. An
- * unknown interface (0, Windows) keeps the platform default route, the behaviour before
- * the receive interface was available.
+ * unknown interface (0, e.g. a ULA or global sender on Windows, see mdns_ifindex_from_source())
+ * keeps the platform default route, the behaviour before the receive-interface was available.
  *
  * @param sock     The listen socket the answer is sent on.
  * @param ifindex  The interface index of the received query, 0 when unknown.
@@ -1193,6 +1185,17 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   char hostname[MDNS_HOSTNAME_SIZE];
   const size_t hostname_len = build_hostname(hostname);
 
+  /*
+    A query from a link the device has no address on gets no answer. 
+    - every AAAA record would name an address of another link, a MaC would send to an address it cannot reach (RFC 6762 section 15) 
+    - an unknown receive interface (0) is answered with the addresses of every interface
+  */
+  if (ifindex != 0 && !next_endpoint_on_interface(device_endpoints(), ifindex))
+  {
+    OC_DBG("DNS-SD: Query on interface %u without an own address, not answered.", ifindex);
+    return 0;
+  }
+
   // The answer leaves on the interface the query arrived on (RFC 6762 section 15)
   select_answer_interface(sock, ifindex);
 
@@ -1272,7 +1275,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
         ptr_name[ptr_len + 1] = '\0';
       }
 
-      ret = send_query_response(sock, ptr_name);
+      ret = send_query_response(sock, ptr_name, ifindex);
       if (ret < 0)
       {
         OC_ERR("DNS-SD: Failed to send PTR answer (ret=%d, errno=%d)!", ret, errno);
@@ -1291,7 +1294,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     if (dns_name_equal(qname, qstr.length, instance_name, strlen(instance_name)))
     {
       OC_INF("DNS-SD: Received SRV query for %s.", instance_name);
-      ret = send_srv_response(sock);
+      ret = send_srv_response(sock, ifindex);
       if (ret < 0)
       {
         OC_ERR("DNS-SD: Failed to send SRV answer (ret=%d, errno=%d)!", ret, errno);
@@ -1310,7 +1313,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     if (dns_name_equal(qname, qstr.length, hostname, hostname_len))
     {
       OC_INF("DNS-SD: Received AAAA query for %s.", hostname);
-      ret = send_aaaa_response(sock);
+      ret = send_aaaa_response(sock, ifindex);
       if (ret < 0)
       {
         OC_ERR("DNS-SD: Failed to send AAAA answer (ret=%d, errno=%d)!", ret, errno);

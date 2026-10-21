@@ -23,6 +23,14 @@
  *   mdns_query_callback (static, through the listener thread) - PTR, subtype
  *                                 PTR, SRV, AAAA, TXT and ANY queries, and the
  *                                 queries the responder ignores
+ *   AAAA records per interface  - an announcement and an answer name only the
+ *                                 addresses of the interface they leave on, a
+ *                                 query from an interface without an own address
+ *                                 gets no answer, an unknown receive interface
+ *                                 gets every address (RFC 6762 section 15)
+ *   mdns_ifindex_from_source    - without IPV6_PKTINFO (Windows) the zone of a
+ *                                 link-local sender is the interface, a ULA
+ *                                 sender leaves it unknown
  *
  * Requirements:
  *   oc_mmem_init() and oc_ri_init() - the repeat is a delayed callback on the
@@ -32,9 +40,10 @@
  * tests/unit/CMakeLists.txt:
  *   sendto                    - records every packet, nothing leaves the host
  *   recvmsg                   - hands the listener thread the queries the test
- *                               queued, as received on loopback (IPV6_PKTINFO),
- *                               and an empty socket otherwise, so no real query
- *                               of the host network reaches it
+ *                               queued, as received on loopback (IPV6_PKTINFO)
+ *                               or on the interface the test chose, and an empty
+ *                               socket otherwise, so no real query of the host
+ *                               network reaches it
  *   get_ip_context_for_device - one fake unicast IPv6 endpoint on loopback, so
  *                               collect_if_indices() finds an interface without
  *                               oc_connectivity_init()
@@ -115,6 +124,11 @@ static std::mutex g_lock;
 static std::vector<CapturedPacket> g_packets;
 static std::vector<std::vector<uint8_t>> g_queries;
 static std::atomic<bool> g_sendto_fails{false};
+/* the receive interface recvmsg reports for a query, 0 delivers no IPV6_PKTINFO */
+static std::atomic<unsigned int> g_query_ifindex{0};
+/* the sender address recvmsg reports for a query, ::1 without a zone by default */
+static uint8_t g_query_source[16];
+static uint32_t g_query_scope_id;
 
 /*
   Decode the first resource record head of a DNS message: owner name, type and
@@ -227,6 +241,16 @@ static std::string hex(const std::vector<uint8_t> &bytes)
   return out;
 }
 
+static bool contains_bytes(const std::vector<uint8_t> &bytes, const uint8_t *pattern, size_t n)
+{
+  for (size_t i = 0; i + n <= bytes.size(); i++) {
+    if (memcmp(&bytes[i], pattern, n) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool contains(const std::vector<uint8_t> &bytes, const char *text)
 {
   const size_t n = strlen(text);
@@ -304,14 +328,16 @@ extern "C" ssize_t __wrap_recvmsg(int, struct msghdr* msg, int)
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
     addr.sin6_port = htons(MDNS_PORT);
-    addr.sin6_addr.s6_addr[15] = 1;
+    memcpy(addr.sin6_addr.s6_addr, g_query_source, sizeof(g_query_source));
+    addr.sin6_scope_id = g_query_scope_id;
     memcpy(msg->msg_name, &addr, sizeof(addr));
     msg->msg_namelen = sizeof(addr);
   }
   /* The receive interface, as the kernel delivers it with IPV6_RECVPKTINFO:
    * the query arrived on loopback, addressed to FF02::FB. */
   msg->msg_flags = 0;
-  if (msg->msg_control && msg->msg_controllen >= CMSG_SPACE(sizeof(struct in6_pktinfo))) {
+  const unsigned int ifindex = g_query_ifindex;
+  if (ifindex != 0 && msg->msg_control && msg->msg_controllen >= CMSG_SPACE(sizeof(struct in6_pktinfo))) {
     struct cmsghdr* cm = CMSG_FIRSTHDR(msg);
     cm->cmsg_level = IPPROTO_IPV6;
     cm->cmsg_type = IPV6_PKTINFO;
@@ -321,7 +347,7 @@ extern "C" ssize_t __wrap_recvmsg(int, struct msghdr* msg, int)
     pi->ipi6_addr.s6_addr[0] = 0xFF;
     pi->ipi6_addr.s6_addr[1] = 0x02;
     pi->ipi6_addr.s6_addr[15] = 0xFB;
-    pi->ipi6_ifindex = if_nametoindex("lo");
+    pi->ipi6_ifindex = ifindex;
     msg->msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
   } else {
     msg->msg_controllen = 0;
@@ -331,6 +357,13 @@ extern "C" ssize_t __wrap_recvmsg(int, struct msghdr* msg, int)
 
 static ip_context_t g_fake_ctx;
 static oc_endpoint_t g_fake_ep;
+/* a second unicast endpoint on an interface index no host has, added by the tests that need two links */
+static oc_endpoint_t g_other_ep;
+static const unsigned int OTHER_IF = 4242;
+static const unsigned int NO_ADDRESS_IF = 4243;
+/* rdata of the fake endpoints: ::1 on loopback, fd00::b on OTHER_IF */
+static const uint8_t LOOPBACK_ADDR[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+static const uint8_t OTHER_ADDR[16] = {0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0b};
 
 extern "C" ip_context_t *__wrap_get_ip_context_for_device(void)
 {
@@ -389,8 +422,28 @@ protected:
     g_fake_ep.addr.ipv6.port = COAP_PORT;
     g_fake_ep.addr.ipv6.address[15] = 1;
     oc_list_add(g_fake_ctx.eps, &g_fake_ep);
+    g_query_ifindex = (unsigned int)g_fake_ep.interface_index;
+    set_query_source(LOOPBACK_ADDR, 0);
 
     clear_packets();
+  }
+
+  static void set_query_source(const uint8_t address[16], uint32_t scope_id)
+  {
+    std::lock_guard<std::mutex> guard(g_lock);
+    memcpy(g_query_source, address, sizeof(g_query_source));
+    g_query_scope_id = scope_id;
+  }
+
+  /* a second link: one more unicast endpoint, on OTHER_IF */
+  static void add_other_interface(void)
+  {
+    memset(&g_other_ep, 0, sizeof(g_other_ep));
+    g_other_ep.flags = IPV6;
+    g_other_ep.interface_index = (int)OTHER_IF;
+    g_other_ep.addr.ipv6.port = COAP_PORT;
+    memcpy(g_other_ep.addr.ipv6.address, OTHER_ADDR, sizeof(OTHER_ADDR));
+    oc_list_add(g_fake_ctx.eps, &g_other_ep);
   }
 
   void TearDown() override
@@ -946,16 +999,8 @@ TEST_F(DnsSd, AaaaQueryForTheHostnameGetsTheAaaaAnswer)
   EXPECT_EQ(answer.first_type, DNS_TYPE_AAAA);
   EXPECT_EQ(answer.first_name, "knx-00fa10020800.local");
 
-  /* rdata of the fake loopback endpoint: 15 zero bytes and a 1 */
-  const uint8_t loopback[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-  bool found = false;
-  for (size_t i = 0; i + sizeof(loopback) <= answer.bytes.size(); i++) {
-    if (memcmp(&answer.bytes[i], loopback, sizeof(loopback)) == 0) {
-      found = true;
-      break;
-    }
-  }
-  EXPECT_TRUE(found) << "the AAAA answer lacks the endpoint address";
+  EXPECT_TRUE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)))
+      << "the AAAA answer lacks the endpoint address";
 }
 
 TEST_F(DnsSd, AnApplicationSetHostnameIsAnnounced)
@@ -1009,4 +1054,106 @@ TEST_F(DnsSd, QueryForAnUnhandledTypeGetsNoAnswer)
   const uint16_t DNS_TYPE_A = 1;
   queue_query("knx-00fa10020800.local.", DNS_TYPE_A);
   expect_no_more_packets(base);
+}
+
+/* -- AAAA records per interface (RFC 6762 section 15) ----------------------- */
+
+TEST_F(DnsSd, AnnouncementCarriesOnlyTheAddressesOfItsInterface)
+{
+  add_other_interface();
+  ASSERT_EQ(publish(false), 0);
+
+  /* one announcement per interface, in the order of the endpoint list */
+  ASSERT_EQ(packet_count(), 2u);
+  const CapturedPacket on_loopback = packet_at(0);
+  const CapturedPacket on_other = packet_at(1);
+  EXPECT_TRUE(contains_bytes(on_loopback.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
+  EXPECT_FALSE(contains_bytes(on_loopback.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)))
+      << "the loopback announcement names the address of another link";
+  EXPECT_TRUE(contains_bytes(on_other.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)));
+  EXPECT_FALSE(contains_bytes(on_other.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)))
+      << "the announcement on the other link names the loopback address";
+}
+
+TEST_F(DnsSd, AnswersCarryOnlyTheAddressesOfTheQueryInterface)
+{
+  add_other_interface();
+  ASSERT_EQ(publish(false), 0);
+
+  const std::string instance = std::string(SERIAL) + "._knx._udp.local.";
+  const struct {
+    const char *name;
+    uint16_t qtype;
+  } queries[] = {
+    {"_knx._udp.local.", DNS_TYPE_PTR},
+    {instance.c_str(), DNS_TYPE_SRV},
+    {"knx-00fa10020800.local.", DNS_TYPE_AAAA},
+  };
+  for (const auto &q : queries) {
+    CapturedPacket answer;
+    ASSERT_TRUE(ask(q.name, q.qtype, &answer)) << "no answer to " << q.name;
+    EXPECT_TRUE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR))) << q.name;
+    EXPECT_FALSE(contains_bytes(answer.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)))
+        << "the answer to " << q.name << " names the address of another link";
+  }
+}
+
+TEST_F(DnsSd, QueryFromAnInterfaceWithoutAnAddressGetsNoAnswer)
+{
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(0);
+  const size_t base = packet_count();
+
+  g_query_ifindex = NO_ADDRESS_IF;
+  queue_query("_knx._udp.local.", DNS_TYPE_PTR);
+  queue_query("knx-00fa10020800.local.", DNS_TYPE_AAAA);
+  expect_no_more_packets(base);
+}
+
+TEST_F(DnsSd, QueryFromAnUnknownInterfaceGetsEveryAddress)
+{
+  add_other_interface();
+  ASSERT_EQ(publish(false), 0);
+
+  /* no IPV6_PKTINFO: the receive interface is unknown */
+  g_query_ifindex = 0;
+  CapturedPacket answer;
+  ASSERT_TRUE(ask("knx-00fa10020800.local.", DNS_TYPE_AAAA, &answer)) << "no answer";
+  EXPECT_TRUE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
+  EXPECT_TRUE(contains_bytes(answer.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)));
+}
+
+/* -- receive interface from the sender address (no IPV6_PKTINFO, as on Windows) -- */
+
+TEST_F(DnsSd, QueryFromALinkLocalSourceUsesItsZoneAsTheInterface)
+{
+  add_other_interface();
+  ASSERT_EQ(publish(false), 0);
+
+  /* no IPV6_PKTINFO, the sender fe80::99 names OTHER_IF as its zone */
+  g_query_ifindex = 0;
+  const uint8_t link_local[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99};
+  set_query_source(link_local, OTHER_IF);
+
+  CapturedPacket answer;
+  ASSERT_TRUE(ask("knx-00fa10020800.local.", DNS_TYPE_AAAA, &answer)) << "no answer";
+  EXPECT_TRUE(contains_bytes(answer.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)));
+  EXPECT_FALSE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)))
+      << "the answer names the address of another link";
+}
+
+TEST_F(DnsSd, QueryFromAUlaSourceLeavesTheInterfaceUnknown)
+{
+  add_other_interface();
+  ASSERT_EQ(publish(false), 0);
+
+  /* a ULA sender has no zone: a scope id next to it is not taken as the interface */
+  g_query_ifindex = 0;
+  const uint8_t ula[16] = {0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99};
+  set_query_source(ula, OTHER_IF);
+
+  CapturedPacket answer;
+  ASSERT_TRUE(ask("knx-00fa10020800.local.", DNS_TYPE_AAAA, &answer)) << "no answer";
+  EXPECT_TRUE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
+  EXPECT_TRUE(contains_bytes(answer.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)));
 }

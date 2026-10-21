@@ -206,8 +206,8 @@ static inline void
 mdns_socket_close(int sock);
 
 //! Receive one packet and pass every question and record to the callback, together with the
-//! interface the packet arrived on (IPV6_RECVPKTINFO must be enabled on the socket, otherwise
-//! the interface is reported as 0). The socket must be bound to MDNS_PORT. Buffer must be
+//! interface the packet arrived on: from IPV6_PKTINFO (IPV6_RECVPKTINFO must be enabled on the socket, not on Windows), else from the zone of a
+//! link-local sender address, else 0 (see mdns_ifindex_from_source()). The socket must be bound to MDNS_PORT. Buffer must be
 //! 32 bit aligned. Parsing stops when the callback returns non-zero. Returns the number of
 //! entries parsed.
 static inline size_t
@@ -700,6 +700,31 @@ static const uint8_t mdns_services_query[] = {
     // QU (unicast response) and class IN
     0x80, MDNS_CLASS_IN};
 
+/*
+ * The receive-interface taken from the sender's address: the zone (sin6_scope_id) of a link-local source is the interface the packet arrived on.
+ * Windows uses it as the only source of the interface (recvfrom() carries no IPV6_PKTINFO), the other platforms when IPV6_PKTINFO delivered none.
+ *
+ * Works:
+ *   - mDNS queries from a link-local source. FF02::FB is a link-local destination, and source address selection (RFC 6724 rule 2) picks the
+ *     link-local address of the outgoing interface for it. Windows, Linux, macOS and Bonjour send their queries that way, ETS6 does too.
+ *   - A host with several interfaces: every interface has its own link-local address and zone.
+ *
+ * Does NOT work (returns 0, the interface stays unknown, the answer carries every address):
+ *   - A query from a ULA or global source. Such an address has no zone (sin6_scope_id 0), small stacks (lwIP, some RTOS) may send mDNS from it.
+ *   - A query from the unspecified address (::), as sent while an address is not yet configured.
+ *   - A platform that leaves sin6_scope_id unset for a received packet.
+ */
+static inline unsigned int mdns_ifindex_from_source(const struct sockaddr_in6* from)
+{
+	// fe80::, the link-local prefix every host uses (RFC 4291 section 2.5.6)
+	const uint8_t* a = (const uint8_t*)&from->sin6_addr;
+	if (((a[0] << 8) | a[1]) != 0xfe80)
+	{
+		return 0;
+	}
+	return (unsigned int)from->sin6_scope_id;
+}
+
 static inline size_t
 mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback_fn callback,
                    void* user_data) {
@@ -709,7 +734,7 @@ mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback
 	unsigned int ifindex = 0;
 	memset(&addr, 0, sizeof(addr));
 #ifdef _WIN32
-	// recvfrom() delivers no ancillary data, the receive interface stays unknown (0)
+	// recvfrom() delivers no ancillary data. The if-index comes from the sender's address below
 	mdns_ssize_t ret = recvfrom(sock, (char*)buffer, (mdns_size_t)capacity, 0, saddr, &addrlen);
 #else
 	// The control buffer must be zero-initialised: Zephyr's recvmsg() takes a cmsg_len of 0 as
@@ -743,6 +768,12 @@ mdns_socket_listen(int sock, void* buffer, size_t capacity, mdns_record_callback
 #endif
 	if (ret <= 0)
 		return 0;
+
+	if (ifindex == 0)
+	{
+		// if-index unknown, try to get it from the source address (link-local zone)
+		ifindex = mdns_ifindex_from_source(&addr);
+	}
 
 	size_t data_size = (size_t)ret;
 	const uint16_t* data = (const uint16_t*)buffer;
