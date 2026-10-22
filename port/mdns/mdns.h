@@ -165,17 +165,21 @@ struct mdns_record_txt_t {
 	mdns_string_t value;
 };
 
+/*
+ * Members ordered by alignment: with short enums (the ARM EABI default, e.g. Zephyr) the 1-byte type fills the tail padding,
+ * 40 instead of 44 bytes on Zephyr Cortex-M.
+ */
 struct mdns_record_t {
 	mdns_string_t name;
-	mdns_record_type_t type;
 	union mdns_record_data {
 		mdns_record_ptr_t ptr;
 		mdns_record_srv_t srv;
 		mdns_record_aaaa_t aaaa;
 		mdns_record_txt_t txt;
 	} data;
-	uint16_t rclass;
 	uint32_t ttl;
+	uint16_t rclass;
+	mdns_record_type_t type;
 };
 
 struct mdns_header_t {

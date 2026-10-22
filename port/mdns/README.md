@@ -37,6 +37,9 @@ Changes since the import:
   `recvfrom()`. Where `IPV6_PKTINFO` delivers no interface, Windows always,
   `mdns_ifindex_from_source()` takes it from the zone (`sin6_scope_id`) of a
   link-local sender address; a ULA or global sender leaves it unknown (0).
+- `mdns_record_t` members are ordered by alignment (`name`, `data`, `ttl`,
+  `rclass`, `type`): with short enums (ARM EABI, e.g. Zephyr) a record takes
+  40 instead of 44 bytes; other targets keep their size.
 - Every `-1` that is not the result of a failing system call sets `errno`
   itself: `ENOBUFS` when the answer records do not fit the buffer,
   `EAFNOSUPPORT` when `mdns_multicast_send()` gets a socket that is not IPv6.
