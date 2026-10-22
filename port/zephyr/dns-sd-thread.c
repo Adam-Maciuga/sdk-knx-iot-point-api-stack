@@ -23,6 +23,7 @@
 #include <ctype.h>
 
 #include "oc_core_res.h"
+#include "oc_helpers.h"
 #include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_log.h"
@@ -149,13 +150,17 @@ static void knx_set_static_subtypes(void)
     srpSubtype[1] = serial_no_subtype;
 }
 
-static void knx_set_dynamic_subtypes(uint32_t iid, uint32_t ia, bool pm)
+static void knx_set_dynamic_subtypes(uint64_t iid, uint32_t ia, bool pm)
 {
+    char iid_hex[17];
+
+    oc_conv_uint64_to_hex_string(iid_hex, iid);
+
     /* Set up the subtype for
        --subtype=_ia{installationid}-{ia}._sub._knx._udp */
-    char *installation_format_string = "_ia%x-%x";
+    char *installation_format_string = "_ia%s-%x";
     snprintf(installation_subtype, sizeof(installation_subtype),
-             installation_format_string, iid, ia);
+             installation_format_string, iid_hex, ia);
 
     /* Set SRP subtype for installation */
     srpSubtype[0] = installation_subtype;
