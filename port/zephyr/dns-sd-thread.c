@@ -75,21 +75,18 @@ static void srp_client_cb(const otSockAddr *aServerSockAddr, void *aContext)
     OC_INF("KNX IoT SRP client cb\n");
 }
 
-static void knx_set_srp_host(otInstance *thrInstancePtr, const char *serial_no)
+static void knx_set_srp_host(otInstance *thrInstancePtr, const char *serial_no, const char *hostname)
 {
   uint16_t size;
 
     strncpy(serial_no_lowercase, serial_no, 19);
     for (int i = 0; i < strlen(serial_no_lowercase); ++i) {
-        /* make sure that the serial number is used in upper case */
-        serial_no_lowercase[i] = toupper(serial_no_lowercase[i]);
+        /* make sure that the serial number is used in lower case */
+        serial_no_lowercase[i] = tolower(serial_no_lowercase[i]);
     }
 
-    /* Set up the hostname as <serial_number>.knx.local */
-    char *hostname_format_string = "%s.knx";
-
-    snprintf(serial_no_hostname, sizeof(serial_no_hostname), hostname_format_string,
-             serial_no_lowercase);
+    /* The SRP client keeps a pointer to the hostname, so it needs its own copy */
+    snprintf(serial_no_hostname, sizeof(serial_no_hostname), "%s", hostname);
 
     /* Enable SRP client auto start */
     otSrpClientEnableAutoStartMode(thrInstancePtr, srp_client_cb, NULL);
@@ -122,12 +119,12 @@ static void knx_set_srp_host(otInstance *thrInstancePtr, const char *serial_no)
     /* This function returns a pointer to the string buffer for service instance name from a service entry */
     stringBuffer = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
 
-    if(strlen(serial_no) >= size)
+    if(strlen(serial_no_lowercase) >= size)
     {
         abort_impl();
     }
     /* Copy the service instance name into the pointer for the buffer */
-    strcpy(stringBuffer, serial_no);
+    strcpy(stringBuffer, serial_no_lowercase);
 
     entry->mService.mPort = KNX_SRP_PORT;
     entry->mService.mPriority = 0;
@@ -201,7 +198,7 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     if (isInitialized == false)
     {
         /* Set SRP Client Host name and */
-        knx_set_srp_host(thrInstancePtr, device->serialnumber);
+        knx_set_srp_host(thrInstancePtr, device->serialnumber, oc_string_checked(device->iot_hostname));
 
         /* Set SRP static subtypes */
         knx_set_static_subtypes();
