@@ -50,7 +50,6 @@ static otSrpClientBuffersServiceEntry *entry = NULL;
 const char *srpSubtype[NUMBER_OF_SUBTYPES] = {NULL};
 
 static bool isInitialized = false;
-static bool isUpdating = false;
 
 static void handle_srp_client_callback(otError aError, const otSrpClientHostInfo *aHostInfo,
                                     const otSrpClientService *aServices, const otSrpClientService  *aRemovedServices,
@@ -63,22 +62,7 @@ static void handle_srp_client_callback(otError aError, const otSrpClientHostInfo
 
     if (aError == OT_ERROR_NONE)
     {
-        if (isUpdating == true)
-        {
-            otInstance * thrInstancePtr = openthread_get_default_instance();
-
-            OC_DBG("KNX IoT SRP service entry deleted, updating service entry.\n");
-            if (entry != NULL)
-            {
-                otSrpClientAddService(thrInstancePtr, &entry->mService);
-            }
-
-            isUpdating = false;
-        }
-        else
-        {
-            OC_INF("KNX IoT SRP registration successful.\n");
-        }
+        OC_INF("KNX IoT SRP registration successful.\n");
     }
     else
     {
@@ -226,32 +210,14 @@ int knx_dns_sd_update_service(const char *serial_no, uint64_t iid, uint16_t ia, 
     /* Set or update subtypes */
     knx_set_dynamic_subtypes(device->iid, device->ia, device->pm);
 
-    /* srpSubtype are populated with static or dynamic entries */
-    entry->mService.mSubTypeLabels = srpSubtype;
-
     if (isInitialized == true)
     {
-        const otSrpClientService *service = otSrpClientGetServices(thrInstancePtr);
-
-        while (service != NULL)
-        {
-            if (!strcmp(service->mInstanceName, device->serialnumber) && !strcmp(service->mName, KNX_SRP_SERVICE_NAME))
-            {
-                break;
-            }
-            service = service->mNext;
-        }
-
-        if (service != NULL)
-        {
-            otSrpClientRemoveService(thrInstancePtr, (otSrpClientService *) service);
-            isUpdating = true;
-        }
+        otSrpClientClearService(thrInstancePtr, &entry->mService);
     }
-    else
-    {
-        otSrpClientAddService(thrInstancePtr, &entry->mService);
-    }
+
+    /* srpSubtype are populated with static or dynamic entries */
+    entry->mService.mSubTypeLabels = srpSubtype;
+    otSrpClientAddService(thrInstancePtr, &entry->mService);
 
     if (isInitialized == false)
     {
