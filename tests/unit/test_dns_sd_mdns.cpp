@@ -1163,7 +1163,7 @@ TEST_F(DnsSd, QueryFromAUlaSourceLeavesTheInterfaceUnknown)
 
 TEST_F(DnsSd, WorstCasePacketFitsTheSendBuffer)
 {
-  /* the largest record set: a 63 character host name, 4 AAAA on one interface, _pm, the longest _ia and SP=65535 */
+  /* the largest record set: a 63 character host name, 4 AAAA on one interface, _pm, the longest _ia (40 bit iid) and SP=65535 */
   const std::string longest_label = "knx-" + std::string(59, 'a');
   ASSERT_EQ(longest_label.size(), 63u);
   ASSERT_EQ(oc_core_set_device_hostname(longest_label.c_str()), 0);
@@ -1181,7 +1181,7 @@ TEST_F(DnsSd, WorstCasePacketFitsTheSendBuffer)
 
   oc_device_info_t *dev = oc_core_get_device_info();
   dev->serialnumber = SERIAL;
-  dev->iid = UINT64_MAX;
+  dev->iid = 0xFFFFFFFFFF; /* the largest iid the setter accepts: 40 bit = IID_STR_LEN_MAX hex digits */
   dev->ia = 0xffff;
   dev->pm = true;
   ASSERT_EQ(knx_dns_sd_update_service(dev), 0);
@@ -1216,11 +1216,11 @@ TEST_F(DnsSd, WorstCasePacketFitsTheSendBuffer)
   }
   EXPECT_TRUE(contains_bytes(largest.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
   EXPECT_TRUE(contains(largest.bytes, "_pm"));
-  EXPECT_TRUE(contains(largest.bytes, "_iaffffffffffffffff-ffff"));
+  EXPECT_TRUE(contains(largest.bytes, "_iaffffffffff-ffff"));
   EXPECT_TRUE(contains(largest.bytes, "SP=65535"));
   EXPECT_TRUE(contains(largest.bytes, longest_label.c_str()));
   /* MDNS_SEND_BUF_SIZE in dns-sd_mdns.c; its comment quotes this measurement, update both together */
   RecordProperty("largest_packet_bytes", (int)largest.bytes.size());
-  EXPECT_EQ(largest.bytes.size(), 361u) << "the worst case changed, update the MDNS_SEND_BUF_SIZE comment";
+  EXPECT_EQ(largest.bytes.size(), 355u) << "the worst case changed, update the MDNS_SEND_BUF_SIZE comment";
   EXPECT_LE(largest.bytes.size(), 512u) << "the worst-case packet no longer fits MDNS_SEND_BUF_SIZE";
 }

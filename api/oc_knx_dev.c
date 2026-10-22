@@ -1056,22 +1056,21 @@ void oc_knx_load_device(void)
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
-  // read IA from storage (on error = 0xFFFF)
+  // read IA from storage (on error or short read = 0xFFFF)
   uint16_t ia;
-  device->ia = oc_storage_read(KNX_STORAGE_KEY_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
-  OC_INF("ia (storage) %04X", ia);
+  device->ia = oc_storage_read(KNX_STORAGE_KEY_IA, (uint8_t*)&ia, sizeof(ia)) == (long)sizeof(ia) ? ia : 0xFFFF;
+  OC_INF("ia (storage) %04X", device->ia);
 
-  // read iid name from storage (on error = 0)
+  // read iid from storage (on error or short read = 0)
   uint64_t iid;
-  device->iid = oc_storage_read(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
+  device->iid = oc_storage_read(KNX_STORAGE_KEY_IID, (uint8_t*)&iid, sizeof(iid)) == (long)sizeof(iid) ? iid : 0;
   OC_INF("iid (storage) %" PRIu64, device->iid);
 
-  // read fid name from storage (on error = 0)
+  // read fid from storage (on error or short read = 0)
   uint64_t fid;
-  device->fid = oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
+  device->fid = oc_storage_read(KNX_STORAGE_KEY_FID, (uint8_t*)&fid, sizeof(fid)) == (long)sizeof(fid) ? fid : 0;
   OC_INF("fid (storage) %" PRIu64, device->fid);
 
-  
   oc_core_load_device_hostname();
   OC_INF("hostname %s", oc_string(device->iot_hostname));
 

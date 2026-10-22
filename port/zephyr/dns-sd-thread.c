@@ -56,9 +56,9 @@
 
 #define KNX_SRP_SERVICE_NAME "_knx._udp"
 
-/* subtype labels: "_" + serial number (SN_STR_LEN_MAX hex chars, oc_knx.h), "_ia" + 16 hex + "-" + 4 hex */
+/* subtype labels: "_" + serial number, "_ia" + iid + "-" + ia, oc_knx.h */
 #define SUBTYPE_SN_SIZE (1 + SN_STR_LEN_MAX + 1)
-#define SUBTYPE_IA_SIZE 32
+#define SUBTYPE_IA_SIZE (3 + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1)
 /* "SP=" + up to 5 decimal digits */
 #define SP_VALUE_SIZE 8
 

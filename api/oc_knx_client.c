@@ -855,16 +855,10 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
       #define EP_LEN_DOT_IA (12)   // ep=knx://ia. 
       #define LEN_DOT_SN (16)      // <>;ep="knx://sn.
-      #define LEN_SN (12)          // 00fa12345678, leading zeros NOT omitted, clause 2.6.1.4
-      #define LEN_DOT_IA (9)       // knx://ia.
 
-      #define IID_STR_LEN_MAX (10) // max IID length, hex coded ASCII if no leading zeros are omitted (5 octets 40 bit)
-      #define IID_STR_LEN_MIN (1)  // min IID length, hex coded ASCII if leading zeros are omitted (1 octet = 8 bit), clause 2.6.1.4
-      #define IA_STR_LEN_MAX (4)   // max IA length in hex coded ASCII (2 octets = 16 bit)
-      #define IA_STR_LEN_MIN (1)   // min IA length in hex coded ASCII (1 octet = 8 bit), clause 2.6.1.4
       #define LEN_QUOTE_END (1)    // closing " of ep="..."
 
-      #define LL_MIN_LEN (LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA + IID_STR_LEN_MIN + 1 + IA_STR_LEN_MIN + LEN_QUOTE_END)
+      #define LL_MIN_LEN (LEN_DOT_SN + SN_STR_LEN_MAX + 1 + LEN_DOT_IA + IID_STR_LEN_MIN + 1 + IA_STR_LEN_MIN + LEN_QUOTE_END)
 
     if (data->_payload && data->_payload_len >= LL_MIN_LEN && data->content_format == APPLICATION_LINK_FORMAT)
     {// LL format and valid min sizes ...
@@ -873,7 +867,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
       const oc_device_info_t* const device = oc_core_get_device_info();
 
       // find first 'i' in 'knx://ia.', assume heading some SN with at least with one char
-      const char* iid_start_pos = oc_strnchr((const char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA);
+      const char* iid_start_pos = oc_strnchr((const char*)data->_payload, 'i', LEN_DOT_SN + SN_STR_LEN_MAX + 1 + LEN_DOT_IA);
       if (iid_start_pos) {iid_start_pos += 3;} // + 3 = 'ia.' -> start of IID, only when the 'i' of 'ia.' was found
 
       // find the '.' between IID and IA, + 1 -> start of IA, only when the IID start and the '.' were found

@@ -27,6 +27,17 @@ extern "C"
 
   // KNX raw hardware reference number (string) length (16 upper-case hex chars, excluding the string null terminator)
   #define HWREF_STR_LEN_MAX (16)  
+
+  // KNX installation id (iid) as hex string, excluding the string null terminator: 40 bit (5 octets) -> max 10, leading zeros omitted -> min 1
+  #define IID_STR_LEN_MAX (10)
+  #define IID_STR_LEN_MIN (1)
+
+  // KNX individual address (ia) as hex string, excluding the string null terminator: 16 bit (2 octets) -> max 4, leading zeros omitted -> min 1
+  #define IA_STR_LEN_MAX (4)
+  #define IA_STR_LEN_MIN (1)
+
+  // KNX endpoint prefix "knx://ia." of an individual address endpoint (ep) in discovery, excluding the string null terminator
+  #define LEN_DOT_IA (9)
  
   // reset status
   #define RESET_NO_ERROR (0)

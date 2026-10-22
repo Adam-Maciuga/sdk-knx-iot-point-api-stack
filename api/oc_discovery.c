@@ -601,8 +601,6 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 	}
 
-	#define LEN_DOT_IA (9)       // knx://ia.
-  #define IID_STR_LEN_MAX (10) // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
 	
   // handle individual address 
 	if (ep_request && ep_len >= LEN_DOT_IA && strncmp(ep_request, "knx://ia.", LEN_DOT_IA) == 0)

@@ -205,8 +205,8 @@ static HANDLE listener_thread_handle = NULL;
 
 /*
   Send buffer for one mDNS packet: announcement, goodbye or query answer. 
-  - the largest packet is 361 bytes, a 63 character host name, MAX_AAAA_RECORDS (4) AAAA records on one interface, the _pm subtype,
-    the longest _ia subtype (16 + 4 hex digits) and SP=65535, with the name compression of mdns.h 
+  - the largest packet is 355 bytes, a 63 character host name, MAX_AAAA_RECORDS (4) AAAA records on one interface, the _pm subtype,
+    the longest _ia subtype (10 + 4 hex digits) and SP=65535, with the name compression of mdns.h 
   - 512 leaves room for 5 more AAAA records(28 bytes each) --> not used so far 
   - a packet that does not fit is not sent -> mdns.h returns -1 with ENOBUFS, nothing is written past the buffer
 */
@@ -333,12 +333,22 @@ static int ensure_socket(void)
  */
 
 /*
-  Name buffer for one service name with its terminating NUL.
-  - "<sn>._knx._udp.local." needs 30 bytes (sn = 12 hex digits), "_<sn>._sub._knx._udp.local." needs 36
-  - the longest is "_ia<iid>-<ia>._sub._knx._udp.local." with 47 bytes (iid 16 and ia 4 hex digits)
-  - a longer name is cut by snprintf() -> never written past the buffer
+  Name buffer for the service instance "<sn>._knx._udp.local." with its terminating NUL.
+  - 30 = <sn> (12) + "." (1) + "_knx._udp.local." (16 + 1 for NUL from sizeof)
 */
-#define MAX_MDNS_RECORD_SIZE 64
+#define MDNS_INSTANCE_NAME_SIZE (SN_STR_LEN_MAX + 1 + sizeof(KNX_SERVICE_TYPE))
+
+/*
+  Name buffer for the serial number subtype "_<sn>._sub._knx._udp.local." with its terminating NUL.
+  - 36 = "_" (1) + <sn> (12) + "._sub." (6) + "_knx._udp.local." (16 + 1 for NUL from sizeof)
+*/
+#define MDNS_SUBTYPE_SN_NAME_SIZE (1 + SN_STR_LEN_MAX + 6 + sizeof(KNX_SERVICE_TYPE))
+
+/*
+  Name buffer for the individual address subtype "_ia<iid>-<ia>._sub._knx._udp.local." with its terminating NUL.
+  - 41 = "_ia" (3) + <iid> (IID_STR_LEN_MAX 10) + "-" (1) + <ia> (IA_STR_LEN_MAX 4) + "._sub." (6) + "_knx._udp.local." (16 + 1 for NUL from sizeof)
+*/
+#define MDNS_SUBTYPE_IA_NAME_SIZE (3 + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 6 + sizeof(KNX_SERVICE_TYPE))
 
 /*
   AAAA records per packet, one per unicast IPv6 address of the interface the packet leaves on.
@@ -474,10 +484,10 @@ static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const 
 */
 typedef struct
 {
-  char instance_name[MAX_MDNS_RECORD_SIZE];
+  char instance_name[MDNS_INSTANCE_NAME_SIZE];
   char hostname[MDNS_HOSTNAME_SIZE];
-  char sub_sn[MAX_MDNS_RECORD_SIZE];
-  char sub_ia[MAX_MDNS_RECORD_SIZE];
+  char sub_sn[MDNS_SUBTYPE_SN_NAME_SIZE];
+  char sub_ia[MDNS_SUBTYPE_IA_NAME_SIZE];
   char sp_str[5 + 1];                             // uint16_t max = 65535 (5 digits) + NUL terminator
   uint16_t add_count;
   mdns_record_t additional[5 + MAX_AAAA_RECORDS]; // max 9: 1 x SRV + up to 4 x AAAA + 3 x subtype PTRs + 1 x TXT
@@ -960,7 +970,7 @@ static int send_query_response(int sock, const char *ptr_name, unsigned int ifin
 static int send_srv_response(int sock, unsigned int ifindex)
 {
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
-  char instance_name[MAX_MDNS_RECORD_SIZE];
+  char instance_name[MDNS_INSTANCE_NAME_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
   const size_t instance_len = strlen(instance_name);
 
@@ -1081,7 +1091,7 @@ static int send_aaaa_response(int sock, unsigned int ifindex)
 static int send_txt_response(int sock)
 {
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
-  char instance_name[MAX_MDNS_RECORD_SIZE];
+  char instance_name[MDNS_INSTANCE_NAME_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, current_advertisement.knx.sn);
 
   // uint16_t max = 65535 (5 digits) + NUL terminator
@@ -1214,7 +1224,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   }
 
   // Instance: "<sn_lower>._knx._udp.local."  --> sn must be in lower case, spec 2.6.1.2.2
-  char instance_name[MAX_MDNS_RECORD_SIZE];
+  char instance_name[MDNS_INSTANCE_NAME_SIZE];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, adv_sn);
 
   char hostname[MDNS_HOSTNAME_SIZE];
@@ -1265,7 +1275,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       // _<sn> subtype (RFC 6716, clause 16 demands lower/ upper case, but KNX IoT specification 2.6.1.2. demands ONLY lower case) 
       if (!ptr_respond)
       {
-        char sub_sn[MAX_MDNS_RECORD_SIZE];
+        char sub_sn[MDNS_SUBTYPE_SN_NAME_SIZE];
         (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", adv_sn);
         if (dns_name_equal(qname, qstr.length, sub_sn, strlen(sub_sn)))
         {
@@ -1277,7 +1287,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       // _ia<iid>-<ia> subtype
       if (!ptr_respond)
       {
-        char sub_ia[MAX_MDNS_RECORD_SIZE];
+        char sub_ia[MDNS_SUBTYPE_IA_NAME_SIZE];
         (void)snprintf(sub_ia, sizeof(sub_ia),
                        "_ia%" PRIx64 "-%x._sub._knx._udp.local.",
                        adv_iid, (unsigned)adv_ia);
@@ -1645,7 +1655,7 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
       if (ensure_socket() == 0)
       {
         // build a standalone TXT goodbye for the SP record
-        char instance_name[MAX_MDNS_RECORD_SIZE];
+        char instance_name[MDNS_INSTANCE_NAME_SIZE];
         (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE,
                        current_advertisement.knx.sn);
         
