@@ -1521,7 +1521,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
-| **TestAuthResourceList** | `test_get_auth_without_oscore_returns_403` | 5.3.4.1 | GET /auth without OSCORE must return 4.03 Forbidden. |
+| **TestAuthResourceList** | `test_get_auth_without_oscore_returns_401` | 5.3.4.1 | GET /auth without OSCORE must return 4.01 Unauthorized. |
 | **TestWriteAccessToken** | `test_write_at_and_verify` | 5.3.8.1 | POST /auth/at with a valid AT → 2.01, then verify via GET. |
 |  | `test_write_at_with_group_scope` | 5.3.8.1 | POST /auth/at with integer (group) scope → 2.01. |
 |  | `test_post_at_without_if_sec_scope_fails` | 5.3.8.1d | POST /auth/at with OSCORE but without if.sec scope → 4.03. |
@@ -1538,17 +1538,17 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 |  | `test_at_mandatory_update_of_existing_entry_accepted` |  | POST [{id, 9: [...]}] on an existing AT updates the scope. |
 |  | `test_at_mandatory_invalid_scope_names_rejected` ×3 |  | POST /auth/at with an invalid scope name -> 4.00, no entry. |
 |  | `test_at_mandatory_mixed_scope_keeps_only_valid_names` ×4 |  | POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored. |
-| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.03. |
+| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_401` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.01. |
 |  | `test_get_auth_at_link_format` | 5.3.9.1 | GET /auth/at → 2.05 with link-format listing. |
-| **TestReadAccessTokenById** | `test_get_at_by_id_without_oscore_returns_403` | 5.3.10.2a | GET /auth/at/{id} without OSCORE → 4.03. |
+| **TestReadAccessTokenById** | `test_get_at_by_id_without_oscore_returns_401` | 5.3.10.2a | GET /auth/at/{id} without OSCORE → 4.01. |
 |  | `test_get_at_by_id` | 5.3.10.1 | GET /auth/at/RuntimeTest → 2.05 with CBOR AT details. |
 |  | `test_get_nonexistent_at_returns_error` | 5.3.10.1 | GET /auth/at/nonexistent → 4.xx error (stack returns 4.00). |
 | **TestDeleteAccessToken** | `test_delete_at` | 5.3.11.1 | Create an AT, delete it, verify it's gone. |
 |  | `test_delete_nonexistent_at` | 5.3.11.1 | DELETE /auth/at/nonexistent → 4.xx error (stack returns 4.00). |
-| **TestOscoreResourceList** | `test_get_auth_o_without_oscore_returns_403` | 5.3.12.1 | GET /auth/o without OSCORE must return 4.03. |
-| **TestReplayWindowSize** | `test_get_replwdo_without_oscore_returns_403` | 5.3.13.1 | GET /auth/o/replwdo without OSCORE must return 4.03. |
+| **TestOscoreResourceList** | `test_get_auth_o_without_oscore_returns_401` | 5.3.12.1 | GET /auth/o without OSCORE must return 4.01. |
+| **TestReplayWindowSize** | `test_get_replwdo_without_oscore_returns_401` | 5.3.13.1 | GET /auth/o/replwdo without OSCORE must return 4.01. |
 |  | `test_get_replwdo` | 5.3.13.1 | GET /auth/o/replwdo → 2.05 with CBOR integer. |
-| **TestOscoreDelay** | `test_get_osndelay_without_oscore_returns_403` | 5.3.15.1 | GET /auth/o/osndelay without OSCORE must return 4.03. |
+| **TestOscoreDelay** | `test_get_osndelay_without_oscore_returns_401` | 5.3.15.1 | GET /auth/o/osndelay without OSCORE must return 4.01. |
 |  | `test_get_osndelay` | 5.3.15.1 | GET /auth/o/osndelay → 2.05 with CBOR integer value. |
 |  | `test_put_osndelay` | 5.3.16.1 | PUT /auth/o/osndelay with a new value → 2.04, then verify. |
 | **TestOscoreEncryption32ByteMs** | `test_oscore_with_32_byte_master_secret` | 5.3.19.1 | Create AT with 32-byte MS, use its OSCORE context to PUT dev/pm. |
