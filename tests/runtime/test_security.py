@@ -173,13 +173,13 @@ class TestAuthResourceList:
     """5.3.4.1: GET /auth → link-format listing auth sub-resources."""
 
     @pytest.mark.eitt_overlap("5.3.4.1")
-    def test_get_auth_without_oscore_returns_403(self, coap):
-        """GET /auth without OSCORE must return 4.03 Forbidden."""
+    def test_get_auth_without_oscore_returns_401(self, coap):
+        """GET /auth without OSCORE must return 4.01 Unauthorized."""
         resp = coap.get("auth", accept=LINK_FORMAT)
         if resp is None:
             pytest.skip("Server did not respond to GET /auth (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth without OSCORE should return 4.03, got {resp.code}")
+        assert resp.code == "4.01", (
+            f"GET /auth without OSCORE should return 4.01, got {resp.code}")
 
 
 # ===========================================================================
@@ -692,13 +692,13 @@ class TestReadAccessTokenList:
     """5.3.9: Read list of access tokens."""
 
     @pytest.mark.eitt_overlap("5.3.9.3a")
-    def test_get_auth_at_without_oscore_returns_403(self, coap):
-        """GET /auth/at without OSCORE must return 4.03."""
+    def test_get_auth_at_without_oscore_returns_401(self, coap):
+        """GET /auth/at without OSCORE must return 4.01."""
         resp = coap.get("auth/at", accept=LINK_FORMAT)
         if resp is None:
             pytest.skip("Server did not respond to GET /auth/at (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth/at without OSCORE should return 4.03, "
+        assert resp.code == "4.01", (
+            f"GET /auth/at without OSCORE should return 4.01, "
             f"got {resp.code}")
 
     @pytest.mark.eitt_overlap("5.3.9.1")
@@ -727,17 +727,13 @@ class TestReadAccessTokenById:
     """5.3.10: Read a specific access token by its token id."""
 
     @pytest.mark.eitt_overlap("5.3.10.2a")
-    def test_get_at_by_id_without_oscore_returns_403(self, coap):
-        """GET /auth/at/{id} without OSCORE → 4.03.
-
-        EITT 5.3.10.2a: stack returns 4.03 (EITT planned 4.01 but accepts
-        4.03 — see trace EvalResult).
-        """
+    def test_get_at_by_id_without_oscore_returns_401(self, coap):
+        """GET /auth/at/{id} without OSCORE → 4.01."""
         resp = coap.get("auth/at/RuntimeTest", accept=APPLICATION_CBOR)
         if resp is None:
             pytest.skip("Server did not respond (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth/at/RuntimeTest without OSCORE should return 4.03, "
+        assert resp.code == "4.01", (
+            f"GET /auth/at/RuntimeTest without OSCORE should return 4.01, "
             f"got {resp.code}")
 
     @pytest.mark.eitt_overlap("5.3.10.1")
@@ -837,13 +833,13 @@ class TestOscoreResourceList:
     """5.3.12.1: GET /auth/o → link-format listing OSCORE sub-resources."""
 
     @pytest.mark.eitt_overlap("5.3.12.1")
-    def test_get_auth_o_without_oscore_returns_403(self, coap):
-        """GET /auth/o without OSCORE must return 4.03."""
+    def test_get_auth_o_without_oscore_returns_401(self, coap):
+        """GET /auth/o without OSCORE must return 4.01."""
         resp = coap.get("auth/o", accept=LINK_FORMAT)
         if resp is None:
             pytest.skip("Server did not respond to GET /auth/o (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth/o without OSCORE should return 4.03, "
+        assert resp.code == "4.01", (
+            f"GET /auth/o without OSCORE should return 4.01, "
             f"got {resp.code}")
 
 
@@ -855,13 +851,13 @@ class TestReplayWindowSize:
     """5.3.13.1: GET /auth/o/replwdo → CBOR integer value."""
 
     @pytest.mark.eitt_overlap("5.3.13.1")
-    def test_get_replwdo_without_oscore_returns_403(self, coap):
-        """GET /auth/o/replwdo without OSCORE must return 4.03."""
+    def test_get_replwdo_without_oscore_returns_401(self, coap):
+        """GET /auth/o/replwdo without OSCORE must return 4.01."""
         resp = coap.get("auth/o/replwdo", accept=APPLICATION_CBOR)
         if resp is None:
             pytest.skip("Server did not respond (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth/o/replwdo without OSCORE should return 4.03, "
+        assert resp.code == "4.01", (
+            f"GET /auth/o/replwdo without OSCORE should return 4.01, "
             f"got {resp.code}")
 
     @pytest.mark.eitt_overlap("5.3.13.1")
@@ -892,13 +888,13 @@ class TestOscoreDelay:
     """5.3.15.1 / 5.3.16.1: Read and write the OSCORE delay."""
 
     @pytest.mark.eitt_overlap("5.3.15.1")
-    def test_get_osndelay_without_oscore_returns_403(self, coap):
-        """GET /auth/o/osndelay without OSCORE must return 4.03."""
+    def test_get_osndelay_without_oscore_returns_401(self, coap):
+        """GET /auth/o/osndelay without OSCORE must return 4.01."""
         resp = coap.get("auth/o/osndelay", accept=APPLICATION_CBOR)
         if resp is None:
             pytest.skip("Server did not respond (timeout)")
-        assert resp.is_forbidden, (
-            f"GET /auth/o/osndelay without OSCORE should return 4.03, "
+        assert resp.code == "4.01", (
+            f"GET /auth/o/osndelay without OSCORE should return 4.01, "
             f"got {resp.code}")
 
     @pytest.mark.eitt_overlap("5.3.15.1")
