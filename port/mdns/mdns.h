@@ -166,9 +166,10 @@ struct mdns_record_txt_t {
 };
 
 /*
- * Members ordered by alignment: with short enums (the ARM EABI default, e.g. Zephyr) the 1-byte type fills the tail padding,
- * 40 instead of 44 bytes on Zephyr Cortex-M.
- */
+  Members ordered by alignment.
+  - with short enums (the ARM EABI default, e.g. Zephyr) the 1-byte type fills the tail padding -> 40 instead of 44 bytes on Zephyr Cortex-M
+  - only designated or {0} initializers are used -> the member order is free
+*/
 struct mdns_record_t {
 	mdns_string_t name;
 	union mdns_record_data {
@@ -705,19 +706,20 @@ static const uint8_t mdns_services_query[] = {
     0x80, MDNS_CLASS_IN};
 
 /*
- * The receive-interface taken from the sender's address: the zone (sin6_scope_id) of a link-local source is the interface the packet arrived on.
- * Windows uses it as the only source of the interface (recvfrom() carries no IPV6_PKTINFO), the other platforms when IPV6_PKTINFO delivered none.
- *
- * Works:
- *   - mDNS queries from a link-local source. FF02::FB is a link-local destination, and source address selection (RFC 6724 rule 2) picks the
- *     link-local address of the outgoing interface for it. Windows, Linux, macOS and Bonjour send their queries that way, ETS6 does too.
- *   - A host with several interfaces: every interface has its own link-local address and zone.
- *
- * Does NOT work (returns 0, the interface stays unknown, the answer carries every address):
- *   - A query from a ULA or global source. Such an address has no zone (sin6_scope_id 0), small stacks (lwIP, some RTOS) may send mDNS from it.
- *   - A query from the unspecified address (::), as sent while an address is not yet configured.
- *   - A platform that leaves sin6_scope_id unset for a received packet.
- */
+  The receive-interface taken from the sender's address: the zone (sin6_scope_id) of a link-local source is the interface the packet arrived on.
+  - Windows -> the only source of the interface, recvfrom() carries no IPV6_PKTINFO
+  - other platforms -> fallback when IPV6_PKTINFO delivered none
+
+  Works:
+  - mDNS queries from a link-local source -> FF02::FB is a link-local destination, source address selection (RFC 6724 rule 2) picks the
+    link-local address of the outgoing interface; Windows, Linux, macOS, Bonjour and ETS6 send their queries that way
+  - a host with several interfaces -> every interface has its own link-local address and zone
+
+  Does NOT work (returns 0 -> the interface stays unknown, the answer carries every address):
+  - a query from a ULA or global source -> no zone (sin6_scope_id 0), small stacks (lwIP, some RTOS) may send mDNS from it
+  - a query from the unspecified address (::), as sent while an address is not yet configured
+  - a platform that leaves sin6_scope_id unset for a received packet
+*/
 static inline unsigned int mdns_ifindex_from_source(const struct sockaddr_in6* from)
 {
 	// fe80::, the link-local prefix every host uses (RFC 4291 section 2.5.6)

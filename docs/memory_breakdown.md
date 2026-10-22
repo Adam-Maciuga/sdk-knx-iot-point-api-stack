@@ -10,6 +10,7 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
 so every heap message is ~24 B smaller (§ 7.2), no static RAM or flash figure moves. In addition `oc_endpoint_t` fields are reordered by alignment (`next` stays first) which removes padding: 100 -> 96 B on 32-bit (120 -> 112 B on 64-bit), so `oc_message_t` (~112 B), blockwise state, client callback, observer and separate-response entries are each 4 B smaller (§ 7.2).
 | Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) when an anchor still pinned a ~1.19 KiB plaintext copy. Since `e86c2dd6` an anchor holds only a reference to the originating group object table entry and regenerates the re-request payload on demand, so the ring no longer retains heap at all and its cost is the slot struct alone, see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
+| Estimated figures | mDNS buffers split into a 512 B send and a 1452 B receive buffer (was 2 × 2048 B): figures marked `~` in § 2.1, § 6, § 7 and § 9.1 estimated for `cc6e01dd` + working tree (2026-10-22), static RAM −2 KiB on Ethernet and Wi-Fi |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
 | KNX table sizes | certification defaults: 50 group objects, 20 publishers, 20 recipients, 20 access tokens |
@@ -25,11 +26,11 @@ so every heap message is ~24 B smaller (§ 7.2), no static RAM or flash figure m
 | | Ethernet, Wi-Fi | Thread |
 | --- | --- | --- |
 | **FLASH** | ~126 KiB | ~111 KiB |
-| **RAM, static** | ~30 KiB | ~13 KiB |
+| **RAM, static** | ~28 KiB | ~13 KiB |
 | **RAM, stack thread** | 12 KiB | 12 KiB |
 | **RAM, crypto heap (Mbed TLS)** | 15 KiB | 15 KiB |
 | **RAM, heap, idle → certification peak** | 4 → ~24 KiB | 4 → ~24 KiB |
-| **RAM, total** | **~61–81 KiB** | **~44–64 KiB** |
+| **RAM, total** | **~59–79 KiB** | **~44–64 KiB** |
 
 The flash and static RAM difference between the two columns is the discovery
 mechanism (§ 3).
@@ -57,7 +58,7 @@ the total.
 MTD: Minimal Thread Device, a non-routing end device; the measured builds are
 Full Thread Devices that can route.
 
-Of these totals the KNX stack is ~111-126 KiB of flash and ~13-30 KiB of static
+Of these totals the KNX stack is ~111-126 KiB of flash and ~13-28 KiB of static
 RAM (§ 2.1); everything else is platform: Zephyr and its subsystems, crypto,
 and the backend (§ 9.2 breaks it down). Add the C heap on top of static RAM:
 the stack alone peaks at ~24 KiB, the network stacks take more, and a
@@ -72,7 +73,7 @@ blob, the Wi-Fi driver, the WPA supplicant and IPv4/TCP support, together about
 1 MiB of flash and 300 KiB of RAM more than Ethernet. The KNX stack is the same
 code in every image.
 
-**Discovery costs the stack 15 KiB of flash and 17 KiB of RAM more on Ethernet
+**Discovery costs the stack 15 KiB of flash and ~15 KiB of RAM more on Ethernet
 and Wi-Fi than on Thread.** Every KNX IoT device must be discoverable by
 DNS-SD. On Ethernet and Wi-Fi the device is its own mDNS responder: a small DNS
 server with a listener thread, packet buffers and a socket, identical on both.
@@ -161,9 +162,9 @@ rings, and the tables scale linearly with their configured capacity.
 | CoAP engine, callbacks, device info | | ~3 KiB | |
 | **Subtotal, Thread** | | **~13 KiB** | |
 | mDNS listener thread stack | | 8 KiB | Ethernet and Wi-Fi only |
-| mDNS send and receive buffers | 2 × 2 KiB | 4 KiB | Ethernet and Wi-Fi only |
+| mDNS send and receive buffers | 512 + 1452 | ~1.9 KiB | Ethernet and Wi-Fi only (`MDNS_SEND_BUF_SIZE`, `MDNS_RECV_BUF_SIZE`) |
 | Socket connectivity state (endpoints, interface list) | | 4.8 KiB | Ethernet and Wi-Fi only |
-| **Subtotal, Ethernet, and Subtotal, Wi-Fi** | | **~30 KiB** | |
+| **Subtotal, Ethernet, and Subtotal, Wi-Fi** | | **~28 KiB** | |
 
 Table entries hold fixed fields only. Hrefs, token ids and group-address
 arrays are allocated on the heap when an entry is written (40–120 B per
@@ -181,7 +182,7 @@ Three things to know before reading further:
    Zephyr port defines no pool limits; lists grow until `malloc` fails.
 2. **Every CoAP message costs ~1.2 KiB** and every handled request another
    ~1.0 KiB of response state. That is where the heap goes.
-3. **Static RAM is a formula of the table sizes**, plus a fixed 17 KiB for the
+3. **Static RAM is a formula of the table sizes**, plus a fixed ~15 KiB for the
    mDNS responder on Ethernet and on Wi-Fi, see § 6.
 
 Everything dynamic comes from the C `malloc` heap. Sizes include ~8 B allocator
@@ -356,11 +357,11 @@ xychart-beta horizontal
 | --- | --- | --- | --- |
 | Flash used | **405 KiB** | **891 KiB** | **1 385 KiB** |
 | of which radio firmware blob | — | 214 KiB (CPU2, BLE + 802.15.4) | 351 KiB (CPU1, Wi-Fi) |
-| Static RAM | **~203 KiB** | **~252 KiB** | **~531 KiB** |
+| Static RAM | **~201 KiB** | **~252 KiB** | **~529 KiB** |
 | of which code relocated to SRAM | 8 KiB | 8 KiB | 88 KiB |
-| C heap left (of 960 KiB) | ~765 KiB | ~717 KiB | ~516 KiB |
-| KNX IoT stack flash / static RAM | ~125 / ~30 KiB | ~114 / ~13 KiB | ~125 / ~30 KiB |
-| KNX share of image | 31 % / ~15 % | 13 % / ~5 % | 9 % / 6 % |
+| C heap left (of 960 KiB) | ~767 KiB | ~717 KiB | ~518 KiB |
+| KNX IoT stack flash / static RAM | ~125 / ~28 KiB | ~114 / ~13 KiB | ~125 / ~28 KiB |
+| KNX share of image | 31 % / ~14 % | 13 % / ~5 % | 9 % / ~5 % |
 
 The KNX stack is constant except for the discovery mechanism (§ 3). Everything else in the
 spread is the network backend.

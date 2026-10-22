@@ -202,18 +202,34 @@ static HANDLE listener_thread_handle = NULL;
 // constants for building mDNS records
 #define KNX_SERVICE_TYPE "_knx._udp.local."
 #define KNX_SUBTYPE_PM "_pm._sub._knx._udp.local."
-#define MDNS_BUF_SIZE 2048
+
+/*
+  Send buffer for one mDNS packet: announcement, goodbye or query answer. 
+  - the largest packet is 361 bytes, a 63 character host name, MAX_AAAA_RECORDS (4) AAAA records on one interface, the _pm subtype,
+    the longest _ia subtype (16 + 4 hex digits) and SP=65535, with the name compression of mdns.h 
+  - 512 leaves room for 5 more AAAA records(28 bytes each) --> not used so far 
+  - a packet that does not fit is not sent -> mdns.h returns -1 with ENOBUFS, nothing is written past the buffer
+*/
+#define MDNS_SEND_BUF_SIZE 512 
+
+/*
+  Receive buffer for one incoming mDNS packet (a query).
+  - one datagram that fits a 1500 byte Ethernet or Wi-Fi MTU without fragmentation: 1500 - 40 (IPv6 header) - 8 (UDP header) = 1452 bytes
+  - a larger datagram (RFC 6762 section 17 allows up to 9000) -> cut on Linux and Zephyr, the questions at its start are still answered
+  - on Windows a larger datagram is dropped -> recvfrom() fails with WSAEMSGSIZE
+*/
+#define MDNS_RECV_BUF_SIZE 1452
 
 // RFC 6762 section 8.3: the second unsolicited announcement follows "one second apart"
 #define MDNS_ANNOUNCEMENT_REPEAT_DELAY_S 1
 
 // Scratch buffer for building mDNS packets (no heap allocation). Must be 32-bit aligned as required by mdns.h.
 #ifdef _MSC_VER
-  __declspec(align(4)) static char mdns_buf[MDNS_BUF_SIZE];
-  __declspec(align(4)) static char mdns_listen_buf[MDNS_BUF_SIZE];
+  __declspec(align(4)) static char mdns_buf[MDNS_SEND_BUF_SIZE];
+  __declspec(align(4)) static char mdns_listen_buf[MDNS_RECV_BUF_SIZE];
 #else
-  static char mdns_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
-  static char mdns_listen_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  static char mdns_buf[MDNS_SEND_BUF_SIZE] __attribute__((aligned(4)));
+  static char mdns_listen_buf[MDNS_RECV_BUF_SIZE] __attribute__((aligned(4)));
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -316,8 +332,27 @@ static int ensure_socket(void)
  *               TXT  <sn>._knx._udp.local.  SP=<seconds> (if sp set)
  */
 
+/*
+  Name buffer for one service name with its terminating NUL.
+  - "<sn>._knx._udp.local." needs 30 bytes (sn = 12 hex digits), "_<sn>._sub._knx._udp.local." needs 36
+  - the longest is "_ia<iid>-<ia>._sub._knx._udp.local." with 47 bytes (iid 16 and ia 4 hex digits)
+  - a longer name is cut by snprintf() -> never written past the buffer
+*/
 #define MAX_MDNS_RECORD_SIZE 64
+
+/*
+  AAAA records per packet, one per unicast IPv6 address of the interface the packet leaves on.
+  - link-local + global + temporary global + ULA = 4
+  - a fifth address (e.g. a temporary ULA) -> left out of the packet
+  - each record adds 28 bytes to the packet, see MDNS_SEND_BUF_SIZE
+*/
 #define MAX_AAAA_RECORDS 4
+
+/*
+  Network interfaces with a unicast IPv6 address that get an announcement and join FF02::FB.
+  - Wi-Fi, Ethernet and a few virtual adapters (e.g. Hyper-V, WSL, VPN on Windows)
+  - interfaces past the eighth -> not served
+*/
 #define MAX_IF_INDICES 8
 #define MDNS_HOSTNAME_SIZE (HNAME_MAX_SIZE + sizeof(HNAME_DOMAIN) + 1) // host name label + '.local' and NUL (=sizeof) + root label '.'
 
@@ -335,10 +370,10 @@ static size_t build_hostname(char out[MDNS_HOSTNAME_SIZE])
 }
 
 /*
- * Return the first unicast IPv6 endpoint from ep onwards on interface 'ifindex' (0: any interface), NULL if there is none.
- * 
- * @note Pass the list head to start, ep->next of the last hit to continue.
- */
+  Return the first unicast IPv6 endpoint from ep onwards on interface 'ifindex' (0: any interface), NULL if there is none.
+  
+  @note Pass the list head to start, ep->next of the last hit to continue.
+*/
 static const oc_endpoint_t* next_endpoint_on_interface(const oc_endpoint_t* ep, unsigned int ifindex)
 {
   for (; ep; ep = ep->next)
@@ -353,8 +388,8 @@ static const oc_endpoint_t* next_endpoint_on_interface(const oc_endpoint_t* ep, 
 }
 
 /*
- * The head of the device's endpoint list, NULL when there is no IP context.
- */
+  The head of the device's endpoint list, NULL when there is no IP context.
+*/
 static const oc_endpoint_t* device_endpoints(void)
 {
   const ip_context_t* ctx = get_ip_context_for_device();
@@ -906,9 +941,9 @@ static int send_query_response(int sock, const char *ptr_name, unsigned int ifin
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
-  __declspec(align(4)) char resp_buf[MDNS_BUF_SIZE];
+  __declspec(align(4)) char resp_buf[MDNS_SEND_BUF_SIZE];
   #else
-  char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  char resp_buf[MDNS_SEND_BUF_SIZE] __attribute__((aligned(4)));
   #endif
 
   return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
@@ -959,9 +994,9 @@ static int send_srv_response(int sock, unsigned int ifindex)
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
-  __declspec(align(4)) char resp_buf[MDNS_BUF_SIZE];
+  __declspec(align(4)) char resp_buf[MDNS_SEND_BUF_SIZE];
   #else
-  char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  char resp_buf[MDNS_SEND_BUF_SIZE] __attribute__((aligned(4)));
   #endif
 
   // uint16_t max = 65535 (5 digits) + NUL terminator
@@ -1023,9 +1058,9 @@ static int send_aaaa_response(int sock, unsigned int ifindex)
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
-  __declspec(align(4)) char resp_buf[MDNS_BUF_SIZE];
+  __declspec(align(4)) char resp_buf[MDNS_SEND_BUF_SIZE];
   #else
-  char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  char resp_buf[MDNS_SEND_BUF_SIZE] __attribute__((aligned(4)));
   #endif
 
   // first AAAA is the answer; remaining ones (if any) go in additional
@@ -1075,9 +1110,9 @@ static int send_txt_response(int sock)
 
   // use a stack buffer for the response
   #ifdef _MSC_VER
-  __declspec(align(4)) char resp_buf[MDNS_BUF_SIZE];
+  __declspec(align(4)) char resp_buf[MDNS_SEND_BUF_SIZE];
   #else
-  char resp_buf[MDNS_BUF_SIZE] __attribute__((aligned(4)));
+  char resp_buf[MDNS_SEND_BUF_SIZE] __attribute__((aligned(4)));
   #endif
 
   return mdns_query_answer_multicast(sock, resp_buf, sizeof(resp_buf),
@@ -1170,7 +1205,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     return 0;
   }
 
-  // extract queried name
+  // extract queried name, a DNS name has at most 255 bytes (RFC 1035 section 2.3.4) + NUL
   char qname[256];
   const mdns_string_t qstr = mdns_string_extract(data, size, &name_offset, qname, sizeof(qname));
   if (qstr.length == 0) 

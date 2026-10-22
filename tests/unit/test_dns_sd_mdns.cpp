@@ -63,6 +63,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -1156,4 +1157,70 @@ TEST_F(DnsSd, QueryFromAUlaSourceLeavesTheInterfaceUnknown)
   ASSERT_TRUE(ask("knx-00fa10020800.local.", DNS_TYPE_AAAA, &answer)) << "no answer";
   EXPECT_TRUE(contains_bytes(answer.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
   EXPECT_TRUE(contains_bytes(answer.bytes, OTHER_ADDR, sizeof(OTHER_ADDR)));
+}
+
+/* -- worst-case packet size (sizes the send buffers) ------------------------ */
+
+TEST_F(DnsSd, WorstCasePacketFitsTheSendBuffer)
+{
+  /* the largest record set: a 63 character host name, 4 AAAA on one interface, _pm, the longest _ia and SP=65535 */
+  const std::string longest_label = "knx-" + std::string(59, 'a');
+  ASSERT_EQ(longest_label.size(), 63u);
+  ASSERT_EQ(oc_core_set_device_hostname(longest_label.c_str()), 0);
+
+  static oc_endpoint_t more[3];
+  for (int i = 0; i < 3; i++) {
+    memset(&more[i], 0, sizeof(more[i]));
+    more[i].flags = IPV6;
+    more[i].interface_index = g_fake_ep.interface_index;
+    more[i].addr.ipv6.port = COAP_PORT;
+    more[i].addr.ipv6.address[0] = 0xfd;
+    more[i].addr.ipv6.address[15] = (uint8_t)(0x10 + i);
+    oc_list_add(g_fake_ctx.eps, &more[i]);
+  }
+
+  oc_device_info_t *dev = oc_core_get_device_info();
+  dev->serialnumber = SERIAL;
+  dev->iid = UINT64_MAX;
+  dev->ia = 0xffff;
+  dev->pm = true;
+  ASSERT_EQ(knx_dns_sd_update_service(dev), 0);
+  knx_dns_sd_set_sleep_period(65535);
+
+  const std::string host = longest_label + ".local.";
+  const std::string instance = std::string(SERIAL) + "._knx._udp.local.";
+  const struct {
+    const char *name;
+    uint16_t qtype;
+  } queries[] = {
+    {"_knx._udp.local.", DNS_TYPE_ANY},
+    {instance.c_str(), DNS_TYPE_SRV},
+    {host.c_str(), DNS_TYPE_AAAA},
+    {instance.c_str(), DNS_TYPE_TXT},
+  };
+  for (const auto &q : queries) {
+    CapturedPacket answer;
+    ASSERT_TRUE(ask(q.name, q.qtype, &answer)) << "no answer to " << q.name;
+  }
+  knx_dns_sd_stop();
+
+  CapturedPacket largest;
+  for (const auto &p : packets()) {
+    if (p.bytes.size() > largest.bytes.size()) {
+      largest = p;
+    }
+  }
+  /* the largest packet must really carry the whole worst-case set */
+  for (int i = 0; i < 3; i++) {
+    EXPECT_TRUE(contains_bytes(largest.bytes, more[i].addr.ipv6.address, 16)) << "AAAA " << i;
+  }
+  EXPECT_TRUE(contains_bytes(largest.bytes, LOOPBACK_ADDR, sizeof(LOOPBACK_ADDR)));
+  EXPECT_TRUE(contains(largest.bytes, "_pm"));
+  EXPECT_TRUE(contains(largest.bytes, "_iaffffffffffffffff-ffff"));
+  EXPECT_TRUE(contains(largest.bytes, "SP=65535"));
+  EXPECT_TRUE(contains(largest.bytes, longest_label.c_str()));
+  /* MDNS_SEND_BUF_SIZE in dns-sd_mdns.c; its comment quotes this measurement, update both together */
+  RecordProperty("largest_packet_bytes", (int)largest.bytes.size());
+  EXPECT_EQ(largest.bytes.size(), 361u) << "the worst case changed, update the MDNS_SEND_BUF_SIZE comment";
+  EXPECT_LE(largest.bytes.size(), 512u) << "the worst-case packet no longer fits MDNS_SEND_BUF_SIZE";
 }
