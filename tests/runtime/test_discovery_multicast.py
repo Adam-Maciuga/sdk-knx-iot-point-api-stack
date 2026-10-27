@@ -5,7 +5,7 @@ Replicates EITT certification tests for multicast CoAP discovery.
 Requires the DUT to be bound to an interface that supports IPv6 multicast.
 
 All the positive multicast discovery cases are covered by the EITT
-template and now live in the eitt tier.  What remains are the two
+template and now live in the conformance tier.  What remains are the two
 negative cases that prove silence over a whole collect window, which the
 template does not assert:
 

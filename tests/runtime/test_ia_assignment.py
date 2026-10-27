@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.2.1 / 5.2.2.3 / 5.2.3
 
 5.2.1.1 (API version) and 5.2.2.3 (restart) are covered by the EITT
-template and now live in the eitt tier.  The IA-assignment tests stay:
+template and now live in the conformance tier.  The IA-assignment tests stay:
 they assert the derived SNA/DA relationship and an exact 4.05, which the
 template does not.
 

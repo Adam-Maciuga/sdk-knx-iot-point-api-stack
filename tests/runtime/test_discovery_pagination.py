@@ -5,7 +5,7 @@ Replicates EITT certification tests for unicast CoAP discovery.
 All discovery requests are unencrypted (no OSCORE), per spec 4.2.4.
 
 The EITT template covers 5.1.1.2 and 5.1.1.4/.4b/.4c/.4d/.4e; those
-tests now live in the eitt tier. What remains here has no template case:
+tests now live in the conformance tier. What remains here has no template case:
 
   Pagination of /.well-known/core when the ?rt= filter pulls the
   application functional blocks into the result set, forcing multiple

@@ -1,60 +1,60 @@
 # Tests
 
-Five tiers, one directory each. Two of them are pytest tiers over a live
-device; the other three are compiled, or shared code, or neither.
+Five tiers. Two of them run over a live device; the others are compiled,
+or shared code.
 
 | Tier | Directory | What it is | Needs a DUT | Run with |
 | --- | --- | --- | --- | --- |
 | unit | [`unit/`](unit/) | Google Test, C++ exercising the C functions directly | no | `ctest --preset linux-test-gcc` |
 | fuzz | [`fuzz/`](fuzz/) | libFuzzer harnesses over the pre-auth parsers, clang only | no | `ctest --preset linux-fuzz-clang` |
 | common | [`common/`](common/) | shared test infrastructure — **no tests live here** | — | — |
-| eitt | [`eitt/`](eitt/) | the conformance template, interpreted: one pytest item per EITT `TestCase` | yes | `run-in-docker.ps1 -Tier eitt` |
+| conformance | [`conformance/`](conformance/) + [`iot-test-tool/`](iot-test-tool/) | KNX's conformance-test template played against the device by the test tool, one pytest item per sequence (collection) | yes | `run-in-docker.ps1 -Tier conformance` |
 | runtime | [`runtime/`](runtime/) | hand-written device tests for behaviour the template does *not* cover | yes | `run-in-docker.ps1 -Tier runtime` |
 
-`eitt/` also holds the harness tier — [`eitt/harness_tests/`](eitt/harness_tests/),
-tests of the interpreter and the GUI themselves, which need no DUT and no
-Docker (`pytest tests/eitt/harness_tests -q`).
+The conformance-test tool is its own repository,
+[knx-iot-point-api-test-tool](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-test-tool),
+pinned here as the git submodule `iot-test-tool/` (fetch it once:
+`git submodule update --init tests/iot-test-tool`). It holds the interpreter,
+the headless runner (`run_sequences.py`), the browser GUI, the CoAP/OSCORE
+client and its own tests; see its README. What is this stack's lives here:
+the override files in [`conformance/`](conformance/) — `overrides.yaml`
+(written by hand: accepted response codes, skip/xfail, operator prompts
+mapped to the test device's endpoints) and `overrides.project.yaml`
+(written by the GUI's "Write overrides"; point the GUI's Settings, Overrides
+folder at `tests/conformance`). KNX's template and its companion files are
+not in either repository: the tool fetches them from update.knx.org into a
+per-machine cache.
 
-## The two pytest tiers
+For work on the tool and the stack together, `KNX_TOOL_DIR` points the
+runtime tier at a normal checkout of the tool instead of the submodule; CI
+always uses the pinned submodule. Bumping the pin is an ordinary commit
+here that runs the device jobs.
+
+## Layout
 
 ```
 tests/
-  pytest.ini        rootdir ini: pythonpath = . common eitt ; testpaths = eitt runtime
+  pytest.ini        rootdir ini: pythonpath = . common iot-test-tool ; testpaths = runtime
   conftest.py       thin — re-exports everything common/fixtures.py defines,
                     because pytest reads fixtures and hooks only from a conftest
 
-  common/           shared by both tiers, holds no tests
+  common/           shared infrastructure, holds no tests
     fixtures.py       fixtures, constants, helpers and the pytest hooks
-                      (--section, tier ordering); builds and starts the DUT,
+                      (tier ordering, --run-record); builds and starts the DUT,
                       performs SPAKE2+ and OSCORE provisioning
-    transport/        wire-level clients: CoAP, OSCORE, SPAKE2+, mDNS
-    tools/            run-in-docker.ps1, run-local-ci*.sh, SPAKE2+ helpers
+    tools/            run-in-docker.ps1 / .sh, run-local-ci*.sh
     runtime_test_server.c   the device under test
-    requirements.txt  what the Docker conformance image installs
+    requirements.txt  what the runtime tier needs (the tool has its own)
 
-  eitt/             the template-driven tier
-    test_eitt.py      generates one item per TestCase at collection time
-    interpreter/      the EITT XML interpreter (model, runner, provisioning,
-                      hooks, content matching, JSON<->CBOR schema, overrides)
-    gui/              the PySide6 runner front-end
-    data/             the conformance template, EITT's key maps and
-                      comment-command scheme, the variable-values JSON, the
-                      SWU firmware dummy, traces/ (reference runs)
-    harness_tests/    interpreter and GUI self-tests, no DUT
-
+  conformance/      this stack's override files for the test tool
+  iot-test-tool/    the conformance-test tool (git submodule)
   runtime/          the hand-written tier — behaviour-named test_*.py only
 ```
 
-Both tiers import the shared code by plain module name — `from fixtures
-import DUT_IA`, `from transport.coap_client import CoapClient`, `from
-interpreter.runner import SequenceRunner`, `from gui.main_window import
-MainWindow`. That works from any working directory because `pytest.ini`'s
-`pythonpath = . common eitt` puts `tests/`, `tests/common/` and
-`tests/eitt/` on `sys.path` for every run, whichever tier is selected.
-
-The interpreter package is named `interpreter`, not `eitt`: a package named
-`eitt` inside a directory named `eitt` that is itself on `sys.path` would
-shadow itself.
+The runtime tests import by plain module name — `from fixtures import
+DUT_IA`, `from transport.coap_client import CoapClient` (the tool's CoAP
+client). `pytest.ini`'s `pythonpath = . common iot-test-tool` makes that work
+from any working directory.
 
 ## Running
 
@@ -64,9 +64,9 @@ a host-native run fails in ways that look like code regressions:
 
 ```powershell
 .\tests\common\tools\run-in-docker.ps1                 # both device tiers, each against a fresh DUT
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance
 .\tests\common\tools\run-in-docker.ps1 -Tier runtime
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance -Section 5.6
 .\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -Tier runtime
 ```
 
@@ -74,16 +74,20 @@ The same from Linux, macOS or Git Bash (`--help` lists every option):
 
 ```bash
 tests/common/tools/run-in-docker.sh                    # both device tiers
-tests/common/tools/run-in-docker.sh --tier eitt --section 5.6
+tests/common/tools/run-in-docker.sh --tier conformance --section 5.6
 tests/common/tools/run-in-docker.sh --tier runtime --uncommitted
-tests/common/tools/run-in-docker.sh --tier harness     # no device needed
+tests/common/tools/run-in-docker.sh --tier tool        # the tool's own tests, no device
 ```
 
-Both wrappers pack the tree (committed HEAD, or the working tree with
-`-IncludeUncommitted` / `--uncommitted`), start the CI image privileged and run
-`common/tools/run-local-ci.sh` inside it. That script is the in-container half
-and takes the same `--tier` / `--section` options, so a Linux CI runner can
-call it directly.
+Both wrappers pack the tree with the tool (committed HEAD with the tool at
+the pinned commit, or the working trees with `-IncludeUncommitted` /
+`--uncommitted`), mount the host's cache of KNX's files, start the CI image
+privileged and run `common/tools/run-local-ci.sh` inside it. That script is
+the in-container half and takes the same `--tier` / `--section` options, so
+a Linux CI runner can call it directly.
+
+The tool's GUI runs on the tester's machine against a real device
+(`python -m web.backend` in `tests/iot-test-tool`, see the tool's README).
 
 See [`runtime/README.md`](runtime/README.md) for the runner's options and
-gotchas, and [`eitt/README.md`](eitt/README.md) for the EITT tier.
+gotchas.

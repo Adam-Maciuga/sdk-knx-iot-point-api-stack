@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.2.8 / 5.2.9 / 5.2.10
 
 5.2.8.1 (the /swu link-format listing) is covered by the EITT template and
-now lives in the eitt tier.
+now lives in the conformance tier.
 
 5.2.9.1   Read specific SWU data during PUSH-based firmware update
 5.2.10.1b Invalid PUT on read-only resource for various SWU property-ids

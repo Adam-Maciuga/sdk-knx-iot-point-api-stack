@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.4 Group Communication (S-Mode)
 
 The plain replications (5.4.1.1/.2/.5/.7/.8/.10/.11/.13) were removed with
-the tier split and run in the eitt tier now.  What remains either decrypts
+the tier split and run in the conformance tier now.  What remains either decrypts
 and inspects the telegram far beyond what the template matches (marked
 @pytest.mark.eitt_overlap) or has no template case at all:
 

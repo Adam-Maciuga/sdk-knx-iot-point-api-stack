@@ -10,8 +10,9 @@ deps/**
 # CMake
 CMakeUserPresets.json
 
-# Claude Code
-.claude/
+# Claude Code: agents and skills are shared; personal settings stay local
+.claude/settings.local.json
+CLAUDE.local.md
 
 # VS Code setting files
 .vscode/
@@ -61,3 +62,6 @@ EITT_REFERENCE_PROJECT/
 
 # local reviews
 /reviews
+
+# Run records and other local test output (tests/iot-test-tool/docs/run-record-and-evaluator.md)
+/artifacts/

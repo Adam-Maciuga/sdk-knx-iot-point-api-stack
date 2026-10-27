@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.2.4 Fingerprint
 
 5.2.4.2 and 5.2.4.3 (fingerprint in loading / unloaded state) are covered
-by the EITT template and now live in the eitt tier.
+by the EITT template and now live in the conformance tier.
 
 5.2.4.1  Reading fingerprint; fingerprint changes through state changes
 5.2.4.1b Invalid POST to fingerprint → 4.05

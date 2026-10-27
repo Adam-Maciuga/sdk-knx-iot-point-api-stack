@@ -2,7 +2,7 @@
 Runtime conformance tests -- 5.1.2 Discovery via mDNS/DNS-SD
 
 The plain subtype-presence checks for 5.1.2.1/.2/.3/.3a/.4 are covered by
-the EITT template and now live in the eitt tier.  What remains here either
+the EITT template and now live in the conformance tier.  What remains here either
 asserts materially more than the template (marked @pytest.mark.eitt_overlap)
 or has no template case at all:
 

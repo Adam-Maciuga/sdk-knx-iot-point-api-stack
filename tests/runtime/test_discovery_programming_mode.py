@@ -5,7 +5,7 @@ Tests requiring device state changes (programming mode, group objects).
 Replicates EITT certification tests for PM and GA discovery.
 
 The positive PM cases and the whole 5.1.1.7x / 5.1.1.8 group-address
-family are covered by the EITT template and now live in the eitt tier.
+family are covered by the EITT template and now live in the conformance tier.
 What remains are the three negative cases that assert an exact 4.04,
 which the template does not:
 

@@ -1,0 +1,3 @@
+[submodule "tests/iot-test-tool"]
+	path = tests/iot-test-tool
+	url = ../knx-iot-point-api-test-tool.git

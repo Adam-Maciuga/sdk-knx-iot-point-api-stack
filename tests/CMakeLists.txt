@@ -3,7 +3,9 @@
 # Layout:
 #   tests/unit/     — Google Test unit tests (C++ exercising C functions)
 #   tests/common/   — shared Python test infrastructure + the DUT's C source
-#   tests/eitt/     — EITT template-driven conformance tier (pytest)
+#   tests/conformance/ — this stack's override files for the conformance-test
+#                     tool (submodule tests/iot-test-tool), which plays KNX's
+#                     template against the DUT
 #   tests/runtime/  — hand-written network-level conformance tier (pytest)
 #   tests/fuzz/     — libFuzzer harnesses for the pre-auth parsers (clang only)
 
@@ -20,8 +22,9 @@ endif()
 
 # ── Runtime test server ────────────────────────────────────────────────────────
 # Headless CoAP device for network-level conformance tests (like EITT).
-# NOT a GTest binary — started by the Python fixtures in tests/common/,
-# which both pytest tiers (tests/eitt, tests/runtime) share.
+# NOT a GTest binary — started by the Python fixtures in tests/common/
+# (runtime tier) and by the test tool's run_sequences.py --dut-command
+# (conformance tier).
 # Only built on platforms with real networking (not mock port).
 #
 # The output name and location are unchanged by the tier split:

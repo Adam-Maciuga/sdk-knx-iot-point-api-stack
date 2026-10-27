@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.2.5 / 5.2.6 / 5.2.7
 
 5.2.7.1 (write /dev/pm) and 5.2.7.1b (read-only PUT rejection) are covered
-by the EITT template and now live in the eitt tier, as are the three
+by the EITT template and now live in the conformance tier, as are the three
 type-only property reads.  What remains asserts exact configured values,
 exact CBOR types and derived-value relationships that the template's
 single 5.2.6.1 case does not check:

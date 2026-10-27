@@ -31,10 +31,11 @@ default:
 # Job naming: <tier>-<toolchain or variant>
 #   build-*            compile only
 #   unit-*             GoogleTest suite (tests/unit)
-#   harness            interpreter + GUI tests that need no device (tests/eitt/harness_tests)
 #   fuzz-*             libFuzzer harnesses (tests/fuzz)
 #   runtime-*          hand-written device tier (tests/runtime), needs a DUT
-#   eitt-*             EITT conformance tier (tests/eitt/test_eitt.py), needs a DUT
+#   conformance-*      the conformance-test template played against the DUT by the
+#                      test tool (submodule tests/iot-test-tool, a pinned commit of
+#                      knx-iot-point-api-test-tool; its own tests run in its pipeline)
 #   *-memcheck         the DUT built with ASan+UBSan; pass = no sanitizer report,
 #                      the pytest tally is informational (a slower DUT may fail
 #                      timing-sensitive steps; the first local run matched gcc)
@@ -45,9 +46,31 @@ default:
 # ----------------------------------------------------------
 .python-deps:
   script:
+    # the test tool: its transport/ serves the runtime tier, its runner the
+    # conformance jobs (GIT_SUBMODULE_STRATEGY stays none: no other
+    # submodule is fetched). The clone's origin carries no credentials, so
+    # the submodule is fetched with the job token; for a private tool
+    # project the stack must be on its job token allowlist (tool project:
+    # Settings > CI/CD > Job token permissions).
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/".insteadOf "https://${CI_SERVER_HOST}/"
+    - git submodule update --init tests/iot-test-tool
     - curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
     - python3 /tmp/get-pip.py --break-system-packages --quiet
-    - python3 -m pip install --break-system-packages --quiet -r tests/common/requirements.txt
+    - python3 -m pip install --break-system-packages --quiet -r tests/common/requirements.txt -r tests/iot-test-tool/requirements.txt
+
+# KNX's files for the conformance tests (template, comment scheme, key map),
+# fetched from update.knx.org as EITT does into a cache the jobs share
+# (the tool's interpreter/knx_files.py); asked at most once a day per cache.
+.knx-files:
+  variables:
+    KNX_TOOL_CACHE: $CI_PROJECT_DIR/.knx-cache
+  cache:
+    key: knx-files
+    paths:
+      - .knx-cache/
+  script:
+    - (cd tests/iot-test-tool && python3 -m interpreter.knx_files update > /dev/null) || echo "update.knx.org not reachable, using the cache"
+    - (cd tests/iot-test-tool && python3 -m interpreter.knx_files show)
 
 # Device network: the DUT lives in its OWN network namespace, the test tool
 # stays in the root one, and a veth pair is the only link between them. This is
@@ -111,8 +134,8 @@ default:
     RUNTIME_TEST_TIME_SCALE: "0.05"
 
 # Memory-safety variants run on the nightly schedule ONLY. They are the slowest
-# jobs here (a full device tier against an ASan DUT) and F-025 keeps
-# eitt-asan-memcheck red, so they must never gate a push pipeline. A manual
+# jobs here (a full device tier against an ASan DUT), so they must never gate
+# a push pipeline. A manual
 # job still counts towards the pipeline status (blocked/warning), which is why
 # there is no `when: manual` fallback: on every other pipeline the jobs simply
 # do not exist. Run them on demand from the schedule page, or locally with
@@ -202,26 +225,6 @@ unit-coverage-gcc:
         coverage_format: cobertura
         path: build/linux-coverage-gcc/coverage.xml
     expire_in: 4 weeks
-  dependencies: []
-
-# ----------------------------------------------------------
-# test: harness (no device)
-# The interpreter's own tests (template parsing, event bus, project copy, comment
-# scheme) and the GUI tests. The GUI tests skip themselves when PySide6 is not
-# installed; QT_QPA_PLATFORM=offscreen covers the case where it is.
-# ----------------------------------------------------------
-harness:
-  stage: test
-  variables:
-    QT_QPA_PLATFORM: offscreen
-  script:
-    - !reference [.python-deps, script]
-    - mkdir -p build
-    - python3 -m pytest tests/eitt/harness_tests -v --tb=short --junit-xml=build/harness-report.xml
-  artifacts:
-    when: always
-    reports:
-      junit: build/harness-report.xml
   dependencies: []
 
 # ----------------------------------------------------------
@@ -364,17 +367,34 @@ runtime-gcc:
       junit: build/linux-test-gcc/runtime-report.xml
 
 # ----------------------------------------------------------
-# device-test: EITT conformance tier, gcc
-# The KNX conformance template (tests/eitt/data) interpreted against the DUT.
-# tests/eitt/interpreter/overrides.yaml carries the skips (5.4.2, out of scope;
+# device-test: conformance tier, gcc
+# KNX's conformance template (from update.knx.org, see .knx-files) played
+# against the DUT by the test tool's run_sequences.py (submodule
+# tests/iot-test-tool), which starts and stops it.
+# tests/conformance/overrides.yaml carries the skips (5.4.2, out of scope;
 # 5.3.14.1, optional) and xfails, the same ones the local Docker runs use.
-# Expected: 177 passed / 0 failed / 7 skipped / 2 xfailed (5.1.1.3e passes
-# since the client reassembles multicast Block2 answers over unicast, F-021).
+# One pytest item per EITT sequence (one per TestCollection, 9 items); like
+# EITT a sequence runs on after a failed row and the item lists every case
+# that did not pass. Expected: 8 passed / 1 xfailed (5.10: 5.10.1.2 and
+# 5.10.1.4 are xfail cases; confirmed by pipeline 59132); the skipped cases (5.3.14.1, 5.4.2.x) are listed as SKIP
+# inside the 5.3 and 5.4 items, which still pass.
 # allow_failure: only because the job depends on the tagged runner; there is
 # no known red left, so it can become gating whenever the runner is reliable.
+#
+# The run record (conformance.krr.jsonl, tests/iot-test-tool/docs/run-record-and-evaluator.md)
+# is kept as an artifact: load it in the GUI, or re-judge it locally after a
+# change to the evaluation without a device:
+#   cd tests/iot-test-tool && python3 -m interpreter.reevaluate <record> --overrides ../conformance [--promote RULE]
+# The record's engine is the tool's commit (KRR_ENGINE_SHA).
+# The job re-evaluates its own record straight away. That must reproduce
+# every verdict (exit 1 otherwise); a record that does not is useless for
+# offline re-evaluation, so it fails the job even when pytest passed.
+# conformance-reevaluate.txt also carries the report-mode rule tally.
 # ----------------------------------------------------------
-eitt-gcc:
-  extends: .device-test
+conformance-gcc:
+  extends:
+    - .device-test
+    - .knx-files
   allow_failure: true
   variables:
     RUNTIME_TEST_SERVER: build/linux-test-gcc/tests/runtime_test_server
@@ -383,11 +403,28 @@ eitt-gcc:
     - cmake --preset=linux-test-gcc -DOC_DEBUG_ENABLED=OFF -DOC_PRINT_ENABLED=OFF -DOC_DEBUG_OSCORE_ENABLED=OFF
     - cmake --build --preset=linux-test-gcc --target runtime_test_server
     - !reference [.python-deps, script]
-    - python3 -m pytest tests/eitt/test_eitt.py -rfE -v --tb=short --junit-xml=build/linux-test-gcc/eitt-report.xml
+    - !reference [.knx-files, script]
+    - |
+      status=0
+      export KRR_ENGINE_SHA="$(git -C tests/iot-test-tool rev-parse HEAD)"
+      python3 tests/iot-test-tool/run_sequences.py --dut-command "$RUNTIME_TEST_SERVER_PREFIX $RUNTIME_TEST_SERVER" --overrides tests/conformance -v --tb=short --junit-xml=build/linux-test-gcc/conformance-report.xml --run-record=build/linux-test-gcc/conformance.krr.jsonl || status=$?
+      cd tests/iot-test-tool
+      python3 -m interpreter.reevaluate ../../build/linux-test-gcc/conformance.krr.jsonl --overrides ../conformance --json ../../build/linux-test-gcc/conformance-reevaluate.json > ../../build/linux-test-gcc/conformance-reevaluate.txt || status=$?
+      cat ../../build/linux-test-gcc/conformance-reevaluate.txt
+      # the run in the tool's GUI, in the browser: Browse the job's
+      # artifacts and open trace-viewer/view.html
+      python3 -m web.trace_viewer ../../build/linux-test-gcc/conformance.krr.jsonl ../../build/linux-test-gcc/trace-viewer || true
+      exit $status
   artifacts:
     when: always
+    paths:
+      - build/linux-test-gcc/conformance.krr.jsonl
+      - build/linux-test-gcc/trace-viewer/
+      - build/linux-test-gcc/conformance-reevaluate.txt
+      - build/linux-test-gcc/conformance-reevaluate.json
     reports:
-      junit: build/linux-test-gcc/eitt-report.xml
+      junit: build/linux-test-gcc/conformance-report.xml
+    expire_in: 4 weeks
 
 # ----------------------------------------------------------
 # device-test: memory-safety checks (nightly)
@@ -399,9 +436,9 @@ eitt-gcc:
 #   runtime error:            UBSan
 # LeakSanitizer output is counted and printed but does not fail the job: a
 # benign 1-byte SPAKE shutdown leak remains (oc_oscore_set_auth_shared,
-# api/oc_knx_sec.c). Known red: UBSan nonnull-attribute reports for
-# memcpy/memcmp/memchr with a NULL pointer and length 0 (F-025 in
-# tests/FINDINGS.md); the job stays red until those call sites are fixed.
+# api/oc_knx_sec.c). The UBSan nonnull-attribute reports for
+# memcpy/memcmp/memchr with a NULL pointer and length 0 were F-025, fixed
+# (git log -p -S F-025 -- tests/FINDINGS.md).
 # The DUT's stderr reaches the log through the
 # [server-err] lines of tests/common/fixtures.py; -s keeps pytest from
 # capturing them.
@@ -410,6 +447,7 @@ eitt-gcc:
   extends:
     - .device-test
     - .nightly
+    - .knx-files
   allow_failure: true
   variables:
     RUNTIME_TEST_SERVER: build/linux-test-asan/tests/runtime_test_server
@@ -420,7 +458,8 @@ eitt-gcc:
     - cmake --preset=linux-test-asan -DOC_DEBUG_ENABLED=OFF -DOC_PRINT_ENABLED=OFF -DOC_DEBUG_OSCORE_ENABLED=OFF
     - cmake --build --preset=linux-test-asan --target runtime_test_server
     - !reference [.python-deps, script]
-    - python3 -m pytest ${MEMCHECK_TESTS} -rfE -v -s --tb=short --junit-xml=build/linux-test-asan/${MEMCHECK_NAME}-report.xml 2>&1 | tee build/linux-test-asan/${MEMCHECK_NAME}-memcheck.log || true
+    - !reference [.knx-files, script]
+    - eval "$MEMCHECK_COMMAND -rfE -v -s --tb=short --junit-xml=build/linux-test-asan/${MEMCHECK_NAME}-report.xml" 2>&1 | tee build/linux-test-asan/${MEMCHECK_NAME}-memcheck.log || true
     - |
       log=build/linux-test-asan/${MEMCHECK_NAME}-memcheck.log
       leaks=$(grep -c 'ERROR: LeakSanitizer' "$log" || true)
@@ -441,10 +480,10 @@ runtime-asan-memcheck:
   extends: .memcheck
   variables:
     MEMCHECK_NAME: runtime
-    MEMCHECK_TESTS: tests/runtime/
+    MEMCHECK_COMMAND: python3 -m pytest tests/runtime/
 
-eitt-asan-memcheck:
+conformance-asan-memcheck:
   extends: .memcheck
   variables:
-    MEMCHECK_NAME: eitt
-    MEMCHECK_TESTS: tests/eitt/test_eitt.py
+    MEMCHECK_NAME: conformance
+    MEMCHECK_COMMAND: python3 tests/iot-test-tool/run_sequences.py --dut-command "ip netns exec dut build/linux-test-asan/tests/runtime_test_server" --overrides tests/conformance

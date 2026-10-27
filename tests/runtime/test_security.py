@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.3 Security
 
 The plain replications of template cases were removed with the tier
-split; they run in the eitt tier now.  Tests that remain under an id the
+split; they run in the conformance tier now.  Tests that remain under an id the
 template also has carry @pytest.mark.eitt_overlap and assert materially
 more (exact codes on unsecured access, CBOR field-level read-back,
 forged datagrams, state across reboot).  The 5.3.8.7x, 5.3.18.2,

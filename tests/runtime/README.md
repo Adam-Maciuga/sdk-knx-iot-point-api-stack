@@ -6,16 +6,20 @@ IPv6. The `runtime_test_server` built from
 device under test (DUT).
 
 This directory holds **only** behaviour-named `test_*.py` modules. The
-fixtures, transport clients and run scripts they build on live in
-[`../common/`](../common/); the template-driven tier and its data live in
-[`../eitt/`](../eitt/). See [`../README.md`](../README.md) for the whole map.
+fixtures and run scripts they build on live in [`../common/`](../common/);
+the transport clients and the template-driven conformance runs come from
+the test tool, the git submodule [`../iot-test-tool/`](../iot-test-tool/),
+with this stack's override files in [`../conformance/`](../conformance/).
+See [`../README.md`](../README.md) for the whole map.
 
 ## The rule for this tier
 
 A hand-written test exists only for behaviour the conformance template does
-*not* cover. Before adding one, look for a covering `TestCase` in
-`../eitt/data/KnxConformanceTestTemplate-PointAPI.xml`; if one exists, the
-eitt tier already tests it and the hand-written test must not be added.
+*not* cover. Before adding one, look for a covering `TestCase` in the
+Point API conformance-test template (KNX publishes it; the test tool keeps
+it in its cache, `python -m interpreter.knx_files dir` in
+`../iot-test-tool/` prints where); if one exists, the conformance tier
+already tests it and the hand-written test must not be added.
 
 A test that deliberately overlaps a template case — because it asserts
 materially more than the template does (an exact response code where the
@@ -37,8 +41,8 @@ with:
 pytest tests/runtime -m eitt_overlap --collect-only -q
 ```
 
-The per-test classification behind the split is in
-[`../docs/runtime-test-inventory.md`](../docs/runtime-test-inventory.md).
+The per-test mapping of the split is in the message of commit 1edfc8ab,
+part "runtime tier: drop template-covered tests, mark overlaps".
 
 ## Module order matters
 
@@ -62,10 +66,10 @@ same setup as GitLab CI. Requires Docker Desktop running (Linux engine).
 # Both device tiers (the default)
 .\tests\common\tools\run-in-docker.ps1
 
-# One tier (-Tier all|eitt|runtime|harness, default all)
+# One tier (-Tier all|conformance|runtime|tool, default all)
 .\tests\common\tools\run-in-docker.ps1 -Tier runtime
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance -Section 5.6
 
 # A subset (any pytest -k filter)
 .\tests\common\tools\run-in-docker.ps1 -PytestArgs "-k","Security::"
@@ -126,15 +130,16 @@ for Linux, macOS and Git Bash, with the same options spelled `--tier`,
 
 ```bash
 tests/common/tools/run-in-docker.sh --tier runtime
-tests/common/tools/run-in-docker.sh --tier eitt --section 5.6 --uncommitted
+tests/common/tools/run-in-docker.sh --tier conformance --section 5.6 --uncommitted
 tests/common/tools/run-in-docker.sh --tier runtime -- tests/runtime/test_observe.py -x
 ```
 
 Inside the container both runners execute `../common/tools/run-local-ci.sh`,
-which does what the CI jobs `runtime-gcc` / `eitt-gcc` do: DUT in its own
-network namespace with unique local addresses on a veth pair, build of
-`runtime_test_server`, one pytest process per tier (`--tier all` = eitt then
-runtime, each against a fresh DUT). A Linux CI runner can call it directly.
+which does what the CI jobs `runtime-gcc` / `conformance-gcc` do: DUT in its
+own network namespace with unique local addresses on a veth pair, build of
+`runtime_test_server`, one pytest process per tier (`--tier all` =
+conformance then runtime, each against a fresh DUT; the conformance tier is
+the test tool's `run_sequences.py`). A Linux CI runner can call it directly.
 `../common/tools/run-local-ci-zephyr.sh` is different: it drives pytest on the
 host against an already-running external DUT (real Zephyr hardware or the
 virtual EITT GUI). See the comments at the top of each script.

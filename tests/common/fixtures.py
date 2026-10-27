@@ -1,11 +1,10 @@
 """
-Shared pytest fixtures for both KNX IoT device test tiers.
+Shared pytest fixtures for the KNX IoT runtime test tier.
 
 This module is deliberately NOT a conftest.py. `tests/conftest.py` is the
 file pytest reads hooks and fixtures from, and it does nothing but
 re-export everything defined here; keeping the definitions in a plain,
-importable module lets the test modules in `tests/eitt/` and
-`tests/runtime/` also pull the constants and helpers out by name
+importable module lets the test modules in `tests/runtime/` also pull the constants and helpers out by name
 (`from fixtures import DUT_IA, set_lsm, ...`), which a conftest in a
 parent directory cannot offer.
 
@@ -37,11 +36,11 @@ from transport.knx_oscore import OscoreContext
 
 
 # ---------------------------------------------------------------------------
-# Test ordering — strict numeric EITT order
+# Test ordering — declared module order
 # ---------------------------------------------------------------------------
 
-# The eitt tier generates one item per template TestCase and encodes the
-# EITT ID in the item name; those items are run in strict numeric order.
+# The template-driven conformance runs order themselves (the test tool's
+# run_sequences.py, one item per template sequence).
 #
 # The runtime tier does NOT encode EITT IDs — its tests are named by
 # behaviour and record template overlap with @pytest.mark.eitt_overlap.
@@ -77,9 +76,10 @@ _RUNTIME_MODULE_RANK = {
 
 
 def _eitt_sort_key(item):
-    """Sort key: EITT ID for the eitt tier, declared order for runtime.
+    """Sort key: declared module order for the runtime tier.
 
-    The eitt tier's item names encode EITT IDs as
+    Items whose names encode an EITT ID (none in the runtime tier today; an
+    older layout generated them) sort first, numerically:
     test_5_X_Y_Z[letter][_stepN]_description:
       test_5_1_1_1_site_local     → (5, 1, 1, 1, 0, 0)
       test_5_1_1_3_step2_rt       → (5, 1, 1, 3, 0, 2)
@@ -111,19 +111,30 @@ def _eitt_sort_key(item):
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--section", action="append", default=[], metavar="N",
-        help="Select whole EITT section(s) by number, e.g. --section 5.6 "
-             "(repeatable). Unlike `-k 5.6`, this matches the section "
-             "boundary exactly: `-k 5.6` is a SUBSTRING match and also "
-             "drags in 5.5.5.6 / 5.5.6.1, which then run without their "
-             "sibling preparation TestCases and fail spuriously.")
+        "--run-record", action="store", default=None, metavar="PATH",
+        help="Write a run record (JSON Lines: every telegram, step, TestCase "
+             "and test outcome) to PATH. See "
+             "tests/iot-test-tool/docs/run-record-and-evaluator.md.")
+
+
+def pytest_configure(config):
+    """Register the run-record writer as a plugin when --run-record is given.
+
+    Imported lazily so a run without the option never touches it. The
+    plugin name is the one the test tool's runner uses as well.
+    """
+    path = config.getoption("--run-record", default=None)
+    if path:
+        from interpreter.record_sink import RunRecordSink
+        config.pluginmanager.register(
+            RunRecordSink(path, argv=list(config.invocation_params.args)),
+            "krr_run_record")
 
 
 def pytest_collection_modifyitems(items):
     """Order the collected items.
 
-    eitt-tier items run in strict numeric EITT order, matching the EITT
-    reference project.  runtime-tier items run in the declared
+    Runtime-tier items run in the declared
     RUNTIME_MODULE_ORDER, which preserves the inter-module state
     dependencies the suite has always relied on.  Python's sort is
     stable, so items with identical keys keep their definition order.

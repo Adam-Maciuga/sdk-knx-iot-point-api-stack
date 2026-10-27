@@ -1,7 +1,7 @@
 ﻿<#
 .SYNOPSIS
     Run runtime conformance tests inside a Docker container with veth pairs.
-    Replicates the GitLab CI device-test jobs (runtime-gcc, eitt-gcc) locally.
+    Replicates the GitLab CI device-test jobs (runtime-gcc, conformance-gcc) locally.
 
 .DESCRIPTION
     By default the current git HEAD is exported with `git archive` and unpacked
@@ -19,13 +19,17 @@
     .\tests\common\tools\run-in-docker.ps1 -Section 5.5,5.6 -IncludeUncommitted
     .\tests\common\tools\run-in-docker.ps1 -k "5_9"
     .\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -k "5_9"
-    .\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6
+    .\tests\common\tools\run-in-docker.ps1 -Tier conformance -Section 5.6
     .\tests\common\tools\run-in-docker.ps1 -Tier runtime
     .\tests\common\tools\run-in-docker.ps1 tests/runtime/test_observe.py -v
     .\tests\common\tools\run-in-docker.ps1 --tb=long -x
+    .\tests\common\tools\run-in-docker.ps1 -Tier conformance -RunRecord baseline.krr.jsonl
 
 .NOTES
-    Use -Section to select an EITT section. Do NOT use -k for that: pytest's
+    The test tool is the submodule tests/iot-test-tool (git submodule update
+    --init tests/iot-test-tool); it is packed with the tree.
+
+    Use -Section to select a part of the template (a collection, suite or case). Do NOT use -k for that: pytest's
     -k is a substring match, so `-k 5.6` also selects 5.5.5.6 and 5.5.6.1.
     Those then run without their sibling preparation TestCases and produce
     fabricated "response body could not be decoded" failures.
@@ -58,7 +62,7 @@ param(
     # (KNX_TEST_DEBUG_COAP=1): per-datagram send/recv, including the
     # multicast group listener's bind/join and captured telegrams.
     [switch]$CoapDebug,
-    # Emit the EITT runner's [group] lines (KNX_TEST_DEBUG_GROUP=1):
+    # Emit the conformance runner's [group] lines (KNX_TEST_DEBUG_GROUP=1):
     # whether a multicast group listener was armed for an upcoming
     # DUT-originated group telegram, and on which address.
     [switch]$GroupDebug,
@@ -81,13 +85,18 @@ param(
     # run WITHOUT their sibling preparation TestCases and fail spuriously.
     [string[]]$Section,
     # Which test tier to run (see tests/README.md):
-    #   eitt    -> tests/eitt/                (template-driven interpreter,
-    #                                          plus its no-DUT harness tests)
-    #   runtime -> tests/runtime/             (hand-written device tests)
-    #   harness -> tests/eitt/harness_tests/  (interpreter/GUI tests, no DUT)
-    #   all     -> tests/eitt/ tests/runtime/ (both device tiers, the default)
-    [ValidateSet('all', 'eitt', 'runtime', 'harness')]
+    #   conformance -> the template, played by the test tool (tests/iot-test-tool)
+    #                  with this stack's override files (tests/conformance)
+    #   runtime     -> tests/runtime/  (hand-written device tests)
+    #   tool        -> the test tool's own tests (no DUT)
+    #   all         -> conformance, then runtime (both device tiers, the default)
+    # ("eitt" and "harness" are accepted for conformance and tool.)
+    [ValidateSet('all', 'conformance', 'runtime', 'tool', 'eitt', 'harness')]
     [string]$Tier = 'all',
+    # File name of a run record to write (tests/iot-test-tool/docs/run-record-and-evaluator.md).
+    # It lands in <repo>\artifacts\ (git-ignored), mounted into the container.
+    # With -Tier all one per tier: <name>.conformance.krr.jsonl, <name>.runtime.krr.jsonl.
+    [string]$RunRecord,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$PytestArgs
 )
@@ -107,6 +116,25 @@ if (-not $PytestArgs) {
     # -v so the per-test PASSED/FAILED lines exist for the summary below;
     # --tb=long and --showlocals so a failure is diagnosable from the log.
     $PytestArgs = @("-v", "--tb=long", "--showlocals")
+}
+$ArtifactsDir = Join-Path $RepoRoot "artifacts"
+if ($RunRecord) {
+    if ($RunRecord -match '[\\/]') { throw "-RunRecord takes a file name, not a path: $RunRecord" }
+    New-Item -ItemType Directory -Force -Path $ArtifactsDir | Out-Null
+    $PytestArgs += "--run-record=/w/artifacts/$RunRecord"
+}
+# The test tool is a submodule, packed with the tree.
+$Sub = "tests/iot-test-tool"
+if (-not (Test-Path (Join-Path $RepoRoot "$Sub/run_sequences.py"))) {
+    throw "$Sub is empty: git submodule update --init $Sub"
+}
+# The tar carries no .git, so the record learns the engine's commit (the
+# test tool's) from here.
+if ($IncludeUncommitted) {
+    $EngineSha = (git -C (Join-Path $RepoRoot $Sub) rev-parse HEAD).Trim()
+    if (git -C (Join-Path $RepoRoot $Sub) status --porcelain) { $EngineSha += "-dirty" }
+} else {
+    $EngineSha = (git -C $RepoRoot rev-parse "HEAD:$Sub").Trim()
 }
 $InnerArgs = @(
     "--tier", $Tier,
@@ -154,7 +182,10 @@ try {
     if ($IncludeUncommitted) {
         Push-Location $RepoRoot
         try {
-            $files = git ls-files --cached --others --exclude-standard --full-name
+            $files = @(git ls-files --cached --others --exclude-standard --full-name |
+                       Where-Object { $_ -ne $Sub })
+            $files += @(git -C $Sub ls-files --cached --others --exclude-standard |
+                        ForEach-Object { "$Sub/$_" })
             [IO.File]::WriteAllText($List, ($files -join "`n") + "`n",
                                     [Text.UTF8Encoding]::new($false))
             # Windows' own tar.exe by full path: when this script is launched from
@@ -165,10 +196,18 @@ try {
         }
     } else {
         git -C $RepoRoot archive --format=tar -o $Tar HEAD
+        # the submodule at the commit HEAD pins, appended (the container
+        # extracts with -i, which reads past the first archive's end)
+        $SubSha = (git -C $RepoRoot rev-parse "HEAD:$Sub").Trim()
+        git -C (Join-Path $RepoRoot $Sub) archive --format=tar --prefix="$Sub/" -o "$Tar.sub" $SubSha
+        $out = [IO.File]::Open($Tar, [IO.FileMode]::Append)
+        try { $in = [IO.File]::OpenRead("$Tar.sub"); try { $in.CopyTo($out) } finally { $in.Close() } }
+        finally { $out.Close() }
+        Remove-Item "$Tar.sub"
     }
 
     $inner  = 'echo $B64SCRIPT | base64 -d > /run.sh && mkdir -p /w && '
-    $inner += 'tar -xf - -C /w && cd /w && bash /run.sh'
+    $inner += 'tar -xif - -C /w && cd /w && bash /run.sh'
 
     # Persistent caches. The container is --rm, so without these EVERY run
     # recompiles all objects (mbedtls, tinycbor, the whole stack), re-downloads
@@ -183,9 +222,20 @@ try {
 
     # Merge stderr into stdout inside cmd so PowerShell does not treat native
     # stderr (e.g. CMake warnings) as a terminating error.
+    if ($RunRecord) {
+        $mounts += "-v ""$($ArtifactsDir):/w/artifacts"" "
+    }
+    # KNX's files (template, comment scheme, ...): the host's cache, so the
+    # container needs update.knx.org only when the cache is empty.
+    $KnxCache = if ($env:KNX_TOOL_CACHE) { $env:KNX_TOOL_CACHE } else {
+        Join-Path $HOME ".cache\knx-iot-point-api-test-tool" }
+    New-Item -ItemType Directory -Force -Path $KnxCache | Out-Null
+    $mounts += "-v ""$($KnxCache):/knx-cache"" -e KNX_TOOL_CACHE=/knx-cache "
+
     $docker = "docker run --rm -i --privileged " +
               "--sysctl net.ipv6.conf.all.disable_ipv6=0 " +
               $mounts +
+              "-e KRR_ENGINE_SHA=$EngineSha " +
               "-e B64SCRIPT=$B64 $Image bash -c ""$inner"" < ""$Tar"" 2>&1"
 
     $ErrorActionPreference = "Continue"
@@ -203,9 +253,9 @@ finally {
 
 # Extract failing/erroring test IDs from pytest's -v result lines:
 # e.g. "tests/runtime/test_x.py::Class::method FAILED [ 42%]"
-#      "tests/eitt/test_eitt.py::test_5_1_1_1_site_local FAILED [  3%]"
+#      "sequence_items.py::test_sequence[5.1. Discovery] FAILED [ 11%]"
 $failed = $output |
-    Select-String -Pattern '^tests/(eitt|runtime)/\S+\s+(FAILED|ERROR)\s+\[' |
+    Select-String -Pattern '^(tests/runtime/|\S*sequence_items\.py::)\S.*?\s(FAILED|ERROR)\s+\[' |
     ForEach-Object { $_.ToString().Trim() }
 
 Write-Host ""

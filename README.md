@@ -127,27 +127,27 @@ percentage on the job and the merge request, and the HTML report is an artifact.
 
 ### Runtime Conformance Tests
 
-Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: `tests/eitt/` interprets KNX's conformance template directly, and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. They run in Docker only: the device needs its own network namespace and a veth pair with unique local addresses, which the runners create exactly as the CI jobs `eitt-gcc` and `runtime-gcc` do; see `tests/README.md` for the map.
+Runtime tests exercise the full stack over real CoAP/OSCORE on IPv6 and build a `runtime_test_server` device under test. They come in two tiers: the conformance tier plays KNX's conformance-test template against the device with the [KNX IoT Point API Test Tool](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-test-tool) (git submodule `tests/iot-test-tool`, with this stack's override files in `tests/conformance/`), and `tests/runtime/` holds hand-written tests for behaviour the template does not cover. Both share `tests/common/`. Fetch the tool once with `git submodule update --init tests/iot-test-tool`. They run in Docker only: the device needs its own network namespace and a veth pair with unique local addresses, which the runners create exactly as the CI jobs `conformance-gcc` and `runtime-gcc` do; see `tests/README.md` for the map.
 
 Windows (PowerShell) and Linux, macOS or Git Bash have a runner each with the same options:
 
 ```powershell
 .\tests\common\tools\run-in-docker.ps1                       # both device tiers, committed HEAD
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt            # the EITT conformance tier
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance     # the conformance tier
 .\tests\common\tools\run-in-docker.ps1 -Tier runtime         # the hand-written tier
-.\tests\common\tools\run-in-docker.ps1 -Tier eitt -Section 5.6 -IncludeUncommitted
+.\tests\common\tools\run-in-docker.ps1 -Tier conformance -Section 5.6 -IncludeUncommitted
 .\tests\common\tools\run-in-docker.ps1 -Tier runtime tests/runtime/test_observe.py -x
 ```
 
 ```bash
 tests/common/tools/run-in-docker.sh                          # both device tiers, committed HEAD
-tests/common/tools/run-in-docker.sh --tier eitt
+tests/common/tools/run-in-docker.sh --tier conformance
 tests/common/tools/run-in-docker.sh --tier runtime
-tests/common/tools/run-in-docker.sh --tier eitt --section 5.6 --uncommitted
+tests/common/tools/run-in-docker.sh --tier conformance --section 5.6 --uncommitted
 tests/common/tools/run-in-docker.sh --tier runtime -- tests/runtime/test_observe.py -x
 ```
 
-`all` (the default) runs the two tiers as separate pytest processes, each against a fresh device. Select EITT sections with the section option, not with `-k`: pytest's `-k 5.6` also matches 5.5.5.6. By default the committed HEAD is tested; `-IncludeUncommitted` / `--uncommitted` packs the working tree instead. `-Tier harness` / `--tier harness` runs the interpreter's own no-device tests. Both runners hand the container `tests/common/tools/run-local-ci.sh`, which is also usable directly inside a Linux CI container.
+`all` (the default) runs the two tiers as separate pytest processes, each against a fresh device. Select parts of the template with the section option, not with `-k`: pytest's `-k 5.6` also matches 5.5.5.6. By default the committed HEAD is tested (with the tool at the commit HEAD pins); `-IncludeUncommitted` / `--uncommitted` packs the working tree, the tool's checkout included. `-Tier tool` / `--tier tool` runs the tool's own no-device tests. Both runners hand the container `tests/common/tools/run-local-ci.sh`, which is also usable directly inside a Linux CI container.
 
 ### Fuzz Tests
 
@@ -182,7 +182,8 @@ port/                    shared platform abstractions and OS-specific adaptation
   zephyr/                Zephyr port
 tests/unit/              Google Test unit tests
 tests/common/            shared Python test infrastructure + the DUT's C source
-tests/eitt/              EITT template-driven conformance tier (+ interpreter, GUI)
+tests/conformance/       this stack's override files for the conformance-test tool
+tests/iot-test-tool/     the conformance-test tool (git submodule): runner, GUI, CoAP/OSCORE client
 tests/runtime/           hand-written network-level conformance tier
 tests/fuzz/              libFuzzer harnesses for the pre-authentication parsers
 tests/docs/              runtime test walkthroughs and supporting notes
@@ -206,7 +207,7 @@ Key areas:
 | -------- | ----------- |
 | [KNX IoT documentation pages](https://buildwithknxiot.knx.org/public-projects/knx-iot-docs/) | Stack introduction, ETS6 workflows, and broader Point API documentation |
 | [tests/README.md](tests/README.md) | Map of the five test tiers and how to run each |
-| [tests/eitt/README.md](tests/eitt/README.md) | The EITT template-driven conformance tier |
+| [KNX IoT Point API Test Tool](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-test-tool) | The conformance-test tool (submodule `tests/iot-test-tool`): runner, browser GUI, run records |
 | [tests/runtime/README.md](tests/runtime/README.md) | Runtime conformance test setup and execution |
 | [tests/docs/runtime-test-walkthrough.md](tests/docs/runtime-test-walkthrough.md) | Walkthrough of the runtime test environment |
 | [docs/mbedtls_3.x_to_4.x_migration.md](docs/mbedtls_3.x_to_4.x_migration.md) | Migration notes for Mbed TLS 4.x |

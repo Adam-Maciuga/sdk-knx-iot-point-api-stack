@@ -3,7 +3,7 @@ Runtime conformance tests — EITT 5.10 Generic Tests
 
 The well-formed pagination cases (5.10.1.1/.2/.6), the list-metadata reads
 (5.10.1.4) and the two omitted-option defaults (5.10.5.1/.2) are covered by
-the EITT template and now live in the eitt tier.  The template only ever
+the EITT template and now live in the conformance tier.  The template only ever
 sends well-formed pn/ps pairs, so the whole malformed-input family below
 has no template case at all:
 

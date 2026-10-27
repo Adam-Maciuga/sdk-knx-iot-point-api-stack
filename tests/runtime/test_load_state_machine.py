@@ -3,7 +3,7 @@ Runtime conformance tests — EITT 5.6 Application Program
 
 The plain LSM transitions (5.6.1.1/.2/.3), the /ap listing (5.6.3.1) and
 the program-version round trip (5.6.4.1) are covered by the EITT template
-and now live in the eitt tier.  What remains restarts the device, which
+and now live in the conformance tier.  What remains restarts the device, which
 the template does not:
 
 5.6.1.4  LSM state persists over reboot (loading / loaded / unloaded)

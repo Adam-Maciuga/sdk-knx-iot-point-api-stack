@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.8 Parameters & Diagnostics
 
 5.8.1.1 (POST /p), 5.8.3.1 (GET /p/p1) and 5.8.4.1 (PUT /p/p1) are covered
-by the EITT template and now live in the eitt tier, as is the ?m=* form of
+by the EITT template and now live in the conformance tier, as is the ?m=* form of
 5.8.3.2.  What remains asserts specific entries the template does not:
 
 5.8.2.1  Read list of parameter/diagnostic paths (GET /p), asserting /p/p1

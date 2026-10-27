@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Run the device test tiers INSIDE the CI image, the way the GitLab jobs
-# runtime-gcc / eitt-gcc do: DUT in its own network namespace, unique local
+# runtime-gcc / conformance-gcc do: DUT in its own network namespace, unique local
 # addresses on a veth pair, runtime_test_server built from this tree, one
 # pytest process per tier. This is the in-container half; on a developer
 # machine you normally do not call it yourself but go through
@@ -10,7 +10,7 @@
 # which pack the source tree, start the container and hand it this script.
 #
 # Usage (inside the container, repo unpacked at the current directory):
-#   bash tests/common/tools/run-local-ci.sh [--tier all|eitt|runtime|harness]
+#   bash tests/common/tools/run-local-ci.sh [--tier all|conformance|runtime|tool]
 #                                           [--section 5.x [--section 5.y]]
 #                                           [--preset linux-test-gcc]
 #                                           [--server-logs] [--coap-debug]
@@ -18,11 +18,14 @@
 #                                           [--time-scale 0.05] [--slow]
 #                                           [--] [pytest-args...]
 #
-#   --tier      eitt    -> tests/eitt/      (template-driven interpreter
-#                                            plus its no-DUT harness tests)
+#   --tier      conformance -> the conformance-test template, played by the
+#                          test tool (tests/iot-test-tool/run_sequences.py) with
+#                          this stack's override files (tests/conformance);
+#                          "eitt" is accepted for it too
 #               runtime -> tests/runtime/   (hand-written device tests)
-#               harness -> tests/eitt/harness_tests/ (no DUT at all)
-#               all     -> eitt, then runtime, each in its OWN pytest process
+#               tool    -> the test tool's own tests (no DUT at all);
+#                          "harness" is accepted for it too
+#               all     -> conformance, then runtime, each in its OWN pytest process
 #                          and therefore against a FRESH DUT (finding O6:
 #                          one process for both tiers shares one device and
 #                          the runtime firmware-update test leaves fwv 0.0.2
@@ -65,28 +68,40 @@ while [ $# -gt 0 ]; do
     --time-scale=*) TIME_SCALE="${1#*=}"; shift ;;
     --slow)         SLOW=1; shift ;;
     --)             shift; break ;;
-    -h|--help)      sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)      sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)              break ;;
   esac
 done
 case "$TIER" in
-  all|eitt|runtime|harness) ;;
-  *) echo "run-local-ci.sh: unknown --tier '$TIER' (all|eitt|runtime|harness)" >&2; exit 2 ;;
+  eitt)    TIER=conformance ;;
+  harness) TIER=tool ;;
 esac
+case "$TIER" in
+  all|conformance|runtime|tool) ;;
+  *) echo "run-local-ci.sh: unknown --tier '$TIER' (all|conformance|runtime|tool)" >&2; exit 2 ;;
+esac
+TOOL=tests/iot-test-tool
+if [ ! -f "$TOOL/run_sequences.py" ]; then
+  echo "run-local-ci.sh: $TOOL is empty: git submodule update --init $TOOL" >&2
+  exit 2
+fi
 
 SECTION_ARGS=()
 for s in "${SECTIONS[@]:-}"; do
   [ -n "$s" ] && SECTION_ARGS+=(--section "$s")
 done
 
-# The harness tier needs no device and no network; run it and stop.
-if [ "$TIER" = harness ]; then
+# The tool's own tests need no device and no network; run them and stop.
+if [ "$TIER" = tool ]; then
   echo "=== Installing Python dependencies ==="
   curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
   python3 /tmp/get-pip.py --break-system-packages --quiet
-  python3 -m pip install --break-system-packages --quiet -r tests/common/requirements.txt
-  echo "=== pytest tests/eitt/harness_tests/ ==="
-  exec python3 -m pytest -rfE tests/eitt/harness_tests/ "$@"
+  python3 -m pip install --break-system-packages --quiet -r "$TOOL/requirements.txt"
+  (cd "$TOOL" && python3 -m interpreter.knx_files update > /dev/null) \
+    || echo "warning: update.knx.org not reachable; using the KNX files in the cache"
+  echo "=== the test tool's tests ==="
+  cd "$TOOL"
+  exec python3 -m pytest -rfE "$@"
 fi
 
 echo "=== Device network: DUT in its own netns, ULA on both veth ends ==="
@@ -124,7 +139,7 @@ cmake --build --preset="$PRESET" --target runtime_test_server
 echo "=== Installing Python dependencies ==="
 curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
 python3 /tmp/get-pip.py --break-system-packages --quiet
-python3 -m pip install --break-system-packages --quiet -r tests/common/requirements.txt
+python3 -m pip install --break-system-packages --quiet -r tests/common/requirements.txt -r "$TOOL/requirements.txt"
 
 export RUNTIME_TEST_SERVER="build/$PRESET/tests/runtime_test_server"
 export RUNTIME_TEST_SERVER_PREFIX='ip netns exec dut'
@@ -135,24 +150,56 @@ export KNX_TEST_DEBUG_OSCORE="$OSCORE_DBG" KNX_TEST_DEBUG_COAP="$COAP_DBG"
 export KNX_TEST_DEBUG_GROUP="$GROUP_DBG" KNX_TEST_DEBUG_MDNS="$GROUP_DBG"
 [ -n "$SLOW" ] && export RUN_SLOW_TESTS=1
 
+# KNX's files (template, comment scheme, ...) in the cache, as EITT fetches
+# them; run-in-docker mounts the host's cache, so offline is fine once filled.
+if [ "$TIER" != runtime ]; then
+  (cd "$TOOL" && python3 -m interpreter.knx_files update > /dev/null) \
+    || echo "warning: update.knx.org not reachable; using the KNX files in the cache"
+fi
+
 case "$TIER" in
-  eitt)    PATHS=(tests/eitt/) ;;
-  runtime) PATHS=(tests/runtime/) ;;
-  all)     PATHS=(tests/eitt/ tests/runtime/) ;;
+  conformance) PATHS=(conformance) ;;
+  runtime)     PATHS=(tests/runtime/) ;;
+  all)         PATHS=(conformance tests/runtime/) ;;
 esac
 
 # One pytest process per tier path -> one DUT per tier (see --tier all above).
 # `|| rc=$?` defeats `set -e` so the second tier still runs after a failing
 # first one; the worst status becomes the exit code, and the -rfE summary
 # lines of both invocations stay in the log.
+# With more than one tier, a run record (--run-record FILE) gets one file per
+# tier (FILE.conformance.krr.jsonl, FILE.runtime.krr.jsonl): the writer
+# truncates its file, so one name would leave only the last tier's record.
+tier_args() {
+  local tier=$1; shift
+  TIER_ARGS=()
+  local next=0 a
+  for a in "$@"; do
+    if [ "$next" = 1 ]; then TIER_ARGS+=("$(per_tier "$a" "$tier")"); next=0; continue; fi
+    case "$a" in
+      --run-record=*) TIER_ARGS+=("--run-record=$(per_tier "${a#--run-record=}" "$tier")") ;;
+      --run-record)   TIER_ARGS+=("$a"); next=1 ;;
+      *)              TIER_ARGS+=("$a") ;;
+    esac
+  done
+}
+per_tier() {
+  if [ "${#PATHS[@]}" -lt 2 ]; then echo "$1"; return; fi
+  echo "${1%.krr.jsonl}.$2.krr.jsonl"
+}
+
 worst=0
 for path in "${PATHS[@]}"; do
   echo "=== pytest $path ==="
   rc=0
-  if [[ "$path" == tests/eitt/* ]]; then
-    python3 -m pytest -rfE "$path" "${SECTION_ARGS[@]}" "$@" || rc=$?
+  if [ "$path" = conformance ]; then
+    tier_args conformance "$@"
+    python3 "$TOOL/run_sequences.py" \
+      --dut-command "$RUNTIME_TEST_SERVER_PREFIX $RUNTIME_TEST_SERVER" \
+      --overrides tests/conformance "${SECTION_ARGS[@]}" "${TIER_ARGS[@]}" || rc=$?
   else
-    python3 -m pytest -rfE "$path" "$@" || rc=$?
+    tier_args runtime "$@"
+    python3 -m pytest -rfE "$path" "${TIER_ARGS[@]}" || rc=$?
   fi
   if [ "$rc" -gt "$worst" ]; then worst=$rc; fi
 done

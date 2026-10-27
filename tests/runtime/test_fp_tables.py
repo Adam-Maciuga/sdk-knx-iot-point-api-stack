@@ -2,7 +2,7 @@
 Runtime conformance tests — EITT 5.5 Function Point Tables
 
 35 of the 38 tests in this file replicated a template TestCase one-for-one
-and were removed with the tier split; they run in the eitt tier now.
+and were removed with the tier split; they run in the conformance tier now.
 
 What remains are the three cases the template does NOT have, all probing
 the tables' create-vs-update discrimination on an unknown id:
