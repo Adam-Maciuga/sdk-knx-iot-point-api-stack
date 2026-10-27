@@ -1,6 +1,6 @@
 # KNX-IoT vs. the base protocols — what differs, and why we can't use stock libraries
 
-**Purpose:** when fixing `tests/common/transport/`, checking what a reference
+**Purpose:** when fixing the test tool's `transport/` (submodule `tests/iot-test-tool/`), checking what a reference
 library (aiocoap, its OSCORE module, python-zeroconf) does is a good instinct —
 they are mature and their behaviour is usually right. But KNX-IoT deviates from
 the base RFCs in specific, deliberate places, and copying a library 1:1 there
@@ -180,5 +180,6 @@ parsing findings (M6, M9–M12) without adopting the service abstraction.
    separate-response looked like a type violation) and O1 (reserving the SSN on
    `seq_no_offset` desynchronised the replay window and broke 13 TestCases).
 
-Related: `eitt-interpreter-findings.md` (the F/T/O/S/M findings tracker),
-`eitt-packet-capture-plan.md` (independent wire-level oracle, planned).
+Related: `tests/iot-test-tool/docs/interpreter-findings.md` (the F/T/O/S/M
+findings tracker), `tests/iot-test-tool/docs/packet-capture-plan.md`
+(independent wire-level oracle, planned).

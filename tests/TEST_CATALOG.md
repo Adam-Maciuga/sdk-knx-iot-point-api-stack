@@ -1,18 +1,16 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1748 unit tests** (55 files) + **733 runtime tests** across three tiers = **2481 total**
+> **1748 unit tests** (55 files in `tests/unit/`, counted by CTest on
+> 2026-10-21) and **256 runtime tests** (228 test functions in 20 files in
+> `tests/runtime/`, counted with `pytest tests/runtime --collect-only -q`).
+> The conformance tier is not listed here: the test tool
+> (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
+> one item per template sequence, with this stack's override files in
+> `tests/conformance/`. All three tiers share `tests/common/`; the map is
+> [`README.md`](README.md).
 >
-> Runtime tiers, separated into sibling directories on 2026-09-14: **eitt**
-> 187 in `tests/eitt/test_eitt.py` (generated from the conformance template) +
-> **runtime** 256 in `tests/runtime/` (hand-written, 20 files) + **harness**
-> 194 in `tests/eitt/harness_tests/` (interpreter/GUI, no DUT). The shared
-> infrastructure they build on is `tests/common/`. The runtime tier was 385 until 2026-09-11, when
-> every test the template already covers was removed — see "Runtime tier cleanup"
-> below.
->
-> Branch: `work_in_progress` | Unit (2026-10-21): 1747/1748 passed on `linux-test-gcc` (Docker, `ctest -j8`), the 1748 total includes the 43 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The one failure, `AtSsnStorage.WritesFourByteRecordAtMaxSsn`, passed 5 times in a row when the `AtSsnStorage` tests ran serially: parallel runs share the storage directory `knx_storage_sec_unit_test` (known since 2026-10-10).
-> Runtime (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`): EITT plus harness **460 passed, 15 skipped, 2 xfailed** (477 collected, 788.52s); runtime tier **251 passed, 5 skipped** (256 collected, 729.69s); 0 failed, 0 errors - fully green. The per-tier EITT/harness split above was not re-derived. See "Last runtime run status" at the end of Part 2.
-> Runtime observe suite (`test_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
+> Unit (2026-10-21): 1747/1748 passed on `linux-test-gcc` (Docker, `ctest -j8`), the 1748 total includes the 43 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The one failure, `AtSsnStorage.WritesFourByteRecordAtMaxSsn`, passed 5 times in a row when the `AtSsnStorage` tests ran serially: parallel runs share the storage directory `knx_storage_sec_unit_test` (known since 2026-10-10).
+> Runtime: see "Last runtime run status" at the end of Part 2.
 
 ---
 
@@ -462,7 +460,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 **Source:** `api/oc_main.c` (declared in `include/oc_buffer_settings.h`)
 
-Contract under test (see D-001 in `tests/FINDINGS.md`): the argument of
+Contract under test (D-001, a deliberate design change; `git log -p -S D-001 -- tests/FINDINGS.md` shows the note): the argument of
 `oc_set_pdu_size()` is the **total CoAP PDU size**, i.e. payload plus the CoAP
 header budget. Since the header split (RFC 8613 clause 4.1.1) that budget is
 `OC_COAP_HEADER_BUDGET = COAP_MAX_OUTER_HEADER_SIZE + COAP_MAX_INNER_HEADER_SIZE`,
@@ -1153,6 +1151,27 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 ---
 
+### test_smode_loopback_recursion.cpp — S-Mode Write Loopback (2 tests)
+
+**Source:** `api/oc_knx_client.c` (`oc_send_s_mode_mc_or_uc_message()`)
+
+| Test | What it verifies |
+|------|-----------------|
+| `SmodeLoopback.RecursiveWriteFromPutHandlerIsBounded` | A PUT handler that sends an s-mode write on the same GA does not re-enter itself through the internal GO update (regression for an unbounded recursion) |
+| `SmodeLoopback.SingleLevelLoopbackStillUpdatesOtherInputs` | An ordinary write still updates a different writable input on the same GA exactly once |
+
+---
+
+### test_smode_read_answer_payload.cpp — S-Mode Read Answer Payload (1 test)
+
+**Source:** `api/oc_knx.c` (`oc_core_knx_k_post_handler()`)
+
+| Test | What it verifies |
+|------|-----------------|
+| `SmodeReadAnswer.SecondReadAnswerOnSameGaHasNoTrailingGarbage` | With two read-enabled GOs on one GA, every read answer carries exactly the length its own GET handler encoded (regression for stale buffer bytes in the second answer) |
+
+---
+
 ### Runtime-covered source files (no unit tests)
 
 `api/oc_test_control.c` and `api/oc_knx_p.c` — previously listed here as
@@ -1166,36 +1185,25 @@ covered by the runtime conformance suite (Part 2).
 
 ## Part 2: Runtime Tests (Python / pytest)
 
-Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
-The `runtime_test_server` binary runs as a subprocess - no mocks.
-19 `test_*.py` files in `tests/runtime/`, 245 tests collected
-(with parametrize), plus the generated eitt tier and the DUT-less harness tier.
-The per-section headers below count unique test functions; the extra collected
-items come from parametrized cases in `test_device_resources.py` and
-`test_swu.py`.
+Tests exercise the **full stack** over real CoAP/OSCORE on IPv6, against the
+`runtime_test_server` device (`tests/common/runtime_test_server.c`), with the
+test tool's client (`tests/iot-test-tool/transport/`). No mocks. They run in
+Docker only (`tests/common/tools/run-in-docker.ps1 -Tier runtime`).
 
-### Runtime tier cleanup (2026-09-11)
+The runtime tier covers only behaviour the conformance template does not.
+On 2026-09-11 every hand-written test the template already covers was
+removed (the per-test mapping is in the message of commit 1edfc8ab, part
+"runtime tier: drop template-covered tests, mark overlaps"), and the
+remaining tests were named for their behaviour. A test that overlaps a
+template case because it asserts materially more carries
+`@pytest.mark.eitt_overlap(<id>)`, shown in the "Overlaps" column below;
+list them with `pytest tests/runtime -m eitt_overlap --collect-only -q`.
 
-The rows below marked *(replaced by the EITT template case — eitt tier)* are
-tests that were **deleted** from the runtime tier. Their requirement is
-exercised by a `TestCase` in
-`tests/eitt/data/KnxConformanceTestTemplate-PointAPI.xml`, which the eitt
-tier runs directly, so keeping a hand-written copy meant maintaining the same
-assertion twice. 135 test functions (143 collected items) went; the per-test
-mapping to EITT case ids is in the commit "runtime tier: drop template-covered
-tests, mark overlaps", and the classification behind it is in
-`tests/docs/runtime-test-inventory.md`.
+The tables below are generated from the sources: one row per test function,
+the text is the first sentence of its docstring (or its class's), and ×N
+is the number of collected items of a parametrized test.
 
-The section headers in Part 2 still give the **pre-cleanup** counts, so that
-this catalog keeps documenting what each EITT case is checked by, wherever it
-now runs. For the live count of what the runtime tier collects today, run
-`pytest tests/runtime --collect-only -q`.
-
-Tests that survived but overlap a template case — because they assert
-materially more than it does — carry `@pytest.mark.eitt_overlap(<id>)`; list
-them with `pytest tests/runtime -m eitt_overlap --collect-only -q`.
-
-**DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
+**DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, IA=`0x1101`, IID=`0x1199887766` (`tests/common/fixtures.py`)
 
 ---
 
@@ -1213,21 +1221,14 @@ block-wise. This is normal, conformant behaviour and **not** truncation:
 - Block2 is a **Class E** option under OSCORE, so on protected exchanges it is carried
   inside the encrypted inner message, never as an outer option.
 
-`coap_client.py` handles this for the test author:
+The tool's `transport/coap_client.py` handles this for the test author:
 
 | Helper | Behaviour |
 |---|---|
 | `get()` | Reassembles Block2 into one complete body before returning |
 | `oscore_get()` | Same, with Block2 encoded as an inner Class E option |
 | `request()` / `oscore_request()` | **One request, one block.** Use these only when a test deliberately wants a single block; pass `block2=` to select which |
-| `multicast_get()` | Does **not** reassemble - see below |
-
-Multicast is deliberately excluded: RFC 7959 section 2.8 requires the remaining blocks
-to be fetched by **unicast**, so a multicast responder legitimately returns only the
-first block. Tests asserting over a multicast link-format body must therefore check the
-Block2 `M` bit and discard the trailing partial entry, as
-`test_5_1_1_3e_if_wildcard` does. Its unicast twin, `test_5_1_1_4e_if_wildcard`,
-validates the complete reassembled body.
+| `multicast_get()` | Reassembles too: a responder's further blocks are asked for as EITT does, NON GET with Block2 sent by unicast to the responder from the socket the multicast request left from (the device keeps the rest of the body for exactly that address and port) |
 
 Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
@@ -1238,813 +1239,427 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 | `GET /.well-known/core?rt=*` | 2 | 688 bytes |
 | `GET /dev` (OSCORE) | 2 | 553 bytes |
 
-Historical note: these four bodies crossing the block boundary is what surfaced the
-client's missing Block2 support. See F-017 in `FINDINGS.md` (withdrawn - the stack was
-correct, the client was not).
-
 ---
 
-### test_discovery_pagination.py — Unicast Discovery (10 tests, 19 collected)
+### test_blockwise_response_type.py — Block-wise Response Type (2 tests)
 
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestUnicastDiscovery** | `test_5_1_1_2_unicast_discovery` | 5.1.1.2 *(replaced by the EITT template case — eitt tier)* |
-| **TestUnicastDiscoveryFilters** | `test_5_1_1_4_step1_rt_known_value` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4_step2_rt_wildcard` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4_step3_if_known_value` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4_step4_ep_serial_number` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4_step5_ep_sn_wildcard` | 5.1.1.4 *(replaced by the EITT template case — eitt tier)* |
-| **TestInvalidUnicastQueries** | `test_5_1_1_4b_invalid_query_key` | 5.1.1.4b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4c_invalid_interface` | 5.1.1.4c *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4d_invalid_resource_type` | 5.1.1.4d *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_4e_if_wildcard` | 5.1.1.4e *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_discovery_multicast.py — Multicast Discovery (19 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestMulticastDiscovery** | `test_5_1_1_1_site_local_discovery` | 5.1.1.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_1_second_request` | 5.1.1.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastDiscoveryFilters** | `test_5_1_1_3_step1_rt_known_value` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3_step2_rt_wildcard` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3_step3_if_known_value` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3_step4_ep_serial_number` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3_step5_ep_sn_wildcard` | 5.1.1.3 *(replaced by the EITT template case — eitt tier)* |
-| **TestInvalidMulticastQueries** | `test_5_1_1_3b_invalid_query_key` | 5.1.1.3b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3c_invalid_interface` | 5.1.1.3c *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_3d_invalid_resource_type` | 5.1.1.3d *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastInterfaceWildcard** | `test_5_1_1_3e_if_wildcard` | 5.1.1.3e *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastProgrammingModeDiscovery** | `test_5_1_1_5_pm_on_returns_response` | 5.1.1.5 *(replaced by the EITT template case — eitt tier)* |
-| | `test_multicast_pm_query_silent_when_pm_off` | 5.1.1.5b |
-| **TestMulticastPMEndpointDiscovery** | `test_5_1_1_6_pm_ep_correct_sn` | 5.1.1.6 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_6b_pm_off_no_response` | 5.1.1.6b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_6c_pm_on_wrong_sn` | 5.1.1.6c *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastIADiscovery** | `test_5_1_1_9a_correct_iid_ia` | 5.1.1.9a *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_9b_wrong_iid` | 5.1.1.9b *(replaced by the EITT template case — eitt tier)* |
-| | `test_multicast_endpoint_query_silent_for_wrong_ia` | 5.1.1.9c |
-
----
-
-### test_discovery_programming_mode.py — Extended Discovery (14 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestProgrammingModeDiscovery** | `test_5_1_1_5c_pm_unicast_device_in_pm` | 5.1.1.5c *(replaced by the EITT template case — eitt tier)* |
-| | `test_pm_unicast_device_not_in_pm_returns_404` | 5.1.1.5d |
-| | `test_5_1_1_6d_pm_ep_correct_sn` | 5.1.1.6d *(replaced by the EITT template case — eitt tier)* |
-| | `test_pm_with_endpoint_device_not_in_pm_returns_404` | 5.1.1.6e |
-| | `test_pm_with_endpoint_wrong_serial_returns_404` | 5.1.1.6f |
-| **TestGroupAddressDiscovery** | `test_5_1_1_7_multicast_ga_single_go` | 5.1.1.7 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7b_multicast_ga_multiple_go` | 5.1.1.7b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7c_multicast_ga_no_match` | 5.1.1.7c *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7d_multicast_multi_ga_per_go` | 5.1.1.7d *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7e_unicast_matching_ga` | 5.1.1.7e *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7f_unicast_multiple_go` | 5.1.1.7f *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7g_unicast_no_matching_ga` | 5.1.1.7g *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_1_1_7h_unicast_multi_ga_per_go` | 5.1.1.7h *(replaced by the EITT template case — eitt tier)* |
-| **TestGAWildcard** | `test_5_1_1_8_ga_wildcard_rejected` | 5.1.1.8 *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_discovery_mdns.py — mDNS Discovery (16 EITT tests, 32 collected)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestMdnsDiscoverySerialUnconfigured** | `test_browse_knx_service_by_serial` | 5.1.2.1 |
-| | `test_5_1_2_1_browse_serial_subtype` | 5.1.2.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_srv_resolution_of_unconfigured_device` | 5.1.2.1 |
-| | `test_aaaa_resolution_of_unconfigured_device` | 5.1.2.1 |
-| | `test_coap_reachability_of_unconfigured_device` | 5.1.2.1 |
-| **TestMdnsDiscoverySerialConfigured** | `test_5_1_2_2_serial_subtype_configured` | 5.1.2.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_full_chain_by_serial_when_configured` | 5.1.2.2 |
-| **TestMdnsDiscoveryIA** | `test_5_1_2_3_ia_subtype_discovery` | 5.1.2.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_full_chain_by_individual_address` | 5.1.2.3 |
-| **TestMdnsDiscoveryIAZero** | `test_5_1_2_3a_ia_zero_subtype` | 5.1.2.3a *(replaced by the EITT template case — eitt tier)* |
-| **TestMdnsDiscoveryIAUnconfigured** | `test_unconfigured_device_advertises_default_ia_subtype` | 5.1.2.3b |
-| **TestMdnsDiscoveryPM** | `test_5_1_2_4_pm_subtype_enabled` | 5.1.2.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_full_chain_via_programming_mode_subtype` | 5.1.2.4 |
-| | `test_programming_mode_subtype_withdrawn_when_disabled` | 5.1.2.4 |
-| **TestMdnsUnsolicitedPM** | `test_programming_mode_toggle_announcements` | 5.1.2.5a |
-| **TestMdnsUnsolicitedIA** | `test_individual_address_change_announcement` | 5.1.2.5b |
-| **TestMdnsStateSync** | `test_state_sync_mdns_alive_in_unloaded` | - (non-EITT) |
-
-> The table above lists the EITT-numbered tests. The module collects 32 tests in
-> total; the remainder are the non-EITT `5_1_901_x` (transition audit) and
-> `5_1_902_x` (state sync) additions.
->
-> `test_state_sync_mdns_alive_in_unloaded` guards the deliberate
-> absence of a `knx_dns_sd_stop()` call when the LSM enters UNLOADED
-> (`api/oc_knx.c`): the unload clears the group tables but leaves sn/ia/iid
-> intact, so the device must remain discoverable. The test asserts that no mDNS
-> goodbye is emitted, that the advertised subtypes/address/port are unchanged,
-> and that the advertised endpoint still answers CoAP.
-
----
-
-### test_ia_assignment.py — API Version & IA (5 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestApiVersion** | `test_5_2_1_1_api_version` | 5.2.1.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestRestart** | `test_5_2_2_3_restart_pm_resets` | 5.2.2.3 *(replaced by the EITT template case — eitt tier)* |
-| **TestIaAssignment** | `test_set_ia_and_iid` | 5.2.3.1 |
-| | `test_get_ia_rejected` | 5.2.3.1b |
-| | `test_set_ia_iid_and_fabric_id` | 5.2.3.2 |
-
----
-
-### test_reset.py — Reset Commands (2 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestFactoryReset** | `test_factory_reset_clears_all_state` | 5.2.2.1 |
-| **TestResetCode7** | `test_reset_code_7_preserves_network_info` | 5.2.2.2 |
-
----
-
-### test_fingerprint.py — Fingerprint Resource (5 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestFingerprintChanges** | `test_fingerprint_changes_after_each_modification` | 5.2.4.1 |
-| **TestFingerprintInvalidWrite** | `test_post_fingerprint_rejected` | 5.2.4.1b |
-| | `test_put_fingerprint_rejected` | 5.2.4.1c |
-| **TestFingerprintLoadingState** | `test_5_2_4_2_fingerprint_loading` | 5.2.4.2 *(replaced by the EITT template case — eitt tier)* |
-| **TestFingerprintUnloadedState** | `test_5_2_4_3_fingerprint_unloaded` | 5.2.4.3 *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_device_resources.py — Device Resources (16 tests, 24 collected)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestDevResourceList** | `test_dev_link_format_lists_sub_resources` | 5.2.5.1 |
-| **TestDevResourceRead** | `test_read_serial_number` | 5.2.6.1 |
-| | `test_read_firmware_version` | 5.2.6.1 |
-| | `test_5_2_6_1_hardware_type` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_read_model` | 5.2.6.1 |
-| | `test_read_subnet_address` | 5.2.6.1 |
-| | `test_read_device_address` | 5.2.6.1 |
-| | `test_5_2_6_1_iid` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_read_programming_mode` | 5.2.6.1 |
-| | `test_read_manufacturer_id` | 5.2.6.1 |
-| | `test_read_coap_port` | 5.2.6.1 |
-| | `test_read_ipv6_address` | 5.2.6.1 |
-| | `test_read_hostname` | 5.2.6.1 |
-| | `test_5_2_6_1_fid` | 5.2.6.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestDevResourceWrite** | `test_5_2_7_1_write_pm` | 5.2.7.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestDevReadOnlyPutRejected** | `test_5_2_7_1b_put_readonly_rejected` ×9 | 5.2.7.1b *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_swu.py — Software Update (8 tests, 29 collected)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestSwuResourceList** | `test_5_2_8_1_swu_link_format` | 5.2.8.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestSwuFirmwareUpdate** | `test_push_based_firmware_update` | 5.2.9.1 |
-| **TestSwuLastUpdateLifecycle** | `test_lastupdate_is_mfg_date_before_any_update` | - |
-| **TestSwuLastUpdateLifecycle** | `test_lastupdate_changes_after_swu_update` | - |
-| **TestSwuLastUpdateLifecycle** | `test_lastupdate_survives_reboot` | - |
-| **TestSwuReadOnlyPutRejected** | `test_put_readonly_swu_rejected` ×5 | 5.2.10.1b |
-| **TestSwuBlockQueryValidation** | `test_invalid_block_query_returns_400` ×18 | - |
-| **TestSwuBlockQueryValidation** | `test_leading_zero_is_accepted` | - |
-
----
-
-### test_security.py — Security & OSCORE (76 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestSpake2PlusProtocol** | `test_spake_full_handshake` | 5.3.1.1 |
-| | `test_spake_wrong_password_fails_verification` | 5.3.1.2 |
-| | `test_spake_wrong_confirm_p_rejected` | 5.3.1.2b |
-| **TestSpake2PlusResetTypes** | `test_spake_across_reset_types` | 5.3.1.3 |
-| **TestSecondarySpake** | `test_secured_spake_post_rejected` | 5.3.1.4a |
-| **TestSpake2PlusStateMachine** | `test_spake_state_credential_before_parameter` | 5.3.1.5a |
-| | `test_spake_state_verification_before_parameter` | 5.3.1.5b |
-| | `test_spake_state_repeated_parameter_mid_handshake` | 5.3.1.5c |
-| | `test_spake_state_parameter_missing_id` | 5.3.1.5d |
-| | `test_spake_state_parameter_missing_rnd` | 5.3.1.5e |
-| | `test_spake_state_ordered_handshake_completes` | 5.3.1.5f |
-| | `test_spake_state_parameter_restart_then_completes` | 5.3.1.5g |
-| | `test_spake_state_parameter_after_credential_restarts` | 5.3.1.5h |
-| | `test_spake_state_repeated_credential_request` | 5.3.1.5i |
-| | `test_spake_state_verification_after_parameter` | 5.3.1.5j |
-| | `test_spake_state_restart_from_credentials_completes` | 5.3.1.5k |
-| **TestSpake2PlusBruteForce** | `test_spake_lockout_block_after_ten_failures` | 5.3.1.6a |
-| | `test_spake_lockout_factory_reset_clears_block` | 5.3.1.6b |
-| | `test_spake_lockout_counter_decreases_over_time` | 5.3.1.6c |
-| | `test_spake_lockout_unblocks_after_timeout` | 5.3.1.6d |
-| | `test_spake_lockout_partial_step_does_not_reset_counter` | 5.3.1.6e |
-| | `test_spake_lockout_full_handshake_resets_counter` | 5.3.1.6f |
-| **TestAuthResourceList** | `test_get_auth_without_oscore_returns_403` | 5.3.4.1 |
-| | `test_5_3_4_1_get_auth_link_format` | 5.3.4.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestWriteAccessToken** | `test_write_at_and_verify` | 5.3.8.1 |
-| | `test_write_at_with_group_scope` | 5.3.8.1 |
-| | `test_5_3_8_1b_post_auth_at_without_oscore_fails` | 5.3.8.1b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_3_8_1c_put_auth_at_without_oscore_fails` | 5.3.8.1c *(replaced by the EITT template case — eitt tier)* |
-| | `test_post_at_without_if_sec_scope_fails` | 5.3.8.1d |
-| | `test_5_3_8_1e_put_at_without_if_sec_scope_fails` | 5.3.8.1e *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_3_8_1f_put_at_with_if_sec_scope_still_fails` | 5.3.8.1f *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_3_8_2_mixed_scope_rejected` | 5.3.8.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_3_8_3_multi_group_scope` | 5.3.8.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_overwrite_existing_at` | 5.3.8.4 |
-| | `test_create_multiple_ats_single_write` | 5.3.8.5 |
-| | `test_update_multiple_ats` | 5.3.8.6 |
-| **TestReadAccessTokenList** | `test_get_auth_at_link_format` | 5.3.9.1 |
-| | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a |
-| | `test_5_3_9_3b_get_auth_at_without_oscore_configured_device` | 5.3.9.3b *(replaced by the EITT template case — eitt tier)* |
-| **TestReadAccessTokenById** | `test_get_at_by_id` | 5.3.10.1 |
-| | `test_get_nonexistent_at_returns_error` | 5.3.10.1 |
-| | `test_get_at_by_id_without_oscore_returns_403` | 5.3.10.2a |
-| | `test_5_3_10_2b_get_at_with_wrong_scope_returns_403` | 5.3.10.2b *(replaced by the EITT template case — eitt tier)* |
-| **TestDeleteAccessToken** | `test_delete_at` | 5.3.11.1 |
-| | `test_delete_nonexistent_at` | 5.3.11.1 |
-| **TestOscoreResourceList** | `test_get_auth_o_without_oscore_returns_403` | 5.3.12.1 |
-| | `test_5_3_12_1_get_auth_o_link_format` | 5.3.12.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestReplayWindowSize** | `test_get_replwdo_without_oscore_returns_403` | 5.3.13.1 |
-| | `test_get_replwdo` | 5.3.13.1 |
-| **TestOscoreDelay** | `test_get_osndelay_without_oscore_returns_403` | 5.3.15.1 |
-| | `test_get_osndelay` | 5.3.15.1 |
-| | `test_put_osndelay` | 5.3.16.1 |
-| **TestAntiReplayWindow** | `test_old_ssn_within_window_accepted` | 5.3.17.1 |
-| **TestGroupAntiReplayWindow** | `test_group_anti_replay_window` | 5.3.17.3 |
-| **TestSyncDelayEcho** | `test_sync_delay_echo` | 5.3.17.4 |
-| **TestInvalidEchoReply** | `test_invalid_echo_reply` | 5.3.17.5 |
-| **TestGroupOscoreMulticast** | `test_receive_device_multicast` | 5.3.17.6 |
-| **TestEchoChallenge** | `test_echo_on_new_context` | 5.3.17.7 |
-| **TestEchoPaseToken** | `test_echo_on_pase_at_post` | 5.3.17.8 |
-| **TestMessageIntegrity** | `test_corrupted_auth_tag_rejected` | 5.3.18.1 |
-| | `test_different_auth_tag_rejected` | 5.3.18.1 |
-| **TestEmptyMessageIsNotOscore** | `test_empty_message_with_oscore_option_rejected` (3 params: CON/NON/ACK) | 5.3.18.2 |
-| | `test_empty_reset_does_not_break_oscore` | 5.3.18.2 |
-| | `test_empty_reset_with_token_rejected` | 5.3.18.2 |
-| **TestOscoreEncryption32ByteMs** | `test_oscore_with_32_byte_master_secret` | 5.3.19.1 |
-| | `test_5_3_19_1_oscore_with_16_byte_master_secret` | 5.3.19.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestOscoreMasterSalt** | `test_5_3_19_2_oscore_with_master_salt` | 5.3.19.2 *(replaced by the EITT template case — eitt tier)* |
-| **TestGroupOscoreMasterSaltCtxId** | `test_group_oscore_with_salt_and_ctx_id` | 5.3.19.5 |
-| **TestOscoreContextId** | `test_context_ids_with_master_salt` | 5.3.19.6 |
-| **TestAccessControlByScope** | `test_5_3_20_1_limited_scope_can_access_matching_resource` | 5.3.20.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_limited_scope_rejected_for_post_auth_at` | 5.3.20.1 |
-| | `test_limited_scope_rejected_for_dev_pm` | 5.3.20.1 |
-| | `test_if_p_scope_can_access_dev_pm` | 5.3.20.1 |
-| | `test_if_d_scope_can_read_device_info` | 5.3.20.1 |
-
----
-
-### test_group_comm.py — Group Communication (34 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestUnicastWrite** | `test_5_4_1_1_unicast_write_updates_value` | 5.4.1.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestUnicastWriteUnauthorized** | `test_unauthorized_ga_returns_forbidden` | 5.4.1.1b |
-| **TestUnicastWriteDuplicateGroupAddress** | `test_control_authorized_ga_writes_only_its_own_datapoint` | F-026 (non-EITT) |
-| | `test_duplicate_ga_does_not_bypass_scope` | F-026 (non-EITT) |
-| **TestForeignGaBindingIsLive** | `test_authorized_write_to_ga_one_reaches_p4` | F-026 control (non-EITT) |
-| **TestMulticastWrite** | `test_5_4_1_2_multicast_write_updates_value` | 5.4.1.2 *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastRead** | `test_multicast_read_gets_answer` | 5.4.1.3 |
-| **TestUnicastRead** | `test_unicast_read_gets_answer` | 5.4.1.4 |
-| **TestUnicastWriteMultipleGO** | `test_5_4_1_5_write_updates_both_datapoints` | 5.4.1.5 *(replaced by the EITT template case — eitt tier)* |
-| **TestTriggerMulticastWrite** | `test_trigger_multicast_write` | 5.4.1.6 |
-| **TestTriggerFirstGA** | `test_5_4_1_7_sends_first_ga` | 5.4.1.7 *(replaced by the EITT template case — eitt tier)* |
-| **TestNotSendingInLoadingState** | `test_5_4_1_8_no_send_in_loading` | 5.4.1.8 *(replaced by the EITT template case — eitt tier)* |
-| **TestInitFlagStartup** | `test_init_flag_sends_read_on_restart` | 5.4.1.9 |
-| **TestReadOnInitNetworkGate** | `test_read_on_init_up_from_start_sends_read` | 5.4.1.9b (non-EITT) |
-| | `test_read_on_init_withheld_while_down` | 5.4.1.9b (non-EITT) |
-| | `test_read_on_init_released_after_network_up` | 5.4.1.9b (non-EITT) |
-| | `test_read_on_init_abandoned_after_max_retries` | 5.4.1.9b (non-EITT) |
-| **TestMulticastResponseUpdate** | `test_5_4_1_10_multicast_answer_updates_value` | 5.4.1.10 *(replaced by the EITT template case — eitt tier)* |
-| **TestMulticastResponseUpdateOnly** | `test_answer_updates_update_only_go` | 5.4.1.10b (non-EITT) |
-| **TestMulticastWriteIgnoredLoading** | `test_5_4_1_11_write_ignored_in_loading` | 5.4.1.11 *(replaced by the EITT template case — eitt tier)* |
-| **TestOwnGroupObjectUpdate** | `test_self_update_on_transmit` | 5.4.1.12 |
-| **TestLongGAReceive** | `test_5_4_1_13_long_ga_write_ga0` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_4_1_13_long_ga_write_ga256` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_4_1_13_long_ga_write_ga65535` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_4_1_13_long_ga_write_ga_max32` | 5.4.1.13 *(replaced by the EITT template case — eitt tier)* |
-| **TestLongGASend** | `test_sends_long_ga` | 5.4.1.14 |
-| **TestUnicastConfirmable** | `test_unicast_sends_con` | 5.4.1.15 |
-| **TestUnicastDiscoveryMalformedLengths** | `test_unicast_discovery_iid_too_long` | non-EITT |
-| | `test_unicast_discovery_iid_too_short` | non-EITT |
-| | `test_unicast_discovery_ia_too_long` | non-EITT |
-| | `test_unicast_discovery_ia_too_short` | non-EITT |
-| | `test_unicast_discovery_sn_too_long` | non-EITT |
-| | `test_unicast_discovery_sn_too_short` | non-EITT |
-| **TestUnicastNonReResolution** | `test_unicast_non_re_resolution` | non-EITT |
-
----
-
-### test_observe.py — CoAP Observe / Notifications (19 tests)
-
-> **Spec-backed approximation, NOT an EITT replication.** There is no EITT
-> (08_10_5) observe section and `EittProject.xml` has no observe telegrams;
-> these tests are anchored to spec 2.5.9.x / 2.6.10.1 and RFC 7641/8613, and
-> the `5.4.2.x+` numbering / `OBS-x` IDs are placeholders pending an official
-> EITT observe section. See the file header for the documented /k vs /p
-> behaviour.
-
-| Group | Test | Spec/ref |
-|-------|------|----------|
-| **A — Subscription lifecycle** | `test_observe_register_returns_current_value` | 2.6.10.1 |
-| | `test_observe_value_change_notifies` | 2.6.10.1 |
-| | `test_observe_deregister_stops_notifications` | 2.6.10.1 |
-| | `test_observe_delete_sub_removes_subscription` | 2.6.10.1 |
-| | `test_observe_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
-| **B — lt validation** | `test_observe_missing_lt_rejected` | 2.5.9.3 / 2.5.11.6 |
-| | `test_observe_lt_zero_rejected` | 2.5.9.3 / 2.5.11.6 |
-| | `test_observe_expired_lt_stops_notifications` | 2.5.9.3 / 2.5.11.6 |
-| **C — CON/NON** | `test_observe_default_confirmable` | 2.5.9.4 |
-| | `test_observe_non_true_non_confirmable` | 2.5.9.4 |
-| **D — /k S-Mode** | `test_observe_first_k_notification_sia_only` | 2.5.9.1 |
-| | `test_observe_subsequent_k_notification_has_s_object` | 2.5.9.1 |
-| | `test_observe_k_deregister_stops_notifications` | 2.5.9.1 / 2.6.10.1 |
-| | `test_observe_inbound_post_k_not_echoed` | 2.5.9.1 |
-| | `test_observe_plain_get_k_no_subsequent` | 2.5.9.1 |
-| **E — OSCORE notifications** | `test_observe_encrypted_notifications_decrypt` | RFC 8613 |
-| | `test_observe_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
-| **F — Multi-observer** | `test_observe_independent_seq_per_observer` | 2.6.10.1 |
-| | `test_observe_stale_observer_pruned` | RFC 7641 |
-
----
-
-### test_fp_tables.py — FP Table CRUD (38 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestGroupObjectTableWrite** | `test_5_5_1_1_write_single_go_read_flag` | 5.5.1.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_2_write_single_go_input_flags` | 5.5.1.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_3_write_single_go_output_flags` | 5.5.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_4_write_multiple_gos_input` | 5.5.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_5_write_multiple_gos_output` | 5.5.1.5 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_6_update_single_go` | 5.5.1.6 *(replaced by the EITT template case — eitt tier)* |
-| | `test_post_nonexisting_go_creates_entry` | 5.5.1.6b |
-| | `test_5_5_1_7_update_single_go_output` | 5.5.1.7 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_8_delete_go_via_post` | 5.5.1.8 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_9_invalid_write_go_empty_ga` | 5.5.1.9 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_1_9b_invalid_update_go_empty_ga` | 5.5.1.9b *(replaced by the EITT template case — eitt tier)* |
-| **TestGroupObjectTableReadList** | `test_5_5_2_1_read_go_list` | 5.5.2.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestGroupObjectTableReadSingle** | `test_5_5_3_1_read_single_go` | 5.5.3.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestGroupObjectTableDelete** | `test_5_5_4_1_delete_single_go` | 5.5.4.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestRecipientTableWrite** | `test_5_5_5_1_write_single_mc_recipient` | 5.5.5.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_3_write_single_uc_recipient` | 5.5.5.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_4_write_multiple_recipients` | 5.5.5.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_5_update_multiple_recipients` | 5.5.5.5 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_5a_update_partial_recipients` | 5.5.5.5a *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_5b_update_nonexisting_recipient` | 5.5.5.5b *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_6_delete_recipient_via_post` | 5.5.5.6 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_7a_write_empty_ga_list` | 5.5.5.7a *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_5_8a_write_large_ga_list` | 5.5.5.8a *(replaced by the EITT template case — eitt tier)* |
-| **TestRecipientTableReadList** | `test_5_5_6_1_read_recipient_list` | 5.5.6.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestRecipientTableReadSingle** | `test_5_5_7_1_read_single_recipient` | 5.5.7.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestRecipientTableDelete** | `test_5_5_8_1_delete_single_recipient` | 5.5.8.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestPublisherTableWrite** | `test_5_5_9_1_write_single_mc_publisher` | 5.5.9.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_9_3_write_single_uc_publisher` | 5.5.9.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_9_4_write_multiple_publishers` | 5.5.9.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_update_multiple_publishers` | 5.5.9.5 |
-| | `test_post_nonexisting_publisher_creates_entry` | 5.5.9.5b |
-| | `test_5_5_9_6_delete_publisher_via_post` | 5.5.9.6 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_9_7a_write_empty_ga_list` | 5.5.9.7a *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_9_8a_write_large_ga_list` | 5.5.9.8a *(replaced by the EITT template case — eitt tier)* |
-| **TestPublisherTableReadList** | `test_5_5_10_1_read_publisher_list` | 5.5.10.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestPublisherTableReadSingle** | `test_5_5_11_1_read_single_publisher` | 5.5.11.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestPublisherTableDeleteSingle** | `test_5_5_12_1_delete_single_publisher` | 5.5.12.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_5_12_2_delete_nonexisting_publisher` | 5.5.12.2 *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_load_state_machine.py — Load State Machine (9 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestLsmTransitions** | `test_5_6_1_1_start_loading` | 5.6.1.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_6_1_2_load_complete` | 5.6.1.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_6_1_3_unload` | 5.6.1.3 *(replaced by the EITT template case — eitt tier)* |
-| | `test_lsm_persist_loading` | 5.6.1.4 |
-| | `test_lsm_persist_loaded` | 5.6.1.4 |
-| | `test_lsm_persist_unloaded` | 5.6.1.4 |
-| **TestLsmRead** | `test_read_lsm_all_states` | 5.6.2.1 |
-| **TestAppProgramList** | `test_5_6_3_1_read_ap_list` | 5.6.3.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestProgramVersion** | `test_5_6_4_1_write_read_pv` | 5.6.4.1 *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_functional_blocks.py — Functional Blocks (2 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestFunctionalBlockList** | `test_read_fb_list` | 5.7.1.1 |
-| **TestFunctionalBlockDatapoints** | `test_read_fb_datapoints` | 5.7.2.1 |
-
----
-
-### test_parameters.py — Parameters (7 tests)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestParameterPostWrite** | `test_5_8_1_1_write_parameter_via_post` | 5.8.1.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestParameterList** | `test_read_parameter_list` | 5.8.2.1 |
-| **TestParameterRead** | `test_5_8_3_1_read_parameter` | 5.8.3.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestParameterMetadata** | `test_5_8_3_2_read_all_metadata` | 5.8.3.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_read_metadata_id` | 5.8.3.2 |
-| | `test_read_metadata_value` | 5.8.3.2 |
-| **TestParameterWrite** | `test_5_8_4_1_write_parameter` | 5.8.4.1 *(replaced by the EITT template case — eitt tier)* |
-
----
-
-### test_generic_resources.py — Generic Protocol Behavior (14 tests, 26 collected)
-
-| Class | Test | EITT ref |
-|-------|------|----------|
-| **TestPaginationPageNumber** | `test_5_10_1_1_page_zero_returns_entries` | 5.10.1.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_1_1_page_beyond_range_returns_400` | 5.10.1.1 *(replaced by the EITT template case — eitt tier)* |
-| **TestPaginationPageSize** | `test_5_10_1_2_first_page_with_ps1` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_1_2_second_page_with_ps2` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_1_2_beyond_range` | 5.10.1.2 *(replaced by the EITT template case — eitt tier)* |
-| **TestListMetadata** | `test_5_10_1_4_total_fpg` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_1_4_total_p` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_1_4_total_auth_at` | 5.10.1.4 *(replaced by the EITT template case — eitt tier)* |
-| **TestInvalidListMetadata** | `test_invalid_list_metadata_query_returns_404` | 5.10.1.5 |
-| **TestPaginationNextPage** | `test_5_10_1_6_follow_next_links` | 5.10.1.6 *(replaced by the EITT template case — eitt tier)* |
-| **TestDptMetadata** | `test_read_dpt_metadata_of_datapoint` | 5.10.4.1 |
-| **TestDefaultOptions** | `test_5_10_5_1_accept_omitted` | 5.10.5.1 *(replaced by the EITT template case — eitt tier)* |
-| | `test_5_10_5_2_content_format_omitted` | 5.10.5.2 *(replaced by the EITT template case — eitt tier)* |
-| | `test_unknown_critical_option_returns_bad_option` | 5.10.5.3 |
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestBlockwiseResponseType** | `test_plain_con_request_gets_every_block_as_piggybacked_ack` |  | CON request: block 0 and the last block both arrive as ACK 2.05. |
+|  | `test_oscore_non_request_gets_every_block_as_non` |  | NON request (OSCORE, as EITT sends its NON rows): every block, the last one included, comes back NON per RFC 7252 5.2.3. |
 
 ---
 
 ### test_coap_header_budget.py — Worst-Case CoAP Header Budgets (9 tests)
 
-Not an EITT test — pins the three mode-specific header budgets of D-002 against a
-live DUT. Every request is built with each KNX URI option at its declared maximum
-(`KNX_MAX_URI_PATH_LEN` 48 over 8 segments, `KNX_MAX_URI_QUERY_LEN` 64 over 4
-params). An under-budgeted frame makes `coap_oscore_serialize_message()` return 0
-and drop the message **silently**, so every test asserts a real answer came back.
-The OSCORE cases also exercise the Echo option implicitly: the DUT challenges the
-first protected request and `oscore_request()` auto-retries with the Echo value,
-which is the largest inner option in the budget.
-
-| Class | Test | What it covers |
-|-------|------|----------------|
-| **TestInnerHeaderBudgetWorstCase** | `test_oscore_get_with_maximum_uri_query_is_answered` | `COAP_MAX_INNER_HEADER_SIZE` with max Uri-Query |
-| | `test_oscore_get_with_maximum_uri_path_is_answered` | Max Uri-Path; asserts a 4.xx class answer, not a drop |
-| | `test_oscore_get_with_maximum_path_and_query_is_answered` | Both at maximum simultaneously |
-| | `test_dut_still_responsive_after_worst_case_inner_frame` | DUT survives the worst-case inner frame |
-| **TestPlainHeaderBudgetWorstCase** | `test_plain_discovery_with_maximum_uri_query_is_answered` | `COAP_MAX_HEADER_SIZE` (outer+inner) on unprotected `/.well-known/core` |
-| | `test_plain_request_with_maximum_uri_path_is_answered` | Max Uri-Path, unprotected |
-| | `test_plain_discovery_with_maximum_path_and_query_is_answered` | Both at maximum, unprotected |
-| | `test_dut_still_responsive_after_worst_case_plain_frame` | DUT survives the worst-case plain frame |
-| **TestOuterHeaderBudgetBlockwise** | `test_oscore_discovery_pages_are_all_delivered` | `COAP_MAX_OUTER_HEADER_SIZE` across a paginated OSCORE discovery |
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestInnerHeaderBudgetWorstCase** | `test_oscore_get_with_maximum_uri_query_is_answered` |  | Maximum Uri-Query on an OSCORE GET must produce a response. |
+|  | `test_oscore_get_with_maximum_uri_path_is_answered` |  | Maximum Uri-Path on an OSCORE GET must produce a response. |
+|  | `test_oscore_get_with_maximum_path_and_query_is_answered` |  | Both Class E option sets at their maximum in one request. |
+|  | `test_dut_still_responsive_after_worst_case_inner_frame` |  | The DUT must survive the worst-case inner frame and keep serving. |
+| **TestPlainHeaderBudgetWorstCase** | `test_plain_discovery_with_maximum_uri_query_is_answered` |  | Maximum Uri-Query on a plain GET must produce a response. |
+|  | `test_plain_request_with_maximum_uri_path_is_answered` |  | Maximum Uri-Path on a plain GET must produce a response. |
+|  | `test_plain_discovery_with_maximum_path_and_query_is_answered` |  | Both option sets at their maximum in one unprotected request. |
+|  | `test_dut_still_responsive_after_worst_case_plain_frame` |  | The DUT must survive the worst-case plain frame and keep serving. |
+| **TestOuterHeaderBudgetBlockwise** | `test_oscore_discovery_pages_are_all_delivered` |  | A multi-block OSCORE discovery response must arrive complete. |
 
 ---
 
 ### test_coap_payload_limit.py — Oversized Application Payload (4 tests)
 
-Not an EITT test — verifies that a request whose payload exceeds
-`OC_MAX_APP_DATA_SIZE` (`KNX_PAYLOAD_SIZE` = 768) in a single datagram is
-answered with `4.13 Request Entity Too Large` instead of being silently
-truncated (KNX IoT Point API spec 2.6.3.3.2, RFC 7252 clause 12.1.2).
-
-| Class | Test | What it covers |
-|-------|------|----------------|
-| **TestOversizedPayloadRejected** | `test_payload_exactly_max_returns_413` | Payload == max, no room for the null-terminator |
-| | `test_payload_above_max_returns_413` | Payload well above max |
-| | `test_payload_below_max_is_not_rejected_with_413` | Payload that still fits must not be rejected as too large |
-| | `test_dut_still_responsive_after_oversized_request` | DUT survives the oversized request and keeps serving |
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestOversizedPayloadRejected** | `test_payload_exactly_max_returns_413` |  | A payload of exactly MAX leaves no room for the null-terminator. |
+|  | `test_payload_above_max_returns_413` |  | A payload clearly above MAX -> 4.13. |
+|  | `test_payload_below_max_is_not_rejected_with_413` |  | A payload that still fits must not be answered with 4.13. |
+|  | `test_dut_still_responsive_after_oversized_request` |  | The DUT must survive the oversized request and keep serving. |
 
 ---
+
+### test_device_resources.py — Device Resources (11 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestDevResourceList** | `test_dev_link_format_lists_sub_resources` | 5.2.5.1 | GET /dev → 2.05 with link-format listing all sub-resources. |
+| **TestDevResourceRead** | `test_read_serial_number` | 5.2.6.1 | GET /dev/sn → serial number 00fa10020800. |
+|  | `test_read_firmware_version` | 5.2.6.1 | GET /dev/fwv → firmware version [0, 0, 1]. |
+|  | `test_read_model` | 5.2.6.1 | GET /dev/model → 'KNX Certification'. |
+|  | `test_read_subnet_address` | 5.2.6.1 | GET /dev/sna → subnet address 17 (0x1101 >> 8 = 0x11 = 17). |
+|  | `test_read_device_address` | 5.2.6.1 | GET /dev/da → device address 1 (0x1101 & 0xFF = 0x01 = 1). |
+|  | `test_read_programming_mode` | 5.2.6.1 | GET /dev/pm → programming mode boolean. |
+|  | `test_read_manufacturer_id` | 5.2.6.1 | GET /dev/mid → manufacturer ID 667. |
+|  | `test_read_coap_port` | 5.2.6.1 | GET /dev/port → CoAP port integer. |
+|  | `test_read_ipv6_address` | 5.2.6.1 | GET /dev/ipv6 → 16-byte IPv6 address. |
+|  | `test_read_hostname` | 5.2.6.1 | GET /dev/hname → hostname 'knx-00fa10020800.local'. |
+
+---
+
+### test_discovery_mdns.py — mDNS Discovery (27 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestMdnsDiscoverySerialUnconfigured** | `test_browse_knx_service_by_serial` | 5.1.2.1 | Step 1-2: PTR query for _knx._udp.local -> find device by SN. |
+|  | `test_srv_resolution_of_unconfigured_device` | 5.1.2.1 | Step 5-6: SRV query -> hostname + port. |
+|  | `test_aaaa_resolution_of_unconfigured_device` | 5.1.2.1 | Step 7-8: AAAA query -> IPv6 address. |
+|  | `test_coap_reachability_of_unconfigured_device` | 5.1.2.1 | Step 9-10: CoAP GET .well-known/core at discovered address → 2.05. |
+| **TestMdnsDiscoverySerialConfigured** | `test_full_chain_by_serial_when_configured` | 5.1.2.2 | Full PTR -> SRV -> AAAA -> CoAP chain for configured device. |
+| **TestMdnsDiscoveryIA** | `test_full_chain_by_individual_address` | 5.1.2.3 | Full discovery chain using IA subtype. |
+| **TestMdnsDiscoveryIAUnconfigured** | `test_unconfigured_device_advertises_default_ia_subtype` | 5.1.2.3b | Factory-reset device should advertise _ia0-ffff subtype. |
+| **TestMdnsDiscoveryPM** | `test_full_chain_via_programming_mode_subtype` | 5.1.2.4 | Full discovery chain via _pm subtype. |
+|  | `test_programming_mode_subtype_withdrawn_when_disabled` | 5.1.2.4 | Disable PM → _pm subtype should no longer be advertised. |
+| **TestMdnsUnsolicitedPM** | `test_programming_mode_toggle_announcements` | 5.1.2.5a | Toggle PM on→off→on and verify mDNS announcements appear. |
+| **TestMdnsUnsolicitedIA** | `test_individual_address_change_announcement` | 5.1.2.5b | Change IA and verify new IA subtype appears in mDNS. |
+| **TestMdnsSleepPeriod** | `test_sleep_period_not_present_by_default` |  | SP TXT record is absent when sleep period is 0 (default). |
+|  | `test_sleep_period_200_appears_in_txt` |  | SP=200 appears in the TXT record after setting sp=200. |
+|  | `test_sleep_period_20000_appears_in_txt` |  | SP=20000 appears in the TXT record after setting sp=20000. |
+|  | `test_sleep_period_cleared_removes_txt` |  | Setting sp=0 after a non-zero value removes the TXT record. |
+| **TestMdnsTransitionAudit** | `test_transition_ia_change` |  | IA/IID change: old _ia subtype in goodbye, new _ia subtype in re-announcement; SN, AAAA, and gap all verified. |
+|  | `test_transition_pm_enable` |  | PM enabled: _pm subtype appears in re-announcement but not goodbye; SN, AAAA, and gap all verified. |
+|  | `test_transition_pm_disable` |  | PM disabled: _pm subtype present in goodbye, absent in re-announcement; SN, AAAA, and gap all verified. |
+|  | `test_transition_sleep_period_set` |  | SP set from 0 to 500: no goodbye expected (nothing to retract); SP=500 appears in re-announcement TXT; SN, AAAA, and gap verified. |
+|  | `test_transition_sleep_period_clear` |  | SP cleared from 500 to 0: re-announcement without SP TXT; SN and AAAA verified. |
+| **TestMdnsStateSync** | `test_state_sync_pm_sequence` |  | PM state is reflected correctly in mDNS across on/off cycle. |
+|  | `test_state_sync_sleep_period_sequence` |  | Sleep-period TXT record stays in sync across set / clear cycle. |
+|  | `test_state_sync_restart_preserves_state` |  | IA survives a restart; PM is always cleared by restart (spec). |
+|  | `test_state_sync_factory_reset_clears_state` |  | Factory reset (erase_code=2) resets IA/IID to defaults, clears PM and SP. |
+|  | `test_state_sync_restart_address_stability` |  | mDNS endpoint announced after restart is reachable by a fresh client. |
+|  | `test_state_sync_factory_reset_address_stability` |  | mDNS endpoint announced after factory reset (erase_code=2) is reachable. |
+|  | `test_state_sync_mdns_alive_in_unloaded` |  | mDNS keeps advertising when the LSM enters UNLOADED. |
+
+---
+
+### test_discovery_multicast.py — Multicast Discovery (2 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestMulticastProgrammingModeDiscovery** | `test_multicast_pm_query_silent_when_pm_off` | 5.1.1.5b | Overlaps EITT 5.1.1.5b: PM off, multicast ?if=urn:knx:if.pm → no response. |
+| **TestMulticastIADiscovery** | `test_multicast_endpoint_query_silent_for_wrong_ia` | 5.1.1.9c | Overlaps EITT 5.1.1.9c: Multicast with wrong IA → no response (5s wait). |
+
+---
+
+### test_discovery_pagination.py — Unicast Discovery (9 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestDiscoveryPaginationManyFunctionalBlocks** | `test_wellknown_core_pagination_follows_next_links_over_all_fbs` |  | GET /.well-known/core?rt=*&ps=1 must paginate through every matching entry (core resources + app resources/FBs) via p.next, and a single request sized to that exact total must return the same set of resources with no further p.next. |
+|  | `test_wellknown_core_pagination_negative_pn_returns_400` |  | GET /.well-known/core?rt=*&pn=-1 -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_negative_ps_returns_400` |  | GET /.well-known/core?rt=*&pn=0&ps=-1 -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_ps_zero_returns_400` |  | GET /.well-known/core?rt=*&pn=0&ps=0 -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_negative_pn_and_ps_returns_400` |  | GET /.well-known/core?rt=*&pn=-1&ps=-1 -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_non_numeric_pn_returns_400` |  | GET /.well-known/core?rt=*&pn=abc -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_trailing_garbage_ps_returns_400` |  | GET /.well-known/core?rt=*&pn=0&ps=2abc -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_out_of_int_range_pn_returns_400` |  | GET /.well-known/core?rt=*&pn=2147483648 -> 4.00 Bad Request. |
+|  | `test_wellknown_core_pagination_overflow_pn_ps_returns_400` |  | GET /.well-known/core?rt=*&pn=100000&ps=100000 -> 4.00. |
+
+---
+
+### test_discovery_programming_mode.py — Extended Discovery (3 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestProgrammingModeDiscovery** | `test_pm_unicast_device_not_in_pm_returns_404` | 5.1.1.5d | Overlaps EITT 5.1.1.5d: Unicast, device NOT in PM → 4.04. |
+|  | `test_pm_with_endpoint_device_not_in_pm_returns_404` | 5.1.1.6e | Overlaps EITT 5.1.1.6e: PM+ep, device NOT in PM → 4.04. |
+|  | `test_pm_with_endpoint_wrong_serial_returns_404` | 5.1.1.6f | Overlaps EITT 5.1.1.6f: PM+ep, wrong SN → 4.04. |
+
+---
+
+### test_fingerprint.py — Fingerprint Resource (3 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestFingerprintChanges** | `test_fingerprint_changes_after_each_modification` | 5.2.4.1 | Fingerprint value must change after each table/param modification. |
+| **TestFingerprintInvalidWrite** | `test_post_fingerprint_rejected` | 5.2.4.1b | Overlaps EITT 5.2.4.1b: POST /.well-known/knx/f → 4.05 Method Not Allowed. |
+|  | `test_put_fingerprint_rejected` | 5.2.4.1c | Overlaps EITT 5.2.4.1c: PUT /.well-known/knx/f → 4.05 Method Not Allowed. |
+
+---
+
+### test_fp_tables.py — FP Table CRUD (3 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestGroupObjectTableWrite** | `test_post_nonexisting_go_creates_entry` |  | POST with non-existing id creates new entry (2.01). |
+| **TestPublisherTableWrite** | `test_update_multiple_publishers` |  | Create publishers, then POST same ids → 2.04. |
+|  | `test_post_nonexisting_publisher_creates_entry` |  | POST with non-existing id creates new entry (2.01). |
+
+---
+
+### test_functional_blocks.py — Functional Blocks (2 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestFunctionalBlockList** | `test_read_fb_list` | 5.7.1.1 | GET /f returns link-format with at least two FB instances. |
+| **TestFunctionalBlockDatapoints** | `test_read_fb_datapoints` | 5.7.2.1 | GET /f/417_1 returns link-format with datapoints /p/1 and /p/2. |
+
+---
+
+### test_generic_resources.py — Generic Protocol Behavior (15 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestPaginationEdgeCases** | `test_ps_zero_returns_400` |  | GET /fp/g?pn=0&ps=0 -> 4.00 (explicit ps=0 is always invalid). |
+|  | `test_last_valid_page_exact_boundary` |  | GET /fp/g?pn=3&ps=1 → last entry, no p.next link. |
+|  | `test_negative_pn_returns_400` |  | GET /fp/g?pn=-1&ps=2 -> 4.00 (a negative page number is invalid). |
+|  | `test_negative_ps_returns_400` |  | GET /fp/g?pn=0&ps=-1 -> 4.00 (a negative page size is invalid). |
+|  | `test_non_numeric_pn_returns_400` |  | GET /fp/g?pn=abc&ps=2 -> 4.00 (a non-numeric page number is invalid). |
+|  | `test_trailing_garbage_ps_returns_400` |  | GET /fp/g?pn=0&ps=2abc -> 4.00 (trailing garbage is invalid). |
+|  | `test_out_of_int_range_pn_returns_400` |  | GET /fp/g?pn=2147483648&ps=2 -> 4.00 (INT_MAX + 1 is invalid). |
+|  | `test_overflow_pn_ps_returns_400` |  | GET /fp/g?pn=100000&ps=100000 -> 4.00 (pn * ps overflows int). |
+|  | `test_leading_zero_ps_is_accepted` |  | GET /fp/g?pn=0&ps=00001 -> 1 entry (a leading zero is still a valid number). |
+|  | `test_negative_five_digit_pn_returns_400` |  | GET /fp/g?pn=-12345&ps=2 -> 4.00 (a signed 6 char value is still negative). |
+|  | `test_above_uint16_ps_returns_400` |  | GET /fp/g?pn=0&ps=65536 -> 4.00 (one above the 16 bit unsigned range). |
+|  | `test_huge_pn_returns_400` |  | GET /fp/g?pn=999999&ps=2 → 4.00 (huge page number, still 4 entries). |
+| **TestInvalidListMetadata** | `test_invalid_list_metadata_query_returns_404` | 5.10.1.5 | GET /fp/g?l=xxx (invalid metadata param) → 4.04 Not Found. |
+| **TestDptMetadata** | `test_read_dpt_metadata_of_datapoint` | 5.10.4.1 | GET /p/1?m=dpt → {"dpt": ":dpt.switch"}. |
+| **TestDefaultOptions** | `test_unknown_critical_option_returns_bad_option` | 5.10.5.3 | Send request with unknown critical CoAP option → 4.02 Bad Option. |
+
+---
+
+### test_group_comm.py — Group Communication (29 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestUnicastWriteUnauthorized** | `test_unauthorized_ga_returns_forbidden` | 5.4.1.1.b | POST /k with ga=1 but AT scope only has [65535] → 4.03 Forbidden, /p/1 value unchanged. |
+| **TestUnicastWriteDuplicateGroupAddress** | `test_control_authorized_ga_writes_only_its_own_datapoint` |  | Control: a plain single-ga write to the authorized 65535 changes /p/1 and leaves /p/4 alone. |
+|  | `test_duplicate_ga_does_not_bypass_scope` |  | {7: 65535, ..., 7: 1} must not write /p/4: ga=1 is outside the token's scope. |
+| **TestForeignGaBindingIsLive** | `test_authorized_write_to_ga_one_reaches_p4` |  | Control for TestUnicastWriteDuplicateGroupAddress. |
+| **TestSiaOnlySyncMessage** | `test_unicast_sia_only_is_accepted` |  | Unicast POST /k with {4: sia} -> 2.04 Changed, not 4.04. |
+|  | `test_unicast_sia_only_does_not_change_a_datapoint` |  | A 'sia' only message carries no ga and no value, so nothing moves. |
+| **TestMulticastRead** | `test_multicast_read_gets_answer` | 5.4.1.3 | NON POST /k multicast with st:"r" → DUT responds with NON POST /k containing {sia:4353, s:{value:false, st:"a", ga:65535}}. |
+| **TestUnicastRead** | `test_unicast_read_gets_answer` | 5.4.1.4 | CON POST /k with st:"r" → 2.04, DUT sends back CON POST /k with {sia:4353, s:{value:true, st:"a", ga:65535}}. |
+| **TestTriggerMulticastWrite** | `test_trigger_multicast_write` | 5.4.1.6 | Trigger sensor on /p/3 → receive multicast s-mode write. |
+| **TestInitFlagStartup** | `test_init_flag_sends_read_on_restart` | 5.4.1.9 | Restart device → receive multicast s-mode with st:"r". |
+| **TestReadOnInitNetworkGate** | `test_read_on_init_up_from_start_sends_read` |  | ULA present before restart -> DUT sends the init read promptly. |
+|  | `test_read_on_init_withheld_while_down` |  | Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles). |
+|  | `test_read_on_init_released_after_network_up` |  | Network down from the start, then up after ~600 ms -> read fires. |
+|  | `test_read_on_init_abandoned_after_max_retries` |  | Network never comes up -> read is abandoned after the 20-cycle cap. |
+| **TestMulticastResponseUpdateOnly** | `test_answer_updates_update_only_go` |  | Set /p/1=true via /p, then multicast answer (st="a") false on a u-only GO. |
+| **TestOwnGroupObjectUpdate** | `test_self_update_on_transmit` | 5.4.1.12 | Trigger sensor → DUT sends multicast write for ga=65535, DUT also updates /p/1 (receiving GO with ga=65535). |
+| **TestLongGASend** | `test_sends_long_ga` | 5.4.1.14 | Trigger sensor → DUT sends multicast with ga=4294967295. |
+| **TestUnicastConfirmable** | `test_unicast_sends_con` | 5.4.1.15 | Trigger sensor → DUT resolves PEER_IA via discovery, then sends CON POST /k (unicast to test host). |
+| **TestUnicastNonReResolution** | `test_unicast_non_re_resolution` |  | Trigger the sensor repeatedly; the DUT sends unicast NON POSTs that go unanswered. |
+| **TestUnicastNonEchoReRequest** | `test_unicast_non_echo_re_request` |  | Unicast NON s-mode: a 4.01 Echo response to a NON POST /k makes the DUT send a re-request carrying the Echo option with a regenerated payload. |
+| **TestUnicastNonEchoKidCtxReRequest** | `test_unicast_non_echo_kid_ctx_re_request` |  | Unicast NON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape): accepted only against the echo ring anchor of the unicast send. |
+| **TestUnicastConEchoKidCtxReRequest** | `test_unicast_con_echo_kid_ctx_re_request` |  | Unicast CON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape): accepted only against the echo ring anchor of the unicast send. |
+| **TestUnicastConEchoReRequest** | `test_unicast_con_echo_re_request` |  | Unicast CON s-mode, 4.01 Echo without kid context: the context is resolved through the CON transaction (group address + recorded PIV). |
+| **TestUnicastDiscoveryMalformedLengths** | `test_unicast_discovery_iid_too_long` |  | IID of 12 hex chars exceeds the 10-char (5-octet) maximum; the IID/IA separator falls outside the parser search window, so the DUT must not resolve the recipient. |
+|  | `test_unicast_discovery_iid_too_short` |  | An empty IID is invalid (all-zero collapses to a single '0'); the parsed IID does not match the device IID, so no POST follows. |
+|  | `test_unicast_discovery_ia_too_long` |  | An IA of 5 hex chars exceeds the 4-char (2-octet) maximum; the first four chars ('2110') do not match PEER_IA (110f), so the DUT must not resolve the recipient. |
+|  | `test_unicast_discovery_ia_too_short` |  | An empty IA is invalid (all-zero collapses to a single '0'); the parsed IA does not match PEER_IA, so no POST follows. |
+|  | `test_unicast_discovery_sn_too_long` |  | A serial number longer than the parser search window pushes the 'knx://ia.' anchor out of reach, so the DUT cannot locate the IID/IA and must not resolve the recipient. |
+|  | `test_unicast_discovery_sn_too_short` |  | A serial number shorter than the spec width of 12 hex chars. |
+
+---
+
+### test_ia_assignment.py — API Version & IA (3 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestIaAssignment** | `test_set_ia_and_iid` | 5.2.3.1 | Overlaps EITT 5.2.3.1: Setting Installation ID and Individual Address. |
+|  | `test_get_ia_rejected` | 5.2.3.1b | Overlaps EITT 5.2.3.1b: GET /.well-known/knx/ia → 4.05 Method Not Allowed. |
+|  | `test_set_ia_iid_and_fabric_id` | 5.2.3.2 | Overlaps EITT 5.2.3.2: Setting Fabric ID alongside IA and IID. |
+
+---
+
+### test_load_state_machine.py — Load State Machine (4 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestLsmTransitions** | `test_lsm_persist_loading` | 5.6.1.4 | LSM loading state (2) persists over reboot. |
+|  | `test_lsm_persist_loaded` | 5.6.1.4 | LSM loaded state (1) persists over reboot. |
+|  | `test_lsm_persist_unloaded` | 5.6.1.4 | LSM unloaded state (0) persists over reboot. |
+| **TestLsmRead** | `test_read_lsm_all_states` | 5.6.2.1 | GET /a/lsm returns {3: <state>} for each LSM state. |
+
+---
+
+### test_observe.py — CoAP Observe / Notifications (19 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+|  | `test_observe_register_returns_current_value` |  | OBS-A1: a valid observe registration yields the current value. |
+|  | `test_observe_value_change_notifies` |  | OBS-A2: each value change pushes a notification with an advanced seq. |
+|  | `test_observe_deregister_stops_notifications` |  | OBS-A3: GET Observe=1 (same token) ends the relationship. |
+|  | `test_observe_delete_sub_removes_subscription` |  | OBS-A3b: DELETE /sub is a third deregistration path. |
+|  | `test_observe_resubscribe_replaces_by_ip_port` |  | OBS-A4: re-registering from the same IP+port replaces the prior sub. |
+|  | `test_observe_missing_lt_rejected` |  | OBS-B1: an observe registration without lt is rejected with 4.00. |
+|  | `test_observe_lt_zero_rejected` |  | OBS-B2: lt=0 is rejected with 4.00 (valid range is 1..86400). |
+|  | `test_observe_expired_lt_stops_notifications` |  | OBS-B3: once the observe lifetime (lt) elapses the subscription is pruned, so a later value change yields no notification. |
+|  | `test_observe_default_confirmable` |  | OBS-C1: default notifications are confirmable (CON). |
+|  | `test_observe_non_true_non_confirmable` |  | OBS-C2: non=true yields non-confirmable (NON) notifications. |
+|  | `test_observe_first_k_notification_sia_only` |  | OBS-D1: first /k notification is exactly {sia: <ia>} (2.5.9.1). |
+|  | `test_observe_subsequent_k_notification_has_s_object` |  | OBS-D2: after an outbound s-mode w, the /k notification has the s obj. |
+|  | `test_observe_k_deregister_stops_notifications` |  | OBS-D3: deregistering a /k observe returns 2.05 and stops notifications. |
+|  | `test_observe_inbound_post_k_not_echoed` |  | OBS-D4: an inbound s-mode POST /k is not echoed to /k observers. |
+|  | `test_observe_plain_get_k_no_subsequent` |  | OBS-D5: a plain GET /k (no Observe option) returns { sia } once and never produces subsequent push notifications; a repeated GET behaves identically to the first. |
+|  | `test_observe_encrypted_notifications_decrypt` |  | OBS-E1: OSCORE notifications decrypt and the sequence advances. |
+|  | `test_observe_notification_aad_binds_request_piv` |  | OBS-E2: a notification's AAD binds the original request PIV (regression). |
+|  | `test_observe_independent_seq_per_observer` |  | OBS-F1: two observers each get their own notification + own seq. |
+|  | `test_observe_stale_observer_pruned` |  | OBS-F2: a silent (CON, never-ACKing) observer is pruned, the other keeps receiving notifications. |
+
+---
+
+### test_parameters.py — Parameters (3 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestParameterList** | `test_read_parameter_list` | 5.8.2.1 | GET /p returns link-format listing including /p/p1 (parameter). |
+| **TestParameterMetadata** | `test_read_metadata_id` | 5.8.3.2 | GET /p/p1?m=id returns only the id field. |
+|  | `test_read_metadata_value` | 5.8.3.2 | GET /p/p1?m=value returns only the value field. |
+
+---
+
+### test_reset.py — Reset Commands (2 tests)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestFactoryReset** | `test_factory_reset_clears_all_state` | 5.2.2.1 | POST /.well-known/knx {2:'reset', 1:2} → full factory reset. |
+| **TestResetCode7** | `test_reset_code_7_preserves_network_info` | 5.2.2.2 | POST /.well-known/knx {2:'reset', 1:7} → selective reset. |
+
+---
+
+### test_security.py — Security & OSCORE (71 tests, 78 collected)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestAuthResourceList** | `test_get_auth_without_oscore_returns_403` | 5.3.4.1 | GET /auth without OSCORE must return 4.03 Forbidden. |
+| **TestWriteAccessToken** | `test_write_at_and_verify` | 5.3.8.1 | POST /auth/at with a valid AT → 2.01, then verify via GET. |
+|  | `test_write_at_with_group_scope` | 5.3.8.1 | POST /auth/at with integer (group) scope → 2.01. |
+|  | `test_post_at_without_if_sec_scope_fails` | 5.3.8.1d | POST /auth/at with OSCORE but without if.sec scope → 4.03. |
+|  | `test_overwrite_existing_at` | 5.3.8.4 | POST /auth/at with same id but new scope overwrites entry. |
+|  | `test_create_multiple_ats_single_write` | 5.3.8.5 | POST /auth/at with array of 2 ATs → 2.01. |
+|  | `test_update_multiple_ats` | 5.3.8.6 | POST /auth/at to update 2 existing ATs → 2.04. |
+| **TestWriteAccessTokenMandatoryProperties** | `test_at_mandatory_create_with_id_only_rejected` |  | POST /auth/at with only the id -> 4.00, no entry created. |
+|  | `test_at_mandatory_create_without_scope_rejected` |  | POST /auth/at without scope (9) -> 4.00, no entry created. |
+|  | `test_at_mandatory_create_without_sender_id_rejected` |  | POST /auth/at without cnf:osc:id (8:4:0) -> 4.00, no entry. |
+|  | `test_at_mandatory_create_without_master_secret_rejected` |  | POST /auth/at without cnf:osc:ms (8:4:2) -> 4.00, no entry. |
+|  | `test_at_mandatory_create_with_empty_scope_array_rejected` |  | POST /auth/at with an empty scope array -> 4.00, no entry. |
+|  | `test_at_mandatory_empty_scope_array_does_not_delete_entry` |  | POST [{id, 9: []}] on an existing AT must NOT delete it. |
+|  | `test_at_mandatory_id_only_deletes_existing_entry` |  | POST [{id}] on an existing AT deletes it. |
+|  | `test_at_mandatory_update_of_existing_entry_accepted` |  | POST [{id, 9: [...]}] on an existing AT updates the scope. |
+|  | `test_at_mandatory_invalid_scope_names_rejected` ×3 |  | POST /auth/at with an invalid scope name -> 4.00, no entry. |
+|  | `test_at_mandatory_mixed_scope_keeps_only_valid_names` ×4 |  | POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored. |
+| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.03. |
+|  | `test_get_auth_at_link_format` | 5.3.9.1 | GET /auth/at → 2.05 with link-format listing. |
+| **TestReadAccessTokenById** | `test_get_at_by_id_without_oscore_returns_403` | 5.3.10.2a | GET /auth/at/{id} without OSCORE → 4.03. |
+|  | `test_get_at_by_id` | 5.3.10.1 | GET /auth/at/RuntimeTest → 2.05 with CBOR AT details. |
+|  | `test_get_nonexistent_at_returns_error` | 5.3.10.1 | GET /auth/at/nonexistent → 4.xx error (stack returns 4.00). |
+| **TestDeleteAccessToken** | `test_delete_at` | 5.3.11.1 | Create an AT, delete it, verify it's gone. |
+|  | `test_delete_nonexistent_at` | 5.3.11.1 | DELETE /auth/at/nonexistent → 4.xx error (stack returns 4.00). |
+| **TestOscoreResourceList** | `test_get_auth_o_without_oscore_returns_403` | 5.3.12.1 | GET /auth/o without OSCORE must return 4.03. |
+| **TestReplayWindowSize** | `test_get_replwdo_without_oscore_returns_403` | 5.3.13.1 | GET /auth/o/replwdo without OSCORE must return 4.03. |
+|  | `test_get_replwdo` | 5.3.13.1 | GET /auth/o/replwdo → 2.05 with CBOR integer. |
+| **TestOscoreDelay** | `test_get_osndelay_without_oscore_returns_403` | 5.3.15.1 | GET /auth/o/osndelay without OSCORE must return 4.03. |
+|  | `test_get_osndelay` | 5.3.15.1 | GET /auth/o/osndelay → 2.05 with CBOR integer value. |
+|  | `test_put_osndelay` | 5.3.16.1 | PUT /auth/o/osndelay with a new value → 2.04, then verify. |
+| **TestOscoreEncryption32ByteMs** | `test_oscore_with_32_byte_master_secret` | 5.3.19.1 | Create AT with 32-byte MS, use its OSCORE context to PUT dev/pm. |
+| **TestAccessControlByScope** | `test_limited_scope_rejected_for_post_auth_at` | 5.3.20.1 | AT with scope=["if.c"] cannot POST /auth/at (requires if.sec). |
+|  | `test_limited_scope_rejected_for_dev_pm` | 5.3.20.1 | AT with scope=["if.c"] cannot PUT /dev/pm (requires if.p). |
+|  | `test_if_p_scope_can_access_dev_pm` | 5.3.20.1 | AT with scope=["if.p"] can PUT /dev/pm → 2.04. |
+|  | `test_if_d_scope_can_read_device_info` | 5.3.20.1 | AT with scope=["if.d"] can GET /dev/da → 2.05. |
+| **TestAntiReplayWindow** | `test_old_ssn_within_window_accepted` | 5.3.17.1 | PUTs with old SSNs within replay window are accepted. |
+| **TestMessageIntegrity** | `test_corrupted_auth_tag_rejected` | 5.3.18.1 | OSCORE message with corrupted auth tag is rejected. |
+|  | `test_different_auth_tag_rejected` | 5.3.18.1 | OSCORE message with completely different auth tag is rejected. |
+| **TestEmptyMessageIsNotOscore** | `test_empty_message_with_oscore_option_rejected` ×3 |  | EMPTY CON/NON/ACK carrying an OSCORE option is never processed. |
+|  | `test_empty_reset_does_not_break_oscore` |  | An EMPTY RST stays valid and must not disturb the OSCORE path. |
+|  | `test_empty_reset_with_token_rejected` |  | An EMPTY RST that announces a token is refused. |
+| **TestEchoChallenge** | `test_echo_on_new_context` | 5.3.17.7 | New security context gets echo-challenged on first request. |
+| **TestOscoreContextId** | `test_context_ids_with_master_salt` | 5.3.19.6 | PUT dev/pm succeeds with each context ID + master salt. |
+| **TestSecondarySpake** | `test_secured_spake_post_rejected` | 5.3.1.4a | Secured POST to /.well-known/knx/spake with pw field → 4.00. |
+| **TestGroupOscoreMulticast** | `test_receive_device_multicast` | 5.3.17.6 | Overlaps EITT 5.3.17.6: Trigger sensor → receive multicast s-mode message. |
+| **TestGroupOscoreMasterSaltCtxId** | `test_group_oscore_with_salt_and_ctx_id` | 5.3.19.5 | Overlaps EITT 5.3.19.5: Multicast s-mode with master salt + context ID. |
+| **TestGroupAntiReplayWindow** | `test_group_anti_replay_window` | 5.3.17.3 | Overlaps EITT 5.3.17.3: Verify anti-replay window for group messages. |
+| **TestSyncDelayEcho** | `test_sync_delay_echo` | 5.3.17.4 | Overlaps EITT 5.3.17.4: Change context ID → echo challenge → valid reply. |
+| **TestInvalidEchoReply** | `test_invalid_echo_reply` | 5.3.17.5 | Overlaps EITT 5.3.17.5: Invalid echo value rejected by device. |
+| **TestSpake2PlusResetTypes** | `test_spake_across_reset_types` | 5.3.1.3 | Walk through all 5 steps of 5.3.1.3 sequentially. |
+| **TestEchoPaseToken** | `test_echo_on_pase_at_post` | 5.3.17.8 | Factory reset → SPAKE2+ → POST auth/at with PASE key → echo. |
+| **TestSpake2PlusProtocol** | `test_spake_wrong_password_fails_verification` | 5.3.1.2 | SPAKE2+ with wrong password: confirmV verification fails. |
+|  | `test_spake_wrong_confirm_p_rejected` | 5.3.1.2b | SPAKE2+ with correct password but wrong confirmP → 4.00. |
+|  | `test_spake_full_handshake` | 5.3.1.1 | SPAKE2+ full handshake succeeds, temp key works. |
+| **TestSpake2PlusStateMachine** | `test_spake_state_credential_before_parameter` |  | Credential request (step 2) in IDLE state → 4.00. |
+|  | `test_spake_state_verification_before_parameter` |  | Verification request (step 3) in IDLE state → 4.00. |
+|  | `test_spake_state_repeated_parameter_mid_handshake` |  | A second parameter request after step 1 is a legal restart of step 1. |
+|  | `test_spake_state_parameter_missing_id` |  | Parameter request carrying only rnd (no id) → 4.00 (cardinality). |
+|  | `test_spake_state_parameter_missing_rnd` |  | Parameter request carrying only id (no rnd) → 4.00 (cardinality). |
+|  | `test_spake_state_ordered_handshake_completes` |  | Ordered step 1→2→3 is accepted end-to-end and yields a working key. |
+|  | `test_spake_state_parameter_restart_then_completes` |  | A restarted step 1 (S1 in PARAMS_SENT) can drive a full handshake. |
+|  | `test_spake_state_parameter_after_credential_restarts` |  | A parameter request (S1) in CREDENTIALS_SENT restarts step 1. |
+|  | `test_spake_state_repeated_credential_request` |  | A second credential request (S2) in CREDENTIALS_SENT → 4.00. |
+|  | `test_spake_state_verification_after_parameter` |  | A verification request (S3) in PARAMS_SENT → 4.00 (skips step 2). |
+|  | `test_spake_state_restart_from_credentials_completes` |  | A restart from CREDENTIALS_SENT (S1 in CREDS) drives a full handshake. |
+| **TestSpake2PlusBruteForce** | `test_spake_lockout_block_after_ten_failures` |  | 10 failed attempts arm the block; the next attempt returns 5.03. |
+|  | `test_spake_lockout_factory_reset_clears_block` |  | A factory reset clears the brute-force block and counter. |
+|  | `test_spake_lockout_counter_decreases_over_time` |  | While blocked, the counter ticks down every 6 s (Max-Age shrinks). |
+|  | `test_spake_lockout_unblocks_after_timeout` |  | The counter reaches zero after ~60 s and the device unblocks itself. |
+|  | `test_spake_lockout_partial_step_does_not_reset_counter` |  | A partial PASE step (step 1) does NOT reset the consecutive counter. |
+|  | `test_spake_lockout_full_handshake_resets_counter` |  | A completed handshake succeeds below the threshold and resets it. |
+
+---
+
+### test_swu.py — Software Update (7 tests, 28 collected)
+
+| Class | Test | Overlaps | What it checks |
+|-------|------|----------|----------------|
+| **TestSwuLastUpdateBeforeUpdate** | `test_lastupdate_is_mfg_date_before_any_update` |  | Before the first update /swu/lastupdate is the manufacturing date. |
+| **TestSwuFirmwareUpdate** | `test_push_based_firmware_update` | 5.2.9.1 | Full PUSH-based firmware update cycle matching EITT 5.2.9.1. |
+| **TestSwuLastUpdateAfterUpdate** | `test_lastupdate_changes_after_swu_update` |  | The DUT stamps a new timestamp when the update completes. |
+|  | `test_lastupdate_survives_reboot` |  | /swu/lastupdate keeps its value across a device restart. |
+| **TestSwuReadOnlyPutRejected** | `test_put_readonly_swu_rejected` ×5 | 5.2.10.1b | PUT /{path} → 4.xx (read-only SWU resource must reject write). |
+| **TestSwuBlockQueryValidation** | `test_invalid_block_query_returns_400` ×18 |  | PUT /a/swu with an invalid po/ps/pkgs → 4.00. |
+|  | `test_leading_zero_is_accepted` |  | PUT /a/swu?po=00&ps=008 → the values are decimal coded, not octal. |
+
+---
+
 
 ## Last runtime run status
 
 Latest run (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the mDNS answer interface fix
 (AAAA records filtered to the interface a packet leaves on, receive interface from the zone of a link-local sender on Windows,
-6 new `test_dns_sd_mdns.cpp` unit tests):
+6 new `test_dns_sd_mdns.cpp` unit tests). It predates the move of the test tool to its own repository, so the template tier
+still ran as `tests/eitt/` together with the tool's own tests:
 
-- EITT plus harness: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 788.52s).
+- Template tier plus the tool's own tests: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 788.52s).
 - Runtime tier: **251 passed, 5 skipped** (256 collected, 729.69s).
 - 0 failed, 0 errors. Unit suite: 1747/1748 passed (linux-test-gcc, `ctest -j8`); the `AtSsnStorage` parallel-storage flake above.
 
 No stack C code was changed to make a test pass.
 
-Previous run (2026-10-10, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the 4-byte fingerprint
-(`g_fingerprint` `uint64_t` -> `uint32_t`, 4 new `KnxFingerprintStorage` unit tests) and the removed dead `if (device)` checks
-before `knx_dns_sd_update_service()` in the Linux, Windows, Zephyr and ESP32 interface-up handlers:
-
-- EITT plus harness: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 783.96s).
-- Runtime tier: **247 passed, 5 skipped** (252 collected, 707.44s), all 19 `test_observe.py` cases passed.
-- 0 failed, 0 errors. Unit suite: 1686 passed (windows-test-gcc).
-
-The 10 run-time EITT/harness skips: 2 `test_gui_interfaces.py` (no GUI in the container), EITT 5.3.14.1 (optional
-`PUT auth/o/replwdo`, not implemented) and the 7 EITT 5.4.2.x cases ("Preliminary - Not for Certification", the
-interpreter sends no Observe option), all via `tests/eitt/interpreter/overrides.yaml`. The 5 runtime-tier skips are
-`test_security.py::TestSpake2PlusBruteForce::test_spake_lockout_unblocks_after_timeout` (needs `RUN_SLOW_TESTS`) and the
-4 `test_group_comm.py::TestReadOnInitNetworkGate` cases (cannot control the DUT network scope without `--privileged`).
-This matches the 5 skips expected after the per-test class setup in `test_group_comm.py` (see the entry below).
-
-Latest runs (Docker `linux-test-gcc`, default `run-in-docker.ps1 -IncludeUncommitted`, which runs two
-pytest invocations: the EITT plus harness tier, then the hand-written runtime tier).
-
-After the removal of the `/a/sen` resource: EITT plus harness **460 passed, 15 skipped, 2 xfailed**
-(787.03s); runtime tier **242 passed, 8 skipped** (751.76s); 0 failed, 0 errors. Unit suite: 1649
-passed (windows-test-gcc).
-
-After the additional removal of the `ldevid` and `idevid` resources: runtime tier **241 passed,
-9 skipped** (746.93s), 0 failed, 0 errors; the EITT plus harness summary was not captured, but the
-container log showed no FAILED or ERROR lines and the same 2 xfails. One test moved from passed to
-skipped compared with the previous run. A rerun of the runtime tier alone (`-Tier runtime`, `-rs`) gave
-**242 passed, 8 skipped** (738.97s), identical to the run before the removal, so the extra skip was
-intermittent, not caused by the removal. The 8 skips are: `test_security.py:3364` (slow, needs
-`RUN_SLOW_TESTS`), four `test_group_comm.py` cases that cannot add an IPv6 address on `veth-dut`
-(needs `--privileged`), and three `test_group_comm.py` cases (lines 2125 x2 and 2139) where the DUT
-did not issue a discovery GET. These three were reproducible with the class run alone (3 passed,
-3 skipped) while `iid_too_short` passed on its own, so the skips came from DUT state left by the
-earlier tests of the class (per-recipient resolve status and its budget of three attempts), not from
-suite load. The class setup fixture in `test_group_comm.py` now runs per test instead of per class;
-with it the class gives 6 passed, 0 skipped (49.65s). The full-tier counts above were measured before
-that change and have not been re-measured; expect 5 skips instead of 8. Unit suite: 1645 passed
-(windows-test-gcc).
-
-The 2 xfails are the documented EITT 5.10.1.2 (multi-IPv6 deviation) and 5.10.1.4 (`/test/*`
-endpoints inflate `total` on `GET /p`); a rerun of section 5.10 alone reproduced them. The per-tier
-runtime counts in the banner were not re-derived, and the older entries below predate the tier split.
-
-Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`,
-no `-IncludeUncommitted`):
-**380 passed, 5 skipped, 0 failed, 0 errors** (385 collected, 849.06s) - fully green.
-Unit suite alongside it: 1432 passed, 0 failed (windows-test-gcc).
-
-This run was a plain re-verification (Docker Desktop had not been running; no
-stack or test code changed since the previous entry below) - tally, timing and
-skip set (`test_5_3_1_6d_unblocks_after_timeout`, `test_5_4_1_9_init_flag_sends_read_on_restart`,
-and 3 `malformed-discovery` timing-artifact skips) are identical to the prior run.
-
-The run before that covered the F-020 page-full return-value fix in
-`oc_add_functional_blocks_from_application_to_response()` and the `is_first_occurrence_of_fb()`
-comment cleanup (see F-020 in `FINDINGS.md`). Tally and skip set are identical to every prior run
-in this series, confirming no regression - unsurprising, since neither change alters response
-bytes: the fix only corrects a return value on a code path no current caller can reach with a
-false result, and the comment change touches no code at all. As noted in F-020, this suite cannot
-exercise the corrected branch either (the one caller that checks the return value never enters the
-function with an already-full page); the unit tests added test-first are what pin the fix.
-
-The run before that confirmed the array-free functional-block scan (the `NUM_FBS`-capped static
-array backing FB counting/emission was replaced with `is_first_occurrence_of_fb()`, a predicate
-scan over the live resource list - the change that made F-020 unit-testable in the first place).
-Tally and skip set were likewise identical to the run before it (849.64s).
-
-Two runs earlier covered the `CONTENT_NONE` Content-Format work (F-019 in `FINDINGS.md`): the
-marker moved from 99999 to 64999 (the IANA documentation-reserved block, and it fits the `uint16_t`
-the packet layer uses), both `coap_set_header_content_format()` and `coap_set_header_accept()` now
-clear the option instead of storing the marker, `oc_ri.c:1153` resolves an absent Accept to the
-resource default per KNX IoT clause 2.2.4, the stray setter call on the well-known GET was removed,
-and the accept accessors were retyped to `oc_content_format_t`. Tally and skip set are identical to
-the preceding run, so nothing regressed.
-
-Note the suite confirms no regression but does not *prove* the `oc_ri.c:1153` fix: `coap_client.py`
-always sends an explicit Accept, so the `CONTENT_NONE` branch is never entered at runtime. The unit
-round-trip test `CoapTest.ContentFormat_NoneIsNotSerialized` is what pins that behaviour.
-
-All 5 skips are by design, not failures:
-`test_spake_lockout_unblocks_after_timeout` is behind a static `skipif` that needs
-`-RunSlowTests`, `test_init_flag_sends_read_on_restart` is conditional, and the
-three `test_unicast_discovery_*` malformed-length cases stand down under cumulative suite
-load exactly as `tests/runtime/README.md` describes. No stack C code was changed to
-make any test pass.
-
-The most recent run covered two changes to the link-format discovery response.
-
-First, `/.well-known/core` now omits the `if` attribute when the request carries no
-query parameter, following the KNX IoT RAG clause that the response MAY carry only the
-Functional Block resources to reduce the message size. A new `include_if` flag -
-independent of the existing `truncate`, which only selects the URN form of an `if` that
-IS emitted - is threaded through `oc_add_resource_to_response_payload()`,
-`oc_check_request_from_resource()`, `oc_check_request_from_index()` and
-`oc_add_functional_blocks_from_application_to_response()`. On the well-known EP the core
-resources and the functional blocks pass `query_parameter_present`; the application
-resources are only reached when a filter is present and therefore always pass true.
-Every other caller (`/p`, `/f`, `/fb/x`, `/dev`, `/auth`, `/swu`) passes true, so those
-responses are byte-identical to before.
-
-The EITT discovery patterns survived unchanged because they anchor on `rt=` and `ct=`
-rather than `if=`: a plain `</dev>;rt="urn:knx:fb.0";ct=40` still satisfies
-`(?=.*;ct=40)(?=.*="urn:knx:)`. Extending the flag to the functional-block step was
-load-bearing rather than cosmetic - `test_5_1_1_4e_if_wildcard` and
-`test_5_1_1_3e_if_wildcard` assert that for `?if=*` every entry carries `;if=` or is
-`p.next`, and the `if` wildcard arm of `oc_check_if_functional_blocks_need_to_add()`
-pulls the `/f/*` links into exactly that response.
-
-Second, the Uri-Path over-reservation in the inner header budget was corrected (the
-D-002 follow-up in `FINDINGS.md`). `COAP_STRING_OPTION_GROUP_SIZE` now charges a
-length-extension byte only for parts of 13 characters or more, capped by the character
-budget as well as by the part count, moving `COAP_MAX_INNER_HEADER_SIZE` 219 -> 214,
-`COAP_MAX_HEADER_SIZE` 273 -> 268 and the default PDU 1041 -> 1036. All 9 cases of
-`test_coap_header_budget.py` pass against the tightened budgets, including the
-worst-case Uri-Path and Uri-Query frames and the paginated OSCORE discovery.
-
-The run before that covered two changes. First, the CoAP header budget was split
-three ways (D-002 in `FINDINGS.md`): `COAP_MAX_OUTER_HEADER_SIZE` (54),
-`COAP_MAX_INNER_HEADER_SIZE` (219) and their sum `COAP_MAX_HEADER_SIZE` (273),
-each selected by the serialization mode actually in use. `KNX_PAYLOAD_SIZE` dropped
-from 1024 to 768 and `COAP_MAX_MESSAGE_SIZE` became 1152, giving a 1041-byte default
-PDU and a 512-byte default block.
-
-Second, that smaller payload pushed the larger link-format bodies
-(`/.well-known/core?if=*` and `?rt=*` at 688 bytes, `/dev` at 553) past the 512-byte
-block boundary for the first time, which exposed a gap in the **test client**, not the
-stack: `coap_client.py` had no Block1/Block2 support and silently returned only the
-first block, and `multicast_get()` never populated `CoapResponse.options` so Block2 was
-invisible on that path entirely. Four discovery tests failed as a result. The client now
-reassembles Block2 in `get()` and `oscore_get()` (Block2 encoded as an inner Class E
-option under OSCORE), and `test_5_1_1_3e_if_wildcard` discards the trailing partial
-entry because RFC 7959 section 2.8 forbids reassembling a multicast response. All four
-recovered with no product change. This was originally filed as a link-format truncation
-defect and is now recorded as **F-017 - WITHDRAWN, NOT A DEFECT**; the stack had been
-paginating correctly all along, setting the Block2 "more" bit and Size2.
-
-The rest of the suite was unchanged, confirming no regression in block-wise transfer,
-discovery, group communication, observe or security.
-
-An earlier run verified the inbound length hardening of both parse entry
-points. `coap_parse_udp_message()` in `messaging/coap/coap.c` now rejects a
-datagram shorter than the fixed CoAP header and one whose announced token
-exceeds the received bytes, so the token `memcpy` can no longer copy stale heap
-bytes from behind the datagram into the response. `oscore_parse_outer_message()`
-in `security/oc_oscore_engine.c` now applies both EMPTY-message rules of RFC 7252
-clause 4.1: an EMPTY message (code 0.00) is rejected outright unless it is a RST,
-and a RST that announces a token is rejected as well, so a forged
-`RST, code 0.00, TKL=8` can no longer be classified as a reset while carrying 8
-attacker-chosen token bytes. The five tests in `TestEmptyMessageIsNotOscore`
-(`test_security.py`: CON/NON/ACK forged, the legal EMPTY-RST regression
-guard, and the EMPTY RST with a token) passed, and the rest of the suite was
-unchanged, confirming no regression in block-wise transfer, discovery, group
-communication, observe or security.
-
-The preceding run verified the hardened CoAP option parsing in
-`messaging/coap/coap.c` and `messaging/coap/oscore.c`: the option delta/length
-extension bytes and the option value are now bounds-checked by the shared
-`coap_next_option()` helper before they are dereferenced, so a truncated option
-header is answered with `4.02 Bad Option` (respectively routed away from the
-OSCORE layer) instead of reading past the end of the datagram. The whole suite
-was unchanged, confirming no regression in block-wise transfer, discovery, group
-communication, observe or security.
-
-The preceding run verified the oversized-payload handling in
-`messaging/coap/coap.c` (a payload of `OC_MAX_APP_DATA_SIZE` or more is now
-rejected with `4.13 Request Entity Too Large` instead of being silently
-truncated) together with the one-byte-overflow fix in `api/oc_buffer.c`
-(`malloc(OC_PDU_SIZE + 1)`, so the parser null-terminator behind a
-buffer-filling datagram stays inside the allocation). The four new tests in
-`test_coap_payload_limit.py` passed and the rest of the suite was unchanged,
-confirming no regression in block-wise transfer, discovery, group
-communication, observe or security.
-
-The preceding run re-verified the stack after the buffer/PDU work: the
-total-CoAP-PDU contract of `oc_set_pdu_size()`, the power-of-two floor applied
-to the default block size in `api/oc_main.c`, the RFC 7959 legality guards added
-to `coap_set_header_block1()` / `coap_set_header_block2()` (reject reserved SZX 7
-and any non-power-of-two size), and the new `coap_floor_block_size()` helper
-applied to the peer-influenced Size1 path in `messaging/coap/engine.c`. All
-block-wise traffic (`test_swu.py`, `test_fp_tables.py`,
-`test_load_state_machine.py`) passed unchanged, confirming no regression in live
-block-wise transfer, discovery, group communication, observe or security.
-
-This run was the first complete verification of the DNS-SD TXT record conformance
-fix. Before the fix, five tests in `test_discovery_mdns.py` failed
-deterministically (`test_srv_resolution_of_unconfigured_device`, `test_aaaa_resolution_of_unconfigured_device`,
-`test_full_chain_by_serial_when_configured`, `test_full_chain_by_individual_address`,
-`test_full_chain_via_programming_mode_subtype`), all with
-`Could not resolve service info for <sn>._knx._udp.local.`. The cause was not a
-code regression: `tests/common/requirements.txt` pinned `zeroconf>=0.100.0` with
-no upper bound, so runs silently picked up 0.151.3, which enforces RFC 6763
-clause 6 by requiring a TXT record before a service is considered resolvable. The
-DUT only emitted a TXT record when a sleep period was configured. The responder
-now always emits one - `SP=<seconds>` when sleepy, otherwise the RFC 6763
-clause 6.1 empty TXT record - and `requirements.txt` pins
-`zeroconf>=0.151.3,<1.0`. See F-012 in `tests/FINDINGS.md`.
-
-Measured progression: the mDNS discovery file went from 5 failed / 27 passed to
-**32 passed, 0 failed** (391.06s), and the wider `5_1` slice from 5 failed / 125
-passed to **130 passed, 0 failed** (459.31s), before this full-suite run. No test
-expectations were changed. The `state_sync` snapshot tests still report
-`sp=None` for a non-sleepy device and `sp='300'` after a sleep period is set,
-confirming the empty TXT record is read as absence of an `SP` key rather than as
-a spurious value.
-
-Every section passed, including `test_group_comm.py` (the trigger and
-multicast-provisioning paths), the full `test_observe.py` module, and
-`test_fp_tables.py`. The **intermittent** DUT hang observed in an earlier
-session (a `set_lsm cmd=2` LSM -> loaded timeout in the `TestTriggerFirstGA`
-setup fixture that cascaded into the rest of `5_4` and `5_5`) did **not**
-reproduce on this run, confirming it was DUT instability under cumulative load
-rather than a code regression.
-
-This run was the first to exercise the `/swu/lastupdate` lifecycle work: the
-DUT-side RTC simulation in `swu_upgrade_complete_cb()`, the flipped
-`test_push_based_firmware_update` step-4 assertion (timestamp must CHANGE after
-an update), and the new `TestSwuLastUpdateLifecycle` class. Result:
-`test_lastupdate_changes_after_swu_update` PASSED,
-`test_lastupdate_survives_reboot` PASSED, and
-`test_lastupdate_is_mfg_date_before_any_update` was renamed after that
-run so conftest's numeric sort places it immediately before
-`test_push_based_firmware_update`; it now asserts the manufacturing date
-instead of skipping. Verified in an isolated Docker run
-(`-IncludeUncommitted -k lastupdate`): **3 passed, 0 skipped**, meaning the
-full-suite skip count drops from 6 to 5 on the next complete run.
-
-Also added after that run: `test_state_sync_mdns_alive_in_unloaded`
-in `test_discovery_mdns.py`, covering the removal of the `knx_dns_sd_stop()`
-call on the LSM UNLOADED transition. Verified in an isolated Docker run
-(`-IncludeUncommitted -k 902_7`): **1 passed**, 37.50s. Measured evidence:
-the unload transition captured `goodbyes=0 announces=0`, and the snapshot was
-byte-for-byte identical before and after
-(`subtypes=['00fa10020800', 'ia1199887766-1101']`, same AAAA, same port), with
-`GET /a/lsm` still answering 4.03 on the advertised endpoint.
-
-Of the 5 skips recorded above, all were subsequently run in isolation to
-establish whether they represent unverified behaviour. Four pass when run alone
-(the three `bonus_*` malformed-length cases, and `6d_unblocks` once
-`-RunSlowTests` is passed). Only `test_init_flag_sends_read_on_restart`
-remains genuinely unexercised. See "Skipped tests" below.
-
-This run was also the first complete verification of the integer-parsing
-hardening campaign. Every site that converted a network-supplied string now
-routes through the bounded-copy parsers in `api/oc_knx_helpers.c`
-(`oc_parse_uint16_from_base10_string`, `oc_parse_uint16_from_base16_string`,
-`oc_parse_sint32_from_base10_string`,
-`oc_parse_uint64_from_base16_string`), which reject NULL/empty values,
-over-length values, a leading sign, trailing garbage and out-of-range values,
-and never read past `value_len`. Converted: the 14 `pn`/`ps` pagination guards,
-the `?d=urn:knx:g.s.[ga]` group address in `oc_discovery.c`, the hexadecimal
-IID/IA of `ep=knx://ia.<iid>.<ia>` in `oc_discovery.c` and `oc_knx_client.c`,
-the `po`/`ps`/`pkgs` block parameters in `oc_knx_swu.c`, the observe `lt`
-lifetime in `messaging/coap/observe.c`, and both URI-wildcard helpers in
-`api/oc_helpers.c`. The run exercised all of them - the logs show live
-`knx://ia.1199887766.110f` discovery exchanges plus IID/IA re-resolution -
-with zero failures. `get_fb_number_from_dp()` was removed from
-`api/oc_knx_fb.c` in the same pass (no production callers).
-
-The unit suite is fully green (1355/1355, ~72s).
-
----
-
 ## Skipped tests
 
-Reasons below are taken from the actual `pytest.skip()` / `skipif` sites in the
-test sources, and each was **verified by running the test in isolation** rather
-than inferred from the full-suite output. Result: four of the five are not
-inherently unrunnable - three pass when run alone, and one is purely a runner
-configuration gap that has now been closed.
+Reasons are taken from the `pytest.skip()` / `skipif` sites in the test
+sources, and each was **verified by running the test in isolation**.
 
-| Test | Skip mechanism | Verified outcome when run in isolation |
-|------|----------------|----------------------------------------|
-| `test_spake_lockout_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **PASSES.** Waits out the full 10 x 6 s brute-force lockout (~60 s). The runner had no way to set the variable, so it never ran; `run-in-docker.ps1` now takes `-RunSlowTests`. Measured: `1 passed in 70.21s` via `-RunSlowTests -k 6d_unblocks` |
-| `test_unicast_discovery_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **PASSES alone** (`1 passed in 15.33s`). The rejection logic is correct; the skip in a full run is load-related, not a defect |
-| `test_unicast_discovery_sn_too_long` | Conditional, same helper | **PASSES alone** (`1 passed in 15.41s`) |
-| `test_unicast_discovery_sn_too_short` | Conditional, same helper | **PASSES alone** (`1 passed in 9.58s`) |
-| `test_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone.** Reported reason: `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. This one remains genuinely unverified |
+| Test | Skip mechanism | Outcome when run in isolation |
+|------|----------------|-------------------------------|
+| `test_spake_lockout_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **Passes.** Waits out the full 10 x 6 s brute-force lockout (~60 s); `run-in-docker.ps1 -RunSlowTests` sets the variable. Measured: `1 passed in 70.21s` |
+| `test_unicast_discovery_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **Passes alone** (`1 passed in 15.33s`) |
+| `test_unicast_discovery_sn_too_long` | Conditional, same helper | **Passes alone** (`1 passed in 15.41s`) |
+| `test_unicast_discovery_sn_too_short` | Conditional, same helper | **Passes alone** (`1 passed in 9.58s`) |
+| `test_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone:** `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. Genuinely unverified |
 
-**Corrected earlier assessment.** A previous revision of this section claimed the
-three `bonus_*` tests were skipped because of a "DUT/transport configuration"
-gate; no such gate exists. A later revision then claimed all four conditional
-skips were masking possibly-broken behaviour. Isolated runs disprove that for
-three of them: they pass. The full-suite skips are a timing artefact - the
-`bonus_*` tests wait up to 20 s for a discovery GET, and under cumulative suite
-load the DUT does not always answer inside that window. Only
-`test_init_flag_sends_read_on_restart` is genuinely not exercised.
+The three malformed-length discovery tests (`TestUnicastDiscoveryMalformedLengths`)
+share their fixtures, the `_run_reject()` driver and the `_assert_rejected()`
+helper with three tests that pass in a full run. They skip there because they
+wait up to 20 s for the DUT's discovery GET, and under cumulative suite load
+the DUT does not always answer inside that window; alone, all three pass in
+9-16 s. All six rejection cases are therefore validated, three of them only
+outside a full run.
 
-Running the four conditional tests alone:
+Running them alone:
 
 ```powershell
-.\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -k 'bonus_iid_too_short'
-.\tests\common\tools\run-in-docker.ps1 -IncludeUncommitted -RunSlowTests -k '6d_unblocks'
+.\tests\common\tools\run-in-docker.ps1 -Tier runtime -IncludeUncommitted -k 'discovery_iid_too_short'
+.\tests\common\tools\run-in-docker.ps1 -Tier runtime -IncludeUncommitted -RunSlowTests -k 'lockout_unblocks'
 ```
 
-Note the `-k` expression must be a single quoted token; a multi-word expression
+The `-k` expression must be a single quoted token; a multi-word expression
 such as `-k 'a or b'` is split by PowerShell before it reaches pytest and
 collects nothing.
 
-**Resolved: the `bonus_*` asymmetry was load, not payload.** All six
-`TestUnicastDiscoveryMalformedLengths` tests share the same fixtures, the same
-`_run_reject()` driver and the same `_assert_rejected()` helper. In the full
-suite three passed and three skipped, which suggested the malformed payload
-itself determined the outcome. Isolated runs disprove that: all three of the
-skipping tests pass on their own in 9-16 s. The determining factor is cumulative
-suite load against the 20 s discovery-GET window, not the payload. All six
-malformed-length rejection cases are therefore **validated**, three of them only
-outside a full-suite run.
+`test_lastupdate_is_mfg_date_before_any_update` sits in the first class of
+`test_swu.py`, so it runs before `test_push_based_firmware_update`; its
+`pytest.skip()` guard only applies to partial `-k` runs where an update
+precedes it.
 
-**Previously listed here, no longer skipped:**
-`test_lastupdate_is_mfg_date_before_any_update` was renamed so conftest's
-numeric sort places it before `test_push_based_firmware_update`; it now asserts
-the manufacturing date and passes. Its `pytest.skip()` guard remains only for
-partial `-k` runs where an update may precede it.
+## Known Bugs
 
-## Known Bugs (from unit tests)
-
-| ID | Module | Description |
-|----|--------|-------------|
-| ~~F-001~~ | ~~`oc_list`~~ | ~~`oc_list_add_block()` circular link~~ — RESOLVED (function removed upstream) |
-| ~~F-002~~ | ~~`oc_ri`~~ | ~~`oc_ri_get_interface_mask()` returns 1 for empty input~~ — RESOLVED (function had no production callers; removed with its `GetInterfaceMask` tests) |
-| ~~F-003~~ | ~~`oc_core_res`~~ | ~~`oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer (potential overflow)~~ — RESOLVED (buffer enlarged to `MAX_HNAME_BUFFER_SIZE` = 129; read capped at `MAX_HNAME_BUFFER_SIZE - 1` with a guaranteed trailing `\0`) |
-| ~~F-004~~ | ~~`oc_buffer`~~ | ~~`oc_message_add_ref(NULL)` dereferences NULL in the trailing `OC_DBG` (debug builds only)~~ — RESOLVED (`OC_DBG` moved inside the `if (message)` guard; test `BufferPool.AddRefNullIsNoOp` now verifies NULL-safety) |
+Open findings are in [`FINDINGS.md`](FINDINGS.md).

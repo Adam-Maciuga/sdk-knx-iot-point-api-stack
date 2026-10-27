@@ -1,24 +1,16 @@
 ---
 name: feedback-changelog-only-on-releases
-description: "Never add entries to CHANGELOG.md in the stack repo as part of a feature/cleanup change — the changelog is written only at release time"
-metadata:
-  type: feedback
+description: Never add CHANGELOG.md entries as part of a change; the changelog is written at release time.
+type: feedback
 ---
 
-**Do not touch `CHANGELOG.md` in `knx-iot-point-api-stack` when implementing
-a change.** The changelog is updated only when a release is cut, by the
-maintainer, from the commit history.
+Don't touch `CHANGELOG.md` when implementing a change; there is no
+"Unreleased" section. The maintainer writes it when a release is cut, from
+the commit history.
 
-**Why:** stated 2026-09-03 after the TCP/TLS transport removal added an
-"Unreleased" section listing the removed public API. The user reverted it:
-"the changelog is only updated on releases". Per-change entries create
-merge noise and duplicate what git history already records.
+**Why:** per-change entries create merge noise and duplicate git history;
+the user reverted one such section.
 
-**How to apply:**
-
-- Put the description of removed/changed public API in the commit message,
-  not in the changelog.
-- If a change is release-worthy, mention it in the final report so the
-  maintainer can pick it up at release time; do not write it yourself.
-- Applies to agents you dispatch too: tell implementer agents explicitly
-  "do not edit CHANGELOG.md".
+**How to apply:** describe removed or changed public API in the commit
+message; mention release-worthy changes in the final report. Tell agents
+you dispatch "do not edit CHANGELOG.md".

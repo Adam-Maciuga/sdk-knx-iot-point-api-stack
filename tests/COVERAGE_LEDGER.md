@@ -6,12 +6,13 @@ Goal: **unit tests for the complete stack.** Every source file has a
 not unit-testable in isolation, and the concrete reason is recorded here.
 
 Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
-**never** a reason to skip a unit test. They live in three tiers; the
-hand-written **runtime** tier covers only behaviour the EITT conformance
-template does not, the generated **eitt** tier covers the template itself.
-Where a note below cites a runtime test by name, check
-`tests/docs/runtime-test-inventory.md` if the name no longer resolves: the
-2026-09-11 cleanup removed the hand-written tests the template already covers.
+**never** a reason to skip a unit test. The hand-written **runtime** tier
+covers only behaviour the conformance template does not; the **conformance**
+tier runs the template itself with the test tool (`tests/iot-test-tool/`).
+A runtime test a note below cites by name may be gone: the 2026-09-11
+cleanup removed the hand-written tests the template already covers (mapping
+in commit 1edfc8ab, part "runtime tier: drop template-covered tests, mark
+overlaps").
 
 ## Status codes
 

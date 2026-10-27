@@ -7,7 +7,7 @@ Uses `test_read_serial_number` as the running example.
 ## Phase 1: Server Startup
 
 When pytest starts, the session-scoped `server_process` fixture in
-`conftest.py` fires.
+`tests/common/fixtures.py` fires.
 
 ### 1. Find the binary
 
@@ -184,7 +184,7 @@ the server's configuration.
 
 ## Phase 4: Teardown
 
-After all 245 tests finish, the `server_process` fixture teardown sends
+After the last test, the `server_process` fixture teardown sends
 SIGINT (Linux) or terminate (Windows) to the server process. The event loop
 exits, `oc_main_shutdown()` cleans up.
 
@@ -195,7 +195,7 @@ exits, `oc_main_shutdown()` cleans up.
 | No mocks | The C server runs the real stack with real UDP sockets |
 | OSCORE everywhere | Tests use the same encrypted channel as production devices |
 | Session-scoped fixtures | Server and provisioning happen once, shared across all tests |
-| EITT order | Tests are sorted by numeric EITT ID via `pytest_collection_modifyitems` |
+| Module order | `pytest_collection_modifyitems` runs the modules in `RUNTIME_MODULE_ORDER` (`fixtures.py`), each in definition order |
 | Echo challenges | Handled transparently by the `oscore_request()` retry loop |
 | Docker isolation | veth pairs give isolated IPv6 for multicast and group tests |
 
@@ -205,8 +205,8 @@ exits, `oc_main_shutdown()` cleans up.
 |---|---|
 | `tests/common/fixtures.py` | Fixtures: server lifecycle, SPAKE2+, OSCORE provisioning |
 | `tests/common/runtime_test_server.c` | Headless C server running the full KNX stack |
-| `tests/runtime/coap_client.py` | Pure-Python CoAP client with OSCORE support |
-| `tests/runtime/knx_oscore.py` | OSCORE context: encrypt/decrypt, key derivation |
-| `tests/runtime/knx_spake2plus.py` | SPAKE2+ client for password-authenticated key exchange |
+| `tests/iot-test-tool/transport/coap_client.py` | Pure-Python CoAP client with OSCORE support (the test tool's) |
+| `tests/iot-test-tool/transport/knx_oscore.py` | OSCORE context: encrypt/decrypt, key derivation |
+| `tests/iot-test-tool/transport/knx_spake2plus.py` | SPAKE2+ client for password-authenticated key exchange |
 | `tests/common/tools/run-in-docker.ps1` | Runs the full suite in Docker with veth pairs |
 | `tests/runtime/test_*.py` | The actual test cases, named by behaviour |

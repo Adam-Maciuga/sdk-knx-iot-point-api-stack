@@ -1,7 +1,7 @@
 ---
-name: debug-agent
-description: Systematic root cause investigation. Use when facing test failures, runtime errors, or unexpected behavior.
-tools: ['search', 'read', 'editFiles', 'terminalTools']
+name: debug
+description: "Systematic root-cause investigation of a failing test, crash or unexpected behaviour in the stack or its tests. Use before proposing a fix."
+tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
 # Debug Agent
@@ -57,7 +57,7 @@ Create 2-3 ranked hypotheses:
 ## Fix
 **Change:** {what and why}
 **Regression Test:** {test name}
-**Verification:** all quality gates pass
+**Verification:** the regression test and the affected tiers pass (unit: `linux-test-gcc` and `linux-test-asan`; device tiers: `tests/common/tools/run-in-docker.ps1 -Tier runtime|conformance`)
 ```
 
 ## Rules
@@ -66,4 +66,7 @@ Create 2-3 ranked hypotheses:
 2. Always form 2-3 hypotheses — single-hypothesis investigation leads to confirmation bias
 3. Validate with observation, not code changes
 4. Regression test is mandatory — no fix without a guard against recurrence
-5. If stuck after 3 hypothesis cycles, escalate to human
+5. If stuck after 3 hypothesis cycles, escalate to the user
+6. Device tiers run only in Docker (`tests/common/tools/run-in-docker.ps1` / `.sh`); a host-native run gives misleading failures
+7. A fix to stack C code, `tests/common/fixtures.py` or the submodule `tests/iot-test-tool/` needs the user's approval: propose it, don't apply it
+8. A defect found in the stack goes into `tests/FINDINGS.md` (next `F-NNN`)
