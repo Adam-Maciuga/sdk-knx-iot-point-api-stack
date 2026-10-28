@@ -154,6 +154,7 @@ build-gcc:
     - cmake --preset=linux-debug-gcc
     - cmake --build --preset=linux-debug-gcc
   artifacts:
+    access: developer
     paths:
       - build/linux-debug-gcc/apps
     expire_in: 1 week
@@ -168,6 +169,7 @@ unit-gcc:
     - cmake --build --preset=linux-test-gcc
     - ctest --preset=linux-test-gcc --output-junit report.xml
   artifacts:
+    access: developer
     when: always
     reports:
       junit: build/linux-test-gcc/report.xml
@@ -180,6 +182,7 @@ unit-asan:
     - cmake --build --preset=linux-test-asan
     - ctest --preset=linux-test-asan --output-junit report.xml
   artifacts:
+    access: developer
     when: always
     reports:
       junit: build/linux-test-asan/report.xml
@@ -216,6 +219,7 @@ unit-coverage-gcc:
   # TOTAL line only exists in its default table report, which is not printed here.
   coverage: '/^functions:\s+(\d+(?:\.\d+)?)%/'
   artifacts:
+    access: developer
     when: always
     paths:
       - build/linux-coverage-gcc/coverage-html/
@@ -286,6 +290,7 @@ fuzz-seed-replay:
   # TOTAL line only exists in its default table report, which is not printed here.
   coverage: '/^functions:\s+(\d+(?:\.\d+)?)%/'
   artifacts:
+    access: developer
     when: always
     paths:
       - build/linux-fuzz-coverage-clang/coverage-html/
@@ -335,6 +340,7 @@ fuzz-explore:
       done
       exit $status
   artifacts:
+    access: developer
     when: always
     paths:
       - fuzz-crashes/
@@ -362,6 +368,7 @@ runtime-gcc:
     - !reference [.python-deps, script]
     - python3 -m pytest tests/runtime/ -rfE -v --tb=short --junit-xml=build/linux-test-gcc/runtime-report.xml
   artifacts:
+    access: developer
     when: always
     reports:
       junit: build/linux-test-gcc/runtime-report.xml
@@ -416,6 +423,7 @@ conformance-gcc:
       python3 -m web.trace_viewer ../../build/linux-test-gcc/conformance.krr.jsonl ../../build/linux-test-gcc/trace-viewer || true
       exit $status
   artifacts:
+    access: developer
     when: always
     paths:
       - build/linux-test-gcc/conformance.krr.jsonl
@@ -470,6 +478,7 @@ conformance-gcc:
       fi
       echo "memcheck OK: no AddressSanitizer / UBSan report"
   artifacts:
+    access: developer
     when: always
     paths:
       - build/linux-test-asan/${MEMCHECK_NAME}-memcheck.log
