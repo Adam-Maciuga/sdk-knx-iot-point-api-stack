@@ -41,7 +41,7 @@ If the user only wants NEW tests written, hand off to `unit-test-writer` (Google
 ## Project Context
 
 - **Workspace root**: `C:\Users\ahaenel\Documents\KNX IoT Project\SoftwareProjects\knx-iot-point-api-stack`
-- **Branch**: `work_in_progress`
+- **Branch**: `main`
 - **Shell**: PowerShell (`powershell.exe`) on Windows.
 - **Unit tests**: Google Test (`.cpp`) in `tests/unit/`, built with GCC/Ninja, run via CTest.
 - **Runtime tests**: Python/pytest in `tests/runtime/`, run inside Docker over real CoAP/OSCORE on IPv6.
