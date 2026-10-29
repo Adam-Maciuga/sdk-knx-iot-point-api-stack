@@ -112,55 +112,96 @@ define `app_get_password()` and `knx_iot_get_application_name()`.
 
 ## 4. Step 1: Give the device an identity
 
-### Permanent device data
+The device identity is the **permanent device data**: values that identify
+the device and never change over its lifetime, plus the SPAKE2+
+registration record used for onboarding. The demos keep all of it in one
+constant struct per application, `device_permanent_data`, of type
+`knx_iot_permanent_device_data_t` (declared in `apps/knx_iot_app.h`). Copy
+that pattern.
 
-Permanent data identifies the device and never changes over its lifetime.
-Set it on every boot, before starting the stack:
+### Define the permanent device data
 
-```c
-static const oc_knx_version_info_t hw_version = {.major = 1, .minor = 0, .patch = 0};
-
-oc_core_set_device_sn("00fa10020700");               // 12 lower-case hex characters
-oc_core_set_device_mid(0x00fa);                      // manufacturer ID
-oc_core_set_device_hwt("000102030405");              // hardware type
-oc_core_set_device_order_number("5WG1-LSSB-8");
-oc_core_set_device_hwv(&hw_version);
-oc_core_set_device_mfd("2020-03-12T23:20:50.52Z");   // manufacturing date, RFC 3339
-oc_swu_set_hwref("0102030405ABCDEF");                // hardware reference for software update
-```
-
-The setters keep the **pointers** you pass, not copies. Use string literals,
-`const` data, or static buffers that live as long as the device runs. Invalid
-values for the serial number, order number or hardware reference stop the
-device, so validate data you read from OTP or flash first.
-
-### SPAKE2+ registration record
-
-The device never needs the plaintext onboarding password. It needs the
-registration record (w0, L, salt, iteration count) that is computed offline
-from the password, as described in RFC 9383 section 3.2. Provide it through
-this function, which the stack calls during start-up:
+From `apps/knx/lsab/knx_iot_lsab.c`:
 
 ```c
-static const oc_spake_record_t g_spake_record = {
-  .w0 = { ... }, .L = { ... }, .salt = { ... }, .it = 50000, .valid = true,
+// SPAKE2+ offline registration record (RFC 9383 sec. 3.2), computed from the device password
+static const oc_spake_record_t g_spake_record =
+{
+  .w0   = { ... },
+  .L    = { ... },
+  .salt = { ... },
+  .it   = 50000,
+  .valid = true,
 };
 
+const knx_iot_permanent_device_data_t device_permanent_data =
+{
+  .application_name = "KNX-IoT demo actuator (LSAB)",
+  .sn_lower_case    = "00fa10020900",              // serial number, 12 lower-case hex characters
+  .hw_type          = "000102030405",              // hardware type, 12 characters, MSB = 00
+  .order_number     = "5WG1-LSAB-8",               // product order number
+  .mfg_date         = "2020-03-12T23:20:50.52Z",   // manufacturing date, RFC 3339
+  .hw_ref           = "0102030405ABCDEF",          // hardware reference for software update
+  .mid              = 0x00fa,                      // manufacturer ID
+  .hw_ver           = {.major = 0, .minor = 0, .patch = 1},
+  .spake_record     = &g_spake_record,             // registration record, see below
+};
+```
+
+On Zephyr the demos fill the same struct from Kconfig
+(`CONFIG_DEVICE_SERIAL_NUMBER`, `CONFIG_DEVICE_HW_TYPE`, ...), so a product
+can set the values per build; see `apps/knx/lssb/knx_iot_lssb.c`.
+
+The SPAKE2+ record is referenced through a pointer rather than embedded, so
+it can live elsewhere, for example in a protected flash partition.
+
+### Hand it to the stack
+
+`knx_iot_initialize_stack()` in `apps/knx_iot_app.c` passes the struct to the
+stack on every boot, after storage is configured and before the stack starts:
+
+```c
+oc_core_set_device_sn(device_permanent_data.sn_lower_case);
+oc_core_set_device_mid(device_permanent_data.mid);
+oc_core_set_device_hwt(device_permanent_data.hw_type);
+oc_core_set_device_order_number(device_permanent_data.order_number);
+oc_core_set_device_hwv(&device_permanent_data.hw_ver);
+oc_core_set_device_mfd(device_permanent_data.mfg_date);
+oc_swu_set_hwref(device_permanent_data.hw_ref);
+```
+
+The setters keep the **pointers** you pass, not copies, which is why the
+struct is a `const` global. Invalid values for the serial number, order
+number or hardware reference stop the device, so validate data you read from
+OTP or flash first.
+
+The stack fetches the SPAKE2+ record itself during start-up by calling
+`app_get_precalculated_spake_data()`, which `apps/knx_iot_app.c` implements
+from the same struct:
+
+```c
 const oc_spake_record_t* app_get_precalculated_spake_data(void)
 {
-  return &g_spake_record;
+  return device_permanent_data.spake_record;
 }
 ```
 
-If the function returns NULL or a record with `.valid == false`, the stack
-does not start.
+If it returns NULL or a record with `.valid == false`, the stack does not
+start.
 
-In production, every device gets its own password and record. Generate them
-together in manufacturing and print the password on the device label and in
-the QR code, formatted as `KNX:S:<serial number>;P:<password>`. The stack
-repository contains `tests/common/tools/gen_spake_record.py` to compute a
-record from a password, salt and iteration count. The record in the demos is
-for development only.
+### Password and registration record
+
+The device never needs the plaintext onboarding password, only the
+registration record computed from it. In production, every device gets its
+own password and record. Generate them together in manufacturing and print
+the password on the device label and in the QR code, formatted as
+`KNX:S:<serial number>;P:<password>`. The stack repository contains
+`tests/common/tools/gen_spake_record.py` to compute a record from a password,
+salt and iteration count. The record in the demos is for development only.
+
+The demos also define `app_get_password()` next to the record; it is used
+only to display the password and QR code (shell, GUI), never for
+onboarding.
 
 ## 5. Step 2: Start the stack
 
@@ -172,8 +213,9 @@ int knx_start(void)
   // 1. storage: the stack reads its persistent data from here
   oc_storage_config("knx_iot");
 
-  // 2. permanent device data, see section 4
-  set_permanent_device_data();
+  // 2. permanent device data: the oc_core_set_device_*() calls from section 4
+  oc_core_set_device_sn(device_permanent_data.sn_lower_case);
+  // ...
 
   // 3. callbacks
   oc_set_restart_cb(my_restart_cb, NULL);                     // mandatory
