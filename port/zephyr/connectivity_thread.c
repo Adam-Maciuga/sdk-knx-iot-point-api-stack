@@ -192,7 +192,7 @@ int oc_send_buffer(oc_message_t *message)
     otError           error   = OT_ERROR_NONE;
     otMessage        *otMessage = NULL;
     otMessageInfo     messageInfo;
-    otMessageSettings messageSettings = {true, OT_MESSAGE_PRIORITY_NORMAL};
+    otMessageSettings messageSettings = {.mLinkSecurityEnabled = true, .mPriority = OT_MESSAGE_PRIORITY_NORMAL};
     int ret = -1;
     bool locked = false;
 
