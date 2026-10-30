@@ -51,8 +51,12 @@ static otInstance *sInstance = NULL;
 static otUdpSocket mSocket;
 static oc_endpoint_t g_endpoint;
 
-static const otIp6Address ALL_COAP_NODES_SL = { .mFields.m8 = {
-    0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } };
+/* All CoAP nodes (ff0x::fd), link-, realm- and site-local, see 3-10-5 2.6.4.2 */
+static const otIp6Address ALL_COAP_NODES[] = {
+    { .mFields.m8 = { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
+    { .mFields.m8 = { 0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
+    { .mFields.m8 = { 0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
+};
 
 static uint16_t g_unicast_port = COAP_PORT_UNSECURED; // Set via oc_connectivity_set_port() before oc_connectivity_init().
 
@@ -155,22 +159,25 @@ int oc_connectivity_init(void)
         OC_ERR("Socket already open!");
     }
 
-    /* Subscribe to site-local all-CoAP-nodes multicast address so the device
-     * is discoverable via ETS without manual 'ot ipmaddr add ff05::fd'.
+    /* Subscribe to the all-CoAP-nodes multicast addresses so the device
+     * is discoverable without manual 'ot ipmaddr add ff0x::fd'.
      * Safe to call before Thread network is joined. OT stores it locally
      * and advertises it once the device attaches to the mesh. Idempotent:
      * re-subscribing returns OT_ERROR_ALREADY.
      */
     if (sInstance != NULL)
     {
-        otError merr = otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES_SL);
-        if (merr == OT_ERROR_NONE || merr == OT_ERROR_ALREADY)
+        for (size_t i = 0; i < ARRAY_SIZE(ALL_COAP_NODES); i++)
         {
-            OC_INF("Subscribed to site-local all-CoAP-nodes multicast (ff05::fd)");
-        }
-        else
-        {
-            OC_ERR("Multicast subscribe failed with %u", merr);
+            otError merr = otIp6SubscribeMulticastAddress(sInstance, &ALL_COAP_NODES[i]);
+            if (merr == OT_ERROR_NONE || merr == OT_ERROR_ALREADY)
+            {
+                OC_INF("Subscribed to all-CoAP-nodes multicast (ff%02x::fd)", ALL_COAP_NODES[i].mFields.m8[1]);
+            }
+            else
+            {
+                OC_ERR("Multicast subscribe to ff%02x::fd failed with %u", ALL_COAP_NODES[i].mFields.m8[1], merr);
+            }
         }
     }
 
