@@ -231,7 +231,17 @@ oc_parse_single_entity(CborValue *value, oc_rep_t **rep, CborError *err)
   case CborArrayType:
     oc_parse_rep_value_array(value, rep, err);
     break;
+  /*
+    own types, so that a handler can tell them apart from an empty array (OC_REP_NIL)
+    - null / undefined -> OC_REP_NULL
+    - anything else (simple value, half float, ...) -> OC_REP_UNSUPPORTED
+  */
+  case CborNullType:
+  case CborUndefinedType:
+    cur->type = OC_REP_NULL;
+    break;
   default:
+    cur->type = OC_REP_UNSUPPORTED;
     break;
   }
 }
@@ -1272,7 +1282,9 @@ static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, i
       }
     }
     switch (rep->type) {
-    case OC_REP_NIL: {
+    case OC_REP_NIL:
+    case OC_REP_NULL:
+    case OC_REP_UNSUPPORTED: {
       num_char_printed = snprintf(buf, buf_size, "null");
       OC_JSON_UPDATE_BUFFER_AND_TOTAL;
       break;

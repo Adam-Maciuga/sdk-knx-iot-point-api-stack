@@ -1652,6 +1652,8 @@ typedef enum {
   OC_REP_STRING = 0x05,
   OC_REP_OBJECT = 0x06,
   OC_REP_FLOAT = 0x07,
+  OC_REP_NULL = 0x08,         // CBOR null / undefined, NOT an empty array (an empty array is OC_REP_NIL)
+  OC_REP_UNSUPPORTED = 0x09,  // CBOR type the parser does not map (simple value, half float, ...)
   // this may be used as a bitmask: OC_REP_INT_ARRAY = OC_REP_INT | OC_REP_ARRAY
   OC_REP_ARRAY = 0x10,
   OC_REP_INT_ARRAY = 0x11,

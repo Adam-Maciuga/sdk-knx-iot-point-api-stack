@@ -542,18 +542,30 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
               // a post request does NOT append items to an (existing) array, it overwrites them
               const int64_t* array = oc_int_array(object->value.array);
-              const uint16_t new_array_size = oc_int_array_size(object->value.array);
+              const uint16_t array_size = oc_int_array_size(object->value.array);
 
-              // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
-              uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-              if (new_array && new_array_size > 0)
+              // an empty array never reaches malloc(0), an empty ga is not allowed for a GO (same as OC_REP_NIL below)
+              if (array_size == 0)
               {
-                for (int i = 0; i < new_array_size; i++)
+                OC_ERR("empty ga array not allowed");
+
+                // on error: free GO tmp entry (all heap allocations)
+                oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
+
+                oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                return;
+              }
+
+              // ga size shall be 32 bit
+              uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+              if (new_array)
+              {
+                for (int i = 0; i < array_size; i++)
                 {
                   new_array[i] = (uint32_t)array[i];
                 }
 
-                OC_INF("ga size %d", new_array_size);
+                OC_INF("ga size %d", array_size);
 
                 /*
                   repeated key -> last wins
@@ -566,7 +578,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
                 }
 
                 // assign GA array in tmp copy (org ptr still valid in org entry)
-                tmp_go_entry.ga_len = new_array_size;
+                tmp_go_entry.ga_len = array_size;
                 tmp_go_entry.ga = new_array;
 
                 allocator |= TABLE_GAS; // GOT1 (see below)
@@ -629,77 +641,76 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           // no tmp elements allocated ...
           OC_INF("only found id in request, deleting entry at index: %d", entry);
           oc_delete_group_object_table_entry(entry);
+          break; // next entry
         }
-        else
+
+        if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(go_properties_seen, MANDATORY_GO_PROPERTIES, 0))
+        { // a
+
+          // id + ga + cflags + href must be present, see MANDATORY_GO_PROPERTIES
+          OC_ERR("mandatory items missing, no entry created at index: %d", entry);
+
+          // on error: free GO tmp entry (all heap allocations)
+          oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        // b + d
+
+        bool do_save = true;
+        // check entry with some additional sanity checks, a "bad" status will stop processing and return a 4.00
+
+        // note that an empty array ( 7: []) does not end up in setting the GA len, it ends in 4.00
+        if (tmp_go_entry.ga_len == 0)
         {
-          if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(go_properties_seen, MANDATORY_GO_PROPERTIES, 0))
-          { // a
-
-            // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
-            OC_ERR("mandatory items missing, no entry created at index: %d", entry);
-
-            // on error: free PUB tmp entry (all heap allocations)
-            oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
-
-            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-            return;
-          }
-
-          // b + d
-
-          bool do_save = true;
-          // check entry with some additional sanity checks, a "bad" status will stop processing and return a 4.00
-
-          // note that an empty array ( 7: []) does not end up in setting the GA len, it ends in 4.00
-          if (tmp_go_entry.ga_len == 0)
-          {
-            do_save = false;
-            OC_ERR("no ga's %d", tmp_go_entry.ga_len);
-          }
-          if (tmp_go_entry.cflags == OC_CFLAG_NONE)
-          {
-            do_save = false;
-            OC_ERR("no cflags set %d", tmp_go_entry.cflags);
-          }
-          if (oc_string_len(tmp_go_entry.href) > OC_MAX_URL_LENGTH)
-          {
-            do_save = false;
-            OC_ERR("href is longer than %d", OC_MAX_URL_LENGTH);
-          }
-          if (!oc_belongs_href_to_resource(tmp_go_entry.href, true))
-          {
-            do_save = false;
-            OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_go_entry.href));
-          }
-
-          if (!do_save)
-          {
-            // on error: free GO tmp entry (all heap allocations)
-            oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
-
-            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-            return;
-          }
-
-          // here all ok, set new GO entry
-          OC_INF("storing GO table entry at %d", entry);
-
-          /*
-            Free - on stack allocated -  live GO table entry elements that will be overwritten next.
-            - created : 2 elements (GAs, HREF)
-            - changed : 1..2 elements (GAs, HREF) - 0 not possible, would be to delete a GO entry
-          */
-          oc_free_allocated_group_object_table_elements(&g_got[entry], allocator);
-
-          // assign GO table entry with tmp GO (all elements) and increase number of used GO's
-          g_got[entry] = tmp_go_entry;
-
-          // debugging
-          oc_print_group_object_table_entry(entry);
-
-          // store (includes here an overwrite)
-          oc_store_group_object_table_entry(entry);
+          do_save = false;
+          OC_ERR("no ga's %d", tmp_go_entry.ga_len);
         }
+        if (tmp_go_entry.cflags == OC_CFLAG_NONE)
+        {
+          do_save = false;
+          OC_ERR("no cflags set %d", tmp_go_entry.cflags);
+        }
+        if (oc_string_len(tmp_go_entry.href) > OC_MAX_URL_LENGTH)
+        {
+          do_save = false;
+          OC_ERR("href is longer than %d", OC_MAX_URL_LENGTH);
+        }
+        if (!oc_belongs_href_to_resource(tmp_go_entry.href, true))
+        {
+          do_save = false;
+          OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_go_entry.href));
+        }
+
+        if (!do_save)
+        {
+          // on error: free GO tmp entry (all heap allocations)
+          oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        // here all ok, set new GO entry
+        OC_INF("storing GO table entry at %d", entry);
+
+        /*
+          Free - on stack allocated -  live GO table entry elements that will be overwritten next.
+          - created : 2 elements (GAs, HREF)
+          - changed : 1..2 elements (GAs, HREF) - 0 not possible, would be to delete a GO entry
+        */
+        oc_free_allocated_group_object_table_elements(&g_got[entry], allocator);
+
+        // assign GO table entry with tmp GO (all elements) and increase number of used GO's
+        g_got[entry] = tmp_go_entry;
+
+        // debugging
+        oc_print_group_object_table_entry(entry);
+
+        // store (includes here an overwrite)
+        oc_store_group_object_table_entry(entry);
 
         break;
       }
@@ -1167,9 +1178,23 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
+            // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+            if (array_size == 0)
+            {
+              if (allocator & TABLE_GAS)
+              {
+                free(tmp_gpt_entry.ga);
+              }
+
+              tmp_gpt_entry.ga_len = 0;
+              tmp_gpt_entry.ga = NULL;
+              allocator |= TABLE_GAS;
+              break;
+            }
+
+            // ga size shall be 32 bit
             uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
-            if (new_array && array_size > 0)
+            if (new_array)
             {
               for (int i = 0; i < array_size; i++)
               {
@@ -1268,54 +1293,53 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
         oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt, KNX_GPT_MAX_ENTRIES);
+        break; // next entry
       }
-      else
-      {
-        if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(gpt_properties_seen, MANDATORY_GPT_PROPERTIES, TARGET_GPT_PROPERTIES))
-        { // a0
 
-          // see details on constant
-          OC_ERR("mandatory items missing, no entry created at index: %d", index);
+      if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(gpt_properties_seen, MANDATORY_GPT_PROPERTIES, TARGET_GPT_PROPERTIES))
+      { // a0
 
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
+        // see details on constant
+        OC_ERR("mandatory items missing, no entry created at index: %d", index);
 
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
+        // on error: free PUB tmp entry (all heap allocations)
+        oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
 
-        if ((gpt_properties_seen & TARGET_GPT_PROPERTIES) == TARGET_GPT_PROPERTIES)
-        { // a1
-
-          // see details on constant
-          OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
-
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
-
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        // b + d, here all ok, set new PUB entry
-        OC_INF("storing PUB table at %d", index);
-
-        /*
-          Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
-          - created : 2 elements (GAs, AT)
-          - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete a PUB entry
-        */
-        oc_free_allocated_group_table_elements(&g_gpt[index], allocator);
-
-        // assign PUB table entry with tmp PUB (all elements)
-        g_gpt[index] = tmp_gpt_entry;
-
-        // debugging
-        oc_print_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
-
-        // store (includes here an overwrite)
-        oc_store_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
       }
+
+      if ((gpt_properties_seen & TARGET_GPT_PROPERTIES) == TARGET_GPT_PROPERTIES)
+      { // a1
+
+        // see details on constant
+        OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
+
+        // on error: free PUB tmp entry (all heap allocations)
+        oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
+
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
+
+      // b + d, here all ok, set new PUB entry
+      OC_INF("storing PUB table at %d", index);
+
+      /*
+        Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
+        - created : 2 elements (GAs, AT)
+        - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete a PUB entry
+      */
+      oc_free_allocated_group_table_elements(&g_gpt[index], allocator);
+
+      // assign PUB table entry with tmp PUB (all elements)
+      g_gpt[index] = tmp_gpt_entry;
+
+      // debugging
+      oc_print_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
+
+      // store (includes here an overwrite)
+      oc_store_group_table_entry(index, KNX_STORAGE_KEY_GPT_ENTRY, g_gpt);
 
       break;
     }
@@ -1755,18 +1779,32 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
             // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
-            const uint16_t new_array_size = oc_int_array_size(object->value.array);
+            const uint16_t array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+            // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+            if (array_size == 0)
             {
-              for (int i = 0; i < new_array_size; i++)
+              if (allocator & TABLE_GAS)
+              {
+                free(tmp_grt_entry.ga);
+              }
+
+              tmp_grt_entry.ga_len = 0;
+              tmp_grt_entry.ga = NULL;
+              allocator |= TABLE_GAS;
+              break;
+            }
+
+            // ga size shall be 32 bit
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            if (new_array)
+            {
+              for (int i = 0; i < array_size; i++)
               {
                 new_array[i] = (uint32_t)array[i];
               }
 
-              OC_DBG("ga size %d", new_array_size);
+              OC_DBG("ga size %d", array_size);
 
               /*
                 repeated key -> last wins
@@ -1779,7 +1817,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
               }
 
               // assign GA array in tmp copy (org ptr still valid in org entry)
-              tmp_grt_entry.ga_len = new_array_size;
+              tmp_grt_entry.ga_len = array_size;
               tmp_grt_entry.ga = new_array;
 
               allocator |= TABLE_GAS; // GPR1 (see below)
@@ -1900,67 +1938,66 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // no tmp elements will be allocated ...
         OC_INF("only found id in request, deleting entry at index: %d", index);
         oc_delete_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt, KNX_GRT_MAX_ENTRIES);
+        break; // next entry
       }
-      else
-      {
-        if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(grt_properties_seen, MANDATORY_GRT_PROPERTIES, TARGET_GRT_PROPERTIES))
-        { // a0
 
-          // see details on constant
-          OC_ERR("mandatory items missing, no entry created at index: %d", index);
+      if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(grt_properties_seen, MANDATORY_GRT_PROPERTIES, TARGET_GRT_PROPERTIES))
+      { // a0
 
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
+        // see details on constant
+        OC_ERR("mandatory items missing, no entry created at index: %d", index);
 
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
+        // on error: free PUB tmp entry (all heap allocations)
+        oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
-        if ((grt_properties_seen & TARGET_GRT_PROPERTIES) == TARGET_GRT_PROPERTIES)
-        { // a1
-
-          // see details on constant
-          OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
-
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
-
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        /*
-          ia (12) and at (14) are NOT checked for being together, deliberately
-          - spec 2.5.7.4.2 table 21: ia and at both "C u" (direct unicast), grpid "C m" (multicast), at not listed for multicast
-          - spec 6.3.2.1: multicast takes the first token holding the ga that is not the at of a unicast entry -> no at on grpid entries
-          - spec gives no rule that a device must reject a mismatch -> storing what the MaC sends is spec compliant too
-          - conformance template 5.5 sends ia WITHOUT at (5.5.5.3 ... 5.5.5.8a), the variant with at (5.5.5.4, 2nd POST) is disabled
-          - conformance template 5.5 sends grpid WITH at (5.5.6.1, 5.5.7.1, 5.5.8.1)
-          - options seen:
-            - reject ia without at -> fails 5.5.5.3 ... 5.5.5.8a (4.00 instead of 2.01)
-            - reject at without ia -> fails 5.5.6.1, 5.5.7.1, 5.5.8.1 and the disabled 5.5.5.4 variant
-            - accept both (chosen) -> passes the template, unicast without at falls back to the ga context (uc-c)
-        */
-
-        // b + d, here all ok, set new PUB entry
-        OC_DBG("storing RCP table at %d", index);
-
-        /*
-          Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
-          - created : 2 elements (GAs, AT)
-          - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete an RCP entry
-        */
-        oc_free_allocated_group_table_elements(&g_grt[index], allocator);
-
-        // assign RCP table entry with tmp RCP (all elements)
-        g_grt[index] = tmp_grt_entry;
-
-        // debugging
-        oc_print_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
-
-        // store (includes here an overwrite)
-        oc_store_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
       }
+
+      if ((grt_properties_seen & TARGET_GRT_PROPERTIES) == TARGET_GRT_PROPERTIES)
+      { // a1
+
+        // see details on constant
+        OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
+
+        // on error: free PUB tmp entry (all heap allocations)
+        oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
+
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
+
+      /*
+        ia (12) and at (14) are NOT checked for being together, deliberately
+        - spec 2.5.7.4.2 table 21: ia and at both "C u" (direct unicast), grpid "C m" (multicast), at not listed for multicast
+        - spec 6.3.2.1: multicast takes the first token holding the ga that is not the at of a unicast entry -> no at on grpid entries
+        - spec gives no rule that a device must reject a mismatch -> storing what the MaC sends is spec compliant too
+        - conformance template 5.5 sends ia WITHOUT at (5.5.5.3 ... 5.5.5.8a), the variant with at (5.5.5.4, 2nd POST) is disabled
+        - conformance template 5.5 sends grpid WITH at (5.5.6.1, 5.5.7.1, 5.5.8.1)
+        - options seen:
+          - reject ia without at -> fails 5.5.5.3 ... 5.5.5.8a (4.00 instead of 2.01)
+          - reject at without ia -> fails 5.5.6.1, 5.5.7.1, 5.5.8.1 and the disabled 5.5.5.4 variant
+          - accept both (chosen) -> passes the template, unicast without at falls back to the ga context (uc-c)
+      */
+
+      // b + d, here all ok, set new PUB entry
+      OC_DBG("storing RCP table at %d", index);
+
+      /*
+        Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
+        - created : 2 elements (GAs, AT)
+        - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete an RCP entry
+      */
+      oc_free_allocated_group_table_elements(&g_grt[index], allocator);
+
+      // assign RCP table entry with tmp RCP (all elements)
+      g_grt[index] = tmp_grt_entry;
+
+      // debugging
+      oc_print_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
+
+      // store (includes here an overwrite)
+      oc_store_group_table_entry(index, KNX_STORAGE_KEY_GRT_ENTRY, g_grt);
 
       break;
     }
@@ -2343,26 +2380,39 @@ void oc_load_group_object_table_entry(int entry)
             const int64_t* array = oc_int_array(rep->value.array);
 
             // reads only the ga array as n- elements, the ga len is explicitly not part of the stream 
-            const uint16_t new_array_size = oc_int_array_size(rep->value.array);
+            const uint16_t array_size = oc_int_array_size(rep->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+            // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+            if (array_size == 0)
             {
-              for (int i = 0; i < new_array_size; i++)
-              {
-                new_array[i] = (uint32_t)array[i];
-              }
-
               // release an already assigned ga array on the org ptr, free ignores NULL ptr
               free(g_got[entry].ga);
 
-              OC_DBG("go table entry with NON empty ga array 7: [...] loaded from storage, size %d", new_array_size);
-
-              // assign only when the new array is allocated correctly
-              g_got[entry].ga_len = new_array_size; // calculated from stream
-              g_got[entry].ga = new_array;
+              g_got[entry].ga_len = 0;
+              g_got[entry].ga = NULL;
+              break;
             }
+
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            if (!new_array)
+            {
+              OC_ERR("out of memory, go table entry %d loaded without its ga array from storage", entry);
+              break;
+            }
+
+            for (int i = 0; i < array_size; i++)
+            {
+              new_array[i] = (uint32_t)array[i];
+            }
+
+            // release an already assigned ga array on the org ptr, free ignores NULL ptr
+            free(g_got[entry].ga);
+
+            OC_DBG("go table entry with NON empty ga array 7: [...] loaded from storage, size %d", array_size);
+
+            // assign only when the new array is allocated correctly
+            g_got[entry].ga_len = array_size; // calculated from stream
+            g_got[entry].ga = new_array;
           }
 
           break;
@@ -2646,26 +2696,39 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
             const int64_t* array = oc_int_array(rep->value.array);
 
             // reads only the ga array as n- elements, the ga len is explicitly not part of the stream 
-            const uint16_t new_array_size = oc_int_array_size(rep->value.array);
+            const uint16_t array_size = oc_int_array_size(rep->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+            // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+            if (array_size == 0)
             {
-              for (int i = 0; i < new_array_size; i++)
-              {
-                new_array[i] = (uint32_t)array[i];
-              }
-
               // release an already assigned ga array on the org ptr, free ignores NULL ptr
               free(table[entry].ga);
 
-              // assign only when the new array is allocated correctly
-              table[entry].ga_len = new_array_size; // calculated from stream
-              table[entry].ga = new_array;
-
-              OC_DBG("pub/rcp table entry with NON empty ga array 7: [...] loaded from storage, size %d", new_array_size);
+              table[entry].ga_len = 0;
+              table[entry].ga = NULL;
+              break;
             }
+
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            if (!new_array)
+            {
+              OC_ERR("out of memory, pub/rcp table entry %d loaded without its ga array from storage", entry);
+              break;
+            }
+
+            for (int i = 0; i < array_size; i++)
+            {
+              new_array[i] = (uint32_t)array[i];
+            }
+
+            // release an already assigned ga array on the org ptr, free ignores NULL ptr
+            free(table[entry].ga);
+
+            // assign only when the new array is allocated correctly
+            table[entry].ga_len = array_size; // calculated from stream
+            table[entry].ga = new_array;
+
+            OC_DBG("pub/rcp table entry with NON empty ga array 7: [...] loaded from storage, size %d", array_size);
           }
           break;
         case OC_REP_NIL:
