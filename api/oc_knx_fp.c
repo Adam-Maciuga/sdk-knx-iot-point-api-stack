@@ -32,6 +32,25 @@ extern const oc_resource_t core_resource_knx_p;
 #define TABLE_AT_REF (GO_HREF)  // identifier for pub/rcp table access token ref property
 #define TABLE_GAS (1 << 1)      // identifier for pub/rcp/go table ga list ref property
 
+/*
+  properties seen in one go/pub/rcp table entry of a POST, a bitmask, not a counter (as for auth/at)
+  - a repeated CBOR key survives oc_parse_rep() as a separate rep
+  - a repeated key -> last wins (as on auth/at), the allocation of an earlier ga/href/at in the same request is released
+*/
+#define TBL_PROP_ID    (1u << 0)  // id (0), scanned before the key loop, a missing id is a 4.00 before
+#define TBL_PROP_GA    (1u << 1)  // ga (7)
+#define TBL_PROP_CFLAG (1u << 2)  // cflag (8), go table
+#define TBL_PROP_HREF  (1u << 3)  // href (11), go table
+#define TBL_PROP_IA    (1u << 4)  // ia (12), pub/rcp table
+#define TBL_PROP_GRPID (1u << 5)  // grpid (13), pub/rcp table
+#define TBL_PROP_AT    (1u << 6)  // at (14), pub/rcp table
+
+// true if a property of 'all_of' is missing or (if 'one_of' is not 0) none of 'one_of' is present
+static bool tbl_mandatory_missing(unsigned int seen, unsigned int all_of, unsigned int one_of)
+{
+  return (seen & all_of) != all_of || (one_of != 0 && (seen & one_of) == 0);
+}
+
 // note static variables are initialized with '0' first time on device startup
 static oc_group_object_table_t g_got[KNX_GOT_MAX_ENTRIES];  // go table
 static oc_group_table_t g_grt[KNX_GRT_MAX_ENTRIES];         // rcp table (to send)
@@ -443,7 +462,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // id, ga array (filled or empty), cflags and href must be present
-        #define MANDATORY_GO_PROPERTIES (4)
+        #define MANDATORY_GO_PROPERTIES (TBL_PROP_ID | TBL_PROP_GA | TBL_PROP_CFLAG | TBL_PROP_HREF)
 
         // used to delete the GO table entry
         bool id_only = true;
@@ -456,7 +475,9 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // set GO id
         tmp_go_entry.id = id;
-        int current_go_properties = 1;
+
+        // id (0) was already scanned/assigned, see TBL_PROP_xxx
+        unsigned int go_properties_seen = TBL_PROP_ID;
 
         while (object)
         {
@@ -475,9 +496,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             // cflags (8)
             if (object->iname == 8)
             {
+              go_properties_seen |= TBL_PROP_CFLAG;
+
               // set flags in tmp copy
               tmp_go_entry.cflags = (oc_cflag_mask_t)object->value.integer;
-              current_go_properties++;
             }
 
             break;
@@ -489,10 +511,21 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             // href (11)
             if (object->iname == 11)
             {
+              go_properties_seen |= TBL_PROP_HREF;
+
+              /*
+                repeated key -> last wins
+                - release the href of an earlier (same) key in THIS request
+                - don't release the href if it was NOT a repeated key, so the ptr from org table entry remains untouched
+              */
+              if (allocator & GO_HREF)
+              {
+                oc_free_string(&tmp_go_entry.href);
+              }
+
               // set (new) href in tmp copy (org ptr still valid)
               oc_new_string(&tmp_go_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
 
-              current_go_properties++;
               allocator |= GO_HREF;
             }
 
@@ -505,6 +538,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             // ga array (7)
             if (object->iname == 7)
             {
+              go_properties_seen |= TBL_PROP_GA;
+
               // a post request does NOT append items to an (existing) array, it overwrites them
               const int64_t* array = oc_int_array(object->value.array);
               const uint16_t new_array_size = oc_int_array_size(object->value.array);
@@ -520,11 +555,20 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
                 OC_INF("ga size %d", new_array_size);
 
+                /*
+                  repeated key -> last wins
+                  - release the array of an earlier (same) key in THIS request
+                  - don't release the array if it was NOT a repeated key, so the ptr from org table entry remains untouched
+                */
+                if (allocator & TABLE_GAS)
+                {
+                  free(tmp_go_entry.ga);
+                }
+
                 // assign GA array in tmp copy (org ptr still valid in org entry)
                 tmp_go_entry.ga_len = new_array_size;
                 tmp_go_entry.ga = new_array;
 
-                current_go_properties++;
                 allocator |= TABLE_GAS; // GOT1 (see below)
               }
               else
@@ -588,7 +632,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         }
         else
         {
-          if (return_status == OC_STATUS_CREATED && current_go_properties < MANDATORY_GO_PROPERTIES)
+          if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(go_properties_seen, MANDATORY_GO_PROPERTIES, 0))
           { // a
 
             // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
@@ -1025,14 +1069,12 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
-      #define MANDATORY_GPT_PROPERTIES (3)
+      // id + ga array (filled or empty) must be present, plus exactly one of ia OR grpid (see a1), see TBL_PROP_xxx
+      #define MANDATORY_GPT_PROPERTIES (TBL_PROP_ID | TBL_PROP_GA)
+      #define TARGET_GPT_PROPERTIES    (TBL_PROP_IA | TBL_PROP_GRPID)
 
       // to delete a PUB table entry
       bool id_only = true;
-
-      // identify if ia and grpid is set in the same table entry
-      uint8_t ia_and_grpid_together = 0;
 
       // identify which 'string' memory resource are allocated during the post
       uint8_t allocator = 0;
@@ -1042,8 +1084,9 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
       // set table id
       tmp_gpt_entry.id = id;
-      // id (0) was already scanned/assigned
-      int current_gpt_properties = 1;
+
+      // id (0) was already scanned/assigned, see TBL_PROP_xxx
+      unsigned int gpt_properties_seen = TBL_PROP_ID;
 
       while (object)
       {
@@ -1060,16 +1103,16 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // ia (12) - used on unicast
           if (object->iname == 12)
           {
+            gpt_properties_seen |= TBL_PROP_IA;
+
             tmp_gpt_entry.ia = (int)object->value.integer;
-            current_gpt_properties++;
-            ia_and_grpid_together++;
           }
           // grpid (13) - used on multicast
           else if (object->iname == 13)
           {
+            gpt_properties_seen |= TBL_PROP_GRPID;
+
             tmp_gpt_entry.grpid = (uint32_t)object->value.integer;
-            current_gpt_properties++;
-            ia_and_grpid_together++;
           }
           // iid (26) - used on multicast
           else if (object->iname == 26)
@@ -1091,6 +1134,18 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // at (14) - used on unicast
           if (object->iname == 14)
           {
+            gpt_properties_seen |= TBL_PROP_AT;
+
+            /*
+              repeated key -> last wins
+              - release the at of an earlier (same) key in THIS request
+              - don't release the at if it was NOT a repeated key, so the ptr from org table entry remains untouched
+            */
+            if (allocator & TABLE_AT_REF)
+            {
+              oc_free_string(&tmp_gpt_entry.at);
+            }
+
             // set (new) at in tmp copy (org ptr still valid)
             oc_new_string(&tmp_gpt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
@@ -1106,6 +1161,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7)
           if (object->iname == 7)
           {
+            gpt_properties_seen |= TBL_PROP_GA;
+
             // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t array_size = oc_int_array_size(object->value.array);
@@ -1121,11 +1178,20 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
               OC_DBG("ga size %d", array_size);
 
+              /*
+                repeated key -> last wins
+                - release the array of an earlier (same) key in THIS request
+                - don't release the array if it was NOT a repeated key, so the ptr from org table entry remains untouched
+              */
+              if (allocator & TABLE_GAS)
+              {
+                free(tmp_gpt_entry.ga);
+              }
+
               // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_gpt_entry.ga_len = array_size;
               tmp_gpt_entry.ga = new_array;
 
-              current_gpt_properties++;
               allocator |= TABLE_GAS; // GPT1 (see below)
             }
             else
@@ -1149,20 +1215,23 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // specification request, allowed empty ga array (7) for mc, coded in current CBOR with "OC_REP_NIL"
           if (object->iname == 7)
           {
+            gpt_properties_seen |= TBL_PROP_GA;
+
             /*
              - GPT1, see above: release a beforehand assigned ga array (2 x in the request would be wrong)
              - DON'T release HERE a present assigned ga array from the org. ptr (will happen later on no error)
              - free ignores NULL ptr
             */
             if (allocator & TABLE_GAS)
+            {
               free(tmp_gpt_entry.ga);
-            
+            } 
+
             tmp_gpt_entry.ga_len = 0;
             tmp_gpt_entry.ga = NULL;
 
             // also on empty ga array satisfies the items number
-            current_gpt_properties++; 
-            allocator |= TABLE_GAS; 
+            allocator |= TABLE_GAS;
           }
 
           break;
@@ -1177,6 +1246,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
+
         object = object->next;
       }
 
@@ -1201,7 +1271,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_GPT_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(gpt_properties_seen, MANDATORY_GPT_PROPERTIES, TARGET_GPT_PROPERTIES))
         { // a0
 
           // see details on constant
@@ -1214,7 +1284,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           return;
         }
 
-        if (ia_and_grpid_together > 1)
+        if ((gpt_properties_seen & TARGET_GPT_PROPERTIES) == TARGET_GPT_PROPERTIES)
         { // a1
 
           // see details on constant
@@ -1589,14 +1659,12 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
-      #define MANDATORY_GRT_PROPERTIES (3)
+      // id + ga array (filled or empty) must be present, plus exactly one of ia OR grpid (see a1), see TBL_PROP_xxx
+      #define MANDATORY_GRT_PROPERTIES (TBL_PROP_ID | TBL_PROP_GA)
+      #define TARGET_GRT_PROPERTIES    (TBL_PROP_IA | TBL_PROP_GRPID)
 
       // used to delete the RCP table entry
       bool id_only = true;
-      
-      // identify if ia and grpid is set in the same table entry
-      uint8_t ia_and_grpid_together = 0;
 
       // identify which "stack" memory resource are allocated during the post
       uint8_t allocator = 0;
@@ -1606,8 +1674,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
       // set table id
       tmp_grt_entry.id = id;
-      // id (0) was already scanned/assigned
-      int current_grt_properties = 1;
+
+      // id (0) was already scanned/assigned, see TBL_PROP_xxx
+      unsigned int grt_properties_seen = TBL_PROP_ID;
 
       while (object)
       {
@@ -1624,16 +1693,16 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // ia (12) - used on unicast
           if (object->iname == 12)
           {
+            grt_properties_seen |= TBL_PROP_IA;
+
             tmp_grt_entry.ia = (int)object->value.integer;
-            current_grt_properties++;
-            ia_and_grpid_together++;
           }
           // grpid (13) - used on multicast
           else if (object->iname == 13)
           {
+            grt_properties_seen |= TBL_PROP_GRPID;
+
             tmp_grt_entry.grpid = (uint32_t)object->value.integer;
-            current_grt_properties++;
-            ia_and_grpid_together++;
           }
           // iid (26) - used on multicast
           else if (object->iname == 26)
@@ -1655,6 +1724,18 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // at id (14) - used on unicast, see IMPORTANT notes below (in Options)
           if (object->iname == 14)
           {
+            grt_properties_seen |= TBL_PROP_AT;
+
+            /*
+              repeated key -> last wins
+              - release the at of an earlier key in THIS request
+              - don't release the at if it was NOT a repeated key, so the ptr from org table entry remains untouched
+            */
+            if (allocator & TABLE_AT_REF)
+            {
+              oc_free_string(&tmp_grt_entry.at);
+            }
+
             // set (new) at id in tmp copy (org ptr still valid)
             oc_new_string(&tmp_grt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
@@ -1670,6 +1751,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7) - used on multicast
           if (object->iname == 7)
           {
+            grt_properties_seen |= TBL_PROP_GA;
+
             // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t new_array_size = oc_int_array_size(object->value.array);
@@ -1685,11 +1768,20 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
               OC_DBG("ga size %d", new_array_size);
 
+              /*
+                repeated key -> last wins
+                - release the array of an earlier (same) key in THIS request
+                - don't release the array if it was NOT a repeated key, so the ptr from org table entry remains untouched
+              */
+              if (allocator & TABLE_GAS)
+              {
+                free(tmp_grt_entry.ga);
+              }
+
               // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_grt_entry.ga_len = new_array_size;
               tmp_grt_entry.ga = new_array;
 
-              current_grt_properties++;
               allocator |= TABLE_GAS; // GPR1 (see below)
             }
             else
@@ -1713,20 +1805,23 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // specification request, allowed empty ga array (7) for mc, coded in current CBOR with "OC_REP_NIL"
           if (object->iname == 7)
           {
+            grt_properties_seen |= TBL_PROP_GA;
+
             /*
              - GPR1, see above: release a beforehand assigned ga array (2 x in the request would be wrong)
              - DON'T release HERE a present assigned ga array from the org. ptr (will happen later on no error)
              - free ignores NULL ptr
             */
             if (allocator & TABLE_GAS)
+            {
               free(tmp_grt_entry.ga);
-            
+            }
+
             tmp_grt_entry.ga_len = 0;
             tmp_grt_entry.ga = NULL;
 
             // also an empty ga array satisfies the items number
-            current_grt_properties++; 
-            allocator |= TABLE_GAS; 
+            allocator |= TABLE_GAS;
           }
 
           break;
@@ -1752,8 +1847,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          break;
+          return;
         }
+
         object = object->next;
       }
 
@@ -1807,7 +1903,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_GRT_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && tbl_mandatory_missing(grt_properties_seen, MANDATORY_GRT_PROPERTIES, TARGET_GRT_PROPERTIES))
         { // a0
 
           // see details on constant
@@ -1820,7 +1916,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           return;
         }
 
-        if (ia_and_grpid_together > 1)
+        if ((grt_properties_seen & TARGET_GRT_PROPERTIES) == TARGET_GRT_PROPERTIES)
         { // a1
 
           // see details on constant
@@ -1832,6 +1928,19 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
+
+        /*
+          ia (12) and at (14) are NOT checked for being together, deliberately
+          - spec 2.5.7.4.2 table 21: ia and at both "C u" (direct unicast), grpid "C m" (multicast), at not listed for multicast
+          - spec 6.3.2.1: multicast takes the first token holding the ga that is not the at of a unicast entry -> no at on grpid entries
+          - spec gives no rule that a device must reject a mismatch -> storing what the MaC sends is spec compliant too
+          - conformance template 5.5 sends ia WITHOUT at (5.5.5.3 ... 5.5.5.8a), the variant with at (5.5.5.4, 2nd POST) is disabled
+          - conformance template 5.5 sends grpid WITH at (5.5.6.1, 5.5.7.1, 5.5.8.1)
+          - options seen:
+            - reject ia without at -> fails 5.5.5.3 ... 5.5.5.8a (4.00 instead of 2.01)
+            - reject at without ia -> fails 5.5.6.1, 5.5.7.1, 5.5.8.1 and the disabled 5.5.5.4 variant
+            - accept both (chosen) -> passes the template, unicast without at falls back to the ga context (uc-c)
+        */
 
         // b + d, here all ok, set new PUB entry
         OC_DBG("storing RCP table at %d", index);
