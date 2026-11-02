@@ -396,7 +396,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OutboundMalformedCoapIsDropped` | Malformed outbound CoAP is dropped |
 | `OutboundUnicastEchoResponseIsEncryptedAndSent` | Unicast echo response is encrypted and sent |
 | `OutboundMulticastEchoResponseIsEncryptedAndSent` | Multicast-caused echo response is encrypted and sent |
-| `OutboundUnicastWithGroupAddressOnlyIsDropped` | 1 | a unicast request without the recipient's token (`access_token.outbound`) is not sent, no lookup by group address |
+| `OutboundUnicastWithGroupAddressOnlyIsDropped` | A unicast request without the recipient's token (`access_token.outbound`) is not sent, no lookup by group address |
 
 ---
 
