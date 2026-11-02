@@ -1172,9 +1172,8 @@ int coap_receive(oc_message_t* incoming_message)
              - the transaction does not exist anymore (it was self cleared), and NO plaintext message is
                retained; the OSCORE echo ring only holds an ANCHOR referencing the originating group object
 
-             - the payload is therefore REGENERATED from that group object, which carries the CURRENT value.
-               IoT spec. clause 3.6.4.1.3 explicitly permits this ("the value is not valid anymore"). If the value
-               cannot be produced, the re-request is abandoned rather than answered.
+             - the payload is therefore REGENERATED from that group object, which carries the CURRENT value
+               (clause 3.6.4.1.3 allows to include a value and does not claim it must be the 'old' value)
         */
         
         oc_echo_anchor_t anchor = {0};
@@ -1247,18 +1246,14 @@ int coap_receive(oc_message_t* incoming_message)
             re_request_coap_packet->token_len = inbound_coap_pkt->token_len;
 
             /*
-              destination and security context of the freshly built message: the responder that challenged
-              us, with the sending group address of the originating group object
-              - the token that decrypted the 4.01 echo response, it is the one of the original send
-                (IoT spec. clause 3.6.4.1.3 "same credentials"), 
-                the OSCORE layer takes its sender context (uc-b)
+              destination and security context of the freshly built message: the endpoint of the 4.01 echo response, nothing else to set on it
+              - destination   : the responder (IPv6) that challenged us
+              - security      : the token that decrypted the 4.01 (access_token), it is the one of the original send
+                                (clause 3.6.4.1.3 "same credentials"), the OSCORE layer takes its sender context (uc-b)
+              - ga/go/srv/len : not needed, all zero on inbound calloc msg generation or carries old values from the original send, 
+                                but the OSCORE layer does not use them on outbound echo rerequest msg (job already done above)
             */
             memcpy(&source_msg->endpoint, &incoming_message->endpoint, sizeof(oc_endpoint_t));
-            source_msg->endpoint.group_address = anchor.go->ga[0];
-            source_msg->endpoint.s_mode_auth_at = incoming_message->endpoint.auth_at_of_inbound_msg;
-            source_msg->endpoint.s_mode_group_object = NULL; // must be done, src was not NULL
-            source_msg->endpoint.s_mode_service_type = 0;    // must be done, src was not 0
-            source_msg->length = 0;                          // must be done, will be overwritten by 'coap_oscore_serialize_message' below
           }
 
           // find a POSSIBLE created client callback by using old mid (before changing mid)

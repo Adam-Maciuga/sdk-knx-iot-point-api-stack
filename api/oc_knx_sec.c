@@ -2017,7 +2017,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
     (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
   */
 
-  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_of_inbound_msg);
+  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->access_token.inbound);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
   if (caller_acl_scope & called_res_scope)
@@ -2093,7 +2093,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
             {
               // only GA is of interest
 
-              if (!check_access_token_for_group_address(endpoint->auth_at_of_inbound_msg, (uint32_t)s_map->value.integer))
+              if (!check_access_token_for_group_address(endpoint->access_token.inbound, (uint32_t)s_map->value.integer))
               {
                 OC_WRN("ga %d of the request payload is not in the access token", (int)s_map->value.integer);
                 return false;

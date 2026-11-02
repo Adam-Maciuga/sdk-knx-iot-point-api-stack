@@ -242,7 +242,7 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   group_ucast_endpoint.group_address = group_address;
 
   // the OSCORE layer encrypts with the context of this token (uc-b)
-  group_ucast_endpoint.s_mode_auth_at = auth_at;
+  group_ucast_endpoint.access_token.outbound = auth_at;
 
   /*
     carry the originating group object plus the service type on the endpoint: the OSCORE layer copies both into the

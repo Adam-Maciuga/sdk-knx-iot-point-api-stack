@@ -100,21 +100,22 @@ extern "C" {
     const struct oc_group_object_table_t* s_mode_group_object;
 
     /*
-      auth/at entry pointer of the token that decrypted an inbound OSCORE message (request or response)
-        - used for matching oscore context of a - to be sent out - outbound response to a former inbound request (uc-a)
-        - used for upper layers to check access scopes (on an inbound message)
-        - a 4.01 echo response hands it over to the regenerated 'echo re-request' as s_mode_auth_at
+      auth/at entry pointer of the message, one pointer, the role follows from the message
+      - inbound: the token that decrypted an inbound OSCORE message (request or response)
+        - access scope check on an inbound request
+        - outbound response to a former inbound request takes it over (uc-a, context by kid + kid_context)
+      - outbound: the token for an outbound unicast request (uc-b, the token's sender context)
+        - s-mode request: the 'at' of the recipient table entry, spec 2.5.7.4.2 table 21, 6.3.1.2,
+          never a token looked up by the group address, a recipient without 'at' is not sent
+        - regenerated 'echo re-request': the inbound token of the 4.01 echo response is its outbound token
+          (spec 3.6.4.1.3 "same credentials"), the endpoint is copied from the 4.01
+      - the OSCORE layer tells the roles apart by the CoAP code (request / response) and the s-mode flags
     */
-    const oc_auth_at_t* auth_at_of_inbound_msg;
-
-    /*
-      auth/at entry pointer of an outbound unicast s-mode request (uc-b)
-        - the 'at' of the recipient table entry, spec 2.5.7.4.2 table 21, 6.3.1.2: unicast is encrypted
-          with the credentials of THIS token, never with a token looked up by the group address
-        - the token that decrypted the 4.01 echo response for a regenerated 'echo re-request' (spec 3.6.4.1.3)
-        - NULL on a unicast s-mode request -> not sent (no context), a recipient without 'at' is not sent at all
-    */
-    const oc_auth_at_t* s_mode_auth_at;
+    union
+    {
+      const oc_auth_at_t* inbound;
+      const oc_auth_at_t* outbound;
+    } access_token;
 
     enum transport_flags flags;             // transport flags such as mc,uc, oscore
     int interface_index;                    // interface index
@@ -122,7 +123,7 @@ extern "C" {
     /*
       sending group address of an s-mode request (issued by an application)
         - multicast: used to find the OSCORE sender context (first token holding the ga, spec 6.3.2.1)
-        - unicast: only carried in the message, the context comes from s_mode_auth_at
+        - unicast: only carried in the message, the context comes from access_token.outbound
     */
     uint32_t group_address;
 

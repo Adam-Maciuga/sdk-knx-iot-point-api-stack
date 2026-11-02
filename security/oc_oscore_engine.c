@@ -1028,7 +1028,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   */
 
   // uc-a: save access token pointer, that was used to decrypt, see send_unicast
-  msg->endpoint.auth_at_of_inbound_msg = oscore_ctx->auth_at;
+  msg->endpoint.access_token.inbound = oscore_ctx->auth_at;
 
   // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   msg->endpoint.kid_len = coap_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : coap_pkt->kid_len;
@@ -1039,7 +1039,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   msg->endpoint.kid_ctx_len = coap_pkt->kid_ctx_len > OSCORE_ID_CONTEXT_LEN ? OSCORE_ID_CONTEXT_LEN : coap_pkt->kid_ctx_len;
   memcpy(msg->endpoint.kid_ctx, coap_pkt->kid_ctx, msg->endpoint.kid_ctx_len);
 
-  // uc-e: see send_unicast
+  // echo response (x0, x1): see send_unicast, it reuses the inbound PIV
   // piv_len <= OSCORE_PIV_LEN is ensured by the OSCORE option parser (coap_parse_inner_oscore_option)
   msg->endpoint.piv_len = coap_pkt->piv_len;
   memcpy(msg->endpoint.piv, coap_pkt->piv, msg->endpoint.piv_len);
@@ -1351,60 +1351,25 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   OC_INF("coap parse packet : ok (unicast)");
 
-  // init context
-  oc_oscore_context_t* oscore_ctx = NULL;
-
   /*
     Cases for a unicast messages:
 
-    (uc-a) context will be retrieved by kid
+    (uc-a) outbound response: context retrieved by kid (token of the inbound request) + kid_context
      - uc outbound (server) response -> after former inbound (ext) CON/NON request
      - example: do "Piggybacked Response" or "Separate Response"
      - example: do "Echo Response" (inbound request was unsynced)
 
-    (uc-b) context retrieved by the recipient's access token ('at' of the recipient table entry)
-     - uc outbound (client) s-mode request via '/k', a recipient without 'at' is not sent (oc_send_s_mode_unicast_message)
+    (uc-b) outbound request: the sender context of the token
+     - uc outbound (client) s-mode request via '/k': the 'at' of the recipient table entry, a recipient without 'at'
+       is not sent (oc_send_s_mode_unicast_message)
+     - regenerated 'echo re-request': the token that decrypted the 4.01 echo response
+
+    the CoAP code tells uc-a and uc-b apart (access_token holds one token, inbound or outbound role),
+    no lookup by group address for unicast: a token guessed from the ga may not be the recipient's one
+
    */
 
-  const oc_auth_at_t* at_entry = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg;
-
-  OC_DBG_OSCORE("%s", at_entry ? "found access token, step 1" : "uc-a : non access token");
-
-  if (at_entry)
-  { // (uc-a)
-
-    // use kid (at) + kid_context (msg) to find context (many GA contexts may exist for an access token, hence check kid_context)
-    oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context((uint8_t*)oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-                                                               from_org_msg_cloned_outgoing_msg->endpoint.kid_ctx,
-                                                               from_org_msg_cloned_outgoing_msg->endpoint.kid_ctx_len);
-
-    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by access token, step 2" : "uc-a : non context");
-  }
-
-  if (oscore_ctx == NULL && from_org_msg_cloned_outgoing_msg->endpoint.s_mode_auth_at)
-  { // (uc-b)
-
-    // spec 2.5.7.4.2 table 21, 6.3.1.2: the 'at' of the recipient table entry, not the first token holding the ga
-    oscore_ctx = oc_oscore_find_context_by_access_token(from_org_msg_cloned_outgoing_msg->endpoint.s_mode_auth_at, true);
-
-    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by recipient 'at'" : "uc-b : non context");
-
-    if (oscore_ctx == NULL)
-    {
-      // the recipient names a token without a sender context, never fall back to another token's key
-      OC_ERR("no OSCORE sender context for the recipient's access token, error");
-      oc_message_unref(from_org_msg_cloned_outgoing_msg);
-      return -1;
-    }
-  }
-
-  // we haven't found any context (uc-a), (uc-b), so we free the message we just created
-  if (oscore_ctx == NULL)
-  {
-    OC_ERR("no OSCORE context found, error");
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
-    return -1;
-  }
+  oc_endpoint_t* ep = &from_org_msg_cloned_outgoing_msg->endpoint;
 
   // msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
   bool is_con = coap_pkt->type == COAP_TYPE_CON;
@@ -1414,8 +1379,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
   bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > COAP_FETCH; // explicit allowlist: CON/NON/ACK with response code
   
-  bool unicast_echo_response_by_mc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC;
-  bool unicast_echo_response_by_uc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC;
+  bool unicast_echo_response_by_mc = ep->flags & ECHO_CAUSED_BY_MC_SRC;
+  bool unicast_echo_response_by_uc = ep->flags & ECHO_CAUSED_BY_UC_SRC;
 
   if (!is_outbound_request && !is_outbound_response)
   {
@@ -1425,7 +1390,33 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     return -1;
   }
 
+  // the token of the message (one union pointer): outbound on a request, inbound on a response (also used below for an 'echo response')
+  const oc_auth_at_t* at_entry = ep->access_token.inbound;
+
   /*
+    (uc-b) request  -> sender context of the token, spec 2.5.7.4.2 table 21, 6.3.1.2: the recipient's 'at', not the first token holding the ga
+    (uc-a) response -> kid (at) + kid_context (msg), many GA contexts may exist for an access token, hence check kid_context
+  */
+  oc_oscore_context_t* oscore_ctx = is_outbound_request ? oc_oscore_find_context_by_access_token(at_entry, true)
+                                  : at_entry            ? oc_oscore_find_context_by_kid_and_kid_context((uint8_t*)oc_string(at_entry->osc_id),
+                                                                                                        oc_byte_string_len(at_entry->osc_id),
+                                                                                                        ep->kid_ctx, ep->kid_ctx_len)
+                                  : NULL;
+
+  OC_DBG_OSCORE("%s : %s", is_outbound_request ? "uc-b" : "uc-a", oscore_ctx ? "context found" : "no context");
+
+  // we haven't found any context (uc-a), (uc-b), so we free the message we just created
+  if (oscore_ctx == NULL)
+  {
+    OC_ERR("no OSCORE context found, error");
+    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    return -1;
+  }
+
+  /*
+   outbound responses (is_outbound_response), by the inbound request they answer, context retrieved by (uc-a),
+   own outbound requests (uc-b) are not listed: they carry their own SSN as PIV (RFC 8613 8.1, see below)
+
    s-mode = only if ga len is > '0'
 
    - (x0) inbound s-mode mc to /k : return 'uc echo response', use temp id_context 10 byte rnd 'Response Sender Context'
@@ -1452,12 +1443,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     and echo responses that explicitly carry a PIV and observe notifications.
   */
   uint8_t *outbound_piv = NULL,
-          *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv,
+          *inbound_piv = ep->piv,
           *kid = oscore_ctx->sender_id,
           *kid_context = oscore_ctx->id_context;
 
   uint8_t outbound_piv_len = 0,
-          inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.piv_len,
+          inbound_piv_len = ep->piv_len,
           kid_len = oscore_ctx->sender_id_len,
           kid_context_len = oscore_ctx->id_context_len;
 
@@ -1541,7 +1532,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       - append the (ssn, kid) to echo ring, a later inbound echo response with echo kid context is accepted only on this send-proof
         (same as for multicast)
     */
-    const transport_flags_t s_mode_flags = from_org_msg_cloned_outgoing_msg->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST);
+    const transport_flags_t s_mode_flags = ep->flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST);
     if (s_mode_flags && !is_a_con_repetition)
     {
       // get either s-mode NON or s-mode CON transaction
@@ -1553,7 +1544,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       }
 
       uint32_t ssn = oscore_piv_to_ssn(outbound_piv, outbound_piv_len);
-      oc_oscore_echo_whitelist_append(ssn, oscore_ctx, coap_pkt, &from_org_msg_cloned_outgoing_msg->endpoint);
+      oc_oscore_echo_whitelist_append(ssn, oscore_ctx, coap_pkt, ep);
     }
 
     #ifdef OC_CLIENT
@@ -1590,7 +1581,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     // RFC 8613, 8.3 + KNX IoT 3.6.5
     if (unicast_echo_response_by_mc)
-    { // s-mode (x0), (uc-e) - overwrites context retrieved by (uc-a)
+    { // s-mode (x0) - overwrites the context retrieved by (uc-a) with a temporary 'Response Sender Context'
 
       bool is_smode = oscore_ctx->auth_at->ga_len > 0;
       if (is_smode)
@@ -1626,7 +1617,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         {
           // this should not happen, because there was with LRU a context released
           OC_ERR("could not create oscore sender context, return unsecured 5.00");
-          oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &from_org_msg_cloned_outgoing_msg->endpoint, false);
+          oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, ep, false);
           oc_message_unref(from_org_msg_cloned_outgoing_msg);
           return -1;
         }
@@ -1644,7 +1635,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
         oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
 
-        UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
+        UNSET_BIT(ep->flags, ECHO_CAUSED_BY_MC_SRC);
         
         OC_DBG("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
         OC_LOGbytes(inbound_piv, inbound_piv_len);
@@ -1655,7 +1646,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       }
     }
     else if (unicast_echo_response_by_uc)
-    { // s-mode (x1) | non s-mode (x6), context retrieved by (uc-a) ... (uc-e)
+    { // s-mode (x1) | non s-mode (x6), context retrieved by (uc-a)
 
       // set for response
       kid = oscore_ctx->recipient_id;
@@ -1668,10 +1659,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
       oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
 
-      UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
+      UNSET_BIT(ep->flags, ECHO_CAUSED_BY_UC_SRC);
       
       OC_DBG("send 'unicast echo response' caused by inbound %s unicast message using PIV with len = %u :",
-             from_org_msg_cloned_outgoing_msg->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST) ? "s-mode" : "common", inbound_piv_len);
+             ep->flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST) ? "s-mode" : "common", inbound_piv_len);
       OC_LOGbytes(inbound_piv, inbound_piv_len );
 
       // 8.1 (a) below, PIV shall be included
@@ -1854,7 +1845,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   }
 
   // from here on any message is encrypted ...
-  UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
+  UNSET_BIT(ep->flags, OSCORE_DECRYPTED);
 
   #ifdef OC_CLIENT
 

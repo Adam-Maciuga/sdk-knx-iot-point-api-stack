@@ -858,7 +858,7 @@ protected:
     ASSERT_NE(transaction_, nullptr);
 
     /* what the OSCORE layer records when our own request was protected */
-    transaction_->message->endpoint.auth_at_of_inbound_msg = &at_;
+    transaction_->message->endpoint.access_token.inbound = &at_;
     transaction_->message->endpoint.piv[0] = 0x07;
     transaction_->message->endpoint.piv_len = 1;
   }
@@ -924,7 +924,7 @@ TEST_F(OscoreContextByToken, NoMatchingTransactionReturnsNull)
 TEST_F(OscoreContextByToken, TransactionWithoutAccessTokenReturnsNull)
 {
   /* a transaction from a plain (non-OSCORE) request carries no access token */
-  transaction_->message->endpoint.auth_at_of_inbound_msg = NULL;
+  transaction_->message->endpoint.access_token.inbound = NULL;
 
   const uint8_t token[] = {0x11, 0x22, 0x33};
   coap_packet_t pkt = make_packet(token, sizeof(token), 0);

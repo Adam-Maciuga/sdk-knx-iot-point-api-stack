@@ -769,7 +769,7 @@ protected:
     oc_message_t* message = make_owned_message(plaintext, sizeof(plaintext));
     if (message != nullptr) {
       message->endpoint.flags = OSCORE;
-      message->endpoint.auth_at_of_inbound_msg = &at_;
+      message->endpoint.access_token.inbound = &at_;
       message->endpoint.piv[0] = 1;
       message->endpoint.piv_len = 1;
     }
@@ -1070,7 +1070,7 @@ TEST_F(OscoreEngine, OutboundUnicastWithGroupAddressOnlyIsDropped)
 {
   /*
     unicast never looks up a token by ga
-    - the ga matches the sender context, but no recipient 'at' (s_mode_auth_at) is named -> not sent
+    - the ga matches the sender context, but no recipient 'at' (access_token.outbound) is named -> not sent
   */
   oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
   ASSERT_NE(message, nullptr);
@@ -1180,7 +1180,7 @@ TEST_F(OscoreEngine, OutboundUnicastRequestIsEncryptedAndSent)
   oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
   ASSERT_NE(message, nullptr);
   // the recipient's 'at', as oc_send_s_mode_unicast_message sets it (uc-b)
-  message->endpoint.s_mode_auth_at = &at_;
+  message->endpoint.access_token.outbound = &at_;
 
   ASSERT_EQ(oc_process_post(&oc_oscore_handler,
                             oc_events[OUTBOUND_UC_OSCORE_EVENT], message),

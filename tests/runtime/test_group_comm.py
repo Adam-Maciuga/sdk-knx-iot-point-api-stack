@@ -2396,7 +2396,9 @@ def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
                                                   dut_iid, echo,
                                                   timeout=15.0,
                                                   replay_window=0.0,
-                                                  echo_kid_ctx=False):
+                                                  echo_kid_ctx=False,
+                                                  answer_re_request=None,
+                                                  watch=6.0):
     """Answer discovery, capture the first unicast POST /k (CON or NON),
     reply with a protected 4.01 Echo and capture the regenerated re-request.
 
@@ -2407,6 +2409,12 @@ def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
 
     With replay_window > 0 the same protected 4.01 is replayed after the
     re-request and any further POST within the window is captured as 'third'.
+
+    With answer_re_request = "valid" / "wrong_key" the CON re-request is
+    answered with a protected ACK 2.04 (key of the DUT's sender context, or a
+    random key), with "none" it is not answered; the DUT is watched for
+    'watch' seconds: a retransmission of the re-request (same token) means the
+    response was not accepted ('re_request_retransmitted').
 
     Returns dict with 'first', 'second', 'third' ((msg, addr) or None)
     and 'ctx'.
@@ -2436,7 +2444,7 @@ def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
         except OSError:
             pass
 
-    result = {"first": None, "second": None, "third": None, "ctx": None}
+    result = {"first": None, "second": None, "third": None, "ctx": None, "re_request_retransmitted": None}
     deadline = time.monotonic() + timeout
     discovery_answered = False
     echo_response = None
@@ -2504,6 +2512,34 @@ def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
                 uc_sock.sendto(*echo_response)
             elif msg["token"] != result["first"][0]["token"]:
                 result["second"] = (msg, addr)
+
+        if result["second"] is not None and answer_re_request:
+            from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+            re_msg, re_addr = result["second"]
+            piv2, _, kid2 = _parse_oscore_option(re_msg["options"][9])
+            ctx = result["ctx"]
+            # response to the re-request: no own PIV, nonce and AAD from the re-request kid/PIV (RFC 8613 8.3)
+            key = ctx._empty_sender_id_key() if answer_re_request == "valid" else os.urandom(16)
+            ct = AESCCM(key, tag_length=8).encrypt(ctx._build_nonce(kid2 or b"", piv2), bytes([0x44]),
+                                                   ctx._build_aad(kid2 or b"", piv2))
+            tkl2 = len(re_msg["token"])
+            # outer: ACK 2.04 with the re-request's MID and token, empty OSCORE option
+            ack = struct.pack("!BBH", (1 << 6) | (2 << 4) | tkl2, (2 << 5) | 4, re_msg["mid"]) + re_msg["token"] + b"\x90\xff" + ct
+            if answer_re_request != "none":
+                uc_sock.sendto(ack, re_addr)
+            result["re_request_retransmitted"] = False
+            watch_deadline = time.monotonic() + watch
+            while time.monotonic() < watch_deadline:
+                uc_sock.settimeout(max(watch_deadline - time.monotonic(), 0.01))
+                try:
+                    data, _ = uc_sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                if len(data) >= 4 and data[1] == 0x02:
+                    again = CoapClient.parse_coap_message(data)
+                    if again["token"] == re_msg["token"]:
+                        result["re_request_retransmitted"] = True
+                        break
 
         if result["second"] is not None and replay_window > 0:
             uc_sock.sendto(*echo_response)
@@ -2721,6 +2757,46 @@ class TestUnicastConEchoReRequest:
     def test_unicast_con_echo_re_request(self, coap, oscore_ctx,
                                          device_iface):
         _run_unicast_echo(coap, oscore_ctx, device_iface, 0, False)
+
+
+class TestUnicastConEchoReRequestResponse:
+    """Unicast CON s-mode, 4.01 Echo, CON 'echo re-request': the peer's
+    protected ACK 2.04 to the re-request is accepted, the DUT does not
+    retransmit the re-request. Control: a 2.04 protected with a wrong key is
+    not accepted and the re-request is retransmitted (shows that a missing
+    retransmission really means 'accepted').
+
+    Fresh tables per case: the recipient's IPv6 is resolved to the port of the
+    responder socket of a case, a second case needs its own resolution."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, coap, oscore_ctx, device_iface):
+        _setup_unicast_echo(coap, oscore_ctx, device_iface, non=False)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    # watch 12 s: a CON is retransmitted after COAP_RESPONSE_TIMEOUT (5 s) * random factor (<= 1.5), i.e. within 5 ... 7.5 s
+    @pytest.mark.parametrize("answer, retransmit_expected", [("valid", False), ("wrong_key", True), ("none", True)],
+                             ids=["valid_response", "wrong_key_control", "no_response_control"])
+    def test_response_to_re_request(self, coap, oscore_ctx, device_iface, answer, retransmit_expected):
+        result = {}
+
+        def _responder():
+            result.update(_serve_discovery_echo_and_capture_re_request(
+                device_iface, PEER_IA, DUT_IID, os.urandom(8), timeout=15.0, answer_re_request=answer, watch=12.0))
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+        t.join(timeout=40)
+
+        assert result.get("first") is not None, "DUT did not send the unicast POST /k (discovery resolution or send failed)"
+        assert result.get("second") is not None, "DUT did not send an 'echo re-request' after the 4.01 Echo response"
+        assert result["second"][0]["type"] == 0, f"re-request is not CON (type {result['second'][0]['type']})"
+        assert result["re_request_retransmitted"] == retransmit_expected, (
+            f"{answer}: re-request retransmitted = {result['re_request_retransmitted']}, expected {retransmit_expected} "
+            f"({'the protected 2.04 to the re-request was not accepted' if answer == 'valid' else 'control did not retransmit'})")
 
 
 # ===========================================================================

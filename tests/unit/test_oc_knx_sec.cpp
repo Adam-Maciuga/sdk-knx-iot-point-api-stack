@@ -795,7 +795,7 @@ protected:
 
     /* baseline: a fully authenticated OSCORE request carrying a token */
     ep.flags = (enum transport_flags)(OSCORE | OSCORE_DECRYPTED);
-    ep.auth_at_of_inbound_msg = &token;
+    ep.access_token.inbound = &token;
   }
 
   /* s-mode payload shape the handler scans: [ { 7: <ga> } ] */
@@ -858,7 +858,7 @@ TEST_F(SecAcl, UnsecuredResourceAllowedWithoutOscore)
 {
   res.get_handler.acl_scope_mask = OC_ACL_NONE;
   ep.flags = (enum transport_flags)0;
-  ep.auth_at_of_inbound_msg = nullptr;
+  ep.access_token.inbound = nullptr;
 
   EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
 }
@@ -921,7 +921,7 @@ TEST_F(SecAcl, MissingAccessTokenDenied)
 {
   /* decrypted OSCORE but no auth/at entry attached -> scope mask is NONE */
   res.get_handler.acl_scope_mask = OC_ACL_SEC;
-  ep.auth_at_of_inbound_msg = nullptr;
+  ep.access_token.inbound = nullptr;
 
   EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
 }

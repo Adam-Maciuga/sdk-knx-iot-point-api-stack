@@ -149,28 +149,29 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
     (b) own unicast s-mode NON request (header-only transaction): as (a), matched by token only, a NON response carries
         a mid of the peer that may collide with a pending CON transaction
 
-    (c) outbound message to an inbound request: the context of the access token of that inbound request
+    (c) any other transaction (no s-mode flag), e.g. an outbound message to an inbound request or an 'echo re-request'
+        (its s-mode flags are cleared) -> the first context of its access token
 
     Note, own multicast s-mode NON pops up not here, its transaction is cleared right after sending (coap_send_transaction)
 
-    |case |transaction                         | auth_at_of_inbound_msg | s_mode_auth_at | s-mode flag        | context lookup
-    |-----+------------------------------------+------------------------+----------------+--------------------+-------------------------
-    |(a)  |own unicast s-mode CON              | NULL                   | set            | S_MODE_CON_REQUEST | recipient's access token
-    |(b)  |own unicast s-mode NON (header-only)| NULL                   | set            | S_MODE_NON_REQUEST | recipient's access token
-    |(c)  |outbound msg to an inbound request  | set                    | NULL           | none               | access token
+    |case |transaction                         | access_token          | s-mode flag        | context lookup
+    |-----+------------------------------------+-----------------------+--------------------+-------------------------------
+    |(a)  |own unicast s-mode CON              | outbound: recipient's | S_MODE_CON_REQUEST | sender context of the token
+    |(b)  |own unicast s-mode NON (header-only)| outbound: recipient's | S_MODE_NON_REQUEST | sender context of the token
+    |(c)  |any other                           | inbound or outbound   | none               | first context of the token
   */
-  if (!t->message->endpoint.auth_at_of_inbound_msg && (t->message->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST)))
+  if (t->message->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST))
   { // (a) && (b)
     if (t->message->endpoint.piv_len == 0)
     {
       return NULL;
     }
 
-    return oc_oscore_find_context_by_access_token(t->message->endpoint.s_mode_auth_at, true);
+    return oc_oscore_find_context_by_access_token(t->message->endpoint.access_token.outbound, true);
   }
 
   // (c)
-  return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg, false);
+  return oc_oscore_find_context_by_access_token(t->message->endpoint.access_token.inbound, false);
 }
 
 /*
