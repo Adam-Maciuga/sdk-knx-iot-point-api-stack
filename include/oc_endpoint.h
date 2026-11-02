@@ -117,6 +117,15 @@ extern "C" {
       const oc_auth_at_t* outbound;
     } access_token;
 
+    /*
+      auth/at entry pointer of an outbound unicast s-mode request (uc-b)
+        - the 'at' of the recipient table entry, spec 2.5.7.4.2 table 21, 6.3.1.2: unicast is encrypted
+          with the credentials of THIS token, never with a token looked up by the group address
+        - the token that decrypted the 4.01 echo response for a regenerated 'echo re-request' (spec 3.6.4.1.3)
+        - NULL on a unicast s-mode request -> not sent (no context), a recipient without 'at' is not sent at all
+    */
+    const oc_auth_at_t* s_mode_auth_at;
+
     enum transport_flags flags;             // transport flags such as mc,uc, oscore
     int interface_index;                    // interface index
 
