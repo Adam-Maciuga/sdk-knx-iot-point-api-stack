@@ -1123,7 +1123,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     CON transaction, so it never reaches here. 
     
     We guard the precondition explicitly so a future non-s-mode multicast
-    OSCORE sender fails loudly instead of silently pinning a payload in the echo ring that no echo re-request would consume.
+    OSCORE sender fails loudly instead of silently writing an echo ring anchor without an s-mode group object, which no echo
+    re-request could regenerate.
   */
   if (!(msg->endpoint.flags & S_MODE_NON_REQUEST))
   {
@@ -1132,7 +1133,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     return -1;
   }
 
-  // new msg, send and release after sending -> the original message may be still needed for echos (NON messages)
+  // new msg, encrypted in place and sent; 'msg' stays plaintext and is released below (echo ring keeps only a group object reference)
   oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
@@ -1322,7 +1323,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
-  // new msg, send and release after sending -> the original message may be still needed for reps (tracked or CON messages)
+  // new msg, encrypted in place and sent; 'msg' stays plaintext for its other holders (CON transaction: retransmits, echo re-request)
   oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {

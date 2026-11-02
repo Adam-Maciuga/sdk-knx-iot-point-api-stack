@@ -288,8 +288,8 @@ void coap_send_transaction(coap_transaction_t *t)
        multicast s-mode NON: 
        - send and clear immediately like a plain NON 
        - no keep-alive, there is no single unicast recipient to track, 
-       - late (>5s) multicast echoes are served from the retained plaintext message backup
-         in the OSCORE echo TX ring instead of the transaction 
+       - late (>5s) multicast echoes regenerate the re-request payload from the OSCORE echo ring anchor
+         (a group object reference, no message copy) instead of the transaction
    
        send message, wipe transaction -> increase ref_count to 2 
        - send message decrements to 1 
