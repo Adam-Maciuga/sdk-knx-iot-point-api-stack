@@ -1167,7 +1167,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     - ga = '0' = NOT initialized, this call fails since no context will be available
     - ga = '0' = I want to send ga 0, this call succeeds since context will be available
   */
-  oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
+  oc_oscore_context_t* oscore_ctx = oc_oscore_find_multicast_context_by_group_address(group_address);
 
   if (oscore_ctx)
   {
@@ -1362,10 +1362,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
      - example: do "Piggybacked Response" or "Separate Response"
      - example: do "Echo Response" (inbound request was unsynced)
 
-    (uc-c) context retried by group address
-     - uc outbound (client) s-mode request
-     - example: do client application initial CON/NON r/w request via '/k'
-
+    (uc-b) context retrieved by the recipient's access token ('at' of the recipient table entry)
+     - uc outbound (client) s-mode request via '/k', a recipient without 'at' is not sent (oc_send_s_mode_unicast_message)
    */
 
   const oc_auth_at_t* at_entry = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg;
@@ -1383,15 +1381,24 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     OC_DBG_OSCORE("%s", oscore_ctx ? "found context by access token, step 2" : "uc-a : non context");
   }
 
-  if (oscore_ctx == NULL)
-  { // (uc-c)
+  if (oscore_ctx == NULL && from_org_msg_cloned_outgoing_msg->endpoint.s_mode_auth_at)
+  { // (uc-b)
 
-    oscore_ctx = oc_oscore_find_context_by_group_address(from_org_msg_cloned_outgoing_msg->endpoint.group_address);
+    // spec 2.5.7.4.2 table 21, 6.3.1.2: the 'at' of the recipient table entry, not the first token holding the ga
+    oscore_ctx = oc_oscore_find_context_by_access_token(from_org_msg_cloned_outgoing_msg->endpoint.s_mode_auth_at, true);
 
-    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by 'ga'" : "uc-c : non context");
+    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by recipient 'at'" : "uc-b : non context");
+
+    if (oscore_ctx == NULL)
+    {
+      // the recipient names a token without a sender context, never fall back to another token's key
+      OC_ERR("no OSCORE sender context for the recipient's access token, error");
+      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      return -1;
+    }
   }
 
-  // we haven't found any context (uc-a) ... (uc-d), so we free the message we just created
+  // we haven't found any context (uc-a), (uc-b), so we free the message we just created
   if (oscore_ctx == NULL)
   {
     OC_ERR("no OSCORE context found, error");

@@ -291,6 +291,17 @@ extern "C" {
 	 */
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 
+	/**
+	 * @brief returns AT entry with access token id (e.g. the 'at' of a recipient table entry)
+	 *
+	 * @param id access token id string
+	 * @param id_len length of the access token id
+	 *
+	 * @return NULL : AT entry not found (or id_len = 0)
+	 * @return pointer to AT entry : AT entry found
+	 */
+oc_auth_at_t* oc_core_find_at_entry_by_access_token(const char* id, size_t id_len);
+
   /**
    * @brief get the access token table index from an entry
    *

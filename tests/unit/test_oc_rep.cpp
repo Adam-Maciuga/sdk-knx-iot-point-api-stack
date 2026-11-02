@@ -1200,3 +1200,57 @@ TEST_F(OcRepTest, IGetMixedArray_AbsentKeyReturnsFalse)
   oc_rep_t *arr = nullptr;
   EXPECT_FALSE(oc_rep_i_get_mixed_array(rep, 99, &arr));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Empty array vs null / undefined / unsupported CBOR types
+ * - an empty array stays OC_REP_NIL (the table handlers read it as an empty ga)
+ * - null / undefined -> OC_REP_NULL, anything the parser does not map -> OC_REP_UNSUPPORTED
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+static void expect_member_type(oc_rep_t** rep, const uint8_t* payload, size_t size, oc_rep_value_type_t type)
+{
+  ASSERT_EQ(oc_parse_rep(payload, (int)size, rep), CborNoError);
+  ASSERT_NE(*rep, nullptr);
+  EXPECT_EQ((*rep)->iname, 7);
+  EXPECT_EQ((*rep)->type, type);
+}
+
+TEST_F(OcRepTest, Parse_EmptyArray_IsNil)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0x80 }; /* {7: []} */
+  expect_member_type(&rep, payload, sizeof(payload), OC_REP_NIL);
+}
+
+TEST_F(OcRepTest, Parse_Null_IsNull)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0xf6 }; /* {7: null} */
+  expect_member_type(&rep, payload, sizeof(payload), OC_REP_NULL);
+}
+
+TEST_F(OcRepTest, Parse_Undefined_IsNull)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0xf7 }; /* {7: undefined} */
+  expect_member_type(&rep, payload, sizeof(payload), OC_REP_NULL);
+}
+
+TEST_F(OcRepTest, Parse_HalfFloat_IsUnsupported)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0xf9, 0x3c, 0x00 }; /* {7: 1.0 as half float} */
+  expect_member_type(&rep, payload, sizeof(payload), OC_REP_UNSUPPORTED);
+}
+
+TEST_F(OcRepTest, Parse_SimpleValue_IsUnsupported)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0xe0 }; /* {7: simple(0)} */
+  expect_member_type(&rep, payload, sizeof(payload), OC_REP_UNSUPPORTED);
+}
+
+TEST_F(OcRepTest, ToJson_Null)
+{
+  const uint8_t payload[] = { 0xa1, 0x07, 0xf6 }; /* {7: null} */
+  ASSERT_EQ(oc_parse_rep(payload, sizeof(payload), &rep), CborNoError);
+
+  char json[64] = { 0 };
+  oc_rep_to_json(rep, json, sizeof(json), false);
+  EXPECT_NE(std::string(json).find("null"), std::string::npos) << json;
+}

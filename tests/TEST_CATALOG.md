@@ -1,16 +1,18 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1763 unit tests** (56 files in `tests/unit/`, counted by CTest on
-> 2026-11-08) and **256 runtime tests** (228 test functions in 20 files in
-> `tests/runtime/`, counted with `pytest tests/runtime --collect-only -q`).
-> The conformance tier is not listed here: The test tool
+> **1765 unit tests** (55 files in `tests/unit/`: 1722 counted by CTest on
+> `windows-test-gcc` on 2026-11-02, plus the 43 `test_dns_sd_mdns.cpp` cases
+> registered under `if(UNIX)` only) and **287 runtime tests** (243 test
+> functions in 20 files in `tests/runtime/`, counted with
+> `pytest tests/runtime --collect-only -q` on 2026-11-02).
+> The conformance tier is not listed here: the test tool
 > (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
 > one item per template sequence, with this stack's override files in
 > `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-08): 1761/1763 passed on `linux-test-gcc` and 1762/1763 on `linux-test-asan` (local, `ctest -j8`), the 1763 total includes the 49 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The three failures (`OcStorage.WriteThenReadBinaryData` and `OcStorage.ReadIsCappedBySizeArgument` on gcc, `AtSsnStorage.DeleteEntryErasesSsnEntryOfItsSlot` on ASan) passed when run alone. Parallel runs share the storage directories `knx_storage_unit_test` and `knx_storage_sec_unit_test` (known since 2026-10-10).
-> Runtime: See "Last runtime run status" at the end of Part 2.
+> Unit (2026-11-02): 1722/1722 passed on `windows-test-gcc`; not run on `linux-test-gcc` since 2026-10-21 (1747/1748 then, the `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake: parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10).
+> Runtime: see "Last runtime run status" at the end of Part 2.
 
 ---
 
@@ -166,7 +168,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_rep.cpp — CBOR Representation (67 tests)
+### test_oc_rep.cpp — CBOR Representation (73 tests)
 
 **Source:** `api/oc_rep.c`
 
@@ -190,6 +192,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `GetCborErrno` | 2 | CBOR errno reporting (clean encode, overflow) |
 | `EncodeRawEncoder` | 1 | `oc_rep_encode_raw_encoder()` writes bytes and advances |
 | `GetObject/Array` | 7 | Nested object + object-array getters (text/int keys, wrong key, absent mixed array) |
+| `Parse empty array vs null` | 6 | `[]` -> `OC_REP_NIL`, null/undefined -> `OC_REP_NULL`, half float/simple value -> `OC_REP_UNSUPPORTED`, JSON `null` for the new types |
 
 ---
 
@@ -256,7 +259,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_oscore_context.cpp — OSCORE Context (25 tests)
+### test_oc_oscore_context.cpp — OSCORE Context (39 tests)
 
 **Source:** `security/oc_oscore_context.c`
 
@@ -265,10 +268,11 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `ContextDeriveParam` | 4 | HKDF key derivation (sender key, IV, with context, uniqueness) |
 | `OscoreContextTest` | 16 | Add/find/free contexts, bad params, kid_context, find-by-group-address (sender/recipient), LRU recipient eviction, free-by-AT-id, and the recipient/sender context builders that take their ID from the access token |
 | `OscoreContextByToken` | 5 | `oc_oscore_find_context_by_token_mid`: match by token (returns the request PIV), MID fallback, optional out-parameters, unknown transaction → NULL, transaction without an access token → NULL |
+| Access token and multicast lookup | 3 | multicast lookup skips the `at` of a unicast recipient (spec 6.3.2.1); `oc_oscore_find_context_by_access_token` with `sender_only` true/false; NULL or unknown token -> NULL |
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (70 tests)
+### test_oc_knx_sec.cpp — Security Credentials (80 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -283,6 +287,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `SecHandlers` | 20 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
 | `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
 | `SecAtPost` | 5 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit |
+| `AtTable` access token lookup | 2 | `oc_core_find_at_entry_by_access_token`: match, miss, prefix/longer id; empty or NULL id never matches an unused slot |
 
 ---
 
@@ -308,7 +313,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (49 tests)
+### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (53 tests)
 
 **Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
@@ -363,6 +368,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OutboundMalformedCoapIsDropped` | Malformed outbound CoAP is dropped |
 | `OutboundUnicastEchoResponseIsEncryptedAndSent` | Unicast echo response is encrypted and sent |
 | `OutboundMulticastEchoResponseIsEncryptedAndSent` | Multicast-caused echo response is encrypted and sent |
+| `OutboundUnicastWithGroupAddressOnlyIsDropped` | 1 | a unicast request without the recipient's token (`s_mode_auth_at`) is not sent, no lookup by group address |
 
 ---
 
@@ -414,7 +420,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_endpoint.cpp — Endpoint Handling (38 tests)
+### test_oc_endpoint.cpp — Endpoint Handling (40 tests)
 
 **Source:** `api/oc_endpoint.c`
 
@@ -436,7 +442,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_fp.cpp — Group Object & FP Tables (81 tests)
+### test_oc_knx_fp.cpp — Group Object & FP Tables (86 tests)
 
 **Source:** `api/oc_knx_fp.c`
 
@@ -453,6 +459,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `BelongsHref` | 3 | href ownership check, non-discoverable skipped |
 | `FpHandlers` | 27 | CoAP handlers of `/fp/g`, `/fp/p`, `/fp/r` and their `/*` entry resources: wrong-Accept rejection, empty table → 2.05, invalid paging (`ps`/`pn`) → 4.00, populated link-format listing incl. comma separator and next-page indicator, entry GET (unknown id → 4.04, known id → 2.05 CBOR), entry DELETE outside loading state → 4.00 |
 | `GroupTableStorage` | 7 | Recipient/publisher entry encode-decode round-trip (NON flag as boolean, empty/multiple GA arrays, absent-NON default) |
+| `RecipientAccessToken` | 5 | `oc_is_unicast_recipient_access_token`: unicast entry naming the token -> true; multicast entry with `at`, unused slot, other/prefix/longer id, empty or NULL id -> false |
 
 ---
 
@@ -1395,13 +1402,23 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-### test_fp_tables.py — FP Table CRUD (3 tests)
+### test_fp_tables.py — FP Table CRUD (13 tests, 26 collected)
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
 | **TestGroupObjectTableWrite** | `test_post_nonexisting_go_creates_entry` |  | POST with non-existing id creates new entry (2.01). |
 | **TestPublisherTableWrite** | `test_update_multiple_publishers` |  | Create publishers, then POST same ids → 2.04. |
 |  | `test_post_nonexisting_publisher_creates_entry` |  | POST with non-existing id creates new entry (2.01). |
+| **TestRecipientTableUnicastAccessToken** | `test_ia_with_at_is_stored_and_read_back` |  | POST /fp/r with a direct unicast entry ('ia' + 'at', spec 2.5.7.4.2 Table 21, both "C u") is stored and reads back with 'at' under key 14. |
+| **TestTableRepeatedKey** | `test_mixed_multicast_unicast_entries_are_created` ×2 |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+|  | `test_repeated_ga_without_target_is_rejected` ×2 |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+|  | `test_repeated_ga_with_grpid_last_wins` ×2 |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+|  | `test_rcp_repeated_at_last_wins` |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+|  | `test_ia_with_grpid_is_rejected` ×2 |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+|  | `test_go_repeated_ga_last_wins` |  | A repeated key in one entry of POST /fp/g, /fp/p, /fp/r: the last occurrence wins; the mandatory check counts which keys are present, not how often, so a repeated 'ga' cannot stand in for 'ia'/'grpid'. |
+| **TestTableUnsupportedValueType** | `test_byte_string_value_is_rejected` ×4 |  | A value of a type the table handlers do not take (here a byte string under an unused key) is a 4.00 and nothing is stored, on /fp/g, /fp/p and /fp/r alike. |
+| **TestTableGaNotNull** | `test_empty_array_ga_is_accepted` ×2 |  | An empty 'ga' is the empty array 7: [] (template 5.5.5.7a, allowed on /fp/p and /fp/r). |
+|  | `test_non_array_ga_is_rejected` ×6 |  | An empty 'ga' is the empty array 7: [] (template 5.5.5.7a, allowed on /fp/p and /fp/r). |
 
 ---
 
@@ -1436,7 +1453,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-### test_group_comm.py — Group Communication (29 tests)
+### test_group_comm.py — Group Communication (33 tests, 36 collected)
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
@@ -1449,6 +1466,9 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 | **TestMulticastRead** | `test_multicast_read_gets_answer` | 5.4.1.3 | NON POST /k multicast with st:"r" → DUT responds with NON POST /k containing {sia:4353, s:{value:false, st:"a", ga:65535}}. |
 | **TestUnicastRead** | `test_unicast_read_gets_answer` | 5.4.1.4 | CON POST /k with st:"r" → 2.04, DUT sends back CON POST /k with {sia:4353, s:{value:true, st:"a", ga:65535}}. |
 | **TestTriggerMulticastWrite** | `test_trigger_multicast_write` | 5.4.1.6 | Trigger sensor on /p/3 → receive multicast s-mode write. |
+| **TestUnicastWithoutAccessTokenNotSent** | `test_no_unicast_post_without_at` |  | A unicast recipient table entry without 'at' (14) has no credentials (spec 2.5.7.4.2 Table 21, 6.3.1.2): the DUT sends no unicast POST /k instead of guessing a token from the ga. |
+| **TestMulticastSkipsUnicastRecipientToken** | `test_multicast_kid_is_not_unicast_token` ×2 |  | Spec 6.3.2.1 step 2: multicast takes the first OSCORE token that holds the ga AND is not the 'at' of a unicast recipient table entry. |
+| **TestUnicastAndMulticastFromSameTables** | `test_unicast_and_multicast_use_their_own_token` ×2 |  | With a unicast and a multicast recipient in one RCP table, each send uses its own token: the unicast POST /k the recipient's 'at' (spec 2.5.7.4.2 Table 21, 6.3.1.2), the multicast the token holding the ga that is not a unicast 'at' (spec 6.3.2.1). |
 | **TestInitFlagStartup** | `test_init_flag_sends_read_on_restart` | 5.4.1.9 | Restart device → receive multicast s-mode with st:"r". |
 | **TestReadOnInitNetworkGate** | `test_read_on_init_up_from_start_sends_read` |  | ULA present before restart -> DUT sends the init read promptly. |
 |  | `test_read_on_init_withheld_while_down` |  | Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles). |
@@ -1458,6 +1478,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 | **TestOwnGroupObjectUpdate** | `test_self_update_on_transmit` | 5.4.1.12 | Trigger sensor → DUT sends multicast write for ga=65535, DUT also updates /p/1 (receiving GO with ga=65535). |
 | **TestLongGASend** | `test_sends_long_ga` | 5.4.1.14 | Trigger sensor → DUT sends multicast with ga=4294967295. |
 | **TestUnicastConfirmable** | `test_unicast_sends_con` | 5.4.1.15 | Trigger sensor → DUT resolves PEER_IA via discovery, then sends CON POST /k (unicast to test host). |
+| **TestUnicastUsesRecipientAccessToken** | `test_unicast_kid_is_recipient_access_token` ×2 |  | Unicast s-mode: the DUT encrypts with the access token the recipient table entry names in 'at' (14), not with the first token whose scope holds the ga (spec 2.5.7.4.2 Table 21, 2.6.9.2, 6.3.1.2 step 2). |
 | **TestUnicastNonReResolution** | `test_unicast_non_re_resolution` |  | Trigger the sensor repeatedly; the DUT sends unicast NON POSTs that go unanswered. |
 | **TestUnicastNonEchoReRequest** | `test_unicast_non_echo_re_request` |  | Unicast NON s-mode: a 4.01 Echo response to a NON POST /k makes the DUT send a re-request carrying the Echo option with a regenerated payload. |
 | **TestUnicastNonEchoKidCtxReRequest** | `test_unicast_non_echo_kid_ctx_re_request` |  | Unicast NON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape): accepted only against the echo ring anchor of the unicast send. |
@@ -1538,7 +1559,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-### test_security.py — Security & OSCORE (71 tests, 78 collected)
+### test_security.py — Security & OSCORE (72 tests, 79 collected)
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
@@ -1559,7 +1580,8 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 |  | `test_at_mandatory_update_of_existing_entry_accepted` |  | POST [{id, 9: [...]}] on an existing AT updates the scope. |
 |  | `test_at_mandatory_invalid_scope_names_rejected` ×3 |  | POST /auth/at with an invalid scope name -> 4.00, no entry. |
 |  | `test_at_mandatory_mixed_scope_keeps_only_valid_names` ×4 |  | POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored. |
-| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_401` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.01. |
+| **TestWriteAccessTokenRepeatedKey** | `test_repeated_group_scope_last_wins` |  | POST /auth/at with a repeated key in one token (ADDITIONAL, non-EITT): accepted, the last occurrence wins, as on /fp/g, /fp/p and /fp/r. |
+| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.03. |
 |  | `test_get_auth_at_link_format` | 5.3.9.1 | GET /auth/at → 2.05 with link-format listing. |
 | **TestReadAccessTokenById** | `test_get_at_by_id_without_oscore_returns_401` | 5.3.10.2a | GET /auth/at/{id} without OSCORE → 4.01. |
 |  | `test_get_at_by_id` | 5.3.10.1 | GET /auth/at/RuntimeTest → 2.05 with CBOR AT details. |
@@ -1632,6 +1654,20 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 
 ## Last runtime run status
+
+Latest full run (2026-11-01, Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`), covering the
+unicast/multicast access token changes (recipient 'at' for unicast, no group address fallback, multicast skips the token of a
+unicast recipient, echo re-request with the token of the 4.01), the table POST bitmask (repeated key -> last wins), the
+parser types `OC_REP_NULL` / `OC_REP_UNSUPPORTED` and the storage loader split:
+
+- Conformance tier (test tool, KNX template): **8 passed, 1 xfailed** (5.10).
+- Runtime tier: **280 passed, 5 skipped** (285 collected, 753.85s).
+- 0 failed, 0 errors. Unit suite: 1712/1712 passed (`windows-test-gcc`).
+
+Not in that run: `TestUnicastAndMulticastFromSameTables` (2 collected, passed alone on 2026-11-02), the inlined ga scan of
+the multicast lookup, the `grpid == 0` check in `oc_is_unicast_recipient_access_token` and 10 new unit tests (1722/1722).
+
+Previous run:
 
 Latest run (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the mDNS answer interface fix
 (AAAA records filtered to the interface a packet leaves on, receive interface from the zone of a link-local sender on Windows,

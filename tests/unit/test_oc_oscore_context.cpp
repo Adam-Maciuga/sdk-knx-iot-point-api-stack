@@ -17,6 +17,7 @@
 
 extern "C" {
 #include "security/oc_oscore_context.h"
+#include "api/oc_knx_fp.h"
 #include "messaging/coap/oscore_constants.h"
 #include "messaging/coap/transactions.h"
 #include "port/oc_network_events_mutex.h"
@@ -538,7 +539,7 @@ TEST_F(OscoreContextTest, AddContextWithIdContext)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * oc_oscore_find_context_by_group_address — scan sender contexts for a GA
+ * oc_oscore_find_multicast_context_by_group_address — scan sender contexts for a GA
  *
  * Returns the *sender* context (sender_id_len > 0) whose auth_at GA list
  * contains the requested group address. Recipient-only contexts are skipped.
@@ -558,7 +559,7 @@ TEST_F(OscoreContextTest, FindContextByGroupAddressReturnsSenderContext)
   oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
   ASSERT_NE(ctx, nullptr);
 
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), ctx);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), ctx);
 }
 
 TEST_F(OscoreContextTest, FindContextByGroupAddressUnknownReturnsNull)
@@ -571,7 +572,7 @@ TEST_F(OscoreContextTest, FindContextByGroupAddressUnknownReturnsNull)
   params.read_ssn_from_storage = false;
   ASSERT_NE(oc_oscore_add_context(&params), nullptr);
 
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x9999), nullptr);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x9999), nullptr);
 }
 
 TEST_F(OscoreContextTest, FindContextByGroupAddressSkipsRecipientContext)
@@ -587,7 +588,96 @@ TEST_F(OscoreContextTest, FindContextByGroupAddressSkipsRecipientContext)
   params.read_ssn_from_storage = false;
   ASSERT_NE(oc_oscore_add_context(&params), nullptr);
 
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), nullptr);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), nullptr);
+}
+
+TEST_F(OscoreContextTest, FindContextByGroupAddressSkipsUnicastRecipientToken)
+{
+  /*
+    spec 6.3.2.1: multicast never takes the 'at' of a unicast recipient table entry
+    - token U (at_) is the 'at' of a unicast RCP entry and holds the ga, its context comes first
+    - token M (a copy of at_ with another id and sender id) holds the same ga -> M is returned
+  */
+  oc_new_string(&at_.id, "tokU", 4);
+  oc_auth_at_t at_m = at_;
+  at_m.id = {};
+  oc_new_string(&at_m.id, "tokM", 4);
+
+  oc_group_table_t *rcp = oc_core_get_recipient_table_entry(0);
+  rcp->id = 7;
+  rcp->grpid = 0; /* unicast entry */
+  oc_new_string(&rcp->at, "tokU", 4);
+
+  oc_oscore_context_params_t pu = {};
+  uint8_t sid_u[] = {0x01};
+  pu.sender_id = sid_u;
+  pu.sender_id_size = 1;
+  pu.auth_at = &at_;
+  ASSERT_NE(oc_oscore_add_context(&pu), nullptr);
+
+  oc_oscore_context_params_t pm = {};
+  uint8_t sid_m[] = {0x02};
+  pm.sender_id = sid_m;
+  pm.sender_id_size = 1;
+  pm.auth_at = &at_m;
+  oc_oscore_context_t *ctx_m = oc_oscore_add_context(&pm);
+  ASSERT_NE(ctx_m, nullptr);
+
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), ctx_m);
+
+  /* without the unicast entry the first token holding the ga wins again */
+  rcp->id = -1;
+  EXPECT_NE(oc_oscore_find_multicast_context_by_group_address(0x1234), ctx_m);
+
+  oc_oscore_free_all_contexts();
+  oc_free_string(&rcp->at);
+  oc_free_string(&at_m.id);
+  oc_free_string(&at_.id);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_oscore_find_context_by_access_token — first context of a token, optionally sender contexts only
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OscoreContextTest, FindContextByAccessTokenSenderOnly)
+{
+  /* recipient context first in the list, then the sender context of the same token */
+  oc_oscore_context_params_t rp = {};
+  uint8_t rid[] = {0x02};
+  rp.recipient_id = rid;
+  rp.recipient_id_size = 1;
+  rp.auth_at = &at_;
+  oc_oscore_context_t *recipient = oc_oscore_add_context(&rp);
+  ASSERT_NE(recipient, nullptr);
+
+  oc_oscore_context_params_t sp = {};
+  uint8_t sid[] = {0x01};
+  sp.sender_id = sid;
+  sp.sender_id_size = 1;
+  sp.auth_at = &at_;
+  oc_oscore_context_t *sender = oc_oscore_add_context(&sp);
+  ASSERT_NE(sender, nullptr);
+
+  /* sender_only: never a recipient context (empty sender id) */
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(&at_, true), sender);
+
+  /* any context: the first one of the token in the list (oc_list_add appends, the recipient context came first) */
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(&at_, false), recipient);
+}
+
+TEST_F(OscoreContextTest, FindContextByAccessTokenNullOrUnknownToken)
+{
+  oc_oscore_context_params_t sp = {};
+  uint8_t sid[] = {0x01};
+  sp.sender_id = sid;
+  sp.sender_id_size = 1;
+  sp.auth_at = &at_;
+  ASSERT_NE(oc_oscore_add_context(&sp), nullptr);
+
+  oc_auth_at_t other = {};
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(nullptr, true), nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(nullptr, false), nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(&other, false), nullptr);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -605,7 +695,7 @@ TEST_F(OscoreContextTest, FreeSenderContextsRemovesSenderOnlyKeepsRecipient)
   sp.read_ssn_from_storage = false;
   oc_oscore_context_t *sender = oc_oscore_add_context(&sp);
   ASSERT_NE(sender, nullptr);
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), sender);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), sender);
 
   /* recipient context (recipient_id_len > 0) */
   oc_oscore_context_params_t rp = {};
@@ -619,7 +709,7 @@ TEST_F(OscoreContextTest, FreeSenderContextsRemovesSenderOnlyKeepsRecipient)
   oc_oscore_free_sender_contexts();
 
   /* sender-only context gone */
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), nullptr);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), nullptr);
   /* recipient context survives */
   EXPECT_NE(oc_oscore_find_context_by_kid_and_kid_context(rid, 1, NULL, 0),
             nullptr);
@@ -729,7 +819,7 @@ TEST_F(OscoreContextTest, AddSenderContextTakesSenderIdFromAccessToken)
   EXPECT_EQ(ctx->recipient_id_len, 0);
 
   /* only sender contexts are reachable by the access token's group address */
-  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), ctx);
+  EXPECT_EQ(oc_oscore_find_multicast_context_by_group_address(0x1234), ctx);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

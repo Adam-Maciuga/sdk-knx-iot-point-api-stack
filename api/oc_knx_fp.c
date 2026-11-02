@@ -892,6 +892,28 @@ oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address)
   return oc_find_table_entry_from_ga(g_grt, KNX_GRT_MAX_ENTRIES, group_address);
 }
 
+bool oc_is_unicast_recipient_access_token(const char* at_id, size_t at_id_len)
+{
+  if (!at_id || at_id_len == 0)
+  {
+    return false;
+  }
+
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
+  {
+    // a used unicast entry that matches this access token (at_id), unicast = no grpid (same decision as on sending, ia and grpid never together)
+    if (g_grt[i].id > -1 
+        && g_grt[i].grpid == 0 
+        && oc_string_len(g_grt[i].at) == at_id_len 
+        && strncmp(oc_string(g_grt[i].at), at_id, at_id_len) == 0)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /*
   count items on demand is easier than inc/dec on creation/deletion of individual entries
   (reason: functions to create/ delete an entry are also used to delete entire tables w/o having present entries),
@@ -1977,7 +1999,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         - options seen:
           - reject ia without at -> fails 5.5.5.3 ... 5.5.5.8a (4.00 instead of 2.01)
           - reject at without ia -> fails 5.5.6.1, 5.5.7.1, 5.5.8.1 and the disabled 5.5.5.4 variant
-          - accept both (chosen) -> passes the template, unicast without at falls back to the ga context (uc-c)
+          - accept both (chosen) -> passes the template, a unicast recipient without at is stored but never sent to
       */
 
       // b + d, here all ok, set new PUB entry

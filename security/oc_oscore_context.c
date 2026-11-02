@@ -13,6 +13,7 @@
 #include "oc_client_state.h"
 #include "oc_oscore_crypto.h"
 #include "api/oc_knx_sec.h"
+#include "api/oc_knx_fp.h"
 #include "port/oc_log.h"
 
 OC_LIST(contexts);
@@ -91,21 +92,25 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   return NULL;
 }
 
-static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at)
+/*
+  first context of an access token
+  - sender_only = true -> only a sender context (sender id populated), recipient contexts are never used for sending
+*/
+oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at, bool sender_only)
 {
-
   if (!auth_at)
   {
-    OC_ERR("***could not find matching OSCORE context: access token is NULL ***");
     return NULL;
   }
 
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+
   while (ctx)
   {
-    if (ctx->auth_at == auth_at)
+    // sender only = true turns into false, hence the sender id len > 0 must be 'true' 
+    if (ctx->auth_at == auth_at && (!sender_only || ctx->sender_id_len > 0))
     {
-      OC_DBG("found context by_token/mid");
+      // refresh time of last use
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -113,7 +118,6 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth
     ctx = ctx->next;
   }
 
-  OC_DBG("found NO context by_token/mid");
   return NULL;
 }
 
@@ -138,20 +142,22 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
   }
 
   /*
-    unicast s-mode CON/NON request
-    
-    (a) an own fresh request carries no access token of an inbound message, it was protected
-        with the group address context (uc-c), the PIV used for sending is recorded on the transaction endpoint, a response
-        without a recorded PIV is refused (also after the PIV was consumed by an outbound 'echo re-request')
-    
-    (b) NON (header-only transaction) is matched by token only, a NON response carries a mid of the peer that may collide
-        with a pending CON transaction
+    (a) own unicast s-mode CON request: protected with the context of the recipient's 'at' (uc-b), the PIV used for
+        sending is recorded on the transaction endpoint, a response without a recorded PIV is refused
+        (also after the PIV was consumed by an outbound 'echo re-request')
 
-    |transaction                         | auth_at | s-mode flag        | context lookup
-    -------------------------------------+---------+--------------------+---------------
-    |own s-mode CON                      | NULL    | S_MODE_CON_REQUEST | group address
-    |own s-mode NON (header-only)        | NULL    | S_MODE_NON_REQUEST | group address
-    |outbound msg to an inbound request  | set     | none               | access token
+    (b) own unicast s-mode NON request (header-only transaction): as (a), matched by token only, a NON response carries
+        a mid of the peer that may collide with a pending CON transaction
+
+    (c) outbound message to an inbound request: the context of the access token of that inbound request
+
+    Note, own multicast s-mode NON pops up not here, its transaction is cleared right after sending (coap_send_transaction)
+
+    |case |transaction                         | auth_at_of_inbound_msg | s_mode_auth_at | s-mode flag        | context lookup
+    |-----+------------------------------------+------------------------+----------------+--------------------+-------------------------
+    |(a)  |own unicast s-mode CON              | NULL                   | set            | S_MODE_CON_REQUEST | recipient's access token
+    |(b)  |own unicast s-mode NON (header-only)| NULL                   | set            | S_MODE_NON_REQUEST | recipient's access token
+    |(c)  |outbound msg to an inbound request  | set                    | NULL           | none               | access token
   */
   if (!t->message->endpoint.auth_at_of_inbound_msg && (t->message->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST)))
   { // (a) && (b)
@@ -160,45 +166,49 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
       return NULL;
     }
 
-    return oc_oscore_find_context_by_group_address(t->message->endpoint.group_address);
+    return oc_oscore_find_context_by_access_token(t->message->endpoint.s_mode_auth_at, true);
   }
 
-  return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg);
+  // (c)
+  return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg, false);
 }
 
-// scans all contexts auth at token if the ga is in the ga list of the AT token
-oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
+/*
+  first sender context whose access token holds the ga and is not the 'at' of a unicast recipient (multicast, spec 6.3.2.1)
+  - unicast never looks up by ga, it uses the recipient's 'at' (oc_oscore_find_context_by_access_token, sender_only)
+  - check order, cheapest first, the scan of the recipient table runs only for a real candidate (usually one context):
+    1. ctx->auth_at           -> pointer check
+    2. sender_id_len > 0      -> recipient contexts (empty sender id) are never used for sending
+    3. token holds the ga     -> scan of the token's ga list (short)
+    4. not a unicast token    -> scan of the whole recipient table with string compare (expensive)
+*/
+oc_oscore_context_t* oc_oscore_find_multicast_context_by_group_address(uint32_t group_address)
 {
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  while (ctx) 
+  while (ctx)
   {
-    // find AT for context that MAY host the GA
-    if (ctx->auth_at) 
+    // 1. + 2.
+    if (ctx->auth_at && ctx->sender_id_len > 0)
     {
-      // debugging 
-      oc_print_auth_at_entry(ctx->auth_at);
-
-      // for a context without GA's (such as SPAKE2+ handshake context) the loop is skipped
-      for (int i = 0; i < ctx->auth_at->ga_len; i++) 
+      // 3. a token without GA's (such as the SPAKE2+ handshake token) never matches
+      for (int i = 0; i < ctx->auth_at->ga_len; i++)
       {
-        // scan all GA's
-        const uint32_t group_value = ctx->auth_at->ga[i];
-        
-        if (group_address == group_value) 
+        if (ctx->auth_at->ga[i] == group_address)
         {
-          // Ensure we return a sender context (with sender_id populated) for sending messages
-          // Recipient contexts have empty sender_id and should not be used for sending
-          if (ctx->sender_id_len > 0) 
+          // 4.
+          if (!oc_is_unicast_recipient_access_token(oc_string(ctx->auth_at->id), oc_string_len(ctx->auth_at->id)))
           {
-            OC_DBG("found access token for given GA %04" PRIX32, group_address); 
+            OC_DBG("found access token for given GA %04" PRIX32, group_address);
 
             // refresh time of last use
             ctx->last_used = oc_clock_time();
             return ctx;
-          } 
-          OC_DBG("found GA %04" PRIX32 " but context has empty sender_id (recipient context), continuing search", group_address);
+          }
+
+          // the token holds the ga but is the 'at' of a unicast recipient, next context
+          break;
         }
       }
     }

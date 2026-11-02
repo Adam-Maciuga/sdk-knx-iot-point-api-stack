@@ -190,6 +190,25 @@ TEST_F(AtTable, FindByOscIdMatchAndMiss)
             nullptr);
 }
 
+TEST_F(AtTable, FindByAccessTokenMatchAndMiss)
+{
+  oc_auth_at_t *e = oc_get_auth_at_entry(4);
+  oc_new_string(&e->id, "tokU", 4);
+
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("tokU", 4), e);
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("tokV", 4), nullptr);
+  /* the length is part of the match: a prefix or a longer id is no hit */
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("tok", 3), nullptr);
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("tokU2", 5), nullptr);
+}
+
+TEST_F(AtTable, FindByAccessTokenEmptyIdNeverMatchesAnUnusedSlot)
+{
+  /* an unused slot has an empty id, an empty request id must not hand it out */
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("", 0), nullptr);
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token(nullptr, 0), nullptr);
+}
+
 TEST_F(AtTable, FindByOscIdDoesNotMatchAnEmptyKidAgainstAnUnusedSlot)
 {
   /*

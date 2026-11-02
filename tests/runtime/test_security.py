@@ -39,6 +39,7 @@ forged datagrams, state across reboot).  The 5.3.8.7x, 5.3.18.2,
 5.3.8.3   Multiple group addresses in single AT
 5.3.8.4   Overwrite existing access token entry
 5.3.8.5   Create multiple AT entries in single write
+Repeated key in one access token: last one wins (ADDITIONAL, non-EITT)
 5.3.8.6   Update multiple AT entries
 5.3.8.7a  Create with id only -> 4.00 (no entry created)
 5.3.8.7b  Create without scope (9) -> 4.00
@@ -682,6 +683,30 @@ class TestWriteAccessTokenMandatoryProperties:
         at_scope = cbor2.loads(resp.payload).get(9, [])
         assert at_scope == ["if.o"], (
             f"Only the valid scope name should be stored, got {at_scope}")
+
+
+class TestWriteAccessTokenRepeatedKey:
+    """POST /auth/at with a repeated key in one token (ADDITIONAL, non-EITT):
+    accepted, the last occurrence wins, as on /fp/g, /fp/p and /fp/r."""
+
+    def test_repeated_group_scope_last_wins(self, coap, oscore_ctx):
+        token_id = "RepScope"
+        # hand-encoded, a dict cannot hold a repeated key: [{0: id, 9: [1, 2, 3], 9: [7, 8], 38: 2, 8: {4: {0: sid, 2: ms}}}]
+        pairs = [(0, token_id), (9, [1, 2, 3]), (9, [7, 8]), (38, 2), (8, {4: {0: b"\x71\x31", 2: os.urandom(16)}})]
+        payload = bytes([0x81, 0xA0 + len(pairs)]) + b"".join(cbor2.dumps(k) + cbor2.dumps(v) for k, v in pairs)
+
+        resp = coap.oscore_post(oscore_ctx, "/auth/at", payload=payload)
+        assert resp is not None, "POST /auth/at timed out"
+        assert resp.is_successful, f"POST /auth/at with scope twice failed: {resp.code}"
+
+        try:
+            resp = coap.oscore_get(oscore_ctx, f"/auth/at/{token_id}", accept=APPLICATION_CBOR)
+            assert resp is not None, f"GET /auth/at/{token_id} timed out"
+            assert resp.is_successful, f"GET /auth/at/{token_id} failed: {resp.code}"
+            at_scope = cbor2.loads(resp.payload).get(9)
+            assert at_scope == [7, 8], f"scope: expected the last one [7, 8], got {at_scope}"
+        finally:
+            coap.oscore_delete(oscore_ctx, f"/auth/at/{token_id}")
 
 
 # ===========================================================================

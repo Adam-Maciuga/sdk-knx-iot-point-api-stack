@@ -454,7 +454,8 @@ static oc_auth_at_t* find_empty_at_entry(void)
   return NULL;
 }
 
-static oc_auth_at_t* find_entry_from_access_token_string(const char* at, size_t len_at)
+// an empty id (len_at = 0) never matches, an unused slot carries an empty id
+oc_auth_at_t* oc_core_find_at_entry_by_access_token(const char* at, size_t len_at)
 {
   for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
@@ -708,7 +709,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       // find index from access token table
-      at_entry = find_entry_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
+      at_entry = oc_core_find_at_entry_by_access_token(oc_string(*access_token_id), oc_string_len(*access_token_id));
       if (at_entry)
       {
         // index already in use, so it will be changed
@@ -741,8 +742,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       #define AT_PROP_PROFILE (1u << 2)
       #define AT_PROP_OSC_ID  (1u << 3)
       #define AT_PROP_OSC_MS  (1u << 4)
-      #define MANDATORY_AT_PROPERTIES \
-        (AT_PROP_ID | AT_PROP_SCOPE | AT_PROP_PROFILE | AT_PROP_OSC_ID | AT_PROP_OSC_MS)
+      #define MANDATORY_AT_PROPERTIES (AT_PROP_ID | AT_PROP_SCOPE | AT_PROP_PROFILE | AT_PROP_OSC_ID | AT_PROP_OSC_MS)
+
+      /*
+        repeated key in one access token
+        - accepted, the last one wins (as on fp/g, fp/p, fp/r)
+        - each branch releases the earlier value first (ga array, ms, id, contextId, salt) -> no leak
+      */
 
       bool id_only = true; // used to delete the AT table entry
 
@@ -769,7 +775,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               - length must iterate over length / 32
             */
             char* array = (char*)object->value.array.ptr;
-            const int new_array_size = (int)object->value.array.size / STRING_ARRAY_ITEM_MAX_LEN;
+            const int array_size = (int)object->value.array.size / STRING_ARRAY_ITEM_MAX_LEN;
 
             // set default scope
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
@@ -780,7 +786,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // in case of scopes the GA/GA len property is not used
             at_entry->ga = NULL;
             at_entry->ga_len = 0;
-            for (int i = 0; i < new_array_size; i++)
+            for (int i = 0; i < array_size; i++)
             {
               // address each string
               char* acl_string = (char*)array + i * STRING_ARRAY_ITEM_MAX_LEN;
@@ -825,49 +831,45 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
-            const int new_array_size = oc_int_array_size(object->value.array);
+            const int array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array)
+            // an empty array never reaches malloc(0), an empty GA scope is not valid
+            if (array_size == 0)
             {
-              if (new_array_size > 0)
-              {
-                for (int i = 0; i < new_array_size; i++)
-                {
-                  new_array[i] = (uint32_t)array[i];
-                }
-
-                OC_DBG("ga size %d", new_array_size);
-
-                // release a possible ga array, it will be overwritten, free ignores NULL ptr
-                free(at_entry->ga);
-
-                at_entry->ga_len = new_array_size;
-                at_entry->ga = new_array;
-
-                /*
-                  define THIS auth at token below with <ga> scope 's-mode messaging',
-                  - is defined only here in the code
-                  - is used only on /k resource (see also oc_knx_sec_check_acl)
-                  - is used only in combination with a present ga array / array len (see above)
-                */
-                at_entry->scope = OC_ACL_GA;
-                at_properties_seen |= AT_PROP_SCOPE;
-              }
-              else
-              {
-                OC_ERR("No valid access GA scope was set!");
-                oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-                return;
-              }
+              OC_ERR("No valid access GA scope was set!");
+              oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+              return;
             }
-            else
+
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            if (!new_array)
             {
               OC_ERR("Out of stack memory!");
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
+
+            for (int i = 0; i < array_size; i++)
+            {
+              new_array[i] = (uint32_t)array[i];
+            }
+
+            OC_DBG("ga size %d", array_size);
+
+            // release a possible ga array, it will be overwritten, free ignores NULL ptr
+            free(at_entry->ga);
+
+            at_entry->ga_len = array_size;
+            at_entry->ga = new_array;
+
+            /*
+              define THIS auth at token below with <ga> scope 's-mode messaging',
+              - is defined only here in the code
+              - is used only on /k resource (see also oc_knx_sec_check_acl)
+              - is used only in combination with a present ga array / array len (see above)
+            */
+            at_entry->scope = OC_ACL_GA;
+            at_properties_seen |= AT_PROP_SCOPE;
           }
         }
         else if (object->type == OC_REP_STRING)
@@ -1147,7 +1149,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   OC_DBG("id = %.*s", value_len, value); 
 
   // get the AT entry from access string token
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(value, value_len);
   if (!at_entry)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1269,7 +1271,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   OC_DBG("id = %.*s", value_len, value); 
 
   // get the AT entry from access string token
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(value, value_len);
 
   if (!at_entry)
   {
@@ -1686,26 +1688,39 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
             {
               // a load command does NOT append items to an (existing) array, it overwrites them
               const int64_t* array = oc_int_array(rep->value.array);
-              const int new_array_size = oc_int_array_size(rep->value.array);
+              const int array_size = oc_int_array_size(rep->value.array);
 
-              // malloc of 'zero' byte return pointer is undefined
-              uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-              if (new_array && new_array_size > 0)
+              // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+              if (array_size == 0)
               {
-                for (int i = 0; i < new_array_size; i++)
-                {
-                  new_array[i] = (uint32_t)array[i];
-                }
-
                 // release an already assigned ga array on the org ptr, free ignores NULL ptr
                 free(entry->ga);
 
-                // assign only when the new array is allocated correctly
-                entry->ga_len = new_array_size;
-                entry->ga = new_array;
-
-                OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", new_array_size);
+                entry->ga_len = 0;
+                entry->ga = NULL;
+                break;
               }
+
+              uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+              if (!new_array)
+              {
+                OC_ERR("out of memory, at table entry %d loaded without its ga array from storage", (int)get_at_index(entry));
+                break;
+              }
+
+              for (int i = 0; i < array_size; i++)
+              {
+                new_array[i] = (uint32_t)array[i];
+              }
+
+              // release an already assigned ga array on the org ptr, free ignores NULL ptr
+              free(entry->ga);
+
+              // assign only when the new array is allocated correctly
+              entry->ga_len = array_size;
+              entry->ga = new_array;
+
+              OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", array_size);
             }
 
             break;
@@ -1837,7 +1852,7 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 
 void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
 {
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(client_sender_id, client_sender_id_size);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(client_sender_id, client_sender_id_size);
 
   if (!at_entry)
   {

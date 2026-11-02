@@ -1248,11 +1248,14 @@ int coap_receive(oc_message_t* incoming_message)
 
             /*
               destination and security context of the freshly built message: the responder that challenged
-              us, with the sending group address of the originating group object so the OSCORE layer finds
-              the matching sender key
+              us, with the sending group address of the originating group object
+              - the token that decrypted the 4.01 echo response, it is the one of the original send
+                (IoT spec. clause 3.6.4.1.3 "same credentials"), 
+                the OSCORE layer takes its sender context (uc-b)
             */
             memcpy(&source_msg->endpoint, &incoming_message->endpoint, sizeof(oc_endpoint_t));
             source_msg->endpoint.group_address = anchor.go->ga[0];
+            source_msg->endpoint.s_mode_auth_at = incoming_message->endpoint.auth_at_of_inbound_msg;
             source_msg->endpoint.s_mode_group_object = NULL; // must be done, src was not NULL
             source_msg->endpoint.s_mode_service_type = 0;    // must be done, src was not 0
             source_msg->length = 0;                          // must be done, will be overwritten by 'coap_oscore_serialize_message' below

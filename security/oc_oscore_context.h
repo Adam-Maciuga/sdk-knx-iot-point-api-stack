@@ -27,7 +27,7 @@ typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any (must be first, OC_LIST) */
   oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
-  const oc_auth_at_t* auth_at;                      /**< pointer to the access token entry from AT table, that was used to decrypt a received message */
+  const oc_auth_at_t* auth_at;                      /**< access token entry of the AT table this context was created from (sender: uc/mc sending, recipient: decrypting) */
   uint32_t ssn;                                     /**< sender sequence number (32-bit, KNX IoT) */
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
 
@@ -146,7 +146,23 @@ oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* pa
  */
 void oc_oscore_free_lru_recipient_context(void);
 
-oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
+/**
+ * @brief find the sender context for a multicast message: the first token holding the group address
+ *        that is not the 'at' of a unicast recipient table entry (spec 6.3.2.1)
+ *
+ * @param group_address the sending group address
+ * @return the sender context, NULL if none is found
+ */
+oc_oscore_context_t* oc_oscore_find_multicast_context_by_group_address(uint32_t group_address);
+
+/**
+ * @brief find the first context of an access token, e.g. the 'at' of a recipient table entry
+ *
+ * @param auth_at the access token entry
+ * @param sender_only true: only a sender context (sender id populated), recipient contexts are never used for sending
+ * @return the context, NULL if auth_at is NULL or no (sender) context exists for it
+ */
+oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at, bool sender_only);
 
 /**
  * @brief checks that a sender context can still use its SSN as Partial IV and increments the SSN

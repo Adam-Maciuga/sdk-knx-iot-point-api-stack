@@ -64,7 +64,7 @@ overlaps").
 | oc_knx_swu.c | test_oc_knx_swu.cpp | DONE |
 | oc_main.c | test_oc_main.cpp + test_oc_buffer_settings.cpp | DONE |
 | oc_network_events.c | test_oc_network_events.cpp | DONE |
-| oc_rep.c | test_oc_rep.cpp | DONE |
+| oc_rep.c | test_oc_rep.cpp | DONE (incl. `[]` -> NIL vs null/undefined -> NULL, half float/simple -> UNSUPPORTED) |
 | oc_replay.c | test_oc_replay.cpp | DONE |
 | oc_ri.c | test_oc_ri.cpp | DONE |
 | oc_server_api.c | test_oc_server_api.cpp | DONE |
@@ -75,7 +75,7 @@ overlaps").
 
 | Source | Test file | Status |
 |--------|-----------|--------|
-| oc_oscore_context.c | test_oc_oscore_context.cpp | DONE |
+| oc_oscore_context.c | test_oc_oscore_context.cpp | DONE (incl. `oc_oscore_find_context_by_access_token` sender_only, multicast lookup skipping a unicast recipient's token) |
 | oc_oscore_crypto.c | test_oc_oscore_crypto.cpp | DONE |
 | oc_oscore_engine.c | test_oc_oscore_echo_tx.cpp | PARTIAL (echo ring, inbound parser/decrypt and wrapped unicast/multicast request plus normal-response transport boundaries; echo-response and observe variants remain integration-level) |
 | spake2plus.c | test_spake2plus.cpp | DONE |
@@ -214,6 +214,11 @@ fixtures clear every slot to the empty sentinel and craft deterministic entries:
 - `FpTableSizes`: `oc_core_get_recipient_table_size`, `oc_core_get_publisher_table_size`,
   recipient/publisher entry bounds, `pub_table_contains_no_iid` (default-true).
 - `RecipientTable`: `oc_core_find_index_in_recipient_table_from_id`.
+- `RecipientAccessToken`: `oc_is_unicast_recipient_access_token` (unicast entry
+  naming the token -> true; multicast entry with `at`, unused slot, other /
+  prefix / longer id, empty or NULL id -> false). Runtime:
+  `TestMulticastSkipsUnicastRecipientToken`, `TestUnicastAndMulticastFromSameTables`
+  (`test_group_comm.py`).
 - `FpFindIdFromPayload`: `oc_table_find_id_from_payload_and_check_if_in_16_bit_range`
   (in-range / >65535→-2 / negative→-2 / no-id-int→-1 / NULL→-1).
 - `BelongsHref`: `oc_belongs_href_to_resource` driven with registered app
@@ -228,12 +233,18 @@ fixtures clear every slot to the empty sentinel and craft deterministic entries:
   comma separator and `add_next_page_indicator`, entry GET (unknown id → 4.04,
   known id → 2.05 CBOR) and entry DELETE outside `LSM_S_LOADING` → 4.00.
 
+Runtime coverage of the POST handlers (`test_fp_tables.py`):
+`TestTableRepeatedKey`, `TestTableUnsupportedValueType`, `TestTableGaNotNull`,
+`TestRecipientTableUnicastAccessToken`.
+
 INTEGRATION (concrete reasons): `oc_core_set_group_object_table` /
 `oc_core_set_recipient_table` / `oc_core_set_publisher_table` and the
 `oc_store_*` / `oc_delete_*` / `oc_print_*` table helpers read/write persistent
 storage (`oc_storage_write`/`oc_storage_read`) and re-register group multicast;
-the `oc_core_fp_*_post_handler` and `oc_core_fp_gm_*` handlers parse CBOR
-requests, mutate device state, drive group register/unregister and s-mode
+the `oc_core_fp_*_post_handler` and `oc_core_fp_gm_*` handlers (incl. the
+file-static `tbl_mandatory_missing` and the `TBL_PROP_*` bitmask: mandatory keys,
+repeated key -> last wins, `ia` + `grpid` -> 4.00, empty `ga` array before
+`malloc`) parse CBOR requests, mutate device state, drive group register/unregister and s-mode
 unicast/multicast CoAP send — all need a bootstrapped device + populated RI
 tables + network.
 
@@ -249,6 +260,8 @@ read/write through the public slot pointer `oc_get_auth_at_entry` plus
   `get_at_index` (NULL→-1, entry-pointer→slot index),
   `oc_core_items_used_in_auth_at_table` (counts slots whose `id` len > 0).
 - `oc_core_find_at_entry_by_osc_id` (byte-string match + miss).
+- `oc_core_find_at_entry_by_access_token` (match, miss, prefix / longer id,
+  empty or NULL id never matches an unused slot).
 - `oc_delete_at_table_entry` (NULL→-1; valid entry→0, clears id/profile;
   `oc_storage_erase` is a no-op without configured storage).
 - `oc_core_find_and_remove_pase_token_in_at_table` (removes only PASE-profile

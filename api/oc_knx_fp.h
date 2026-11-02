@@ -213,7 +213,7 @@ extern "C"
     int64_t iid;            // installation id of recipient (not used in case recipient is within the same installation, then device.iid is used)
     int64_t fid;            // fabric id of recipient (not used in case recipient is within the same installation, then device.fid is used)
     uint32_t grpid;         // group id, specification demands 32 bit (in ULA/IANA format style, both MUST be > 0, see specification clause 2.6.5)
-    oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
+    oc_string_t at;         // access token id, credentials for unicast (with 'ia'): RCP table -> s-mode message encryption, PUB table -> subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
     bool non;               // non req., checked ONLY in RCP table on sending a msg (mc = SHALL be true (always) uc = false (default except a MaC overwrites it explicitly))
@@ -606,6 +606,17 @@ extern "C"
    * @return the table entry matching the group_address in the recipient table or NULL if not found
    */
   oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address);
+
+  /**
+   * @brief checks if an access token is the 'at' of a unicast recipient table entry (an entry with 'ia')
+   *
+   * @note spec 6.3.2.1: such a token is never used for multicast
+   *
+   * @param at_id access token id
+   * @param at_id_len length of the access token id
+   * @return true the token is the 'at' of a unicast recipient table entry
+   */
+  bool oc_is_unicast_recipient_access_token(const char* at_id, size_t at_id_len);
 
   /**
    * @brief find the table entry from the group_address in the publisher table

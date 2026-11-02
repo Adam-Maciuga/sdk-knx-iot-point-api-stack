@@ -205,6 +205,24 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
     return;
   }
 
+  /*
+    the recipient's 'at' selects the credentials (spec 2.5.7.4.2 table 21, 6.3.1.2), checked before the IPv6 resolution
+    - no 'at' configured -> not sent, there are no credentials for this recipient (no token guessed from the ga)
+    - 'at' configured but no such token -> not sent, never encrypt with another token's key
+  */
+  if (oc_string_len(recipient->at) == 0)
+  {
+    OC_ERR("Cannot send unicast: recipient table entry for GA %" PRIu32 " has no access token (at)", group_address);
+    return;
+  }
+
+  const oc_auth_at_t* auth_at = oc_core_find_at_entry_by_access_token(oc_string(recipient->at), oc_string_len(recipient->at));
+  if (!auth_at)
+  {
+    OC_ERR("Cannot send unicast: access token '%s' of the recipient table entry not found (GA %" PRIu32 ")", oc_string(recipient->at), group_address);
+    return;
+  }
+
   if (!ipv6_for_ia_is_resolved(service_type, recipient, group_object))
   {
     OC_WRN("Cannot send unicast: IPv6 address resolver still in progress for GA %" PRIu32, group_address);
@@ -222,6 +240,9 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
+
+  // the OSCORE layer encrypts with the context of this token (uc-b)
+  group_ucast_endpoint.s_mode_auth_at = auth_at;
 
   /*
     carry the originating group object plus the service type on the endpoint: the OSCORE layer copies both into the

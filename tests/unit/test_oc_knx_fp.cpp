@@ -537,6 +537,77 @@ TEST_F(RecipientTable, FindIndexFromIdMatchAndMiss)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * oc_is_unicast_recipient_access_token — a used RCP entry without grpid that names the token in 'at'
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class RecipientAccessToken : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    oc_mmem_init();
+    clear_all();
+  }
+
+  void TearDown() override { clear_all(); }
+
+  static void clear_all()
+  {
+    int n = oc_core_get_recipient_table_size();
+    for (int i = 0; i < n; i++) {
+      oc_group_table_t *e = oc_core_get_recipient_table_entry(i);
+      oc_free_string(&e->at); /* safe on a zero-initialized string */
+      e->id = -1;
+      e->grpid = 0;
+      e->ia = -1;
+    }
+  }
+
+  static void set_entry(int index, int32_t id, uint32_t grpid, const char *at)
+  {
+    oc_group_table_t *e = oc_core_get_recipient_table_entry(index);
+    e->id = id;
+    e->grpid = grpid;
+    e->ia = grpid == 0 ? 0x110F : -1;
+    oc_new_string(&e->at, at, strlen(at));
+  }
+};
+
+TEST_F(RecipientAccessToken, UnicastEntryNamingTheTokenMatches)
+{
+  set_entry(2, 7, 0, "tokU");
+  EXPECT_TRUE(oc_is_unicast_recipient_access_token("tokU", 4));
+}
+
+TEST_F(RecipientAccessToken, MulticastEntryWithAtDoesNotMatch)
+{
+  /* the template writes 'at' on grpid entries too: such a token stays usable for multicast */
+  set_entry(3, 8, 0x80000001, "tokM");
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("tokM", 4));
+}
+
+TEST_F(RecipientAccessToken, UnusedSlotDoesNotMatch)
+{
+  set_entry(4, 9, 0, "tokX");
+  oc_core_get_recipient_table_entry(4)->id = -1;
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("tokX", 4));
+}
+
+TEST_F(RecipientAccessToken, OtherOrPrefixIdDoesNotMatch)
+{
+  set_entry(2, 7, 0, "tokU");
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("tokV", 4));
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("tok", 3));
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("tokU2", 5));
+}
+
+TEST_F(RecipientAccessToken, EmptyIdNeverMatches)
+{
+  set_entry(2, 7, 0, "tokU");
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token(nullptr, 0));
+  EXPECT_FALSE(oc_is_unicast_recipient_access_token("", 0));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * oc_belongs_href_to_resource — scans the app-resource list comparing the URL
  * ═══════════════════════════════════════════════════════════════════════════ */
 

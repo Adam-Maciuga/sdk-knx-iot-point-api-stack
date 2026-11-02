@@ -13,12 +13,19 @@ Duplicate <ga> key in one s map (ADDITIONAL, non-EITT) - probes F-026,
 5.4.1.3   Sending Multicast Read Group Message to Device Elicits Response
 5.4.1.4   Sending Unicast Read Group Message to Device Elicits Response
 5.4.1.6   Trigger Device to Elicit Multicast Write Group Message
+Unicast recipient without 'at' sends nothing (ADDITIONAL, non-EITT)
+Unicast and multicast from the same tables (ADDITIONAL, non-EITT)
+Multicast skips the unicast recipient's token (ADDITIONAL, non-EITT) - spec
+          6.3.2.1 step 2: the multicast token is not the 'at' of a unicast entry
 5.4.1.9   Set Init Flag Causes S-Mode Group Message on Startup
 Multicast Response on UPDATE-only GO (ADDITIONAL, non-EITT) - probes
           spec(Table 19 "if w=true") vs code(oc_knx.c checks u-flag only)
 5.4.1.12  Updating Own Group Objects for Outgoing Group Messages
 5.4.1.14  Sending Support for Long Group Addresses
 5.4.1.15  Trigger Sending (Non) Confirmable Messages
+Unicast sender uses the recipient's 'at' (ADDITIONAL, non-EITT) - spec
+          2.5.7.4.2 Table 21 / 6.3.1.2: the RCP entry's access token, not the
+          first token whose scope holds the ga; the template only reads 'at' back
 Malformed ep lengths in unicast discovery (ADDITIONAL, non-EITT)
 Read-on-init network gate (ADDITIONAL, non-EITT, privileged)
 Unicast NON re-resolution (ADDITIONAL, non-EITT)
@@ -92,6 +99,23 @@ UC15_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012345"
 UC15_SENDER_ID = b"\x18\x2a\x3b\x4c\x5d\x6e\x7f"
 UC15_MS = bytes.fromhex("7b3a5b0e9078c951d4b5536f547159cc")
 
+# Two unicast token sets with the same ga in scope, used only by the recipient
+# 'at' selection class: the DUT must encrypt with the one the RCP entry names.
+UCA_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012383"
+UCA_SENDER_ID = b"\x50\x2a\x3b\x4c\x5d\x6e\x7f"
+UCA_MS = bytes.fromhex("5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a")
+UCB_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012384"
+UCB_SENDER_ID = b"\x60\x2a\x3b\x4c\x5d\x6e\x7f"
+UCB_MS = bytes.fromhex("6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b")
+
+# Unicast token next to a multicast token with the same ga, used only by the
+# multicast token selection class (spec 6.3.2.1); MCX_TOKEN_ID differs from
+# MC_TOKEN_ID, which equals UC_TOKEN_ID.
+UCX_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012385"
+UCX_SENDER_ID = b"\x70\x2a\x3b\x4c\x5d\x6e\x7f"
+UCX_MS = bytes.fromhex("7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c")
+MCX_TOKEN_ID = "abcdefghijklmnopqrstuvwxyz012386"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -137,6 +161,13 @@ def _install_at(coap, oscore_ctx, token_id, scope, sender_id,
         oscore_ctx, "/auth/at", payload=cbor2.dumps([at_inner]))
     assert resp is not None and resp.is_successful, (
         f"POST /auth/at failed: {resp.code if resp else 'timeout'}")
+
+
+def _delete_at(coap, oscore_ctx, *token_ids):
+    """Delete access tokens a class created, so later classes do not find
+    them in a ga lookup (DELETE /auth/at/{id})."""
+    for token_id in token_ids:
+        coap.oscore_delete(oscore_ctx, f"/auth/at/{token_id}")
 
 
 def _set_datapoint(coap, oscore_ctx, href, value):
@@ -1300,7 +1331,7 @@ class TestUnicastRead:
         ia_prepare(coap, oscore_ctx)
         go = [{0: 13, 7: [65535], 8: 0x18, 11: "/p/1"}]
         rcp = [{0: 5, 7: [65535], 12: PEER_IA,
-                3: UC_TOKEN_ID}]  # unicast recipient
+                14: UC_TOKEN_ID}]  # unicast recipient
         _provision_unicast(coap, oscore_ctx, go, scope=[65535],
                            rcp_entries=rcp)
         yield
@@ -1389,6 +1420,189 @@ class TestTriggerMulticastWrite:
         assert s_obj[6] == "w", f"Expected st='w', got {s_obj[6]}"
         assert s_obj[7] == 65535, f"Expected ga=65535, got {s_obj[7]}"
         assert 1 in s_obj, f"Missing 'value' (key 1) in s-mode payload"
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Unicast recipient without 'at' sends nothing
+# ===========================================================================
+
+class TestUnicastWithoutAccessTokenNotSent:
+    """A unicast recipient table entry without 'at' (14) has no credentials
+    (spec 2.5.7.4.2 Table 21, 6.3.1.2): the DUT sends no unicast POST /k
+    instead of guessing a token from the ga.
+
+    GO table:  ga=[65535], cflag=0x40 (transmit), href=/p/3
+    AT table:  a token with scope=[65535] (the one a ga lookup would pick)
+    RCP table: ga=[65535], ia=PEER_IA, no 'at'
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        _install_go_table(coap, oscore_ctx, [{0: 13, 7: [65535], 8: 0x40, 11: "/p/3"}])
+        _install_rcp_table(coap, oscore_ctx, [{0: 7, 7: [65535], 12: PEER_IA}])
+        _install_at(coap, oscore_ctx, UCX_TOKEN_ID, [65535], UCX_SENDER_ID, UCX_MS)
+        set_lsm(coap, oscore_ctx, 2)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+        _delete_at(coap, oscore_ctx, UCX_TOKEN_ID)
+
+    def test_no_unicast_post_without_at(self, coap, oscore_ctx, device_iface):
+        captured = [None]
+
+        def _responder():
+            captured[0] = _serve_discovery_and_capture_unicast(device_iface, PEER_IA, DUT_IID, timeout=8.0)
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder socket is ready
+
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+        t.join(timeout=10)
+
+        assert captured[0] is None, "DUT sent a unicast POST /k to a recipient without 'at' (token guessed from the ga)"
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Multicast skips the access token of a unicast recipient
+# ===========================================================================
+
+class TestMulticastSkipsUnicastRecipientToken:
+    """Spec 6.3.2.1 step 2: multicast takes the first OSCORE token that holds
+    the ga AND is not the 'at' of a unicast recipient table entry.
+
+    GO table:  ga=[65535], cflag=0x40 (transmit), href=/p/3
+    AT table:  U (unicast, scope=[65535, 65534]) and M (multicast credentials, scope=[65535])
+    RCP table: ga=[65534], ia=PEER_IA, at=U (unicast) + ga=[65535], grpid (multicast)
+
+    The unicast entry has its own ga: the stack sends a ga to the first RCP
+    entry holding it only, so a unicast entry with 65535 would hide the
+    multicast one. U still holds 65535 in its scope, so a lookup by ga alone
+    can pick it for the multicast send.
+
+    Run once per install order so the result does not depend on which token
+    the DUT finds first: the multicast 'kid' must be M's osc id and the
+    payload must decrypt with M.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+        _delete_at(coap, oscore_ctx, UCX_TOKEN_ID, MCX_TOKEN_ID)
+
+    @pytest.mark.parametrize("unicast_first", [True, False], ids=["unicast_token_first", "multicast_token_first"])
+    def test_multicast_kid_is_not_unicast_token(self, coap, oscore_ctx, device_iface, unicast_first):
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        _install_go_table(coap, oscore_ctx, [{0: 13, 7: [65535], 8: 0x40, 11: "/p/3"}])
+        _install_rcp_table(coap, oscore_ctx, [{0: 7, 7: [65534], 12: PEER_IA, 14: UCX_TOKEN_ID},
+                                              {0: 8, 7: [65535], 13: GROUP_GRPID}])
+        tokens = [lambda: _install_at(coap, oscore_ctx, UCX_TOKEN_ID, [65535, 65534], UCX_SENDER_ID, UCX_MS),
+                  lambda: _install_at(coap, oscore_ctx, MCX_TOKEN_ID, [65535], MC_SENDER_ID, MC_MS, context_id=MC_CTX_RX)]
+        for install in (tokens if unicast_first else reversed(tokens)):
+            install()
+        set_lsm(coap, oscore_ctx, 2)
+
+        received = _listen_and_trigger(coap, oscore_ctx, device_iface, _mcast_addr(), href="/p/3", value=True, max_messages=3)
+        posts = [m for m, _ in received if m["code_class"] == 0 and m["code_detail"] == 2 and 9 in m["options"]]
+        assert posts, f"No multicast s-mode POST received ({len(received)} message(s) on the group address)"
+
+        _, kid_ctx, kid = _parse_oscore_option(posts[0]["options"][9])
+        assert kid == MC_SENDER_ID, (
+            f"multicast kid {kid.hex() if kid else None} is not the osc id {MC_SENDER_ID.hex()} of the multicast token "
+            f"(unicast token osc id {UCX_SENDER_ID.hex()})")
+
+        data = _decrypt_smode(posts[0], _make_mc_rx_ctx())
+        assert data.get(5, {}).get(7) == 65535, f"decrypted s-mode payload has the wrong ga: {data}"
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Unicast and multicast from the same tables
+# ===========================================================================
+
+class TestUnicastAndMulticastFromSameTables:
+    """With a unicast and a multicast recipient in one RCP table, each send
+    uses its own token: the unicast POST /k the recipient's 'at' (spec
+    2.5.7.4.2 Table 21, 6.3.1.2), the multicast the token holding the ga that
+    is not a unicast 'at' (spec 6.3.2.1).
+
+    GO table:  /p/4 -> ga=[65534] (transmit), /p/3 -> ga=[65535] (transmit)
+    AT table:  U (unicast, scope=[65535, 65534]) and M (multicast credentials, scope=[65535])
+    RCP table: ga=[65534], ia=PEER_IA, at=U (unicast) + ga=[65535], grpid (multicast)
+
+    Separate ga's: the stack sends a ga to the first RCP entry holding it
+    only. Run once per install order of the two tokens.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+        _delete_at(coap, oscore_ctx, UCX_TOKEN_ID, MCX_TOKEN_ID)
+
+    @pytest.mark.parametrize("unicast_first", [True, False], ids=["unicast_token_first", "multicast_token_first"])
+    def test_unicast_and_multicast_use_their_own_token(self, coap, oscore_ctx, device_iface, unicast_first):
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        _install_go_table(coap, oscore_ctx, [{0: 13, 7: [65535], 8: 0x40, 11: "/p/3"},
+                                             {0: 14, 7: [65534], 8: 0x40, 11: "/p/4"}])
+        _install_rcp_table(coap, oscore_ctx, [{0: 7, 7: [65534], 12: PEER_IA, 14: UCX_TOKEN_ID},
+                                              {0: 8, 7: [65535], 13: GROUP_GRPID}])
+        tokens = [lambda: _install_at(coap, oscore_ctx, UCX_TOKEN_ID, [65535, 65534], UCX_SENDER_ID, UCX_MS),
+                  lambda: _install_at(coap, oscore_ctx, MCX_TOKEN_ID, [65535], MC_SENDER_ID, MC_MS, context_id=MC_CTX_RX)]
+        for install in (tokens if unicast_first else reversed(tokens)):
+            install()
+        set_lsm(coap, oscore_ctx, 2)
+
+        # unicast: /p/4 -> ga 65534 -> RCP entry with ia, token U
+        captured = [None]
+
+        def _responder():
+            captured[0] = _serve_discovery_and_capture_unicast(device_iface, PEER_IA, DUT_IID, timeout=10.0)
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder socket is ready
+        _trigger_sensor(coap, oscore_ctx, href="/p/4", value=True)
+        t.join(timeout=12)
+
+        assert captured[0] is not None, "DUT did not send the unicast POST /k (discovery resolution or send failed)"
+        uc_msg, _ = captured[0]
+        _, uc_kid_ctx, uc_kid = _parse_oscore_option(uc_msg["options"][9])
+        assert uc_kid == UCX_SENDER_ID, (
+            f"unicast kid {uc_kid.hex() if uc_kid else None} is not the osc id {UCX_SENDER_ID.hex()} of the recipient's token")
+        uc_rx = OscoreContext(master_secret=UCX_MS, sender_id=b"", recipient_id=UCX_SENDER_ID, id_context=uc_kid_ctx)
+        uc_data = _decrypt_smode(uc_msg, uc_rx)
+        assert uc_data.get(5, {}).get(7) == 65534, f"decrypted unicast s-mode payload has the wrong ga: {uc_data}"
+
+        # multicast: /p/3 -> ga 65535 -> RCP entry with grpid, token M
+        received = _listen_and_trigger(coap, oscore_ctx, device_iface, _mcast_addr(), href="/p/3", value=True, max_messages=3)
+        posts = [m for m, _ in received if m["code_class"] == 0 and m["code_detail"] == 2 and 9 in m["options"]]
+        assert posts, f"No multicast s-mode POST received ({len(received)} message(s) on the group address)"
+
+        _, _, mc_kid = _parse_oscore_option(posts[0]["options"][9])
+        assert mc_kid == MC_SENDER_ID, (
+            f"multicast kid {mc_kid.hex() if mc_kid else None} is not the osc id {MC_SENDER_ID.hex()} of the multicast token")
+        mc_data = _decrypt_smode(posts[0], _make_mc_rx_ctx())
+        assert mc_data.get(5, {}).get(7) == 65535, f"decrypted multicast s-mode payload has the wrong ga: {mc_data}"
 
 
 # ===========================================================================
@@ -1943,7 +2157,7 @@ class TestUnicastConfirmable:
         go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
         _install_go_table(coap, oscore_ctx, go)
         # Unicast recipient — routes to PEER_IA instead of multicast
-        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID}]
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 14: UC15_TOKEN_ID}]
         _install_rcp_table(coap, oscore_ctx, rcp)
         _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
                     UC15_SENDER_ID, UC15_MS)
@@ -1987,6 +2201,76 @@ class TestUnicastConfirmable:
 
 
 # ===========================================================================
+# Bonus (not in EITT) - Unicast sender uses the recipient's access token
+# ===========================================================================
+
+class TestUnicastUsesRecipientAccessToken:
+    """Unicast s-mode: the DUT encrypts with the access token the recipient
+    table entry names in 'at' (14), not with the first token whose scope holds
+    the ga (spec 2.5.7.4.2 Table 21, 2.6.9.2, 6.3.1.2 step 2).
+
+    GO table:  ga=[65535], cflag=0x40 (transmit), href=/p/3
+    AT table:  two OSCORE tokens, both with scope=[65535]
+    RCP table: ga=[65535], ia=PEER_IA, at=<one of the two tokens>
+
+    Run once per token so the result does not depend on which of the two the
+    DUT happens to find first: the 'kid' on the wire must be the osc id of the
+    referenced token, and the payload must decrypt with its master secret.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+        _delete_at(coap, oscore_ctx, UCA_TOKEN_ID, UCB_TOKEN_ID)
+
+    @pytest.mark.parametrize("token_id, sender_id, master_secret", [
+        (UCA_TOKEN_ID, UCA_SENDER_ID, UCA_MS),
+        (UCB_TOKEN_ID, UCB_SENDER_ID, UCB_MS),
+    ], ids=["first_token", "second_token"])
+    def test_unicast_kid_is_recipient_access_token(self, coap, oscore_ctx, device_iface, token_id, sender_id, master_secret):
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        _install_go_table(coap, oscore_ctx, [{0: 21, 7: [65535], 8: 0x40, 11: "/p/3"}])
+        _install_rcp_table(coap, oscore_ctx, [{0: 21, 7: [65535], 12: PEER_IA, 14: token_id}])
+        _install_at(coap, oscore_ctx, UCA_TOKEN_ID, [65535], UCA_SENDER_ID, UCA_MS)
+        _install_at(coap, oscore_ctx, UCB_TOKEN_ID, [65535], UCB_SENDER_ID, UCB_MS)
+        set_lsm(coap, oscore_ctx, 2)
+
+        captured = [None]
+
+        def _responder():
+            captured[0] = _serve_discovery_and_capture_unicast(device_iface, PEER_IA, DUT_IID, timeout=10.0)
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder socket is ready
+
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+        t.join(timeout=12)
+
+        assert captured[0] is not None, "DUT did not send a unicast POST /k (discovery resolution or send failed)"
+
+        msg, _ = captured[0]
+        assert 9 in msg["options"], "unicast POST /k carries no OSCORE option"
+        _, kid_ctx, kid = _parse_oscore_option(msg["options"][9])
+        assert kid == sender_id, (
+            f"unicast kid {kid.hex() if kid else None} is not the osc id {sender_id.hex()} "
+            f"of the recipient's access token '{token_id}'")
+
+        # DUT sender id = osc id of the token, DUT recipient id = empty
+        rx_ctx = OscoreContext(master_secret=master_secret, sender_id=b"", recipient_id=sender_id, id_context=kid_ctx)
+        data = _decrypt_smode(msg, rx_ctx)
+        assert data.get(5, {}).get(7) == 65535, f"decrypted s-mode payload has the wrong ga: {data}"
+
+
+# ===========================================================================
 # Bonus (not in EITT) - Unicast NON s-mode IPv6 re-resolution
 # ===========================================================================
 
@@ -2017,7 +2301,7 @@ class TestUnicastNonReResolution:
         go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
         _install_go_table(coap, oscore_ctx, go)
         # Unicast recipient with non=True -> sends NON (not CON) POSTs.
-        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID,
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 14: UC15_TOKEN_ID,
                 "non": True}]
         _install_rcp_table(coap, oscore_ctx, rcp)
         _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
@@ -2271,7 +2555,7 @@ class TestUnicastNonEchoReRequest:
         set_lsm(coap, oscore_ctx, 1)
         go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
         _install_go_table(coap, oscore_ctx, go)
-        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID,
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 14: UC15_TOKEN_ID,
                 "non": True}]
         _install_rcp_table(coap, oscore_ctx, rcp)
         _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
@@ -2340,7 +2624,7 @@ def _setup_unicast_echo(coap, oscore_ctx, device_iface, non):
     set_lsm(coap, oscore_ctx, 1)
     go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
     _install_go_table(coap, oscore_ctx, go)
-    rcp = {0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID}
+    rcp = {0: 7, 7: [65535], 12: PEER_IA, 14: UC15_TOKEN_ID}
     if non:
         rcp["non"] = True
     _install_rcp_table(coap, oscore_ctx, [rcp])
@@ -2503,7 +2787,7 @@ class TestUnicastDiscoveryMalformedLengths:
         go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
         _install_go_table(coap, oscore_ctx, go)
         # Unicast recipient - routes to PEER_IA instead of multicast.
-        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID}]
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 14: UC15_TOKEN_ID}]
         _install_rcp_table(coap, oscore_ctx, rcp)
         _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
                     UC15_SENDER_ID, UC15_MS)

@@ -1066,6 +1066,23 @@ TEST_F(OscoreEngine, OutboundUnicastWithoutContextIsDropped)
   EXPECT_EQ(g_network_send_calls, 0);
 }
 
+TEST_F(OscoreEngine, OutboundUnicastWithGroupAddressOnlyIsDropped)
+{
+  /*
+    unicast never looks up a token by ga
+    - the ga matches the sender context, but no recipient 'at' (s_mode_auth_at) is named -> not sent
+  */
+  oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+  EXPECT_EQ(sender_context_->ssn, 0U);
+}
+
 TEST_F(OscoreEngine, OutboundMalformedCoapIsDropped)
 {
   const uint8_t malformed[] = { 0x40 };
@@ -1162,6 +1179,8 @@ TEST_F(OscoreEngine, OutboundUnicastRequestIsEncryptedAndSent)
 {
   oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
   ASSERT_NE(message, nullptr);
+  // the recipient's 'at', as oc_send_s_mode_unicast_message sets it (uc-b)
+  message->endpoint.s_mode_auth_at = &at_;
 
   ASSERT_EQ(oc_process_post(&oc_oscore_handler,
                             oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
