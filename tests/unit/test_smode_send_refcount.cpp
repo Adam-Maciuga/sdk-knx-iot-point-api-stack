@@ -338,3 +338,57 @@ TEST_F(SModeRefCountViaSend, Via_UcCon_RetransmitCycle)
 
   oc_message_unref(m1);
 }
+
+/* -- hand-over: the transaction adopts the s-mode message (no copy) -------- */
+
+/*
+  coap_new_transaction_with_message (used by oc_do_s_mode_message_update):
+    m1 birth                                 m1 ref = 1
+    coap_new_transaction_with_message        t->message == m1, ref = 1 (adopted, no second buffer)
+    coap_send_transaction (mc-NON) {
+      oc_message_add_ref(m1)                 m1 ref = 2
+      coap_send_message(m1)  [wrap]          m1 ref = 1
+      coap_clear_transaction(t)              m1 ref = 0  (FREED)
+    }
+  The caller must not release m1 any more (ASan/LSan: no double free, no leak).
+*/
+TEST_F(SModeRefCountViaSend, HandOver_McNon_TransactionAdoptsMessage)
+{
+  oc_endpoint_t ep = make_mc_ep();
+  oc_message_t *m1 = make_smode_msg(&ep, 0x50); /* NON */
+  ASSERT_NE(m1, nullptr);
+
+  uint8_t token[] = {0xA4, 0xB4, 0xC4, 0xD4};
+  coap_transaction_t *t = coap_new_transaction_with_message(0xCC05, token, sizeof(token), m1);
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(t->message, m1);
+  EXPECT_EQ(m1->ref_count, 1);
+  EXPECT_EQ(t->mid, 0xCC05);
+  EXPECT_EQ(t->token_len, sizeof(token));
+  EXPECT_EQ(0, memcmp(t->token, token, sizeof(token)));
+
+  coap_send_transaction(t);
+  /* m1 freed with the transaction */
+}
+
+/*
+  uc-CON hand-over: the adopted message is the transaction's retransmit copy, kept at ref 1 until the ACK
+*/
+TEST_F(SModeRefCountViaSend, HandOver_UcCon_TransactionKeepsAdoptedMessage)
+{
+  oc_endpoint_t ep = make_uc_con_ep();
+  oc_message_t *m1 = make_smode_msg(&ep, 0x40); /* CON */
+  ASSERT_NE(m1, nullptr);
+
+  uint8_t token[] = {0xA5, 0xB5};
+  coap_transaction_t *t = coap_new_transaction_with_message(0xCC06, token, sizeof(token), m1);
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(t->message, m1);
+
+  coap_send_transaction(t);
+  EXPECT_EQ(m1->ref_count, 1); /* transaction holds it for retransmits */
+  EXPECT_EQ(m1->data[0], 0x40); /* still the plaintext CON request */
+
+  coap_clear_transaction(t);
+  /* m1 freed */
+}

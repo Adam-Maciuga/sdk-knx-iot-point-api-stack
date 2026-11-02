@@ -215,6 +215,7 @@ target_link_options(test_oc_client_api PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=coap_send_message
     -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=oc_allocate_message
 )
 kis_add_test(test_oc_knx_client      test_oc_knx_client.cpp)
 kis_add_test(test_oc_network_events  test_oc_network_events.cpp)

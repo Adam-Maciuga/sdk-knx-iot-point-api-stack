@@ -1100,6 +1100,39 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   return 0;
 }
 
+/*
+  Outbound OSCORE message, it is encrypted in place
+  
+  - 'msg' NOT shared (ref_count == 1 -> multicast, unicast NON, responses) 
+     - use 'msg' reference directly 
+  
+  - 'msg' shared (ref_count > 1 -> CON transaction retransmits, echo re-request) 
+     - use 'msg' clone, 
+     - 'msg' reference is released by 1 
+     - 'msg' stays plaintext for its other holder
+  
+  - NULL if 'msg' clone cannot be allocated 
+    - 'msg' reference is released by 1
+*/
+static oc_message_t* oc_oscore_outgoing_message(oc_message_t* msg)
+{
+  if (msg->ref_count == 1)
+  {
+    return msg;
+  }
+
+  oc_message_t* clone = oc_allocate_message();
+  if (clone)
+  {
+    clone->length = msg->length;
+    memcpy(clone->data, msg->data, msg->length);
+    memcpy(&clone->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
+  }
+
+  oc_message_unref(msg);
+  return clone;
+}
+
 #ifdef OC_CLIENT
 /**
   @brief
@@ -1133,38 +1166,29 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     return -1;
   }
 
-  // new msg, encrypted in place and sent; 'msg' stays plaintext and is released below (echo ring keeps only a group object reference)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
-  if (!from_org_msg_cloned_outgoing_msg)
+  // 'msg' itself or its clone (shared 'msg'), from here on only 'outgoing_msg' is used (echo ring keeps only a group object reference)
+  oc_message_t* outgoing_msg = oc_oscore_outgoing_message(msg);
+  if (!outgoing_msg)
   {
-    // only the caller's ref (msg) is held at this point; release it
-    oc_message_unref(msg);
     return -1;
   }
-
-  // clone handed over 'oscore' message (msg) into sent out 'oscore' message, the outgoing msg takes care from now on
-  from_org_msg_cloned_outgoing_msg->length = msg->length;
-  memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
-  memcpy(&from_org_msg_cloned_outgoing_msg->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
 
   // create local CoAP packet
   coap_packet_t coap_pkt[1];
 
-  const coap_status_t code = coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
+  const coap_status_t code = coap_parse_udp_message(coap_pkt, outgoing_msg->data, outgoing_msg->length);
 
   if (code != COAP_NO_ERROR)
   {
     OC_ERR("coap parse packet : error (multicast)");
-    // release the single (caller's) ref on the plaintext, plus the clone
-    oc_message_unref(msg);
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
   OC_INF("coap parse packet : ok (multicast)");
   
   // get sending ga
-  const uint32_t group_address = from_org_msg_cloned_outgoing_msg->endpoint.group_address;
+  const uint32_t group_address = outgoing_msg->endpoint.group_address;
 
   /*
     find Sender Context (SID) for sending ga, in case
@@ -1196,8 +1220,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     if (!check_and_increment_ssn_in_context(oscore_ctx, true))
     {
       OC_ERR("OSCORE sender SSN exhausted (GA %04" PRIX32 "), request not sent", group_address);
-      oc_message_unref(msg);
-      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      oc_message_unref(outgoing_msg);
       return -1;
     }
 
@@ -1219,7 +1242,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     OC_LOGbytes_OSCORE(aad, aad_len);
 
     // reserve room for the OSCORE protected (outer) header, the plaintext is serialized from here
-    uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
+    uint8_t* dst1 = outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
 
     if (coap_pkt->payload_len > 0)
     {
@@ -1244,7 +1267,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     uint8_t* encryption_key = oscore_ctx->sender_key;
 
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
-    // the ciphertext goes into the cloned message buffer this engine owns (dst1), not through
+    // the ciphertext goes into the outgoing message buffer this engine owns (dst1), not through
     // the read-only payload view of the packet, which points at the same bytes
     const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
                                       OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN,
@@ -1253,8 +1276,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     if (ret != 0)
     {
       OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
-      oc_message_unref(msg);
-      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      oc_message_unref(outgoing_msg);
       return -1;
     }
 
@@ -1274,7 +1296,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     coap_set_header_oscore(coap_pkt, piv, piv_len, oscore_ctx->sender_id, oscore_ctx->sender_id_len, oscore_ctx->id_context, oscore_ctx->id_context_len);
 
     // serialize OSCORE message
-    from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);
+    outgoing_msg->length = oscore_serialize_message(coap_pkt, outgoing_msg->data);
     OC_DBG("serialized OSCORE message");
 
     /*
@@ -1284,24 +1306,21 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
       - the anchor stores only a REFERENCE to the originating group object entry (carried on the endpoint by
         the s-mode send path) plus the service type, no plaintext message is retained. A late echo response
-        regenerates the re-request payload from that group object, so 'msg' is unref'd here exactly like on
-        every pre-commit error branch above.
+        regenerates the re-request payload from that group object.
     */
-    oc_oscore_echo_whitelist_append(anchor_ssn, oscore_ctx, coap_pkt, &msg->endpoint);
-    oc_message_unref(msg);
+    oc_oscore_echo_whitelist_append(anchor_ssn, oscore_ctx, coap_pkt, &outgoing_msg->endpoint);
   }
   else
   {
     OC_ERR("found NO group OSCORE context for GA %04" PRIX32, group_address);
-    oc_message_unref(msg);
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
   // from here on any message is encrypted ...
-  UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
+  UNSET_BIT(outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
 
-  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
+  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
   {
     OC_ERR("could not send message");
   }
@@ -1323,33 +1342,23 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
-  // new msg, encrypted in place and sent; 'msg' stays plaintext for its other holders (CON transaction: retransmits, echo re-request)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
-  if (!from_org_msg_cloned_outgoing_msg)
+  // 'msg' itself or its clone (shared 'msg': CON transaction), from here on only 'outgoing_msg' is used
+  oc_message_t* outgoing_msg = oc_oscore_outgoing_message(msg);
+  if (!outgoing_msg)
   {
-    // release the caller's in-transit ref (this path holds no extra retain ref, unlike the multicast send)
-    oc_message_unref(msg);
     return -1;
   }
-
-  // clone handed over 'oscore' message (msg) into sent out 'oscore' message, the outgoing msg takes care from now on
-  from_org_msg_cloned_outgoing_msg->length = msg->length;
-  memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
-  memcpy(&from_org_msg_cloned_outgoing_msg->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
-
-  // remove one reference (either 'msg' is just released or still present)
-  oc_message_unref(msg);
 
   // create local CoAP packet
   coap_packet_t coap_pkt[1];
 
-  // parse outgoing message and copy to CoAP packet ... ('msg' may just be released, -> data may be NULL)
-  coap_status_t code = coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
+  // parse outgoing message and copy to CoAP packet
+  coap_status_t code = coap_parse_udp_message(coap_pkt, outgoing_msg->data, outgoing_msg->length);
 
   if (code != COAP_NO_ERROR)
   {
     OC_ERR("coap parse packet : error (unicast)");
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
@@ -1373,7 +1382,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
    */
 
-  oc_endpoint_t* ep = &from_org_msg_cloned_outgoing_msg->endpoint;
+  oc_endpoint_t* ep = &outgoing_msg->endpoint;
 
   // msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
   bool is_con = coap_pkt->type == COAP_TYPE_CON;
@@ -1390,7 +1399,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     // e.g. RST or empty ACK with code 0.00: not a valid OSCORE carrier — drop silently
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE unicast message, ignore", coap_pkt->type, coap_pkt->code);
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
@@ -1413,7 +1422,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (oscore_ctx == NULL)
   {
     OC_ERR("no OSCORE context found, error");
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
@@ -1524,7 +1533,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     if (!check_and_increment_ssn_in_context(oscore_ctx, !is_a_con_repetition))
     {
       OC_ERR("OSCORE sender SSN exhausted, request not sent");
-      oc_message_unref(from_org_msg_cloned_outgoing_msg);
+      oc_message_unref(outgoing_msg);
       return -1;
     }
 
@@ -1632,7 +1641,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           // this should not happen, because there was with LRU a context released
           OC_ERR("could not create oscore sender context, return unsecured 5.00");
           oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, ep, false);
-          oc_message_unref(from_org_msg_cloned_outgoing_msg);
+          oc_message_unref(outgoing_msg);
           return -1;
         }
 
@@ -1699,7 +1708,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       if (!check_and_increment_ssn_in_context(oscore_ctx, !is_a_con_repetition))
       {
         OC_ERR("OSCORE sender SSN exhausted, observe notification not sent");
-        oc_message_unref(from_org_msg_cloned_outgoing_msg);
+        oc_message_unref(outgoing_msg);
         return -1;
       }
 
@@ -1747,7 +1756,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // here requests and responses end up
 
   // reserve room for the OSCORE protected (outer) header, the plaintext is serialized from here
-  uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
+  uint8_t* dst1 = outgoing_msg->data + COAP_MAX_OUTER_HEADER_SIZE;
 
   if (coap_pkt->payload_len > 0)
   {
@@ -1790,7 +1799,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   uint8_t* encryption_key = oscore_ctx->sender_key;
 
   // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
-  // the ciphertext goes into the cloned message buffer this engine owns (dst1), not through
+  // the ciphertext goes into the outgoing message buffer this engine owns (dst1), not through
   // the read-only payload view of the packet, which points at the same bytes
   int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN, nonce,
                               OSCORE_AEAD_NONCE_LEN, aad, aad_len, dst1);
@@ -1798,7 +1807,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (ret != 0)
   {
     OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    oc_message_unref(outgoing_msg);
     return -1;
   }
 
@@ -1849,7 +1858,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
 
   // serialize OSCORE message
-  from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);
+  outgoing_msg->length = oscore_serialize_message(coap_pkt, outgoing_msg->data);
   OC_DBG("serialized OSCORE message");
 
   if (unicast_echo_response_by_mc)
@@ -1863,7 +1872,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   #ifdef OC_CLIENT
 
-  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
+  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
   {
     OC_ERR("could not send message");
   }

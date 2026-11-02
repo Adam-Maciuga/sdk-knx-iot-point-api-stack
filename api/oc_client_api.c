@@ -30,62 +30,52 @@ static oc_message_t* udp_message_update = NULL;
 
 bool oc_do_s_mode_message_update(void* recipient)
 {
-  const int size = oc_rep_get_encoded_payload_size();
-  bool ret = false;
+  // take over the message of 'oc_init_s_mode_message_update', from here on only the local is used
+  oc_message_t* message = udp_message_update;
+  udp_message_update = NULL;
 
-  // 'size > 0' only: a failed encoding (-1) and an empty payload (0) stores nothing
+  // 'size > 0' only: a failed encoding (-1) and an empty payload (0) stores nothing, length stays 0
+  const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
     /*
       udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
       the gap must be the plain budget: coap_serialize_message() below writes inner AND outer options into one flat message
     */
-    coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, size);
-
-    udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
-
-    if (udp_message_update->length > 0)
-    {
-      /*
-        We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged with an Echo option.
-        Use coap transaction framework to handle this.
-        0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
-        1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension done in 'coap_send_transaction':
-           - init transaction with a fixed timeout
-           - send 'echo re-request' message ones in view of AL (3.6.4.1.3); may result in reps for CON messages on TL level
-           - DON'T clear the transaction after sending
-           - transaction expires on timeout automatically without resending the NON s-mode message again, 
-             timeout is only present to catch & process further incoming echo responses from DIFFERENT devices with same 
-             coap token as in org. s-mode request (see use of S_MODE_NON_REQUEST)
-      */
-      coap_transaction_t* s_mode_transaction = coap_new_transaction_with_data(
-        udp_coap_request->mid,
-        udp_coap_request->token,
-        udp_coap_request->token_len,
-        udp_message_update);
-
-      if (s_mode_transaction)
-      {
-        s_mode_transaction->recipient = recipient; // for IPv6 re-resolving (unicast/ia)
-        coap_send_transaction(s_mode_transaction);
-        ret = true;
-
-        OC_INF("sent (uc/mc) s-mode message - OK");
-      }
-      else
-      {
-        OC_WRN("sent (uc/mc) s-mode message - ERROR (no transaction free)");
-      }
-    }
-    else
-    {
-      OC_WRN("sent (uc/mc) s-mode message - ERROR (message len = 0)");
-    }
+    coap_set_payload(udp_coap_request, message->data + COAP_MAX_HEADER_SIZE, size);
+    message->length = coap_serialize_message(udp_coap_request, message->data);
   }
 
-  oc_message_unref(udp_message_update);
-  udp_message_update = NULL;
-  return ret;
+  /*
+    We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged with an Echo option.
+    Use coap transaction framework to handle this.
+    0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+    1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension done in 'coap_send_transaction':
+       - init transaction with a fixed timeout
+       - send 'echo re-request' message ones in view of AL (3.6.4.1.3); may result in reps for CON messages on TL level
+       - DON'T clear the transaction after sending
+       - transaction expires on timeout automatically without resending the NON s-mode message again, 
+         timeout is only present to catch & process further incoming echo responses from DIFFERENT devices with same 
+         coap token as in org. s-mode request (see use of S_MODE_NON_REQUEST)
+    - the transaction takes over the message, no copy
+  */
+  coap_transaction_t* t = message->length > 0 ? coap_new_transaction_with_message(
+    udp_coap_request->mid, 
+    udp_coap_request->token,
+    udp_coap_request->token_len, message)     : NULL;
+  
+  if (!t)
+  {
+    OC_WRN("sent (uc/mc) s-mode message - ERROR (payload size %d, message len %zu or no transaction free)", size, message->length);
+    oc_message_unref(message);
+    return false;
+  }
+
+  // for IPv6 re-resolving (unicast/ia)
+  t->recipient = recipient; 
+  coap_send_transaction(t);
+  OC_INF("sent (uc/mc) s-mode message - OK");
+  return true;
 }
 
 bool oc_do_well_known_message_update(void) 

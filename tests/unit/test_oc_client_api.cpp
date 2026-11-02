@@ -26,6 +26,9 @@ extern "C" {
 #include "util/oc_mmem.h"
 #include "port/oc_random.h"
 #include "port/oc_network_events_mutex.h"
+#include "oc_buffer.h"
+#include "messaging/coap/coap.h"
+#include "messaging/coap/transactions.h"
 }
 
 /* a representative two-record link-format payload */
@@ -206,11 +209,25 @@ TEST_F(ClientApiInitMsg, InitWellKnownNonConfirmableSucceeds)
  * ────────────────────────────────────────────────────────────────────────── */
 
 static int g_wrap_send_calls;
+static int g_alloc_calls;
+static const oc_message_t *g_sent_msg;   /* identity only, released by the wrap */
+static uint8_t g_sent_type;              /* CoAP type of the sent message */
+static uint8_t g_sent_code;              /* CoAP code of the sent message */
+
+extern "C" oc_message_t *__real_oc_allocate_message(void);
+extern "C" oc_message_t *__wrap_oc_allocate_message(void)
+{
+  g_alloc_calls++;
+  return __real_oc_allocate_message();
+}
 
 extern "C" bool __wrap_oc_main_initialized(void) { return true; }
 extern "C" void __wrap_coap_send_message(oc_message_t *msg)
 {
   g_wrap_send_calls++;
+  g_sent_msg = msg;
+  g_sent_type = (uint8_t)((msg->data[0] & COAP_HEADER_TYPE_MASK) >> COAP_HEADER_TYPE_POSITION);
+  g_sent_code = msg->data[1];
   oc_message_unref(msg);
 }
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
@@ -223,12 +240,20 @@ protected:
     oc_network_event_handler_mutex_init();
     oc_random_init();
     g_wrap_send_calls = 0;
+    g_alloc_calls = 0;
+    g_sent_msg = nullptr;
+    g_sent_type = 0xFF;
+    g_sent_code = 0;
     memset(&ep_, 0, sizeof(ep_));
     ep_.flags = IPV6;
     ep_.addr.ipv6.port = 5683;
     ep_.addr.ipv6.address[15] = 1; /* ::1 */
   }
-  void TearDown() override { oc_random_destroy(); }
+  void TearDown() override
+  {
+    coap_free_all_transactions();
+    oc_random_destroy();
+  }
 };
 
 TEST_F(ClientApiDoUpdate, DoSModeMessageUpdateWithPayloadSendsTransaction)
@@ -266,4 +291,46 @@ TEST_F(ClientApiDoUpdate, DoWellKnownMessageUpdateSendsMessage)
 
   EXPECT_TRUE(oc_do_well_known_message_update());
   EXPECT_EQ(g_wrap_send_calls, 1);
+}
+
+/*
+  Hand-over: the s-mode message built by oc_init_s_mode_message_update is adopted by the transaction
+  - one message allocation per send (no second buffer + copy for the transaction)
+  - the sent PDU is the serialized s-mode request (POST, CON / NON as requested)
+*/
+TEST_F(ClientApiDoUpdate, SModeNonSendAllocatesOneMessage)
+{
+  ep_.flags = (transport_flags_t)(IPV6 | MULTICAST);
+  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", true));
+  oc_rep_begin_root_object();
+  oc_rep_end_root_object();
+
+  EXPECT_TRUE(oc_do_s_mode_message_update(nullptr));
+  EXPECT_EQ(g_wrap_send_calls, 1);
+  EXPECT_EQ(g_alloc_calls, 1);
+  EXPECT_EQ(g_sent_type, COAP_TYPE_NON);
+  EXPECT_EQ(g_sent_code, COAP_POST);
+}
+
+TEST_F(ClientApiDoUpdate, SModeConSendAllocatesOneMessage)
+{
+  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", false));
+  oc_rep_begin_root_object();
+  oc_rep_end_root_object();
+
+  EXPECT_TRUE(oc_do_s_mode_message_update(nullptr));
+  EXPECT_EQ(g_wrap_send_calls, 1);
+  EXPECT_EQ(g_alloc_calls, 1);
+  EXPECT_EQ(g_sent_type, COAP_TYPE_CON);
+  EXPECT_EQ(g_sent_code, COAP_POST);
+}
+
+TEST_F(ClientApiDoUpdate, SModeSendWithoutPayloadReleasesTheMessage)
+{
+  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", true));
+
+  /* nothing encoded -> not sent, the single allocation is released (ASan/LSan: no leak) */
+  EXPECT_FALSE(oc_do_s_mode_message_update(nullptr));
+  EXPECT_EQ(g_wrap_send_calls, 0);
+  EXPECT_EQ(g_alloc_calls, 1);
 }

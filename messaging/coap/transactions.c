@@ -37,40 +37,50 @@ void coap_register_as_transaction_handler(void)
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
+coap_transaction_t* coap_new_transaction_with_message(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* message)
 {
-  coap_transaction_t* t = calloc(1, sizeof(coap_transaction_t));
-  if (t)
-  {
-    // cleared buffers
-    t->message = oc_allocate_message();
-    if (t->message)
-    {
-      OC_DBG("created new transaction with mid %u", mid);
-
-      // t is cleared with '0' so set only non-zero values
-      t->mid = mid;
-      t->token_len = token_len;
-      if (token_len > 0)
-      {
-        memcpy(t->token, token, token_len);
-      }
-
-      // save client address
-      memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));
-
-      // list itself makes sure same element is not added twice
-      oc_list_add(transactions_list, t);
-    }
-    else
-    {
-      free(t);
-      t = NULL;
-    }
-  }
-  else
+  coap_transaction_t* t = (coap_transaction_t*)calloc(1, sizeof(coap_transaction_t));
+  if (!t)
   {
     OC_WRN("insufficient memory to create transaction");
+    return NULL;
+  }
+
+  OC_DBG("created new transaction with mid %u", mid);
+
+  // adopts the caller's reference, no copy
+  t->message = message;
+
+  // t is cleared with '0' so set only non-zero values
+  t->mid = mid;
+  t->token_len = token_len;
+  if (token_len > 0)
+  {
+    memcpy(t->token, token, token_len);
+  }
+
+  // list itself makes sure same element is not added twice
+  oc_list_add(transactions_list, t);
+
+  return t;
+}
+
+coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
+{
+  // cleared buffers
+  oc_message_t* message = oc_allocate_message();
+  if (!message)
+  {
+    return NULL;
+  }
+
+  // save client address
+  memcpy(&message->endpoint, endpoint, sizeof(oc_endpoint_t));
+
+  coap_transaction_t* t = coap_new_transaction_with_message(mid, token, token_len, message);
+  if (!t)
+  {
+    oc_message_unref(message);
   }
 
   return t;
@@ -82,10 +92,10 @@ coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* 
 
   if (t)
   {
-    /* 
-      copy ALWAYS the s-mode message for possible 'unicast echo re-request' retransmits within the timeout
-      - uc: NON/CON 
-      - mc: NON (only) 
+    /*
+      copy the message (used for the 'unicast echo re-request', the s-mode send hands its message over instead)
+      - uc original: the source is the still open original transaction, it keeps its plaintext for further echo responses
+      - mc original: the source is the regenerated carrier, its payload starts at data[0] and would be overwritten by an in place header
     */
 
     t->message->length = s_mode_message->length;

@@ -377,7 +377,7 @@ INTEGRATION.
 | oc_lf_get_line (static) | DONE (transitive) |
 | oc_lf_get_entry_uri | DONE |
 | oc_lf_get_entry_param | DONE |
-| oc_do_s_mode_message_update | INTEGRATION — builds + sends an s-mode CoAP message |
+| oc_do_s_mode_message_update | INTEGRATION — builds + sends an s-mode CoAP message; the message is handed over to its transaction, unit: `SModeNonSendAllocatesOneMessage`, `SModeConSendAllocatesOneMessage`, `SModeSendWithoutPayloadReleasesTheMessage` |
 | oc_do_well_known_message_update | INTEGRATION — builds + sends a .well-known update |
 | oc_init_s_mode_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
 | oc_init_well_known_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
@@ -517,8 +517,8 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 | oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |
-| oc_oscore_send_unicast_message (static) | INTEGRATION — context lookup, encrypt, network/process events. Context by CoAP code: request -> sender context of `access_token` (recipient's 'at', echo re-request: token of the 4.01), response -> kid + kid_context, no lookup by ga. Unit: `OutboundUnicastRequestIsEncryptedAndSent`, `OutboundUnicastWithGroupAddressOnlyIsDropped` (`test_oc_oscore_echo_tx.cpp`). Runtime: `TestUnicastUsesRecipientAccessToken`, `TestUnicastWithoutAccessTokenNotSent`, `TestUnicastAndMulticastFromSameTables`, the echo re-request classes and `TestUnicastConEchoReRequestResponse` (PIV of the re-request recorded on its transaction, `test_group_comm.py`) |
-| oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events. Context: first token holding the ga that is not a unicast recipient's 'at' (spec 6.3.2.1), runtime: `TestMulticastSkipsUnicastRecipientToken`, `TestUnicastAndMulticastFromSameTables` |
+| oc_oscore_send_unicast_message (static) | INTEGRATION — context lookup, encrypt, network/process events. Context by CoAP code: request -> sender context of `access_token` (recipient's 'at', echo re-request: token of the 4.01), response -> kid + kid_context, no lookup by ga. Unit: `OutboundUnicastRequestIsEncryptedAndSent`, `OutboundUnicastWithGroupAddressOnlyIsDropped` (`test_oc_oscore_echo_tx.cpp`). Runtime: `TestUnicastUsesRecipientAccessToken`, `TestUnicastWithoutAccessTokenNotSent`, `TestUnicastAndMulticastFromSameTables`, the echo re-request classes and `TestUnicastConEchoReRequestResponse` (PIV of the re-request recorded on its transaction, `test_group_comm.py`). Clone only for `ref_count` > 1: `OutboundUnicastNonRequestNotSharedIsEncryptedInPlace`, `OutboundResponseNotSharedIsEncryptedInPlace`, `OutboundUnicastConRequestSharedIsClonedAndStaysPlaintext` |
+| oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events. Context: first token holding the ga that is not a unicast recipient's 'at' (spec 6.3.2.1), runtime: `TestMulticastSkipsUnicastRecipientToken`, `TestUnicastAndMulticastFromSameTables`. Outgoing message via `oc_oscore_outgoing_message` (static): clone only for `ref_count` > 1, unit: `OutboundMulticastRequestNotSharedIsEncryptedInPlace`, `OutboundMulticastRequestSharedIsClonedAndStaysPlaintext` |
 | OC_PROCESS_THREAD(oc_oscore_handler) | INTEGRATION — live process/event loop |
 
 ### messaging/coap/separate.c — DONE (full public OC_SERVER API)
@@ -841,7 +841,8 @@ functions push a message onto the outbound process queue and are integration-lev
 | coap.c: coap_set_header_location_query | DONE — stores value, sets option, skips leading `?` |
 | observe.c: get_observe_counter | DONE — ≥ OC_OBSERVE_FIRST_NOTIFICATION_VALUE, side-effect-free |
 | oscore.c: oscore_is_oscore_message | DONE — detects option 9, rejects other option / no options |
-| transactions.c: coap_new_transaction_with_data | DONE — copies payload + endpoint, registers in list |
+| transactions.c: coap_new_transaction_with_data | DONE — copies payload + endpoint, registers in list (echo re-request) |
+| transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list; used by the s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |
 | transactions.c: coap_register_as_transaction_handler | DONE — smoke (records OC_PROCESS_CURRENT; no externally observable state in a unit context) |
 | engine.c: coap_init_engine | DONE — smoke (thin wrapper over coap_register_as_transaction_handler) |
 | engine.c: coap_send_response_with_empty_ack | INTEGRATION — calls coap_send_message → oc_send_message → oc_process_post to the message_buffer_handler process; requires the populated oc_events table + running process scheduler from oc_main_init |

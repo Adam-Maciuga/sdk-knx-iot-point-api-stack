@@ -58,6 +58,9 @@ void coap_register_as_transaction_handler(void);
 // creates a CoAP transaction + DOES NOT copy message data
 coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint);
 
+// creates a CoAP transaction that adopts 'message' (the caller's reference, no copy); on NULL the caller still owns it
+coap_transaction_t* coap_new_transaction_with_message(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* message);
+
 // creates a CoAP transaction + DOES copy message data 1:1 (copies also type NON (uc/mc)/ CON (uc))
 coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
 

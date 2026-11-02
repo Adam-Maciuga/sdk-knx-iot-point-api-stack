@@ -10,7 +10,7 @@ move as the stack evolves. For a first estimate it is sufficient.
 | Stack revision | `7c3603c` (`KNX_PAYLOAD_SIZE` 768 B, CoAP PDU 1041 B), newer than release v1.1.0 |
 | Estimated since | `c3480ac8` (2026-10-16): the unused `mcast_dest` (`oc_ipv6_addr_t`, 20 B) and `soft_ref_cb` (function pointer, 4 B) members are removed from `oc_message_t`; Linux and Windows decide the MULTICAST flag from a local instead (Zephyr and FreeRTOS already did). On 32-bit `oc_message_t` shrinks from 140 to ~116 B, so every heap message is ~24 B smaller (§ 7.2), no static RAM or flash figure moves. In addition `fe851f22` (2026-10-16) reorders the `oc_endpoint_t` fields by alignment (`next` stays first) which removes padding: 100 -> 96 B on 32-bit (120 -> 112 B on 64-bit), so `oc_message_t` (~112 B), blockwise state, client callback, observer and separate-response entries are each 4 B smaller (§ 7.2) |
 | Echo ring size | Zephyr's `CONFIG_KNXIOT_ECHO_RING_SIZE` default lowered from 64 to 16 (2026-09-24) when an anchor still pinned a ~1.19 KiB plaintext copy. Since `e86c2dd6` an anchor holds only a reference to the originating group object table entry and regenerates the re-request payload on demand, so the ring no longer retains heap at all and its cost is the slot struct alone, see § 7.2, § 7.4, § 8. Other ports still default to 64 via the top-level CMake `KNX_ECHO_RING_SIZE`. Figures below use the Zephyr default of 16 and are estimated (`~`), not yet re-measured on a device |
-| Estimated figures | mDNS buffers split into a 512 B send and a 1452 B receive buffer (was 2 × 2048 B): figures marked `~` in § 2.1, § 6, § 7 and § 9.1 estimated for `cc6e01dd` + working tree (2026-10-22), static RAM −2 KiB on Ethernet and Wi-Fi. Checked again for `fd3f05fa` + working tree (2026-11-02), no row moves: flash ~+0.4 KiB net (KNX resources +68 code lines ≈ +0.5 KiB at 7.3 B/line, OSCORE −9 lines, CoAP −4 lines), static RAM −85 B on Ethernet and Wi-Fi (mDNS names sized from the name lengths instead of 3 × 64 B), `oc_endpoint_t` unchanged (one access token pointer, a union for its inbound/outbound role) |
+| Estimated figures | mDNS buffers split into a 512 B send and a 1452 B receive buffer (was 2 × 2048 B): figures marked `~` in § 2.1, § 6, § 7 and § 9.1 estimated for `cc6e01dd` + working tree (2026-10-22), static RAM −2 KiB on Ethernet and Wi-Fi. Checked again for `fd3f05fa` + working tree (2026-11-02), no row moves: flash ~+0.4 KiB net (KNX resources +68 code lines ≈ +0.5 KiB at 7.3 B/line, OSCORE −9 lines, CoAP −4 lines), static RAM −85 B on Ethernet and Wi-Fi (mDNS names sized from the name lengths instead of 3 × 64 B), `oc_endpoint_t` unchanged (one access token pointer, a union for its inbound/outbound role). Checked again for `c7a96789` + working tree (2026-11-02), no row moves: flash +7 code lines (< 0.1 KiB), no static RAM; transient heap per send is lower, the s-mode message is handed over to its transaction instead of copied and OSCORE copies only a shared (CON) plaintext, see § 7.2 and § 7.3 |
 | Toolchain and RTOS | Zephyr 4.4.1, GCC 12, `-Os`, 32-bit Cortex-M33 |
 | Configuration | **Development**: shell and OpenThread CLI on, 24 KiB log buffer, INFO-level logging, OpenThread diagnostics on. Production values are estimates, marked as such (§ 4) |
 | KNX table sizes | certification defaults: 50 group objects, 20 publishers, 20 recipients, 20 access tokens |
@@ -218,6 +218,7 @@ overhead per block. The figures are the same for all three backends.
 | OSCORE echo-ring anchor's retained plaintext (`wl.msg`, ref-counted `oc_message_t`) | ~0, was ~1 190 | **removed** since `e86c2dd6`: an anchor references the group object table entry instead and regenerates the payload on demand |
 | Unicast s-mode NON transaction (`non`: true) | ~168 (transaction ~56 + header-only `oc_message_t` ~112, no PDU) | ~5–7.5 s (`COAP_RESPONSE_TIMEOUT` 5 s × random factor ≤ 1.5) for the missing-response count; a 4.01 echo regenerates the payload from the group object |
 | Unicast s-mode CON transaction (`fp/r` default) | ~1 217 (transaction ~56 + full `oc_message_t` ~1 161) | until ACK, at most `COAP_MAX_RETRANSMIT` (4) retransmissions, ~75–113 s with `COAP_RESPONSE_TIMEOUT` 5 s; the full PDU is kept for retransmission and for re-parsing on a 4.01 echo |
+| OSCORE outgoing copy of a plaintext | ~1 161 or 0 | only for a CON message (its transaction keeps the plaintext for retransmission and a 4.01 echo), freed after sending; every other message (multicast, NON, responses) is encrypted in place, no copy. Before `c7a96789` + working tree every OSCORE send copied, and the s-mode send copied its message once more into the transaction |
 | Unicast s-mode echo-ring anchor (CON and NON) | 0 heap, one existing ring slot | until consumed or overwritten; added on the first send only (no anchor for CON repetitions), matches a 4.01 echo with a 10-byte kid context |
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
@@ -246,6 +247,10 @@ flowchart LR
 
 Only outgoing CON requests accumulate: a burst to a peer that never answers
 keeps ~1.25 KiB per request alive for minutes.
+
+The OSCORE layer encrypts a message in place unless another holder keeps it (a CON transaction); only then is a ~1.2 KiB
+copy allocated for the moment of sending. Responses, multicast and NON s-mode sends therefore peak at the figures above,
+with one buffer per message. Before `c7a96789` + working tree each of them briefly held one copy more (an s-mode send two).
 
 ### 7.4 Heap by scenario
 

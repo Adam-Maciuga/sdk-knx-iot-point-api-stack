@@ -60,6 +60,7 @@ static int g_oscore_send_calls;
 static int g_network_send_calls;
 static size_t g_last_network_length;
 static transport_flags_t g_last_network_flags;
+static const oc_message_t* g_last_network_message; /* identity only, freed after the send */
 
 extern "C" void __wrap_coap_send_message(oc_message_t* message)
 {
@@ -72,6 +73,7 @@ extern "C" int __wrap_oc_send_buffer(oc_message_t* message)
   g_network_send_calls++;
   g_last_network_length = message->length;
   g_last_network_flags = message->endpoint.flags;
+  g_last_network_message = message;
   return 0;
 }
 
@@ -840,6 +842,7 @@ protected:
     g_network_send_calls = 0;
     g_last_network_length = 0;
     g_last_network_flags = (transport_flags_t)0;
+    g_last_network_message = nullptr;
 
     memset(&at_, 0, sizeof(at_));
     const uint8_t master_secret[OSCORE_MASTER_SECRET_LEN] = {
@@ -1232,4 +1235,110 @@ TEST_F(OscoreEngine, OutboundResponseIsEncryptedAndSent)
   EXPECT_EQ(sender_context_->ssn, 0U);
 }
 
+/*
+  Clone only for a shared plaintext
+  - ref_count 1 (no other holder: multicast, unicast NON, responses) -> encrypted in place, the handed message is sent
+  - ref_count > 1 (CON transaction keeps it for retransmits / echo re-request) -> a clone is encrypted and sent,
+    the handed message stays plaintext and only the engine's reference is released
+*/
+TEST_F(OscoreEngine, OutboundMulticastRequestNotSharedIsEncryptedInPlace)
+{
+  oc_message_t* message = make_outbound_request(
+    COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST | S_MODE_NON_REQUEST));
+  ASSERT_NE(message, nullptr);
+  ASSERT_EQ(message->ref_count, 1U);
 
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_MC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_EQ(g_last_network_message, message);
+  EXPECT_NE(g_last_network_flags & OSCORE, 0);
+  EXPECT_EQ(sender_context_->ssn, 1U);
+}
+
+TEST_F(OscoreEngine, OutboundUnicastNonRequestNotSharedIsEncryptedInPlace)
+{
+  oc_message_t* message = make_outbound_request(
+    COAP_TYPE_NON, (transport_flags_t)(OSCORE | S_MODE_NON_REQUEST));
+  ASSERT_NE(message, nullptr);
+  message->endpoint.access_token.outbound = &at_;
+  ASSERT_EQ(message->ref_count, 1U);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_EQ(g_last_network_message, message);
+  EXPECT_EQ(sender_context_->ssn, 1U);
+}
+
+TEST_F(OscoreEngine, OutboundResponseNotSharedIsEncryptedInPlace)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+  ASSERT_EQ(message->ref_count, 1U);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_EQ(g_last_network_message, message);
+}
+
+TEST_F(OscoreEngine, OutboundUnicastConRequestSharedIsClonedAndStaysPlaintext)
+{
+  oc_message_t* message = make_outbound_request(COAP_TYPE_CON, OSCORE);
+  ASSERT_NE(message, nullptr);
+  message->endpoint.access_token.outbound = &at_;
+  const std::vector<uint8_t> plaintext(message->data, message->data + message->length);
+
+  /* the CON transaction's reference */
+  oc_message_add_ref(message);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_UC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_NE(g_last_network_message, message);
+  EXPECT_EQ(message->ref_count, 1U);
+  ASSERT_EQ(message->length, plaintext.size());
+  EXPECT_EQ(0, memcmp(message->data, plaintext.data(), plaintext.size()));
+  oc_message_unref(message);
+}
+
+TEST_F(OscoreEngine, OutboundMulticastRequestSharedIsClonedAndStaysPlaintext)
+{
+  oc_message_t* message = make_outbound_request(
+    COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST | S_MODE_NON_REQUEST));
+  ASSERT_NE(message, nullptr);
+  const std::vector<uint8_t> plaintext(message->data, message->data + message->length);
+
+  /* a second holder */
+  oc_message_add_ref(message);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler,
+                            oc_events[OUTBOUND_MC_OSCORE_EVENT], message),
+            OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 1);
+  EXPECT_NE(g_last_network_message, message);
+  EXPECT_EQ(message->ref_count, 1U);
+  ASSERT_EQ(message->length, plaintext.size());
+  EXPECT_EQ(0, memcmp(message->data, plaintext.data(), plaintext.size()));
+  oc_message_unref(message);
+}
