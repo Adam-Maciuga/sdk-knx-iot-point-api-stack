@@ -93,9 +93,9 @@ coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* 
   if (t)
   {
     /*
-      copy the message (used for the 'unicast echo re-request', the s-mode send hands its message over instead)
-      - uc original: the source is the still open original transaction, it keeps its plaintext for further echo responses
-      - mc original: the source is the regenerated carrier, its payload starts at data[0] and would be overwritten by an in place header
+      copy the message: only for the 'unicast echo re-request' of a unicast original, the source is the still open original
+      transaction, it keeps its plaintext for further echo responses (the s-mode send and a regenerated re-request hand
+      their message over with 'coap_new_transaction_with_message' instead)
     */
 
     t->message->length = s_mode_message->length;
@@ -127,11 +127,20 @@ void coap_send_transaction(coap_transaction_t *t)
     return;
   }
 
+  if (!t || !t->message)
+  {
+    OC_ERR("transaction or message in transaction == NULL");
+    return;
+  }
+
   #ifdef OC_DEBUG
 
-  if (t == NULL) { OC_ERR("transaction == NULL"); }
-  if (t->message == NULL) { OC_ERR("message in transaction == NULL");}
-  if (t->message->data == NULL && !(t->message->endpoint.flags & S_MODE_NON_REQUEST)) { OC_ERR("data in message in transaction == NULL");}
+  // only the header-only message of a unicast s-mode NON transaction (after its first send) has no data
+  const bool uc_smode_non = (t->message->endpoint.flags & S_MODE_NON_REQUEST) && !(t->message->endpoint.flags & MULTICAST);
+  if (!t->message->data && !uc_smode_non)
+  {
+    OC_ERR("data in message in transaction == NULL");
+  }
 
   #endif
 

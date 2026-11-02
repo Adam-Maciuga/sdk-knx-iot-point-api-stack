@@ -838,7 +838,7 @@ functions push a message onto the outbound process queue and are integration-lev
 | coap.c: coap_set_header_location_query | DONE — stores value, sets option, skips leading `?` |
 | observe.c: get_observe_counter | DONE — ≥ OC_OBSERVE_FIRST_NOTIFICATION_VALUE, side-effect-free |
 | oscore.c: oscore_is_oscore_message | DONE — detects option 9, rejects other option / no options |
-| transactions.c: coap_new_transaction_with_data | DONE — copies payload + endpoint, registers in list (echo re-request) |
+| transactions.c: coap_new_transaction_with_data | DONE — copies payload + endpoint, registers in list (echo re-request of a unicast original only; a regenerated re-request hands its carrier over with `coap_new_transaction_with_message`, serialized in place: `InPlaceSerialization.EchoReRequestWithFullPayloadKeepsPayloadAndEcho`, runtime/conformance echo classes) |
 | transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list; used by the s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |
 | transactions.c: coap_register_as_transaction_handler | DONE — smoke (records OC_PROCESS_CURRENT; no externally observable state in a unit context) |
 | engine.c: coap_init_engine | DONE — smoke (thin wrapper over coap_register_as_transaction_handler) |

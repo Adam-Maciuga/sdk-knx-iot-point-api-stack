@@ -739,6 +739,59 @@ TEST_F(PduMessageBuffer, AllocatedMessageBufferHoldsWorstCaseFrame)
   oc_message_unref(m);
 }
 
+/* -------------------- in-place serialization -------------------- */
+
+/*
+  The s-mode send and the regenerated 'echo re-request' write the payload behind the room for the CoAP header
+  (data + COAP_MAX_HEADER_SIZE) and serialize the request in place into the same buffer. With the largest payload a
+  packet carries (coap_set_payload caps it at the block size), an 8-byte token, Uri-Path, Content-Format and the
+  largest Echo option the payload and the Echo value must come out unchanged.
+*/
+TEST(InPlaceSerialization, EchoReRequestWithFullPayloadKeepsPayloadAndEcho)
+{
+  oc_network_event_handler_mutex_init();
+  ASSERT_EQ(oc_set_pdu_size(DEFAULT_EQUIVALENT_PDU_ARG), 0);
+
+  oc_message_t *m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+
+  uint8_t *payload = m->data + COAP_MAX_HEADER_SIZE;
+  std::vector<uint8_t> expected((size_t)oc_get_block_size());
+  for (size_t i = 0; i < expected.size(); i++)
+  {
+    expected[i] = (uint8_t)(i * 7 + 1);
+  }
+  memcpy(payload, expected.data(), expected.size());
+
+  uint8_t token[COAP_TOKEN_LEN];
+  memset(token, 0xA5, sizeof(token));
+  uint8_t echo[COAP_ECHO_LEN];
+  memset(echo, 0x3C, sizeof(echo));
+
+  coap_packet_t pkt;
+  coap_udp_init_message(&pkt, COAP_TYPE_NON, COAP_POST, 0x1234);
+  coap_set_token(&pkt, token, sizeof(token));
+  coap_set_header_uri_path(&pkt, "/k", 2);
+  coap_set_header_content_format(&pkt, APPLICATION_CBOR);
+  coap_set_header_echo(&pkt, echo, sizeof(echo));
+  coap_set_payload(&pkt, payload, expected.size());
+
+  m->length = coap_oscore_serialize_message(&pkt, m->data, true, true, true);
+  ASSERT_GT(m->length, expected.size());
+
+  coap_packet_t parsed;
+  ASSERT_EQ(coap_parse_udp_message(&parsed, m->data, m->length), COAP_NO_ERROR);
+  ASSERT_EQ(parsed.payload_len, expected.size());
+  EXPECT_EQ(0, memcmp(parsed.payload, expected.data(), expected.size()));
+
+  uint8_t echo_back[COAP_ECHO_LEN] = {0};
+  ASSERT_EQ(coap_get_header_echo(&parsed, echo_back), (int)sizeof(echo));
+  EXPECT_EQ(0, memcmp(echo_back, echo, sizeof(echo)));
+
+  oc_message_unref(m);
+  oc_network_event_handler_mutex_destroy();
+}
+
 /* -------------------- global state restore -------------------- */
 
 TEST(PduZzzRestore, RestoreDefaultEquivalentPduSize)

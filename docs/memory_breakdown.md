@@ -223,7 +223,7 @@ overhead per block. The figures are the same for all three backends.
 
 Core resources (`/dev/*`, `/fp/*`, `/auth/*`, …) are `const` and cost no heap.
 
-The OSCORE echo ring holds no heap. An anchor records only a reference to the originating group object table entry plus the service type; when a late 4.01 echo response arrives the re-request payload is regenerated from that entry into the inbound message's own buffer. The reference cannot go stale: the ring is wiped whenever the load state machine leaves loading, which is the only state in which `/fp/g` may be written. Before `e86c2dd6` each armed anchor instead pinned a ~1.19 KiB plaintext `oc_message_t` with no timeout, so a burst of unanswered challenges retained ~19 KiB at the Zephyr default of 16 and ~74 KiB at the CMake default of 64 - the latter more than the free heap on the MCXW72 build (§ 2.2). That worst case no longer exists.
+The OSCORE echo ring holds no heap. An anchor records only a reference to the originating group object table entry plus the service type; when a late 4.01 echo response arrives the re-request payload is regenerated from that entry into one newly allocated message, which is serialized in place and handed over to the re-request's transaction (one buffer, ~1.2 KiB, no second copy). The reference cannot go stale: the ring is wiped whenever the load state machine leaves loading, which is the only state in which `/fp/g` may be written. Before `e86c2dd6` each armed anchor instead pinned a ~1.19 KiB plaintext `oc_message_t` with no timeout, so a burst of unanswered challenges retained ~19 KiB at the Zephyr default of 16 and ~74 KiB at the CMake default of 64 - the latter more than the free heap on the MCXW72 build (§ 2.2). That worst case no longer exists.
 
 ### 7.3 One request in flight
 
@@ -251,6 +251,12 @@ keeps ~1.25 KiB per request alive for minutes.
 The OSCORE layer encrypts a message in place unless another holder keeps it (a CON transaction); only then is a ~1.2 KiB
 copy allocated for the moment of sending. Responses, multicast and NON s-mode sends therefore peak at the figures above,
 with one buffer per message. Before `c7a96789` + working tree each of them briefly held one copy more (an s-mode send two).
+
+Call stack: the s-mode send can run nested inside `coap_receive` (the read answers of a `/k` POST), the deepest stack
+path. Its CoAP packet (`coap_packet_t`, 328 B on 64-bit, ~260 B on 32-bit) stays static, and the `/k` observers are
+notified straight from the encoder buffer, so the former 512 B envelope copy (`OC_MAX_OBSERVE_SIZE`) is no longer on
+that path. The `.well-known/core` discovery builds its packet on the stack; it runs from a delayed callback in the main
+loop, outside the deep path (measured with `-fstack-usage`, `-O2`, 64-bit: 864 B for that path).
 
 ### 7.4 Heap by scenario
 

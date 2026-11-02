@@ -392,3 +392,24 @@ TEST_F(SModeRefCountViaSend, HandOver_UcCon_TransactionKeepsAdoptedMessage)
   coap_clear_transaction(t);
   /* m1 freed */
 }
+
+/* -- guards: no transaction / no message ---------------------------------- */
+
+/*
+  coap_send_transaction must return on a NULL transaction or a transaction without a message instead of
+  dereferencing it (the checks were debug-only logs, the type was read from t->message->data right after)
+*/
+TEST_F(SModeRefCountViaSend, NullTransactionIsIgnored)
+{
+  coap_send_transaction(nullptr);
+  SUCCEED();
+}
+
+TEST_F(SModeRefCountViaSend, TransactionWithoutMessageIsIgnored)
+{
+  coap_transaction_t t;
+  memset(&t, 0, sizeof(t));
+
+  coap_send_transaction(&t);
+  SUCCEED();
+}

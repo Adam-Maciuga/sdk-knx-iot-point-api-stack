@@ -25,6 +25,7 @@
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
+#include "conf.h"
 #include "oscore.h"
 #include "timestamp.h"
 #include "port/oc_random.h"
@@ -1199,9 +1200,11 @@ int coap_receive(oc_message_t* incoming_message)
           else
           {
             /*
-              the regeneration branch has no source message, so an oc_message_t is allocated here; its data buffer
-              (OC_PDU_SIZE) holds the regenerated payload and its endpoint carries the freshly composed /k POST
-              destination into 'coap_new_transaction_with_data' (which copies the endpoint)
+              the regeneration branch has no source message, so an oc_message_t is allocated here; it becomes the message
+              of the 'echo re-request' transaction itself (handed over, no second buffer):
+              - the payload is regenerated behind the room for the CoAP header (COAP_MAX_HEADER_SIZE), the same layout
+                as the original s-mode send, so the re-request is serialized in place
+              - its endpoint carries the destination of the re-request (the 4.01 responder), set below
             */
             source_msg = oc_allocate_message();
 
@@ -1216,12 +1219,12 @@ int coap_receive(oc_message_t* incoming_message)
             }
 
             /*
-              regenerate into the carrier's OWN data buffer; it stays valid until the message is released,
-              which happens only after the re-request has been serialized.
+              regenerate into the carrier's OWN data buffer, behind the room for the CoAP header.
               the budget is OC_MAX_APP_DATA_SIZE, the very same envelope budget 'oc_issue_s_mode_message'
               gives the original s-mode send, so a regenerated payload can never exceed what the sender could emit
             */
-            const int size = oc_create_s_mode_payload_for_go(anchor.go, anchor.service_type, source_msg->data);
+            uint8_t* const regenerated = source_msg->data + COAP_MAX_HEADER_SIZE;
+            const int size = oc_create_s_mode_payload_for_go(anchor.go, anchor.service_type, regenerated);
 
             if (size <= 0)
             {
@@ -1240,7 +1243,7 @@ int coap_receive(oc_message_t* incoming_message)
             coap_udp_init_message(re_request_coap_packet, COAP_TYPE_NON, COAP_POST, coap_get_next_mid());
             coap_set_header_uri_path(re_request_coap_packet, "/k", 2);
             coap_set_header_content_format(re_request_coap_packet, APPLICATION_CBOR);
-            coap_set_payload(re_request_coap_packet, source_msg->data, (size_t)size);
+            coap_set_payload(re_request_coap_packet, regenerated, (size_t)size);
 
             // token length of the original send, the bytes themselves are replaced below (8), not all of them may be used
             re_request_coap_packet->token_len = inbound_coap_pkt->token_len;
@@ -1296,11 +1299,16 @@ int coap_receive(oc_message_t* incoming_message)
             coap token from the original (transaction'ized) s-mode message that we need to match with. In this case
             any new transaction will be ALSO created with the content from the original (transaction'ized) s-mode message.
           */
-          coap_transaction_t* new_transaction = coap_new_transaction_with_data(
-            re_request_coap_packet->mid,
-            re_request_coap_packet->token,
-            re_request_coap_packet->token_len,
-            source_msg);
+          
+          /*
+            - regenerated carrier (anchor): handed over to the new transaction, serialized in place below
+            - original transaction message (unicast): copied, the original keeps its plaintext for further 4.01s
+          */
+          coap_transaction_t* new_transaction = anchor_found
+            ? coap_new_transaction_with_message(re_request_coap_packet->mid, re_request_coap_packet->token,
+                                                re_request_coap_packet->token_len, source_msg)
+            : coap_new_transaction_with_data(re_request_coap_packet->mid, re_request_coap_packet->token,
+                                             re_request_coap_packet->token_len, source_msg);
 
           if (new_transaction)
           {
@@ -1311,14 +1319,6 @@ int coap_receive(oc_message_t* incoming_message)
             new_transaction->message->length =
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
 
-            if (anchor_found)
-            {
-              /*
-                the regenerated payload was serialized into the new_transaction above,
-                so release the regenerated carrier (unicast NON / multicast NON)
-              */
-              oc_message_unref(source_msg);
-            }
 
             // (c) + (d)
             UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST + S_MODE_CON_REQUEST);
@@ -1370,7 +1370,7 @@ int coap_receive(oc_message_t* incoming_message)
           }
 
           /*
-            coap_new_transaction_with_data failed (new_transaction == NULL), so nothing holds on to source_msg;
+            no new transaction (new_transaction == NULL), so nothing took over source_msg;
             release it here if it is the regenerated carrier (unicast NON / multicast NON) that we own
           */
           if (anchor_found)

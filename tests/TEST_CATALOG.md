@@ -1,7 +1,7 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1772 unit tests** (56 files in `tests/unit/`: 1772 counted by CTest on
-> `linux-test-asan` on 2026-11-02; `windows-test-gcc` counts 1728, without the
+> **1775 unit tests** (56 files in `tests/unit/`: 1775 counted by CTest on
+> `linux-test-asan` on 2026-11-02; `windows-test-gcc` counts 1731, without the
 > `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only) and **290 runtime tests** (244 test
 > functions in 20 files in `tests/runtime/`, counted with
 > `pytest tests/runtime --collect-only -q` on 2026-11-02).
@@ -11,7 +11,7 @@
 > `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-02): 1728/1728 passed on `windows-test-gcc`, 1772/1772 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
+> Unit (2026-11-02): 1731/1731 passed on `windows-test-gcc`, 1775/1775 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
 > Runtime and conformance: see "Last runtime run status" below.
 
 ## Contents
@@ -30,14 +30,14 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-02 (last) | 2026-11-02 (later) | 2026-11-02 |
-| **Unit tests** | **1728/1728** passed (`windows-test-gcc`), **1772/1772** passed (`linux-test-asan`, Docker) | **1732/1732** passed (`windows-test-gcc`), **1776/1776** passed (`linux-test-asan`, Docker) | **1722/1722** passed (`windows-test-gcc`) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.68s) | **8 passed, 1 xfailed** (5.10, 377.36s) | **8 passed, 1 xfailed** (5.10) |
-| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 801.58s) | **285 passed, 5 skipped** (290 collected, 800.36s) | **285 passed, 5 skipped** (290 collected, 801.70s) |
+| Date | 2026-11-02 (echo re-request) | 2026-11-02 (last) | 2026-11-02 (later) |
+| **Unit tests** | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) | **1728/1728** passed (`windows-test-gcc`), **1772/1772** passed (`linux-test-asan`, Docker) | **1732/1732** passed (`windows-test-gcc`), **1776/1776** passed (`linux-test-asan`, Docker) |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.70s) | **8 passed, 1 xfailed** (5.10, 361.68s) | **8 passed, 1 xfailed** (5.10, 377.36s) |
+| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 799.19s) | **285 passed, 5 skipped** (290 collected, 801.58s) | **285 passed, 5 skipped** (290 collected, 800.36s) |
 | Failed / errors | 0 / 0 | 0 / 0 | 0 / 0 |
-| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all` (conformance) and `-Tier runtime` (final version), `-IncludeUncommitted` | same | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
-| Covers | `.well-known` discovery sent in one call (`oc_send_well_known_message`, no static message); s-mode built and sent in one function (`oc_issue_s_mode_message`, init/do merged, static CoAP packet off the call stack); `/k` observers notified from the encoder buffer before the serialization (no 512 B stack copy) | s-mode message handed over to its transaction (no second buffer); OSCORE clones only a shared message (`ref_count` > 1, CON transaction), else encrypts in place | one endpoint token (`access_token` union, request/response by CoAP code); no group address fallback for unicast; PIV of an 'echo re-request' recorded on its transaction (peer's response accepted) |
-| Not in the run | conformance ran on the merge before the early return and the moved `/k` notification; runtime and unit ran on the final version | - | - |
+| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all` (conformance) and `-Tier runtime` (final version), `-IncludeUncommitted` | same |
+| Covers | regenerated 'echo re-request' built in its own carrier and handed over (no second buffer, serialized in place); `coap_send_transaction` returns on a NULL transaction / message (was a debug-only log, then a crash) | `.well-known` discovery sent in one call (`oc_send_well_known_message`, no static message); s-mode built and sent in one function (`oc_issue_s_mode_message`, init/do merged, static CoAP packet off the call stack); `/k` observers notified from the encoder buffer before the serialization (no 512 B stack copy) | s-mode message handed over to its transaction (no second buffer); OSCORE clones only a shared message (`ref_count` > 1, CON transaction), else encrypts in place |
+| Not in the run | - | conformance ran on the merge before the early return and the moved `/k` notification; runtime and unit ran on the final version | - |
 
 No stack C code was changed to make a test pass.
 
@@ -422,7 +422,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_smode_send_refcount.cpp — S-Mode Ref-Count via Real `coap_send_transaction()` (6 tests)
+### test_smode_send_refcount.cpp — S-Mode Ref-Count via Real `coap_send_transaction()` (8 tests)
 
 **Source:** `messaging/coap/transactions.c`, exercised through the production `coap_send_transaction()` path with linker `--wrap` stubs for `oc_main_initialized`, `coap_send_message`, and `oc_etimer_restart`
 
@@ -434,6 +434,8 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `Via_UcCon_RetransmitCycle` | `COAP_MAX_RETRANSMIT` real send cycles hold M2 at 1; final timeout clear frees it |
 | `HandOver_McNon_TransactionAdoptsMessage` | `coap_new_transaction_with_message` adopts the caller's message (no copy, mid/token set); the mc-NON send frees it with the transaction |
 | `HandOver_UcCon_TransactionKeepsAdoptedMessage` | uc-CON: the adopted message stays the transaction's plaintext at ref 1 until the ACK clear |
+| `NullTransactionIsIgnored` | `coap_send_transaction(NULL)` returns (no dereference; the check was a debug-only log) |
+| `TransactionWithoutMessageIsIgnored` | A transaction without a message returns before its type is read from `t->message->data` |
 
 ---
 
@@ -498,7 +500,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_buffer_settings.cpp — Buffer/PDU Settings (43 tests)
+### test_oc_buffer_settings.cpp — Buffer/PDU Settings (44 tests)
 
 **Source:** `api/oc_main.c` (declared in `include/oc_buffer_settings.h`)
 
@@ -553,6 +555,7 @@ default PDU 1036, `COAP_MAX_MESSAGE_SIZE` 1152, default block 512.
 | `GuardAndBlockBudgetUseSameHeaderMultiple` | Guard and payload-budget subtraction use the same header budget |
 | `BlockSizeIsMonotonicInPduSize` | Block size never decreases as the PDU grows |
 | `LargePduAlwaysHoldsWorstCaseFrame` | Any accepted large PDU still holds the worst-case frame |
+| `InPlaceSerialization.EchoReRequestWithFullPayloadKeepsPayloadAndEcho` | Payload at `data + COAP_MAX_HEADER_SIZE` (largest one a packet carries), 8-byte token, Uri-Path, Content-Format and the largest Echo option serialized in place: payload and Echo come out unchanged (layout of the s-mode send and the regenerated 'echo re-request') |
 
 **Header budgets (`CoapHeaderBudgets`, 7 tests)**
 
@@ -1704,23 +1707,23 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 ## Skipped tests
 
 Reasons are taken from the `pytest.skip()` / `skipif` sites in the test
-sources, and each was **verified by running the test in isolation**.
+sources. The full runs of 2026-11-02 skip exactly these five:
 
-| Test | Skip mechanism | Outcome when run in isolation |
-|------|----------------|-------------------------------|
-| `test_spake_lockout_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **Passes.** Waits out the full 10 x 6 s brute-force lockout (~60 s); `run-in-docker.ps1 -RunSlowTests` sets the variable. Measured: `1 passed in 70.21s` |
-| `test_unicast_discovery_iid_too_short` | Conditional, `_assert_rejected()` -> `if not result.get("got_get")` | **Passes alone** (`1 passed in 15.33s`) |
-| `test_unicast_discovery_sn_too_long` | Conditional, same helper | **Passes alone** (`1 passed in 15.41s`) |
-| `test_unicast_discovery_sn_too_short` | Conditional, same helper | **Passes alone** (`1 passed in 9.58s`) |
-| `test_init_flag_sends_read_on_restart` | Conditional, `if len(received) == 0` | **Still skips alone:** `Device did not send init message after restart (may require full process restart)`. `POST /test/restart` re-initialises the stack in-process; it does not reproduce a cold boot, so the init-flag read is not emitted. Genuinely unverified |
+| Test | Skip mechanism | Outcome |
+|------|----------------|---------|
+| `test_spake_lockout_unblocks_after_timeout` | Static `@pytest.mark.skipif(os.environ.get("RUN_SLOW_TESTS") is None, ...)` | **Passes** with `run-in-docker.ps1 -RunSlowTests`: waits out the full 10 x 6 s brute-force lockout (~60 s). Measured 2026-11-02: `1 passed in 70.85s` |
+| `TestReadOnInitNetworkGate::test_read_on_init_up_from_start_sends_read` | Class setup, `_roi_network_control_available()` probes `ip -6 addr add ... dev veth-dut` | **Cannot run on the netns harness:** `veth-dut` lives in the network namespace `dut` (`Cannot find device "veth-dut"` from the test's namespace), and the DUT keeps its ULA `fd11:9988:7766::1` because the tests talk to it on that address, so a link-local-only "network down" state cannot be produced. Left skipped (decision 2026-11-02) |
+| `TestReadOnInitNetworkGate::test_read_on_init_withheld_while_down` | same | same |
+| `TestReadOnInitNetworkGate::test_read_on_init_released_after_network_up` | same | same |
+| `TestReadOnInitNetworkGate::test_read_on_init_abandoned_after_max_retries` | same | same |
 
-The three malformed-length discovery tests (`TestUnicastDiscoveryMalformedLengths`)
-share their fixtures, the `_run_reject()` driver and the `_assert_rejected()`
-helper with three tests that pass in a full run. They skip there because they
-wait up to 20 s for the DUT's discovery GET, and under cumulative suite load
-the DUT does not always answer inside that window; alone, all three pass in
-9-16 s. All six rejection cases are therefore validated, three of them only
-outside a full run.
+Conditional skips that did NOT trigger in those runs (they skip only on a timing
+miss or in partial runs):
+
+| Test | Skip mechanism | Note |
+|------|----------------|------|
+| `test_unicast_discovery_iid_too_short`, `test_unicast_discovery_sn_too_long`, `test_unicast_discovery_sn_too_short` | `_assert_rejected()` -> `if not result.get("got_get")` | Wait up to 20 s for the DUT's discovery GET; under cumulative load they skipped in earlier runs, alone they pass in 9-16 s |
+| `test_init_flag_sends_read_on_restart` | `if len(received) == 0` | Skipped in earlier runs (`POST /test/restart` re-initialises in-process, no cold boot) |
 
 Running them alone:
 
