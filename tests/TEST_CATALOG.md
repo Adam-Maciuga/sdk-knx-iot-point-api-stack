@@ -1,7 +1,7 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1776 unit tests** (55 files in `tests/unit/`: 1776 counted by CTest on
-> `linux-test-asan` on 2026-11-02; `windows-test-gcc` counts 1732, without the
+> **1772 unit tests** (56 files in `tests/unit/`: 1772 counted by CTest on
+> `linux-test-asan` on 2026-11-02; `windows-test-gcc` counts 1728, without the
 > `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only) and **290 runtime tests** (244 test
 > functions in 20 files in `tests/runtime/`, counted with
 > `pytest tests/runtime --collect-only -q` on 2026-11-02).
@@ -11,7 +11,7 @@
 > `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-02): 1732/1732 passed on `windows-test-gcc`, 1776/1776 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
+> Unit (2026-11-02): 1728/1728 passed on `windows-test-gcc`, 1772/1772 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
 > Runtime and conformance: see "Last runtime run status" below.
 
 ## Contents
@@ -30,14 +30,14 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-02 (later) | 2026-11-02 | 2026-11-01 |
-| **Unit tests** | **1732/1732** passed (`windows-test-gcc`), **1776/1776** passed (`linux-test-asan`, Docker) | **1722/1722** passed (`windows-test-gcc`) | **1712/1712** passed (`windows-test-gcc`) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 377.36s) | **8 passed, 1 xfailed** (5.10) | **8 passed, 1 xfailed** (5.10) |
-| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 800.36s) | **285 passed, 5 skipped** (290 collected, 801.70s) | **280 passed, 5 skipped** (285 collected, 753.85s) |
+| Date | 2026-11-02 (last) | 2026-11-02 (later) | 2026-11-02 |
+| **Unit tests** | **1728/1728** passed (`windows-test-gcc`), **1772/1772** passed (`linux-test-asan`, Docker) | **1732/1732** passed (`windows-test-gcc`), **1776/1776** passed (`linux-test-asan`, Docker) | **1722/1722** passed (`windows-test-gcc`) |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.68s) | **8 passed, 1 xfailed** (5.10, 377.36s) | **8 passed, 1 xfailed** (5.10) |
+| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 801.58s) | **285 passed, 5 skipped** (290 collected, 800.36s) | **285 passed, 5 skipped** (290 collected, 801.70s) |
 | Failed / errors | 0 / 0 | 0 / 0 | 0 / 0 |
-| Runner | same | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | same |
-| Covers | s-mode message handed over to its transaction (no second buffer); OSCORE clones only a shared message (`ref_count` > 1, CON transaction), else encrypts in place | one endpoint token (`access_token` union, request/response by CoAP code); no group address fallback for unicast; PIV of an 'echo re-request' recorded on its transaction (peer's response accepted) | recipient 'at' for unicast, no group address fallback, multicast skips a unicast recipient's token, echo re-request with the token of the 4.01; table POST bitmask (repeated key -> last wins); parser types `OC_REP_NULL` / `OC_REP_UNSUPPORTED`; storage loader split |
-| Not in the run | - | - | `TestUnicastAndMulticastFromSameTables` (passed alone), inlined ga scan of the multicast lookup, `grpid == 0` in `oc_is_unicast_recipient_access_token`, 10 new unit tests |
+| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all` (conformance) and `-Tier runtime` (final version), `-IncludeUncommitted` | same | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
+| Covers | `.well-known` discovery sent in one call (`oc_send_well_known_message`, no static message); s-mode built and sent in one function (`oc_issue_s_mode_message`, init/do merged, static CoAP packet off the call stack); `/k` observers notified from the encoder buffer before the serialization (no 512 B stack copy) | s-mode message handed over to its transaction (no second buffer); OSCORE clones only a shared message (`ref_count` > 1, CON transaction), else encrypts in place | one endpoint token (`access_token` union, request/response by CoAP code); no group address fallback for unicast; PIV of an 'echo re-request' recorded on its transaction (peer's response accepted) |
+| Not in the run | conformance ran on the merge before the early return and the moved `/k` notification; runtime and unit ran on the final version | - | - |
 
 No stack C code was changed to make a test pass.
 
@@ -893,15 +893,14 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_client_api.cpp — Client API (22 tests)
+### test_oc_client_api.cpp — Client API (15 tests)
 
 **Source:** `api/oc_client_api.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `ClientApiLF` | 12 | Link-format response parsing: entry count, entry URI, rt/if params, missing param, NULL/too-short payload guards, single-record (no trailing comma) fallback |
-| `ClientApiInitMsg` | 2 | s-mode message init (confirmable + non-confirmable) |
-| `ClientApiDoUpdate` | 9 | `oc_do_s_mode_message_update` / `oc_send_well_known_message` real send path (network faked via `--wrap=coap_send_message`/`oc_main_initialized`/`oc_etimer_restart`, same pattern as `test_smode_send_refcount`): payload present → transaction sent, no payload → early false; well-known GET NON and CON sent in one call (one message, the callback's mid and token, uri path and query as given), no callback → nothing allocated or sent; s-mode NON and CON send allocate one message (handed over to the transaction, counted via `--wrap=oc_allocate_message`), no payload → the one message is released |
+| `ClientApiDoUpdate` | 3 | `oc_send_well_known_message` real send path (network faked via `--wrap=coap_send_message`/`oc_main_initialized`/`oc_etimer_restart`, same pattern as `test_smode_send_refcount`): well-known GET NON and CON sent in one call (one message, the callback's mid and token, uri path and query as given), no callback → nothing allocated or sent. The s-mode send path is in `test_smode_issue.cpp` |
 
 ---
 
@@ -1214,9 +1213,21 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 ---
 
+### test_smode_issue.cpp — S-Mode Send Path (3 tests)
+
+**Source:** `api/oc_knx_client.c` (`oc_issue_s_mode_message()`, driven through the public `oc_send_s_mode_multicast_message()`), network faked with linker `--wrap` (`oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`; `oc_allocate_message` counted; `coap_new_transaction_with_message` can fail)
+
+| Test | What it verifies |
+|------|-----------------|
+| `SModeIssue.MulticastWriteSendsOneNonPostToK` | One message, sent as CoAP NON POST to `/k` with an 8-byte token; the payload is the s-mode envelope carrying the written value |
+| `SModeIssue.MulticastReadSendsOneMessage` | Read request (no value): one message allocated and sent |
+| `SModeIssue.NoTransactionReleasesTheMessage` | No transaction free: nothing sent, the single message is released (ASan/LSan: no leak) |
+
+---
+
 ### test_smode_loopback_recursion.cpp — S-Mode Write Loopback (2 tests)
 
-**Source:** `api/oc_knx_client.c` (`oc_send_s_mode_mc_or_uc_message()`)
+**Source:** `api/oc_knx_client.c` (`oc_send_s_mode_mc_or_uc_message()`); the transmission is neutralised with `--wrap=coap_new_transaction_with_message` (returns NULL, the message is released)
 
 | Test | What it verifies |
 |------|-----------------|

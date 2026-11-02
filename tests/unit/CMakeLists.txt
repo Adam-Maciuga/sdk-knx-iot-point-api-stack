@@ -144,15 +144,29 @@ target_link_options(test_smode_send_refcount PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=oc_etimer_restart
 )
+kis_add_test(test_smode_issue test_smode_issue.cpp)
+# The s-mode send path (oc_issue_s_mode_message) through the public multicast send. --wrap fakes the
+# network side (same pattern as test_smode_send_refcount), counts message allocations and can make
+# the transaction creation fail.
+target_link_options(test_smode_issue PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=oc_allocate_message
+    -Wl,--wrap=coap_new_transaction_with_message
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_issue PRIVATE -fpermissive)
+endif()
 kis_add_test(test_smode_loopback_recursion test_smode_loopback_recursion.cpp)
 # Regression tests for the internal GO update ("loopback") in
 # oc_send_s_mode_mc_or_uc_message (finding F-022). The tests drive the REAL send
 # path so the GO table walk that carried the recursion is exercised 1:1; only the
-# outgoing message is neutralised. --wrap=oc_init_s_mode_message_update makes
-# oc_issue_s_mode_message skip its encode-and-send body (no oc_message_t, no
+# outgoing message is neutralised. --wrap=coap_new_transaction_with_message makes
+# oc_issue_s_mode_message release its message instead of sending it (no
 # transaction), so no live network stack or oc_main_init() is needed.
 target_link_options(test_smode_loopback_recursion PRIVATE
-    -Wl,--wrap=oc_init_s_mode_message_update
+    -Wl,--wrap=coap_new_transaction_with_message
 )
 # oc_rep macros use g_err |= cbor_encode_*() which is an invalid
 # enum-to-int conversion in strict C++.
@@ -162,12 +176,10 @@ endif()
 kis_add_test(test_smode_read_answer_payload test_smode_read_answer_payload.cpp)
 # Regression test for the multicast s-mode read answer payload length (finding
 # F-023). Drives the REAL /k POST handler over two read-flagged GOs on one GA.
-# --wrap=oc_init_s_mode_message_update neutralises the transmission while
-# reproducing its oc_rep_new() side effect (that side effect IS the defect), and
-# --wrap=oc_send_s_mode_multicast_message records the payload length computed for
-# each answer.
+# --wrap=oc_send_s_mode_multicast_message neutralises the transmission while
+# reproducing its oc_rep_new() side effect (that side effect IS the defect) and
+# records the payload length computed for each answer.
 target_link_options(test_smode_read_answer_payload PRIVATE
-    -Wl,--wrap=oc_init_s_mode_message_update
     -Wl,--wrap=oc_send_s_mode_multicast_message
 )
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -209,7 +221,7 @@ target_link_options(test_oc_buffer PRIVATE
 kis_add_test(test_oc_discovery       test_oc_discovery.cpp)
 kis_add_test(test_oc_client_api      test_oc_client_api.cpp)
 # --wrap facility (same pattern as test_smode_send_refcount) lets
-# oc_do_s_mode_message_update / oc_do_well_known_message_update run their real
+# oc_send_well_known_message run its real
 # branch logic without a live socket, process loop, or oc_main_init().
 target_link_options(test_oc_client_api PRIVATE
     -Wl,--wrap=oc_main_initialized

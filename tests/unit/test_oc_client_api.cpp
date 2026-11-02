@@ -7,11 +7,11 @@
  *   oc_lf_get_entry_param    — extract a ;param=value of the Nth record
  *                              (also drives the static oc_lf_get_line)
  *
- * oc_do_s_mode_message_update / oc_send_well_known_message send the
- * prepared CoAP packet via coap_send_message() (and, for the s-mode path,
- * coap_send_transaction()). Real network I/O is faked via the GNU ld
- * --wrap facility (see tests/unit/CMakeLists.txt), the same pattern used by
- * test_smode_send_refcount.cpp, so the real production branch logic runs.
+ * oc_send_well_known_message builds and sends the GET via coap_send_message().
+ * Real network I/O is faked via the GNU ld --wrap facility (see
+ * tests/unit/CMakeLists.txt), the same pattern used by test_smode_send_refcount.cpp,
+ * so the real production branch logic runs. The s-mode send path is tested in
+ * test_smode_issue.cpp.
  */
 
 #include <gtest/gtest.h>
@@ -149,48 +149,13 @@ TEST_F(ClientApiLF, GetEntryUriSingleRecordNoTrailingComma)
   EXPECT_EQ(std::string(uri, uri_len), "coap://[fe80::1]/p/a");
 }
 
-/* ──────────────────── oc_init_s_mode_message_update ──────────────────
- * It builds the outbound CoAP packet (header, token, uri) into the
- * file-static request buffer; it allocates a heap message but does NOT send it.
- * We can only assert the boolean success path and that the full body runs
- * without crashing (the populated packet is not publicly accessible).
- * ─────────────────────────────────────────────────────────────────────────── */
-
-class ClientApiInitMsg : public ::testing::Test {
-protected:
-  oc_endpoint_t ep_;
-  void SetUp() override
-  {
-    oc_network_event_handler_mutex_init(); /* oc_allocate_message lock */
-    oc_random_init();                      /* token generation */
-    memset(&ep_, 0, sizeof(ep_));
-    ep_.flags = IPV6;
-    ep_.addr.ipv6.port = 5683;
-    ep_.addr.ipv6.address[15] = 1; /* ::1 */
-  }
-  void TearDown() override { oc_random_destroy(); }
-};
-
-TEST_F(ClientApiInitMsg, InitSModeConfirmableSucceeds)
-{
-  EXPECT_TRUE(oc_init_s_mode_message_update(&ep_, "/.knx", false));
-}
-
-TEST_F(ClientApiInitMsg, InitSModeNonConfirmableSucceeds)
-{
-  EXPECT_TRUE(oc_init_s_mode_message_update(&ep_, "/.knx", true));
-}
-
-/* ──────────────── oc_do_s_mode_message_update / oc_send_well_known_message ────────────────
- * --wrap redirects the network-touching calls these two functions make, so
+/* ──────────────── oc_send_well_known_message ────────────────
+ * --wrap redirects the network-touching calls this function makes, so
  * the real send/serialize logic runs without a live socket or process loop.
  * ────────────────────────────────────────────────────────────────────────── */
 
 static int g_wrap_send_calls;
 static int g_alloc_calls;
-static const oc_message_t *g_sent_msg;   /* identity only, released by the wrap */
-static uint8_t g_sent_type;              /* CoAP type of the sent message */
-static uint8_t g_sent_code;              /* CoAP code of the sent message */
 static std::vector<uint8_t> g_sent_data; /* bytes of the sent message */
 
 extern "C" oc_message_t *__real_oc_allocate_message(void);
@@ -204,10 +169,9 @@ extern "C" bool __wrap_oc_main_initialized(void) { return true; }
 extern "C" void __wrap_coap_send_message(oc_message_t *msg)
 {
   g_wrap_send_calls++;
-  g_sent_msg = msg;
-  g_sent_type = (uint8_t)((msg->data[0] & COAP_HEADER_TYPE_MASK) >> COAP_HEADER_TYPE_POSITION);
-  g_sent_code = msg->data[1];
+  /* one spare byte like the real message buffer (OC_PDU_SIZE + 1): the parser terminates in place */
   g_sent_data.assign(msg->data, msg->data + msg->length);
+  g_sent_data.push_back(0);
   oc_message_unref(msg);
 }
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
@@ -221,9 +185,6 @@ protected:
     oc_random_init();
     g_wrap_send_calls = 0;
     g_alloc_calls = 0;
-    g_sent_msg = nullptr;
-    g_sent_type = 0xFF;
-    g_sent_code = 0;
     g_sent_data.clear();
     memset(&ep_, 0, sizeof(ep_));
     ep_.flags = IPV6;
@@ -236,28 +197,6 @@ protected:
     oc_random_destroy();
   }
 };
-
-TEST_F(ClientApiDoUpdate, DoSModeMessageUpdateWithPayloadSendsTransaction)
-{
-  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/.knx", false));
-
-  /* give the outbound message a non-empty CBOR payload so
-     oc_rep_get_encoded_payload_size() > 0 (the function's first guard). */
-  oc_rep_begin_root_object();
-  oc_rep_end_root_object();
-
-  EXPECT_TRUE(oc_do_s_mode_message_update(nullptr));
-  EXPECT_EQ(g_wrap_send_calls, 1);
-}
-
-TEST_F(ClientApiDoUpdate, DoSModeMessageUpdateWithoutPayloadReturnsFalse)
-{
-  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/.knx", false));
-
-  /* no oc_rep_* calls at all -> encoded payload size is 0 -> early false */
-  EXPECT_FALSE(oc_do_s_mode_message_update(nullptr));
-  EXPECT_EQ(g_wrap_send_calls, 0);
-}
 
 /*
   oc_send_well_known_message: builds and sends the GET in one call (no static message between two calls)
@@ -281,7 +220,7 @@ static void expect_sent_get(const oc_client_cb_t &cb, coap_message_type_t type)
 {
   ASSERT_FALSE(g_sent_data.empty());
   coap_packet_t pkt[1];
-  ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size()), COAP_NO_ERROR);
+  ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size() - 1), COAP_NO_ERROR);
   EXPECT_EQ(pkt->type, type);
   EXPECT_EQ(pkt->code, COAP_GET);
   EXPECT_EQ(pkt->mid, cb.mid);
@@ -322,46 +261,4 @@ TEST_F(ClientApiDoUpdate, SendWellKnownWithoutCallbackSendsNothing)
   EXPECT_FALSE(oc_send_well_known_message(&ep_, "/.well-known/core", "rt=urn:knx:if.pm", true, nullptr));
   EXPECT_EQ(g_wrap_send_calls, 0);
   EXPECT_EQ(g_alloc_calls, 0);
-}
-
-/*
-  Hand-over: the s-mode message built by oc_init_s_mode_message_update is adopted by the transaction
-  - one message allocation per send (no second buffer + copy for the transaction)
-  - the sent PDU is the serialized s-mode request (POST, CON / NON as requested)
-*/
-TEST_F(ClientApiDoUpdate, SModeNonSendAllocatesOneMessage)
-{
-  ep_.flags = (transport_flags_t)(IPV6 | MULTICAST);
-  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", true));
-  oc_rep_begin_root_object();
-  oc_rep_end_root_object();
-
-  EXPECT_TRUE(oc_do_s_mode_message_update(nullptr));
-  EXPECT_EQ(g_wrap_send_calls, 1);
-  EXPECT_EQ(g_alloc_calls, 1);
-  EXPECT_EQ(g_sent_type, COAP_TYPE_NON);
-  EXPECT_EQ(g_sent_code, COAP_POST);
-}
-
-TEST_F(ClientApiDoUpdate, SModeConSendAllocatesOneMessage)
-{
-  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", false));
-  oc_rep_begin_root_object();
-  oc_rep_end_root_object();
-
-  EXPECT_TRUE(oc_do_s_mode_message_update(nullptr));
-  EXPECT_EQ(g_wrap_send_calls, 1);
-  EXPECT_EQ(g_alloc_calls, 1);
-  EXPECT_EQ(g_sent_type, COAP_TYPE_CON);
-  EXPECT_EQ(g_sent_code, COAP_POST);
-}
-
-TEST_F(ClientApiDoUpdate, SModeSendWithoutPayloadReleasesTheMessage)
-{
-  ASSERT_TRUE(oc_init_s_mode_message_update(&ep_, "/k", true));
-
-  /* nothing encoded -> not sent, the single allocation is released (ASan/LSan: no leak) */
-  EXPECT_FALSE(oc_do_s_mode_message_update(nullptr));
-  EXPECT_EQ(g_wrap_send_calls, 0);
-  EXPECT_EQ(g_alloc_calls, 1);
 }

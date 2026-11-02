@@ -19,6 +19,11 @@
 #include <string.h>
 
 #include "observe.h"
+#include "oc_buffer.h"
+#include "messaging/coap/coap.h"
+#include "messaging/coap/transactions.h"
+#include "conf.h"
+#include "port/oc_random.h"
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 
 /**
@@ -306,13 +311,15 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
 /*
   Encodes the s-mode envelope { 4: <sia>, 5: { 7: <ga>, 6: <st>, 1: <value> } } into the CURRENT rep encoder.
 
-  The caller owns the encoder target: the send path gets it from 'oc_init_s_mode_message_update', the echo
+  The caller owns the encoder target: the send path ('oc_issue_s_mode_message') points it at the outgoing message, the echo
   re-request regeneration points it at its own buffer with 'oc_rep_new' beforehand.
 
   'value_data' is the raw buffer filled by the resource GET callback, which wraps the value in its own
   BF ... FF object:
     (a) [0]                 = open object = BF, not copied, the 'value_map' created here already opens one
-    (b) [1 ... size - 2]    = the payload data (1: xxx), this is what gets copied
+    (b) [1 ... size - 2]    = the payload data (1: xxx), this is what gets copied, 
+                              on value data && value size > 2 it is a self triggered write request / read response with data,
+                              otherwise a read request without data
     (c) [size - 1]          = close object = FF, not copied, closed here instead
 
   Passing no value (NULL or size <= 2) yields the read request form without a value member.
@@ -350,52 +357,124 @@ static void oc_encode_s_mode_envelope(uint32_t group_address, char service_type,
 static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* path, uint32_t group_address, char service_type,
                                     const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
 {
-  if (oc_init_s_mode_message_update(endpoint, path, recipient->non))
+  /*
+    CoAP request packet kept static, not on the call stack
+    - ~260 B on 32-bit, this method also runs nested in coap_receive (read answers of a /k POST), the deepest stack path
+    - built and serialized within this function, nothing in between sends another s-mode message
+  */
+  static coap_packet_t request[1];
+
+  oc_message_t* message = oc_allocate_message();
+  if (!message)
   {
-    /*
-      - on value data && value size > 2 it is a self triggered write request / read response with data
-      - otherwise a read request without data
-    */
-    oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
+    return;
+  }
 
-    const int size = oc_rep_get_encoded_payload_size();
+  // no callback is possible to this (outbound) s-mode POST message, the message needs to generate its own token/mid
+  memcpy(&message->endpoint, endpoint, sizeof(oc_endpoint_t));
 
-    #ifdef OC_DEBUG
+  // NON or CON s-mode request: CoAP type on the wire, flag for the transaction and OSCORE layer
+  coap_message_type_t type = COAP_TYPE_CON;
+  transport_flags_t flag = S_MODE_CON_REQUEST;
+  
+  if (recipient->non)
+  {
+    type = COAP_TYPE_NON;
+    flag = S_MODE_NON_REQUEST;
+  }
+  message->endpoint.flags |= flag;
 
-    OC_INF("send s-mode to ipv6 address   : ");
-    PRINTipaddr(*endpoint);
+  coap_udp_init_message(request, type, COAP_POST, coap_get_next_mid());
+  coap_set_header_accept(request, APPLICATION_CBOR);
 
-    OC_INF("send s-mode CBOR payload (%d) : ", size);
-    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), size);
+  // set here fix COAP_TOKEN_LEN byte token len
+  request->token_len = COAP_TOKEN_LEN;
+  const uint32_t a = oc_random_value(); memcpy(request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
 
-    #endif
+  // s-mode messages carries a uri + no query + outgoing format
+  coap_set_header_content_format(request, APPLICATION_CBOR);
+  coap_set_header_uri_path(request, path, strlen(path));
 
-    /*
-      Capture the fully-encoded S-Mode envelope { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } } BEFORE sending,
-      because oc_do_s_mode_message_update serializes the CoAP message in place (header + payload) into the same buffer
-      the rep encoder wrote into, and then hands that buffer to the transaction layer and resets the message machine.
-      
-      After sending the clean envelope is no longer recoverable here, so the /k observers must be notified from this
-      local copy to receive the same S-Mode payload as the transmitted message, not the raw inner value.
-    */
+  /*
+    encode the envelope straight into the message, behind the room for the CoAP header (no copy)
+    - the budget is the FULL application data size KNX_PAYLOAD_SIZE
+    - the message buffer is OC_PDU_SIZE, which is KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET
+    - blockwise transfer is NOT used for s-mode messages, so the payload must fit into the message buffer
+      (otherwise KNX_PAYLOAD_SIZE must be increased) 
+  */
+  oc_rep_new(message->data + COAP_MAX_HEADER_SIZE, OC_MAX_APP_DATA_SIZE);
+  oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
+
+  const int size = oc_rep_get_encoded_payload_size();
+
+  // a failed encoding (-1) and an empty payload (0) are not sent
+  if (size <= 0)
+  {
+    OC_WRN("sent (uc/mc) s-mode message - ERROR (payload size %d)", size);
+    oc_message_unref(message);
+    return;
+  }
+
+  #ifdef OC_DEBUG
+
+  OC_INF("send s-mode to ipv6 address   : ");
+  PRINTipaddr(*endpoint);
+
+  OC_INF("send s-mode CBOR payload (%d) : ", size);
+  OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), size);
+
+  #endif
+
+  /*
+    notify /k observers ONLY on s-mode write with the full S-Mode envelope { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } },
     
-    uint8_t smode_payload[OC_MAX_OBSERVE_SIZE];
+    - from the encoder buffer, it still holds the plain envelope here 
+      (the serialization below writes the CoAP message in place into the same buffer
     
-    // > 0 also guards for a returned cbor error code -1 
-    const bool smode_payload_size_ok = size > 0 && size <= OC_MAX_OBSERVE_SIZE;
-    if (smode_payload_size_ok)
-    {
-      memcpy(smode_payload, oc_rep_get_encoder_buf(), (size_t)size);
-    }
+    - each observer notification '/k' copies the payload into its own message -> OK 
+  */
+  if (service_type == 'w' && size <= OC_MAX_OBSERVE_SIZE)
+  {
+    coap_notify_k_observers(oc_rep_get_encoder_buf(), size);
+  }
 
-    // step 1: called only in case the static buffer was allocated 
-    oc_do_s_mode_message_update(recipient);
+  /*
+    coap payload gets ptr from message data (but data are NOT copied)
+    the gap must be the plain budget: coap_serialize_message() below writes inner AND outer options into one flat message
+  */
+  coap_set_payload(request, message->data + COAP_MAX_HEADER_SIZE, size);
+  message->length = coap_serialize_message(request, message->data);
 
-    // step 2: notify /k observers ONLY on s-mode write -- forward the full S-Mode envelope captured above
-    if (service_type == 'w' && smode_payload_size_ok)
-    {
-      coap_notify_k_observers(smode_payload, size);
-    }
+  /*
+    We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged with an Echo option.
+    Use coap transaction framework to handle this.
+    0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+    1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension done in 'coap_send_transaction':
+       - init transaction with a fixed timeout
+       - send 'echo re-request' message ones in view of AL (3.6.4.1.3); may result in reps for CON messages on TL level
+       - DON'T clear the transaction after sending
+       - transaction expires on timeout automatically without resending the NON s-mode message again,
+         timeout is only present to catch & process further incoming echo responses from DIFFERENT devices with same
+         coap token as in org. s-mode request (see use of S_MODE_NON_REQUEST)
+    - the transaction takes over the message, no copy
+  */
+  coap_transaction_t* t = message->length > 0 ? coap_new_transaction_with_message(
+    request->mid,
+    request->token,
+    request->token_len, message)              : NULL;
+
+  if (t)
+  {
+    // for IPv6 re-resolving (unicast/ia)
+    t->recipient = recipient;
+    coap_send_transaction(t);
+    OC_INF("sent (uc/mc) s-mode message - OK");
+  }
+  else
+  {
+    OC_WRN("sent (uc/mc) s-mode message - ERROR (message len %zu or no transaction free)", message->length);
+    oc_message_unref(message);
   }
 }
 
@@ -519,7 +598,7 @@ int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object,
 
   /*
     The value must leave room for the envelope it is wrapped into, see OC_S_MODE_MAX_VALUE_SIZE.
-    The envelope budget is OC_MAX_APP_DATA_SIZE, the very same budget 'oc_init_s_mode_message_update'
+    The envelope budget is OC_MAX_APP_DATA_SIZE, the very same budget 'oc_issue_s_mode_message'
     gives the original s-mode send, so this folds to a compile time constant.
   */
   const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
@@ -638,7 +717,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
       /*
         allocate the resource application value size that still leaves room for the s-mode envelope;
-        the envelope is encoded by 'oc_init_s_mode_message_update' into a buffer of OC_MAX_APP_DATA_SIZE
+        the envelope is encoded by 'oc_issue_s_mode_message' into a buffer of OC_MAX_APP_DATA_SIZE
       */
       const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
 
@@ -956,7 +1035,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
     /*
       allocate the resource application value size that still leaves room for the s-mode envelope;
-      the envelope is encoded by 'oc_init_s_mode_message_update' into a buffer of OC_MAX_APP_DATA_SIZE
+      the envelope is encoded by 'oc_issue_s_mode_message' into a buffer of OC_MAX_APP_DATA_SIZE
     */
     const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
 

@@ -1218,7 +1218,7 @@ int coap_receive(oc_message_t* incoming_message)
             /*
               regenerate into the carrier's OWN data buffer; it stays valid until the message is released,
               which happens only after the re-request has been serialized.
-              the budget is OC_MAX_APP_DATA_SIZE, the very same envelope budget 'oc_init_s_mode_message_update'
+              the budget is OC_MAX_APP_DATA_SIZE, the very same envelope budget 'oc_issue_s_mode_message'
               gives the original s-mode send, so a regenerated payload can never exceed what the sender could emit
             */
             const int size = oc_create_s_mode_payload_for_go(anchor.go, anchor.service_type, source_msg->data);

@@ -882,20 +882,6 @@ extern "C"
                             int* p_len);
 
   /**
-   * @brief initialize an s-mode request message by allocating a static buffer AND
-   *        assigning path, message type CON/NON, new token/ new mid
-   *
-   *
-   * @param s_mode_message_ep the endpoint to be used
-   * @param uri the uri to be used
-   * @param non_confirmable non-confirmable (true) or confirmable (false) message, used by mc (true) or uc 
-   * 
-   * @return true
-   * @return false
-   */
-  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable);
-
-  /**
    * @brief builds and sends a well-known (GET) request message in one call
    *
    * @param endpoint the endpoint to be used
@@ -909,17 +895,6 @@ extern "C"
    * @return false not sent (no callback, no message buffer, serialize error)
    */
   bool oc_send_well_known_message(const oc_endpoint_t* endpoint, const char* uri, const char* query, bool non_confirmable, const oc_client_cb_t* callback);
-
-  /**
-   * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        an s-mode request message by creating an s-mode transaction and sending it out ny 'send_transaction'
-   *
-   * @param recipient optional recipient pointer (oc_group_table_t*) to attach to the transaction for response tracking
-   *
-   * @return true
-   * @return false
-   */
-  bool oc_do_s_mode_message_update(void* recipient);
 
   /**
    * @brief Schedule a callback to be invoked after a set number of seconds.

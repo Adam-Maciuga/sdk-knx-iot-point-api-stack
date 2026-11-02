@@ -110,12 +110,14 @@ coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* 
   return t;
 }
 
-/* 
+/*
   sends a message by 'transaction'
-  NON 
-    - others : send + clear the transaction afterward (note that also an 'echo re-request' falls under this 'others' type)
-    - s-mode : send + NOT clear the transaction afterward (kept to match with 'echo responses' -> transaction runs into timeout)
-  CON 
+  NON
+    - multicast s-mode + others : send + clear the transaction immediately (also an 'echo re-request');
+                                  a late multicast echo response regenerates its payload from the echo ring anchor
+    - unicast s-mode            : send + keep a header-only transaction (~5-7.5 s) for the 2.04 and the missing
+                                  response count, the PDU itself is handed over to the sender
+  CON
     - all : send + clear the transaction after response or all repetitions are done
 */
 void coap_send_transaction(coap_transaction_t *t) 
@@ -135,8 +137,8 @@ void coap_send_transaction(coap_transaction_t *t)
 
   /*
     - a unicast s-mode NON transaction holds NO data after its first send (header only message) --> it is/was always NON
-    - any other transaction holds data -in header --> CON (uc s-mode CON, CoAP CON), NON (first send of uc s-mode NON, mc s-mode NON, CoAP NON) 
-      or ACK/RST (empty messages)
+    - any other transaction still holds its PDU, the type is read from its CoAP header byte --> CON (uc s-mode CON, CoAP CON),
+      NON (first send of uc s-mode NON, mc s-mode NON, CoAP NON) or ACK/RST (empty messages)
   */
   const uint8_t type = t->message->data ? (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION : COAP_TYPE_NON;
   

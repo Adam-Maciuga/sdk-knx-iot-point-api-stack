@@ -42,9 +42,9 @@
  *     oc_add_resource().
  *
  * The actual transmission is neutralised with the GNU linker --wrap facility (see
- * tests/unit/CMakeLists.txt for this target): oc_init_s_mode_message_update is redirected to a stub
- * that returns false, so oc_issue_s_mode_message() encodes nothing and sends nothing. That keeps
- * every other function - crucially oc_send_s_mode_mc_or_uc_message() and its GO table walk - the
+ * tests/unit/CMakeLists.txt for this target): coap_new_transaction_with_message is redirected to a
+ * stub that returns NULL, so oc_issue_s_mode_message() releases its message and sends nothing. That
+ * keeps every other function - crucially oc_send_s_mode_mc_or_uc_message() and its GO table walk - the
  * real production code, which is what the recursion lives in.
  */
 
@@ -58,28 +58,29 @@ extern "C" {
 #include "api/oc_knx_fp.h"
 #include "oc_knx.h"
 #include "oc_ri.h"
+#include "messaging/coap/transactions.h"
 }
 
 /* -- linker --wrap stubs -------------------------------------------------- */
 
 /*
-  __wrap_oc_init_s_mode_message_update: stand-in for the outgoing s-mode message.
+  __wrap_coap_new_transaction_with_message: stand-in for the transaction of the outgoing s-mode message.
 
-  Returning false makes oc_issue_s_mode_message() skip its whole encode-and-send body, so no
-  oc_message_t is allocated and nothing reaches the transaction layer. The call is still counted, so
-  a test can assert how many transmissions the production code attempted.
+  Returning NULL makes oc_issue_s_mode_message() release its message instead of sending it, so nothing
+  reaches the transaction layer. The call is still counted, so a test can assert how many transmissions
+  the production code attempted.
 */
 static int g_send_attempts = 0;
 
-extern "C" bool __wrap_oc_init_s_mode_message_update(const oc_endpoint_t *ep,
-                                                     const char *uri,
-                                                     bool non_confirmable)
+extern "C" coap_transaction_t *__wrap_coap_new_transaction_with_message(uint16_t mid, const uint8_t *token,
+                                                                       uint8_t token_len, oc_message_t *message)
 {
-  (void)ep;
-  (void)uri;
-  (void)non_confirmable;
+  (void)mid;
+  (void)token;
+  (void)token_len;
+  (void)message;
   g_send_attempts++;
-  return false;
+  return nullptr;
 }
 
 /* -- handler instrumentation ---------------------------------------------- */

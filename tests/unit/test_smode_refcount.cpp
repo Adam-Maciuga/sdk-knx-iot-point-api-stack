@@ -6,7 +6,7 @@
   leaks or double-frees. The three messages verified match the analysis in
   security/oc_oscore_engine.c:
 
-    M1  udp_message_update  - plaintext original allocated by the caller
+    M1  caller's message   - plaintext original allocated by the caller
         (oc_client_api.c); coap_new_transaction_with_data only memcpy's its
         data, so M1's ref_count is NEVER touched by the transaction layer.
         The caller owns it start-to-finish and unref's it unconditionally.
@@ -139,7 +139,7 @@ protected:
   }
 };
 
-/* -- M1: udp_message_update lifetime -------------------------------------- */
+/* -- M1: caller's message lifetime -------------------------------------- */
 
 /*
   coap_new_transaction_with_data only memcpy's M1's data into a freshly

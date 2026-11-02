@@ -1147,7 +1147,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
               once, before dispatching to this POST handler. That is enough for a single answer, but
               a GA may be linked to several read enabled GOs, and each of them sends its own read
               response from inside this loop. Sending goes through
-              oc_init_s_mode_message_update(), which calls oc_rep_new() again - re-pointing the
+              oc_issue_s_mode_message(), which calls oc_rep_new() again - re-pointing the
               global encoder at the OUTGOING UDP message buffer. Without the call below, the GET
               handler of the SECOND (and any later) GO would encode into that already sent message
               buffer instead of the response buffer, and oc_prepare_cbor_response() would measure the

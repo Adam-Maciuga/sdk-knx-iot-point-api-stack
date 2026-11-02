@@ -14,7 +14,7 @@
  * The CBOR encoder is a single global (g_encoder / g_buf in api/oc_rep.c).
  * oc_ri_invoke_coap_entity_handler() arms it onto the response buffer exactly once, before
  * dispatching into this POST handler. But sending an answer goes through
- * oc_init_s_mode_message_update() (api/oc_client_api.c), which calls oc_rep_new() AGAIN - re-pointing
+ * oc_issue_s_mode_message() (api/oc_knx_client.c), which calls oc_rep_new() AGAIN - re-pointing
  * that same global encoder at the OUTGOING UDP message buffer.
  *
  * So from the second matching GO onward the GET handler encoded into the already-transmitted
@@ -38,8 +38,8 @@
  * The /k POST handler is static, but the resource descriptor 'core_resource_knx_k' that holds its
  * address is a non-static global, so the handler is invoked through core_resource_knx_k.post_handler.cb.
  *
- * --wrap=oc_init_s_mode_message_update (see tests/unit/CMakeLists.txt) neutralises the actual
- * transmission. Crucially the stub ALSO reproduces the real function's side effect of calling
+ * --wrap=oc_send_s_mode_multicast_message (see tests/unit/CMakeLists.txt) neutralises the actual
+ * transmission. Crucially the stub ALSO reproduces the real send path's side effect of calling
  * oc_rep_new() on a different buffer - that side effect IS the bug - so the defect is still present
  * in the wrapped build and the test would pass vacuously without it.
  */
@@ -73,32 +73,10 @@ struct SentAnswer {
 static std::vector<SentAnswer> g_sent;
 
 /* A buffer standing in for the outgoing UDP message. The real
-   oc_init_s_mode_message_update() points the global CBOR encoder here; reproducing that is what
+   oc_issue_s_mode_message() points the global CBOR encoder at it; reproducing that is what
    keeps the bug reachable in this test. It is pre-filled with a recognisable pattern so any stale
    content that leaks into a measured payload is non-zero, exactly like the junk seen on the wire. */
 static uint8_t g_fake_tx_buffer[512];
-
-/* -- linker --wrap stub ---------------------------------------------------- */
-
-/*
-  __wrap_oc_init_s_mode_message_update: stands in for allocating the outgoing s-mode message.
-
-  Returns false so oc_issue_s_mode_message() sends nothing, but FIRST performs the same
-  oc_rep_new() re-arm the real function does. That single line is the root cause of F-023 and must be
-  preserved here, otherwise the test could not observe the defect.
-*/
-extern "C" bool __wrap_oc_init_s_mode_message_update(const oc_endpoint_t *ep,
-                                                     const char *uri,
-                                                     bool non_confirmable)
-{
-  (void)ep;
-  (void)uri;
-  (void)non_confirmable;
-
-  // the side effect that corrupts the next GET handler's encode target
-  oc_rep_new(g_fake_tx_buffer, (int)sizeof(g_fake_tx_buffer));
-  return false;
-}
 
 /* -- interception of the outgoing answers ---------------------------------- */
 
@@ -137,8 +115,8 @@ extern "C" void __wrap_oc_send_s_mode_multicast_message(uint8_t scope,
   /*
     Reproduce what the real send path leaves behind in the global CBOR encoder.
 
-    oc_send_s_mode_multicast_message() -> oc_issue_s_mode_message() calls
-    oc_init_s_mode_message_update(), which re-arms the encoder onto the outgoing UDP message buffer,
+    oc_send_s_mode_multicast_message() -> oc_issue_s_mode_message() re-arms the encoder onto the
+    outgoing UDP message buffer,
     and then WRITES THE WHOLE S-MODE ENVELOPE into it ({ 4: sia, 5: { 6: st, 7: ga, 1: value } }).
     So when this returns, the global encoder is not merely pointing elsewhere - it is pointing
     elsewhere with a non-empty write cursor partway through that envelope.

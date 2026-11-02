@@ -342,7 +342,7 @@ TEST_F(SModeRefCountViaSend, Via_UcCon_RetransmitCycle)
 /* -- hand-over: the transaction adopts the s-mode message (no copy) -------- */
 
 /*
-  coap_new_transaction_with_message (used by oc_do_s_mode_message_update):
+  coap_new_transaction_with_message (used by oc_issue_s_mode_message):
     m1 birth                                 m1 ref = 1
     coap_new_transaction_with_message        t->message == m1, ref = 1 (adopted, no second buffer)
     coap_send_transaction (mc-NON) {
