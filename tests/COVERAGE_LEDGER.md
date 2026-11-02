@@ -378,9 +378,8 @@ INTEGRATION.
 | oc_lf_get_entry_uri | DONE |
 | oc_lf_get_entry_param | DONE |
 | oc_do_s_mode_message_update | INTEGRATION — builds + sends an s-mode CoAP message; the message is handed over to its transaction, unit: `SModeNonSendAllocatesOneMessage`, `SModeConSendAllocatesOneMessage`, `SModeSendWithoutPayloadReleasesTheMessage` |
-| oc_do_well_known_message_update | INTEGRATION — builds + sends a .well-known update |
 | oc_init_s_mode_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
-| oc_init_well_known_message_update | INTEGRATION — allocates request buffer + CoAP packet for tx |
+| oc_send_well_known_message | DONE — builds + sends the .well-known GET in one call (local message and packet, no static), unit: `SendWellKnownNonConfirmableSendsOneGet`, `SendWellKnownConfirmableSendsOneGet`, `SendWellKnownWithoutCallbackSendsNothing`; replaces `oc_init_well_known_message_update` + `oc_do_well_known_message_update` |
 
 ### api/oc_knx.c — DONE (LSM string/getter, runtime predicate, and the read-only GET handlers); stateful POST handlers + storage/crypto/SPAKE paths are integration-level
 

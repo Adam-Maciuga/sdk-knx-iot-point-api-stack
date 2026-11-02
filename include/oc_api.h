@@ -896,18 +896,19 @@ extern "C"
   bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable);
 
   /**
-   * @brief initialize a well-known request message by allocating a static buffer  
+   * @brief builds and sends a well-known (GET) request message in one call
    *
-   * @param well_known_message the endpoint to be used
+   * @param endpoint the endpoint to be used
    * @param uri the uri to be used
    * @param query the query to be used
    * @param non_confirmable non confirmable (true) or confirmable (false) message
-   * @param callback the MANDATORY callback that is related to this (outbound) message (a discovery without process the answer is useless)  
-   * 
-   * @return true
-   * @return false
+   * @param callback the MANDATORY callback that is related to this (outbound) message, its mid and token are used
+   *                 (a discovery without process the answer is useless)
+   *
+   * @return true  sent
+   * @return false not sent (no callback, no message buffer, serialize error)
    */
-  bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable, oc_client_cb_t* callback);
+  bool oc_send_well_known_message(const oc_endpoint_t* endpoint, const char* uri, const char* query, bool non_confirmable, const oc_client_cb_t* callback);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
@@ -919,15 +920,6 @@ extern "C"
    * @return false
    */
   bool oc_do_s_mode_message_update(void* recipient);
-
-  /**
-   * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        a well-known message 
-   *
-   * @return true
-   * @return false
-   */
-  bool oc_do_well_known_message_update(void);
 
   /**
    * @brief Schedule a callback to be invoked after a set number of seconds.

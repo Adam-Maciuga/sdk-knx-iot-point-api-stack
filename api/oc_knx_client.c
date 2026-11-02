@@ -1028,10 +1028,8 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
   oc_client_cb_t* cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query, handler, LOW_QOS, recipient);
   if (cb)
   {
-    if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
+    if (oc_send_well_known_message(&group_mcast_endpoint, uri, query, true, cb))
     {
-      oc_do_well_known_message_update();
-
       // timeout for unicast message resolving, after this the discovery handler is 'auto removed'
       #define DISCOVERY_RESPONSE_MESSAGE_TIMEOUT_SECONDS (25)
 

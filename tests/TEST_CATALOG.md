@@ -900,8 +900,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `ClientApiLF` | 12 | Link-format response parsing: entry count, entry URI, rt/if params, missing param, NULL/too-short payload guards, single-record (no trailing comma) fallback |
-| `ClientApiInitMsg` | 4 | s-mode / well-known message init (confirmable + non-confirmable) |
-| `ClientApiDoUpdate` | 6 | `oc_do_s_mode_message_update` / `oc_do_well_known_message_update` real send path (network faked via `--wrap=coap_send_message`/`oc_main_initialized`/`oc_etimer_restart`, same pattern as `test_smode_send_refcount`): payload present → transaction sent, no payload → early false, well-known GET → message sent; s-mode NON and CON send allocate one message (handed over to the transaction, counted via `--wrap=oc_allocate_message`), no payload → the one message is released |
+| `ClientApiInitMsg` | 2 | s-mode message init (confirmable + non-confirmable) |
+| `ClientApiDoUpdate` | 9 | `oc_do_s_mode_message_update` / `oc_send_well_known_message` real send path (network faked via `--wrap=coap_send_message`/`oc_main_initialized`/`oc_etimer_restart`, same pattern as `test_smode_send_refcount`): payload present → transaction sent, no payload → early false; well-known GET NON and CON sent in one call (one message, the callback's mid and token, uri path and query as given), no callback → nothing allocated or sent; s-mode NON and CON send allocate one message (handed over to the transaction, counted via `--wrap=oc_allocate_message`), no payload → the one message is released |
 
 ---
 

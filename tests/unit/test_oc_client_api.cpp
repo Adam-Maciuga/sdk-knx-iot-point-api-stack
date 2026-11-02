@@ -7,7 +7,7 @@
  *   oc_lf_get_entry_param    — extract a ;param=value of the Nth record
  *                              (also drives the static oc_lf_get_line)
  *
- * oc_do_s_mode_message_update / oc_do_well_known_message_update send the
+ * oc_do_s_mode_message_update / oc_send_well_known_message send the
  * prepared CoAP packet via coap_send_message() (and, for the s-mode path,
  * coap_send_transaction()). Real network I/O is faked via the GNU ld
  * --wrap facility (see tests/unit/CMakeLists.txt), the same pattern used by
@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 extern "C" {
 #include "oc_api.h"
@@ -147,9 +149,9 @@ TEST_F(ClientApiLF, GetEntryUriSingleRecordNoTrailingComma)
   EXPECT_EQ(std::string(uri, uri_len), "coap://[fe80::1]/p/a");
 }
 
-/* ──────────────────── oc_init_s_mode / well_known message ──────────────────
- * These build the outbound CoAP packet (header, token, uri/query) into the
- * file-static request buffer; they allocate a heap message but do NOT send it.
+/* ──────────────────── oc_init_s_mode_message_update ──────────────────
+ * It builds the outbound CoAP packet (header, token, uri) into the
+ * file-static request buffer; it allocates a heap message but does NOT send it.
  * We can only assert the boolean success path and that the full body runs
  * without crashing (the populated packet is not publicly accessible).
  * ─────────────────────────────────────────────────────────────────────────── */
@@ -179,31 +181,7 @@ TEST_F(ClientApiInitMsg, InitSModeNonConfirmableSucceeds)
   EXPECT_TRUE(oc_init_s_mode_message_update(&ep_, "/.knx", true));
 }
 
-TEST_F(ClientApiInitMsg, InitWellKnownConfirmableSucceeds)
-{
-  oc_client_cb_t cb;
-  memset(&cb, 0, sizeof(cb));
-  cb.mid = 0x1234;
-  cb.token_len = COAP_TOKEN_LEN;
-  for (int i = 0; i < COAP_TOKEN_LEN; i++) cb.token[i] = (uint8_t)(i + 1);
-
-  EXPECT_TRUE(oc_init_well_known_message_update(
-    &ep_, "/.well-known/core", "rt=urn:knx:if.pm", false, &cb));
-}
-
-TEST_F(ClientApiInitMsg, InitWellKnownNonConfirmableSucceeds)
-{
-  oc_client_cb_t cb;
-  memset(&cb, 0, sizeof(cb));
-  cb.mid = 0x4321;
-  cb.token_len = COAP_TOKEN_LEN;
-  for (int i = 0; i < COAP_TOKEN_LEN; i++) cb.token[i] = (uint8_t)(i + 1);
-
-  EXPECT_TRUE(oc_init_well_known_message_update(
-    &ep_, "/.well-known/core", "rt=urn:knx:if.pm", true, &cb));
-}
-
-/* ──────────────── oc_do_s_mode_message_update / oc_do_well_known_message_update ────────────────
+/* ──────────────── oc_do_s_mode_message_update / oc_send_well_known_message ────────────────
  * --wrap redirects the network-touching calls these two functions make, so
  * the real send/serialize logic runs without a live socket or process loop.
  * ────────────────────────────────────────────────────────────────────────── */
@@ -213,6 +191,7 @@ static int g_alloc_calls;
 static const oc_message_t *g_sent_msg;   /* identity only, released by the wrap */
 static uint8_t g_sent_type;              /* CoAP type of the sent message */
 static uint8_t g_sent_code;              /* CoAP code of the sent message */
+static std::vector<uint8_t> g_sent_data; /* bytes of the sent message */
 
 extern "C" oc_message_t *__real_oc_allocate_message(void);
 extern "C" oc_message_t *__wrap_oc_allocate_message(void)
@@ -228,6 +207,7 @@ extern "C" void __wrap_coap_send_message(oc_message_t *msg)
   g_sent_msg = msg;
   g_sent_type = (uint8_t)((msg->data[0] & COAP_HEADER_TYPE_MASK) >> COAP_HEADER_TYPE_POSITION);
   g_sent_code = msg->data[1];
+  g_sent_data.assign(msg->data, msg->data + msg->length);
   oc_message_unref(msg);
 }
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
@@ -244,6 +224,7 @@ protected:
     g_sent_msg = nullptr;
     g_sent_type = 0xFF;
     g_sent_code = 0;
+    g_sent_data.clear();
     memset(&ep_, 0, sizeof(ep_));
     ep_.flags = IPV6;
     ep_.addr.ipv6.port = 5683;
@@ -278,19 +259,69 @@ TEST_F(ClientApiDoUpdate, DoSModeMessageUpdateWithoutPayloadReturnsFalse)
   EXPECT_EQ(g_wrap_send_calls, 0);
 }
 
-TEST_F(ClientApiDoUpdate, DoWellKnownMessageUpdateSendsMessage)
+/*
+  oc_send_well_known_message: builds and sends the GET in one call (no static message between two calls)
+  - one message, sent with the callback's mid and token, uri path and query as given
+  - no callback -> nothing allocated, nothing sent
+*/
+static oc_client_cb_t make_cb(uint16_t mid)
 {
   oc_client_cb_t cb;
   memset(&cb, 0, sizeof(cb));
-  cb.mid = 0x1234;
+  cb.mid = mid;
   cb.token_len = COAP_TOKEN_LEN;
-  for (int i = 0; i < COAP_TOKEN_LEN; i++) cb.token[i] = (uint8_t)(i + 1);
+  for (int i = 0; i < COAP_TOKEN_LEN; i++)
+  {
+    cb.token[i] = (uint8_t)(i + 1);
+  }
+  return cb;
+}
 
-  ASSERT_TRUE(oc_init_well_known_message_update(
-    &ep_, "/.well-known/core", "rt=urn:knx:if.pm", false, &cb));
+static void expect_sent_get(const oc_client_cb_t &cb, coap_message_type_t type)
+{
+  ASSERT_FALSE(g_sent_data.empty());
+  coap_packet_t pkt[1];
+  ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size()), COAP_NO_ERROR);
+  EXPECT_EQ(pkt->type, type);
+  EXPECT_EQ(pkt->code, COAP_GET);
+  EXPECT_EQ(pkt->mid, cb.mid);
+  ASSERT_EQ(pkt->token_len, cb.token_len);
+  EXPECT_EQ(0, memcmp(pkt->token, cb.token, cb.token_len));
 
-  EXPECT_TRUE(oc_do_well_known_message_update());
+  const char *path = nullptr;
+  const size_t path_len = coap_get_header_uri_path(pkt, &path);
+  EXPECT_EQ(std::string(path, path_len), ".well-known/core");
+
+  const char *query = nullptr;
+  const size_t query_len = coap_get_header_uri_query(pkt, &query);
+  EXPECT_EQ(std::string(query, query_len), "rt=urn:knx:if.pm");
+}
+
+TEST_F(ClientApiDoUpdate, SendWellKnownNonConfirmableSendsOneGet)
+{
+  const oc_client_cb_t cb = make_cb(0x4321);
+
+  EXPECT_TRUE(oc_send_well_known_message(&ep_, "/.well-known/core", "rt=urn:knx:if.pm", true, &cb));
   EXPECT_EQ(g_wrap_send_calls, 1);
+  EXPECT_EQ(g_alloc_calls, 1);
+  expect_sent_get(cb, COAP_TYPE_NON);
+}
+
+TEST_F(ClientApiDoUpdate, SendWellKnownConfirmableSendsOneGet)
+{
+  const oc_client_cb_t cb = make_cb(0x1234);
+
+  EXPECT_TRUE(oc_send_well_known_message(&ep_, "/.well-known/core", "rt=urn:knx:if.pm", false, &cb));
+  EXPECT_EQ(g_wrap_send_calls, 1);
+  EXPECT_EQ(g_alloc_calls, 1);
+  expect_sent_get(cb, COAP_TYPE_CON);
+}
+
+TEST_F(ClientApiDoUpdate, SendWellKnownWithoutCallbackSendsNothing)
+{
+  EXPECT_FALSE(oc_send_well_known_message(&ep_, "/.well-known/core", "rt=urn:knx:if.pm", true, nullptr));
+  EXPECT_EQ(g_wrap_send_calls, 0);
+  EXPECT_EQ(g_alloc_calls, 0);
 }
 
 /*
