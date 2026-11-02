@@ -2519,7 +2519,7 @@ def _serve_discovery_echo_and_capture_re_request(device_iface, peer_ia,
             piv2, _, kid2 = _parse_oscore_option(re_msg["options"][9])
             ctx = result["ctx"]
             # response to the re-request: no own PIV, nonce and AAD from the re-request kid/PIV (RFC 8613 8.3)
-            key = ctx._empty_sender_id_key() if answer_re_request == "valid" else os.urandom(16)
+            key = os.urandom(16) if answer_re_request == "wrong_key" else ctx._empty_sender_id_key()
             ct = AESCCM(key, tag_length=8).encrypt(ctx._build_nonce(kid2 or b"", piv2), bytes([0x44]),
                                                    ctx._build_aad(kid2 or b"", piv2))
             tkl2 = len(re_msg["token"])

@@ -3,6 +3,9 @@
  * Copyright (c) 2024-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 #include <inttypes.h>
 #include <stdlib.h>
@@ -1503,8 +1506,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (is_outbound_request)
   { // 8.1
 
-    // use context SSN as Partial IV (before increment)
-    oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
+    // use context SSN as Partial IV (before increment), also the (ssn, kid) of the echo anchor below
+    const uint32_t request_ssn = oscore_ctx->ssn;
+    oscore_store_ssn_to_piv(piv, &piv_len, request_ssn);
 
     /*
       increment SSN (RFC 8613 §8.1: SSN is only used and incremented for outbound requests)
@@ -1527,24 +1531,33 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     outbound_piv_len = piv_len;
 
     /*
-      unicast s-mode CON/NON, initial send only (a CON repetition keeps the first PIV):
-      - add the outbound PIV to transaction, binds a later inbound echo response without echo kid context to this request (AAD)  
-      - append the (ssn, kid) to echo ring, a later inbound echo response with echo kid context is accepted only on this send-proof
-        (same as for multicast)
+      outbound unicast request, initial send only (a CON repetition keeps the first PIV)
+      
+      - record the outbound PIV on its transaction (s-mode CON/NON and the 'echo re-request'), a response to this request
+        carries no PIV of its own and is verified against this one (nonce + AAD, RFC 8613 8.3): only a response to
+        exactly this request decrypts, also a 4.01 echo response without echo kid context (found by token)
+      
+      - the transaction of an 'echo re-request' is a copy of the original send (s-mode flags cleared), without this it
+        would still carry the PIV of the original send and the peer's response to the re-request would never decrypt
+      
+      (c) s-mode only ->  append the (ssn, kid) to the echo ring, a later inbound echo response with echo kid context is
+          accepted only on this send-proof (same as for multicast), an 'echo re-request' gets no anchor (at most one
+          re-request, see clause 3.6.4.1.3)
     */
-    const transport_flags_t s_mode_flags = ep->flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST);
-    if (s_mode_flags && !is_a_con_repetition)
+    if (!is_a_con_repetition)
     {
-      // get either s-mode NON or s-mode CON transaction
-      coap_transaction_t* s_mode_transaction = coap_get_transaction_by_token(coap_pkt, false);
-      if (s_mode_transaction)
-      { // s-mode CON or s-mode NON
-        memcpy(s_mode_transaction->message->endpoint.piv, piv, piv_len);
-        s_mode_transaction->message->endpoint.piv_len = piv_len;
+      // s-mode NON (header-only), s-mode CON or 'echo re-request' transaction, found by the token of this request
+      coap_transaction_t* request_transaction = coap_get_transaction_by_token(coap_pkt, false);
+      if (request_transaction)
+      {
+        memcpy(request_transaction->message->endpoint.piv, outbound_piv, outbound_piv_len);
+        request_transaction->message->endpoint.piv_len = outbound_piv_len;
       }
 
-      uint32_t ssn = oscore_piv_to_ssn(outbound_piv, outbound_piv_len);
-      oc_oscore_echo_whitelist_append(ssn, oscore_ctx, coap_pkt, ep);
+      if (ep->flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST))
+      { // (c)
+        oc_oscore_echo_whitelist_append(request_ssn, oscore_ctx, coap_pkt, ep);
+      }
     }
 
     #ifdef OC_CLIENT

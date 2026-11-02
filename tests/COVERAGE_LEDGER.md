@@ -517,8 +517,8 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 | oscore_parse_outer_message (static) | INTEGRATION — TU not g++-includable (see above); the EMPTY-message rejection (RFC 7252 4.1) is covered at runtime by `TestEmptyMessageIsNotOscore` in `tests/runtime/test_security.py` |
 | oscore_parse_inner_message (static) | INTEGRATION — TU not g++-includable (see above) |
 | oc_oscore_receive_message (static) | INTEGRATION — global context store/replay/network/process |
-| oc_oscore_send_unicast_message (static) | INTEGRATION — context lookup, encrypt, network/process events |
-| oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events |
+| oc_oscore_send_unicast_message (static) | INTEGRATION — context lookup, encrypt, network/process events. Context by CoAP code: request -> sender context of `access_token` (recipient's 'at', echo re-request: token of the 4.01), response -> kid + kid_context, no lookup by ga. Unit: `OutboundUnicastRequestIsEncryptedAndSent`, `OutboundUnicastWithGroupAddressOnlyIsDropped` (`test_oc_oscore_echo_tx.cpp`). Runtime: `TestUnicastUsesRecipientAccessToken`, `TestUnicastWithoutAccessTokenNotSent`, `TestUnicastAndMulticastFromSameTables`, the echo re-request classes and `TestUnicastConEchoReRequestResponse` (PIV of the re-request recorded on its transaction, `test_group_comm.py`) |
+| oc_oscore_send_multicast_message (static) | INTEGRATION — multicast context, encrypt, network/process events. Context: first token holding the ga that is not a unicast recipient's 'at' (spec 6.3.2.1), runtime: `TestMulticastSkipsUnicastRecipientToken`, `TestUnicastAndMulticastFromSameTables` |
 | OC_PROCESS_THREAD(oc_oscore_handler) | INTEGRATION — live process/event loop |
 
 ### messaging/coap/separate.c — DONE (full public OC_SERVER API)

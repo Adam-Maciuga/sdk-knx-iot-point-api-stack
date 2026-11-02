@@ -3,11 +3,11 @@
  * Copyright (c) 2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
-/**
-  @brief knx /fp resource implementations
-  @file
-*/
+
 #pragma once
 
 #include "oc_client_state.h"

@@ -2,7 +2,7 @@
 
 > **1765 unit tests** (55 files in `tests/unit/`: 1722 counted by CTest on
 > `windows-test-gcc` on 2026-11-02, plus the 43 `test_dns_sd_mdns.cpp` cases
-> registered under `if(UNIX)` only) and **287 runtime tests** (243 test
+> registered under `if(UNIX)` only) and **290 runtime tests** (244 test
 > functions in 20 files in `tests/runtime/`, counted with
 > `pytest tests/runtime --collect-only -q` on 2026-11-02).
 > The conformance tier is not listed here: the test tool
@@ -12,10 +12,38 @@
 > [`README.md`](README.md).
 >
 > Unit (2026-11-02): 1722/1722 passed on `windows-test-gcc`; not run on `linux-test-gcc` since 2026-10-21 (1747/1748 then, the `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake: parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10).
-> Runtime: see "Last runtime run status" at the end of Part 2.
+> Runtime and conformance: see "Last runtime run status" below.
+
+## Contents
+
+- [Last runtime run status](#last-runtime-run-status) (runtime and conformance tier)
+- [Part 1: Unit tests](#unit-tests) (Google Test, `tests/unit/`)
+- [Part 2: Runtime tests](#runtime-tests) (pytest, `tests/runtime/`)
+  - [Skipped tests](#skipped-tests)
+  - [Known bugs](#known-bugs)
+- Conformance tier (EITT template, test tool): not listed here, see [`README.md`](README.md)
 
 ---
 
+<a id="last-runtime-run-status"></a>
+## Last runtime run status
+
+| | Current run | Previous run | Earlier run |
+|---|---|---|---|
+| Date | 2026-11-02 | 2026-11-01 | 2026-10-21 |
+| **Unit tests** | **1722/1722** passed (`windows-test-gcc`) | **1712/1712** passed (`windows-test-gcc`) | **1747/1748** passed (`linux-test-gcc`, `ctest -j8`), the `AtSsnStorage` parallel-storage flake |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10) | **8 passed, 1 xfailed** (5.10) | template tier + the tool's own tests: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 788.52s) |
+| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 801.70s) | **280 passed, 5 skipped** (285 collected, 753.85s) | **251 passed, 5 skipped** (256 collected, 729.69s) |
+| Failed / errors | 0 / 0 | 0 / 0 | 0 / 0 |
+| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | same | Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted` (template tier still `tests/eitt/`, before the test tool moved to its own repository) |
+| Covers | one endpoint token (`access_token` union, request/response by CoAP code); no group address fallback for unicast; PIV of an 'echo re-request' recorded on its transaction (peer's response accepted) | recipient 'at' for unicast, no group address fallback, multicast skips a unicast recipient's token, echo re-request with the token of the 4.01; table POST bitmask (repeated key -> last wins); parser types `OC_REP_NULL` / `OC_REP_UNSUPPORTED`; storage loader split | mDNS answer interface fix (AAAA filtered to the sending interface, receive interface from the zone of a link-local sender on Windows), 6 new `test_dns_sd_mdns.cpp` unit tests |
+| Not in the run | - | `TestUnicastAndMulticastFromSameTables` (passed alone), inlined ga scan of the multicast lookup, `grpid == 0` in `oc_is_unicast_recipient_access_token`, 10 new unit tests | - |
+
+No stack C code was changed to make a test pass.
+
+---
+
+<a id="unit-tests"></a>
 ## Part 1: Unit Tests (Google Test / C++)
 
 Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
@@ -368,7 +396,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OutboundMalformedCoapIsDropped` | Malformed outbound CoAP is dropped |
 | `OutboundUnicastEchoResponseIsEncryptedAndSent` | Unicast echo response is encrypted and sent |
 | `OutboundMulticastEchoResponseIsEncryptedAndSent` | Multicast-caused echo response is encrypted and sent |
-| `OutboundUnicastWithGroupAddressOnlyIsDropped` | 1 | a unicast request without the recipient's token (`s_mode_auth_at`) is not sent, no lookup by group address |
+| `OutboundUnicastWithGroupAddressOnlyIsDropped` | 1 | a unicast request without the recipient's token (`access_token.outbound`) is not sent, no lookup by group address |
 
 ---
 
@@ -1211,6 +1239,7 @@ covered by the runtime conformance suite (Part 2).
 
 ---
 
+<a id="runtime-tests"></a>
 ## Part 2: Runtime Tests (Python / pytest)
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6, against the
@@ -1453,7 +1482,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-### test_group_comm.py — Group Communication (33 tests, 36 collected)
+### test_group_comm.py — Group Communication (34 tests, 39 collected)
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
@@ -1484,6 +1513,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 | **TestUnicastNonEchoKidCtxReRequest** | `test_unicast_non_echo_kid_ctx_re_request` |  | Unicast NON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape): accepted only against the echo ring anchor of the unicast send. |
 | **TestUnicastConEchoKidCtxReRequest** | `test_unicast_con_echo_kid_ctx_re_request` |  | Unicast CON s-mode, 4.01 Echo with a 10 byte kid context (EITT shape): accepted only against the echo ring anchor of the unicast send. |
 | **TestUnicastConEchoReRequest** | `test_unicast_con_echo_re_request` |  | Unicast CON s-mode, 4.01 Echo without kid context: the context is resolved through the CON transaction (group address + recorded PIV). |
+| **TestUnicastConEchoReRequestResponse** | `test_response_to_re_request` ×3 |  | Unicast CON s-mode, 4.01 Echo, CON 'echo re-request': the peer's protected ACK 2.04 to the re-request is accepted, the DUT does not retransmit the re-request. |
 | **TestUnicastDiscoveryMalformedLengths** | `test_unicast_discovery_iid_too_long` |  | IID of 12 hex chars exceeds the 10-char (5-octet) maximum; the IID/IA separator falls outside the parser search window, so the DUT must not resolve the recipient. |
 |  | `test_unicast_discovery_iid_too_short` |  | An empty IID is invalid (all-zero collapses to a single '0'); the parsed IID does not match the device IID, so no POST follows. |
 |  | `test_unicast_discovery_ia_too_long` |  | An IA of 5 hex chars exceeds the 4-char (2-octet) maximum; the first four chars ('2110') do not match PEER_IA (110f), so the DUT must not resolve the recipient. |
@@ -1652,34 +1682,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-
-## Last runtime run status
-
-Latest full run (2026-11-01, Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`), covering the
-unicast/multicast access token changes (recipient 'at' for unicast, no group address fallback, multicast skips the token of a
-unicast recipient, echo re-request with the token of the 4.01), the table POST bitmask (repeated key -> last wins), the
-parser types `OC_REP_NULL` / `OC_REP_UNSUPPORTED` and the storage loader split:
-
-- Conformance tier (test tool, KNX template): **8 passed, 1 xfailed** (5.10).
-- Runtime tier: **280 passed, 5 skipped** (285 collected, 753.85s).
-- 0 failed, 0 errors. Unit suite: 1712/1712 passed (`windows-test-gcc`).
-
-Not in that run: `TestUnicastAndMulticastFromSameTables` (2 collected, passed alone on 2026-11-02), the inlined ga scan of
-the multicast lookup, the `grpid == 0` check in `oc_is_unicast_recipient_access_token` and 10 new unit tests (1722/1722).
-
-Previous run:
-
-Latest run (2026-10-21, Docker `linux-test-gcc`, `run-in-docker.ps1 -IncludeUncommitted`), covering the mDNS answer interface fix
-(AAAA records filtered to the interface a packet leaves on, receive interface from the zone of a link-local sender on Windows,
-6 new `test_dns_sd_mdns.cpp` unit tests). It predates the move of the test tool to its own repository, so the template tier
-still ran as `tests/eitt/` together with the tool's own tests:
-
-- Template tier plus the tool's own tests: **460 passed, 15 skipped, 2 xfailed** (472 collected + 5 skipped at collection, 788.52s).
-- Runtime tier: **251 passed, 5 skipped** (256 collected, 729.69s).
-- 0 failed, 0 errors. Unit suite: 1747/1748 passed (linux-test-gcc, `ctest -j8`); the `AtSsnStorage` parallel-storage flake above.
-
-No stack C code was changed to make a test pass.
-
+<a id="skipped-tests"></a>
 ## Skipped tests
 
 Reasons are taken from the `pytest.skip()` / `skipif` sites in the test
@@ -1717,6 +1720,7 @@ collects nothing.
 `pytest.skip()` guard only applies to partial `-k` runs where an update
 precedes it.
 
+<a id="known-bugs"></a>
 ## Known Bugs
 
 Open findings are in [`FINDINGS.md`](FINDINGS.md).
