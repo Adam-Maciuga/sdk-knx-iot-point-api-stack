@@ -1,7 +1,7 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1779 unit tests** (56 files in `tests/unit/`: 1779 counted by CTest on
-> `linux-test-asan` on 2026-11-03; `windows-test-gcc` counts 1735, without the
+> **1787 unit tests** (56 files in `tests/unit/`: 1787 counted by CTest on
+> `linux-test-asan` on 2026-11-03; `windows-test-gcc` counts 1743, without the
 > `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only) and **290 runtime tests** (244 test
 > functions in 20 files in `tests/runtime/`, counted with
 > `pytest tests/runtime --collect-only -q` on 2026-11-02).
@@ -11,7 +11,7 @@
 > `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-03): 1735/1735 passed on `windows-test-gcc`, 1779/1779 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
+> Unit (2026-11-03): 1743/1743 passed on `windows-test-gcc`, 1787/1787 on `linux-test-asan` (Docker). The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
 > Runtime and conformance: see "Last runtime run status" below.
 
 ## Contents
@@ -30,13 +30,13 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-03 | 2026-11-02 (with_data removed) | 2026-11-02 (echo re-request) |
-| **Unit tests** | **1735/1735** passed (`windows-test-gcc`), **1779/1779** passed (`linux-test-asan`, Docker) | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 362.79s) | **8 passed, 1 xfailed** (5.10, 361.76s) | **8 passed, 1 xfailed** (5.10, 361.70s) |
-| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 801.30s) | **285 passed, 5 skipped** (290 collected, 799.51s) | **285 passed, 5 skipped** (290 collected, 799.19s) |
+| Date | 2026-11-03 (observers) | 2026-11-03 | 2026-11-02 (with_data removed) |
+| **Unit tests** | **1743/1743** passed (`windows-test-gcc`), **1787/1787** passed (`linux-test-asan`, Docker) | **1735/1735** passed (`windows-test-gcc`), **1779/1779** passed (`linux-test-asan`, Docker) | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 363.60s) | **8 passed, 1 xfailed** (5.10, 362.79s) | **8 passed, 1 xfailed** (5.10, 361.76s) |
+| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 801.01s) | **285 passed, 5 skipped** (290 collected, 801.30s) | **285 passed, 5 skipped** (290 collected, 799.51s) |
 | Failed / errors | 0 / 0 | 0 / 0 | 0 / 0 |
-| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
-| Covers | `/k` Group Message event after a successful s-mode send (copy on the stack, none without a transaction, none for a read); unicast CON send unit test | `coap_new_transaction_with_data` removed: the 'echo re-request' of a unicast original takes a plain `coap_new_transaction` (endpoint only) and is serialized from the original (no PDU memcpy) | regenerated 'echo re-request' built in its own carrier and handed over (no second buffer, serialized in place); `coap_send_transaction` returns on a NULL transaction / message (was a debug-only log, then a crash) |
+| Runner | same | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
+| Covers | `/k` events only to subscribers whose token covers the GA (spec 3.5.4.1); observers removed on unload, both resets and when their token is deleted (token rotation, slot reuse) | `/k` Group Message event after a successful s-mode send (copy on the stack, none without a transaction, none for a read); unicast CON send unit test | `coap_new_transaction_with_data` removed: the 'echo re-request' of a unicast original takes a plain `coap_new_transaction` (endpoint only) and is serialized from the original (no PDU memcpy) |
 | Not in the run | - | - | - |
 
 No stack C code was changed to make a test pass.
