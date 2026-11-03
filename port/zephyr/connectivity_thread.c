@@ -39,6 +39,22 @@ static inline bool otIp6IsLinkLocalUnicast(const otIp6Address *aAddress)
 }
 #endif
 
+/* OpenThread's external multicast pool holds the 3 all-CoAP-nodes addresses
+ * and one address per GPT group id (see zephyr/Kconfig). Kconfig caps it at 32.
+ * A message, not #warning: the stack is built with -Werror, and a smaller pool
+ * may be a deliberate RAM trade-off.
+ */
+#ifdef CONFIG_KNXIOT_GPT_MAX_ENTRIES
+#define KNX_THREAD_MCAST_ADDRS_NEEDED (CONFIG_KNXIOT_GPT_MAX_ENTRIES + 3)
+#else
+#define KNX_THREAD_MCAST_ADDRS_NEEDED 3
+#endif
+#ifdef CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS
+#if CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS < KNX_THREAD_MCAST_ADDRS_NEEDED && CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS < 32
+#pragma message("CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS is smaller than KNXIOT_GPT_MAX_ENTRIES + 3; group multicast subscriptions may fail")
+#endif
+#endif
+
 #define COAP_PORT_UNSECURED (5683)
 
 OC_LIST(oc_network_interface_cb_list);
@@ -369,13 +385,26 @@ void oc_network_event_handler_mutex_destroy(void)
     /* Zephyr mutexes don't require explicit destruction */
 }
 
+/* Group objects can share a group id, so the same address is (un)subscribed
+ * more than once: OT_ERROR_ALREADY and OT_ERROR_NOT_FOUND are not failures.
+ * OT_ERROR_NO_BUFS means CONFIG_OPENTHREAD_IP6_MAX_EXT_MCAST_ADDRS is too small.
+ */
 void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        const otIp6Address *maddr = (const otIp6Address *) address->addr.ipv6.address;
+
         openthread_mutex_lock();
-        otIp6SubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        otError error = otIp6SubscribeMulticastAddress(sInstance, maddr);
         openthread_mutex_unlock();
+
+        if (error != OT_ERROR_NONE && error != OT_ERROR_ALREADY)
+        {
+            char str[OT_IP6_ADDRESS_STRING_SIZE];
+            otIp6AddressToString(maddr, str, sizeof(str));
+            OC_ERR("Multicast subscribe to %s failed with %u", str, error);
+        }
     }
 }
 
@@ -383,9 +412,18 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     if (sInstance != NULL)
     {
+        const otIp6Address *maddr = (const otIp6Address *) address->addr.ipv6.address;
+
         openthread_mutex_lock();
-        otIp6UnsubscribeMulticastAddress(sInstance, (const otIp6Address *) address->addr.ipv6.address);
+        otError error = otIp6UnsubscribeMulticastAddress(sInstance, maddr);
         openthread_mutex_unlock();
+
+        if (error != OT_ERROR_NONE && error != OT_ERROR_NOT_FOUND)
+        {
+            char str[OT_IP6_ADDRESS_STRING_SIZE];
+            otIp6AddressToString(maddr, str, sizeof(str));
+            OC_ERR("Multicast unsubscribe from %s failed with %u", str, error);
+        }
     }
 }
 
