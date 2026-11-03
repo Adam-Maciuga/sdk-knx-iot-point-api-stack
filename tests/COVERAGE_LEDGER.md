@@ -281,7 +281,7 @@ The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
   guard paths (wrong Accept, `ps=0`, `pn=-1`) are asserted.
 - `SecAcl`: `oc_knx_sec_check_acl`, the gate every inbound request passes
   through. All four parameters are plain structs and the helpers it calls
-  (`oc_resource_get_acl_for_method`, `oc_at_get_scope_mask`, the file-static
+  (`oc_resource_get_acl_for_method`, `oc_at_get_scope_mask`,
   `check_access_token_for_group_address`) only read struct fields, so no device,
   OSCORE context, storage or network is needed. Every case asserts fail-closed
   behaviour: NULL resource / unsupported method → deny; per-method handler scope
@@ -292,6 +292,8 @@ The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
   cases are also what covers `check_access_token_for_group_address`.
   `SecAcl.GaScopeRejectsForeignGaAnywhereInOneSMap` and
   `SecAcl.GaScopeRejectsForeignGaInASecondSMap` pin the F-026 fix.
+- `check_access_token_for_group_address` is public now (second caller: the `/k` observer filter in `coap_notify_k_observers`,
+  `if.g.s` checked inline there): `CoapObserve.NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope` (`test_coap_observe.cpp`).
 
 INTEGRATION (concrete reasons): `oc_oscore_set_auth_shared`,
 `oc_init_oscore_from_storage`, `oc_load_at_table`, `oc_store_at_table_entry`,
@@ -837,6 +839,7 @@ functions push a message onto the outbound process queue and are integration-lev
 | coap.c: coap_get_header_uri_query | DONE — set/get + leading-`?` skip + no-option→0 |
 | coap.c: coap_set_header_location_query | DONE — stores value, sets option, skips leading `?` |
 | observe.c: get_observe_counter | DONE — ≥ OC_OBSERVE_FIRST_NOTIFICATION_VALUE, side-effect-free |
+| observe.c: coap_notify_k_observers | DONE — guards (NULL/empty payload, no observers); only observers whose subscription token covers the GA (`NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope`); called after a successful s-mode write (`test_smode_issue.cpp`) |
 | oscore.c: oscore_is_oscore_message | DONE — detects option 9, rejects other option / no options |
 | transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list (`NewTransactionWithMessage*`, `test_coap_transactions.cpp`); used by the s-mode send and the regenerated 'echo re-request' (the re-request of a unicast original takes a plain `coap_new_transaction` and is serialized from the original); s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |
 | transactions.c: coap_register_as_transaction_handler | DONE — smoke (records OC_PROCESS_CURRENT; no externally observable state in a unit context) |

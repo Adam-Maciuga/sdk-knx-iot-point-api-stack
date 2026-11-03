@@ -302,6 +302,15 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 	 */
 oc_auth_at_t* oc_core_find_at_entry_by_access_token(const char* id, size_t id_len);
 
+	/**
+	 * @brief true if the group address is in the <ga> list of the access token (scope OC_ACL_GA)
+	 *        - the scope itself is not checked here, an if.g.s token (OC_ACL_G, all group addresses) is checked by the caller
+	 *
+	 * @param at_entry access token, NULL -> false
+	 * @param group_address the group address
+	 */
+bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address);
+
   /**
    * @brief get the access token table index from an entry
    *

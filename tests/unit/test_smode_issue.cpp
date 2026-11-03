@@ -60,8 +60,9 @@ extern "C" void __wrap_coap_send_message(oc_message_t *msg)
 
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
 
-extern "C" void __wrap_coap_notify_k_observers(const uint8_t *payload, size_t payload_len)
+extern "C" void __wrap_coap_notify_k_observers(const uint8_t *payload, size_t payload_len, uint32_t group_address)
 {
+  (void)group_address;
   g_events.push_back("notify");
   g_notified.assign(payload, payload + payload_len);
 }

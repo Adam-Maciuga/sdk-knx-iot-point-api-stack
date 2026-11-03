@@ -25,6 +25,7 @@
 #include "oc_knx_helpers.h"
 #include "oc_rep.h"
 #include "oc_ri.h"
+#include "api/oc_knx_sec.h"
 
 // RFC 7641 Section 3.4: Observe option is at most 3 bytes (0 to 2^24-1)
 #define OBSERVE_COUNTER_MASK 0x00FFFFFF
@@ -585,7 +586,7 @@ static void coap_remove_expired_observers(void)
   }
 }
 
-void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
+void coap_notify_k_observers(const uint8_t* payload, size_t payload_len, uint32_t group_address)
 {
   // double guard, normally not called with one of these cond.
   if (!payload || payload_len == 0)
@@ -602,7 +603,16 @@ void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
   coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
   while (obs)
   {
-    if (obs->resource == &core_resource_knx_k)
+    /*
+      only subscribers whose access token (the one of the subscription request) covers the group address
+      (spec 3.5.4.1: the publisher SHALL only send notifications with the group addresses in that token's scope)
+      - if.g.s (OC_ACL_G) : all group addresses
+      - <ga> (OC_ACL_GA)  : the group addresses in its list
+    */
+    const oc_auth_at_t* at = obs->endpoint.access_token.inbound;
+    const bool ga_granted = at && (at->scope & OC_ACL_G || (at->scope & OC_ACL_GA && check_access_token_for_group_address(at, group_address)));
+
+    if (obs->resource == &core_resource_knx_k && ga_granted)
     {
       const uint16_t mid = coap_get_next_mid();
 

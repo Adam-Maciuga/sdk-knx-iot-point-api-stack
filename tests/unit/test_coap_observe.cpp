@@ -15,6 +15,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <vector>
 
 extern "C" {
 #include "messaging/coap/observe.h"
@@ -24,7 +26,11 @@ extern "C" {
 #include "messaging/coap/constants.h"
 #include "port/oc_network_events_mutex.h"
 #include "oc_ri.h"
+#include "api/oc_knx_sec.h"
 #include <string.h>
+
+/* the /k resource descriptor (api/oc_knx.c) */
+extern const oc_resource_t core_resource_knx_k;
 
 }
 
@@ -104,8 +110,11 @@ static void observe_get_handler(oc_request_t *request, oc_interface_mask_t,
 
 extern "C" bool __wrap_oc_main_initialized(void) { return true; }
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
+static std::vector<uint16_t> g_sent_ports; /* destination port of each sent message */
+
 extern "C" void __wrap_coap_send_message(oc_message_t *message)
 {
+  g_sent_ports.push_back(message->endpoint.addr.ipv6.port);
   oc_message_unref(message);
 }
 
@@ -115,6 +124,7 @@ class CoapObserve : public ::testing::Test {
 protected:
   void SetUp() override {
     oc_network_event_handler_mutex_init();
+    g_sent_ports.clear();
   }
   void TearDown() override {
     coap_free_all_observers();
@@ -410,7 +420,7 @@ TEST_F(CoapObserve, NotifyObserverBuildsAndSendsNotification)
 TEST_F(CoapObserve, NotifyKObserversNullPayloadIsSafe)
 {
   /* Guard: NULL payload must be a no-op, never dereference. */
-  coap_notify_k_observers(nullptr, 16);
+  coap_notify_k_observers(nullptr, 16, 1);
   SUCCEED();
 }
 
@@ -418,7 +428,7 @@ TEST_F(CoapObserve, NotifyKObserversZeroLengthIsSafe)
 {
   /* Guard: zero-length payload must be a no-op. */
   const uint8_t payload[] = {0xA0};
-  coap_notify_k_observers(payload, 0);
+  coap_notify_k_observers(payload, 0, 1);
   SUCCEED();
 }
 
@@ -427,8 +437,60 @@ TEST_F(CoapObserve, NotifyKObserversNoObserversIsSafe)
   /* With no /k observers registered the iteration must complete without
    * sending or crashing. */
   const uint8_t payload[] = {0xBF, 0xFF}; /* indefinite-length CBOR map */
-  coap_notify_k_observers(payload, sizeof(payload));
+  coap_notify_k_observers(payload, sizeof(payload), 1);
   SUCCEED();
+}
+
+/*
+  /k events only to subscribers whose access token covers the group address (spec 3.5.4.1, 2.6.9.3):
+  - scope if.g.s (OC_ACL_G)       -> all group addresses
+  - scope <ga> list (OC_ACL_GA)   -> only the listed group addresses
+  - no token on the observer      -> nothing
+*/
+TEST_F(CoapObserve, NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope)
+{
+  uint32_t ga_1[] = {1};
+  uint32_t ga_2[] = {2};
+
+  oc_auth_at_t at_all;
+  memset(&at_all, 0, sizeof(at_all));
+  at_all.scope = OC_ACL_G;
+
+  oc_auth_at_t at_ga1;
+  memset(&at_ga1, 0, sizeof(at_ga1));
+  at_ga1.scope = OC_ACL_GA;
+  at_ga1.ga = ga_1;
+  at_ga1.ga_len = 1;
+
+  oc_auth_at_t at_ga2;
+  memset(&at_ga2, 0, sizeof(at_ga2));
+  at_ga2.scope = OC_ACL_GA;
+  at_ga2.ga = ga_2;
+  at_ga2.ga_len = 1;
+
+  oc_endpoint_t ep_all = make_endpoint(5001);
+  ep_all.access_token.inbound = &at_all;
+  oc_endpoint_t ep_ga1 = make_endpoint(5002);
+  ep_ga1.access_token.inbound = &at_ga1;
+  oc_endpoint_t ep_ga2 = make_endpoint(5003);
+  ep_ga2.access_token.inbound = &at_ga2;
+  oc_endpoint_t ep_none = make_endpoint(5004);
+
+  oc_resource_t *k = (oc_resource_t *)&core_resource_knx_k;
+  const uint8_t t1[] = {0x01}, t2[] = {0x02}, t3[] = {0x03}, t4[] = {0x04};
+  ASSERT_EQ(add_test_observer(k, &ep_all, t1, 1, "k", 1), 0);
+  ASSERT_EQ(add_test_observer(k, &ep_ga1, t2, 1, "k", 1), 0);
+  ASSERT_EQ(add_test_observer(k, &ep_ga2, t3, 1, "k", 1), 0);
+  ASSERT_EQ(add_test_observer(k, &ep_none, t4, 1, "k", 1), 0);
+
+  const uint8_t payload[] = {0xBF, 0x04, 0x01, 0xFF};
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+
+  std::vector<uint16_t> sent = g_sent_ports;
+  std::sort(sent.begin(), sent.end());
+  EXPECT_EQ(sent, (std::vector<uint16_t>{5001, 5002}));
+
+  coap_free_all_transactions();
 }
 
 /* ---------------- coap_notify_observers (/p + core res.) ------------------ */

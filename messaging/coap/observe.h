@@ -69,6 +69,8 @@ int coap_remove_observers_on_dos_change(bool reset);
  *
  * @param payload fully-formed S-Mode CBOR envelope bytes (as sent in the S-Mode message)
  * @param payload_len length of payload
+ * @param group_address group address of the s-mode message: only observers whose access token (used for the
+ *                      subscription) covers it are notified (spec 3.5.4.1, 2.6.9.3)
  *
 
   @note  
@@ -83,7 +85,7 @@ int coap_remove_observers_on_dos_change(bool reset);
        - is not a CoV at receiver side (r/t-flag are usually set)
    - does not notify /k observers for inbound 'none' s-mode requests
 */
-void coap_notify_k_observers(const uint8_t* payload, size_t payload_len);
+void coap_notify_k_observers(const uint8_t* payload, size_t payload_len, uint32_t group_address);
 
 
 /**

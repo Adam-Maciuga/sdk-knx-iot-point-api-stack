@@ -477,7 +477,7 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     // the Group Message event for the /k observers, after the s-mode message
     if (service_type == 'w' && size <= OC_MAX_OBSERVE_SIZE)
     {
-      coap_notify_k_observers(k_event, (size_t)size);
+      coap_notify_k_observers(k_event, (size_t)size, group_address);
     }
   }
   else

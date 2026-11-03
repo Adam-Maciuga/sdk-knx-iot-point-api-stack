@@ -498,7 +498,7 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
 }
 
 // false, if the GA was NOT found in access token GA list
-static bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address)
+bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address)
 {
   if (!at_entry)
   {
