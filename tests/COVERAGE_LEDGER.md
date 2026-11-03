@@ -263,7 +263,8 @@ read/write through the public slot pointer `oc_get_auth_at_entry` plus
 - `oc_core_find_at_entry_by_access_token` (match, miss, prefix / longer id,
   empty or NULL id never matches an unused slot).
 - `oc_delete_at_table_entry` (NULL→-1; valid entry→0, clears id/profile;
-  `oc_storage_erase` is a no-op without configured storage).
+  `oc_storage_erase` is a no-op without configured storage; removes the observers subscribed with the token,
+  `DeleteEntryRemovesTheObserversOfThatToken`).
 - `oc_core_find_and_remove_pase_token_in_at_table` (removes only PASE-profile
   entries, retains OSCORE entries).
 The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
@@ -841,6 +842,7 @@ functions push a message onto the outbound process queue and are integration-lev
 | coap.c: coap_get_header_uri_query | DONE — set/get + leading-`?` skip + no-option→0 |
 | coap.c: coap_set_header_location_query | DONE — stores value, sets option, skips leading `?` |
 | observe.c: get_observe_counter | DONE — ≥ OC_OBSERVE_FIRST_NOTIFICATION_VALUE, side-effect-free |
+| observe.c: coap_remove_observers_by_access_token | DONE — all observers of the token, others kept, NULL → 0 (`RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers`); called from `oc_delete_at_table_entry` |
 | observe.c: coap_notify_k_observers | DONE — guards (NULL/empty payload, no observers); only observers whose subscription token covers the GA (`NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope`); called after a successful s-mode write (`test_smode_issue.cpp`) |
 | oscore.c: oscore_is_oscore_message | DONE — detects option 9, rejects other option / no options |
 | transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list (`NewTransactionWithMessage*`, `test_coap_transactions.cpp`); used by the s-mode send and the regenerated 'echo re-request' (the re-request of a unicast original takes a plain `coap_new_transaction` and is serialized from the original); s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |

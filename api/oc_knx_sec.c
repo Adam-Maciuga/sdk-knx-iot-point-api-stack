@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_sec.h"
+#include "messaging/coap/observe.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
@@ -1496,9 +1497,18 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
 
   if (index != -1)
   {
-    // SSN entry of the AT table entry (same index), erased first, see NOTES (c) above, otherwise it
-    // stays in storage forever and a future occupant of this AT table slot would start from the
-    // previous occupant's counter
+    /*
+      subscriptions made with this token end with it
+      - token rotation (spec 3.5.4.1): the new token is configured first, the old one deleted, also while 'loaded'
+      - an observer keeps a pointer to this slot, a later token in the same slot would otherwise inherit it
+    */
+    coap_remove_observers_by_access_token(entry);
+
+    /* 
+       SSN entry of the AT table entry (same index), erased first, see NOTES (c) above, otherwise it
+       stays in storage forever and a future occupant of this AT table slot would start from the
+       previous occupant's counter
+    */
     char ssn_storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
     (void)snprintf(ssn_storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
                    KNX_STORAGE_KEY_SSNT_ENTRY, index);

@@ -300,7 +300,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (80 tests)
+### test_oc_knx_sec.cpp — Security Credentials (82 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -310,9 +310,9 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OscoreConfig` | 2 | Replay-window size is RFC default; OSN delay round-trips |
 | `AuthAtEntry` | 3 | AT-table entry access (out-of-bounds NULL, in-bounds entry, positive table size) |
 | `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
-| `AtTable` | 5 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token |
+| `AtTable` | 6 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token; deleting a token removes the observers subscribed with it (`DeleteEntryRemovesTheObserversOfThatToken`, token rotation spec 3.5.4.1) |
 | `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
-| `SecHandlers` | 20 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
+| `SecHandlers` | 21 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: `DELETE /auth/at/{id}` ends the token's `/k` subscriptions (`AtEntryDeleteRemovesTheTokensObservers`); wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
 | `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
 | `SecAtPost` | 5 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit |
 | `AtTable` access token lookup | 2 | `oc_core_find_at_entry_by_access_token`: match, miss, prefix/longer id; empty or NULL id never matches an unused slot |
@@ -765,7 +765,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (25 tests)
+### test_coap_observe.cpp — Observer Management + Notify (27 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -791,6 +791,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `NotifyKObserversNullPayloadIsSafe` | `coap_notify_k_observers(NULL, …)` is a no-op |
 | `NotifyKObserversZeroLengthIsSafe` | Zero-length payload is a no-op |
 | `NotifyKObserversNoObserversIsSafe` | Empty /k observer list completes safely |
+| `NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber` | Token A (`<ga>` [1]) deleted, token B (`if.g.s`) in the same table slot: the old subscriber of A gets no `/k` event with B's rights |
+| `RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers` | `coap_remove_observers_by_access_token`: removes every observer of that token (any client/port), keeps the others; NULL → 0 |
 | `NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope` | `/k` events only to observers whose subscription token covers the GA (spec 3.5.4.1, 2.6.9.3): `if.g.s` → all, `<ga>` list → only listed GAs, no token → none |
 | `NotifyObserversNullResourceReturnsZero` | NULL resource → returns 0 |
 | `NotifyObserversNoObserversReturnsZero` | Zero observers short-circuits → 0 |

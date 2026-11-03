@@ -216,6 +216,29 @@ int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid)
   return 0;
 }
 
+// removes ALL observers for the given access token, and returns the amount of removed observers
+int coap_remove_observers_by_access_token(const oc_auth_at_t* at)
+{
+  int removed = 0;
+  coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
+
+  while (at && obs)
+  {
+    // save tmp copy of next pointer, since obs might be removed in the if block below
+    coap_observer_t* next = obs->next;
+
+    if (obs->endpoint.access_token.inbound == at)
+    {
+      coap_remove_observer(obs);
+      removed++;
+    }
+    obs = next;
+  }
+
+  OC_DBG("removed %d observers of a deleted access token", removed);
+  return removed;
+}
+
 // removes ALL observers for the given resource, and returns the amount of removed observers
 int coap_remove_observer_by_resource(const oc_resource_t* rsc)
 {

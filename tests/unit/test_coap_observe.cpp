@@ -27,6 +27,8 @@ extern "C" {
 #include "port/oc_network_events_mutex.h"
 #include "oc_ri.h"
 #include "api/oc_knx_sec.h"
+#include "util/oc_mmem.h"
+#include <stdlib.h>
 #include <string.h>
 
 /* the /k resource descriptor (api/oc_knx.c) */
@@ -490,6 +492,89 @@ TEST_F(CoapObserve, NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope)
   std::sort(sent.begin(), sent.end());
   EXPECT_EQ(sent, (std::vector<uint16_t>{5001, 5002}));
 
+  coap_free_all_transactions();
+}
+
+/*
+  coap_remove_observers_by_access_token removes every observer subscribed with that access token (any client, any
+  port), and only those
+*/
+TEST_F(CoapObserve, RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers)
+{
+  oc_auth_at_t at_a;
+  memset(&at_a, 0, sizeof(at_a));
+  oc_auth_at_t at_b;
+  memset(&at_b, 0, sizeof(at_b));
+
+  oc_endpoint_t ep_a1 = make_endpoint(5201);
+  ep_a1.access_token.inbound = &at_a;
+  oc_endpoint_t ep_a2 = make_endpoint(5202);
+  ep_a2.access_token.inbound = &at_a;
+  oc_endpoint_t ep_b = make_endpoint(5203);
+  ep_b.access_token.inbound = &at_b;
+
+  oc_resource_t *k = (oc_resource_t *)&core_resource_knx_k;
+  const uint8_t t1[] = {0x11}, t2[] = {0x12}, t3[] = {0x13};
+  ASSERT_EQ(add_test_observer(k, &ep_a1, t1, 1, "k", 1), 0);
+  ASSERT_EQ(add_test_observer(k, &ep_a2, t2, 1, "k", 1), 0);
+  ASSERT_EQ(add_test_observer(k, &ep_b, t3, 1, "k", 1), 0);
+  ASSERT_EQ(k->runtime_data->num_observers, 3);
+
+  EXPECT_EQ(coap_remove_observers_by_access_token(&at_a), 2);
+  EXPECT_EQ(k->runtime_data->num_observers, 1);
+
+  /* the remaining observer is the one of token B */
+  uint32_t ga[] = {1};
+  at_b.scope = OC_ACL_GA;
+  at_b.ga = ga;
+  at_b.ga_len = 1;
+  const uint8_t payload[] = {0xBF, 0x04, 0x01, 0xFF};
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+  EXPECT_EQ(g_sent_ports, (std::vector<uint16_t>{5203}));
+
+  EXPECT_EQ(coap_remove_observers_by_access_token(nullptr), 0);
+  coap_free_all_transactions();
+}
+
+/*
+  Token rotation with slot reuse: token A (<ga> [1]) is deleted, token B (if.g.s) lands in the SAME table slot.
+  The subscriber of A must not get /k events with B's rights - deleting A ended its subscription.
+*/
+TEST_F(CoapObserve, NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber)
+{
+  oc_mmem_init();
+
+  oc_auth_at_t *slot = oc_get_auth_at_entry(3);
+  ASSERT_NE(slot, nullptr);
+  oc_new_string(&slot->id, "tokA", 4);
+  slot->scope = OC_ACL_GA;
+  slot->ga = (uint32_t *)malloc(sizeof(uint32_t));
+  ASSERT_NE(slot->ga, nullptr);
+  slot->ga[0] = 1;
+  slot->ga_len = 1;
+
+  oc_endpoint_t ep = make_endpoint(5401);
+  ep.access_token.inbound = slot;
+  const uint8_t t[] = {0x41};
+  ASSERT_EQ(add_test_observer((oc_resource_t *)&core_resource_knx_k, &ep, t, 1, "k", 1), 0);
+
+  /* rotation: A deleted, B (all group addresses) configured into the same slot */
+  ASSERT_EQ(oc_delete_at_table_entry(slot), 0);
+  oc_free_string(&slot->id);
+  oc_new_string(&slot->id, "tokB", 4);
+  slot->scope = OC_ACL_G;
+
+  const uint8_t payload[] = {0xBF, 0x04, 0x01, 0xFF};
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+  EXPECT_TRUE(g_sent_ports.empty());
+
+  /* free the slot's strings without re-creating them (LSan) */
+  oc_free_string(&slot->id);
+  oc_free_string(&slot->osc_id);
+  oc_free_string(&slot->osc_ms);
+  oc_free_string(&slot->osc_salt);
+  oc_free_string(&slot->osc_contextid);
+  slot->scope = OC_ACL_NONE;
   coap_free_all_transactions();
 }
 

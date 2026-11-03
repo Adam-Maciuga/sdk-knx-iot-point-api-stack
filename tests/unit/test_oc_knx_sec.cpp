@@ -30,7 +30,12 @@ extern "C" {
 #include "oc_ri.h"
 #include "port/oc_storage.h"
 #include "util/oc_mmem.h"
+#include "messaging/coap/observe.h"
+#include "port/oc_network_events_mutex.h"
 #include <string.h>
+
+/* the /k resource descriptor (api/oc_knx.c) */
+extern const oc_resource_t core_resource_knx_k;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -188,6 +193,59 @@ TEST_F(AtTable, FindByOscIdMatchAndMiss)
   coap_packet_t pkt_other = make_kid_pkt(other, sizeof(other));
   EXPECT_EQ(oc_core_find_at_entry_by_osc_id(&pkt_other),
             nullptr);
+}
+
+/*
+  subscribe to /k with the access token 'at' through the real observe handler (lt is mandatory)
+*/
+static int subscribe_k(uint16_t port, const oc_auth_at_t *at)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = port;
+  ep.addr.ipv6.address[15] = 1;
+  ep.access_token.inbound = at;
+
+  static const char query[] = "lt=86400";
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.code = COAP_GET;
+  req.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&req, COAP_OPTION_OBSERVE);
+  req.token[0] = (uint8_t)port;
+  req.token_len = 1;
+  req.uri_path = "k";
+  req.uri_path_len = 1;
+  req.uri_query = query;
+  req.uri_query_len = (uint32_t)strlen(query);
+  SET_OPTION(&req, COAP_OPTION_URI_QUERY);
+  coap_packet_t res;
+  memset(&res, 0, sizeof(res));
+  res.code = CONTENT_2_05;
+
+  return coap_observe_handler(&req, &res, &core_resource_knx_k, 0, &ep);
+}
+
+/*
+  Token rotation (spec 3.5.4.1: new token first, then DELETE of the old one): deleting a token ends every
+  subscription made with it, so no observer keeps a pointer to a slot that may get another token
+*/
+TEST_F(AtTable, DeleteEntryRemovesTheObserversOfThatToken)
+{
+  oc_network_event_handler_mutex_init();
+
+  oc_auth_at_t *e = oc_get_auth_at_entry(2);
+  oc_new_string(&e->id, "tokR", 4);
+
+  ASSERT_EQ(subscribe_k(5301, e), 0);
+  ASSERT_EQ(core_resource_knx_k.runtime_data->num_observers, 1);
+
+  EXPECT_EQ(oc_delete_at_table_entry(e), 0);
+  EXPECT_EQ(core_resource_knx_k.runtime_data->num_observers, 0);
+
+  coap_free_all_observers();
+  oc_network_event_handler_mutex_destroy();
 }
 
 TEST_F(AtTable, FindByAccessTokenMatchAndMiss)
@@ -628,6 +686,33 @@ TEST_F(SecHandlers, AtEntryDeleteUnknownTokenBadRequest)
                    core_resource_knx_auth_at_x.delete_handler.cb,
                    APPLICATION_CBOR, OC_IF_SEC, nullptr, "auth/at/nosuchtoken"),
             oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+/*
+  DELETE /auth/at/{id} through the real handler ends the subscriptions made with that token
+*/
+TEST_F(SecHandlers, AtEntryDeleteRemovesTheTokensObservers)
+{
+  oc_network_event_handler_mutex_init();
+
+  oc_auth_at_t *e = oc_get_auth_at_entry(4);
+  oc_new_string(&e->id, "tokD", 4);
+  ASSERT_EQ(subscribe_k(5311, e), 0);
+  ASSERT_EQ(core_resource_knx_k.runtime_data->num_observers, 1);
+
+  EXPECT_EQ(invoke(core_resource_knx_auth_at_x, core_resource_knx_auth_at_x.delete_handler.cb,
+                   APPLICATION_CBOR, OC_IF_SEC, nullptr, "auth/at/tokD"),
+            oc_status_code(OC_STATUS_DELETED));
+  EXPECT_EQ(core_resource_knx_k.runtime_data->num_observers, 0);
+
+  /* free the slot's strings without re-creating them (LSan) */
+  oc_free_string(&e->id);
+  oc_free_string(&e->osc_id);
+  oc_free_string(&e->osc_ms);
+  oc_free_string(&e->osc_salt);
+  oc_free_string(&e->osc_contextid);
+  coap_free_all_observers();
+  oc_network_event_handler_mutex_destroy();
 }
 
 /* ─────────────────── /auth/at POST: mandatory-property check ─────────────── */
