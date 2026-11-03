@@ -724,7 +724,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `CoapReceivePayload.NonRequestAboveOneBlockGets413WithSize1` | NON request, payload one block + 1 B: NON 4.13 with Size1 = block size |
 | `CoapReceivePayload.RequestOfExactlyOneBlockIsNotRejectedForItsSize` | exactly one block: processed further, no RST and no 4.13 |
 | `CoapReceivePayload.ClientResponseAboveOneBlockReachesTheCallbackComplete` | client side: ACK 2.05 without Block2 with 513 and 767 payload bytes reaches the client callback complete (not cut at one block); the one-shot callback is released, nothing is sent |
-| `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` | client side: a response of exactly 768 bytes fails in the parser (4.13), the callback is not called and stays registered; today the device answers the response with a NON 4.13 (F-030) |
+| `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` | client side: a response of exactly 768 bytes fails in the parser (4.13), the callback is not called and stays registered; the rejected ACK is not answered (nothing sent) |
 
 ---
 

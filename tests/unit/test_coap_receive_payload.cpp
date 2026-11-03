@@ -302,8 +302,7 @@ TEST_F(CoapReceivePayload, ClientResponseAboveOneBlockReachesTheCallbackComplete
   client side: a response of exactly OC_MAX_APP_DATA_SIZE does not fit the application buffer (one byte is kept for the
   terminator), the parser (coap.c) rejects it with 4.13 as it does for requests
   - the client callback is not called and stays registered (it still waits for an answer)
-  - what goes back is the generic parser-error reply: a NON 4.13 with the response's token. RFC 7252 4.2 wants a rejected
-    ACK silently ignored (F-030); when that is fixed, the two send expectations below change to "nothing sent"
+  - nothing goes back: a rejected ACK is silently ignored (RFC 7252 4.2), a response is never answered with an error response
 */
 TEST_F(CoapReceivePayload, ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback)
 {
@@ -322,11 +321,7 @@ TEST_F(CoapReceivePayload, ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCall
 
   EXPECT_EQ(g_cb_calls, 0);
   EXPECT_EQ(oc_ri_find_client_cb_by_token(cb->token, cb->token_len), cb);
-
-  coap_packet_t pkt[1];
-  ASSERT_TRUE(sent(pkt));
-  EXPECT_EQ(pkt->code, REQUEST_ENTITY_TOO_LARGE_4_13);
-  EXPECT_EQ(pkt->type, COAP_TYPE_NON);
+  EXPECT_EQ(g_send_calls, 0);
 
   oc_ri_remove_client_cb(cb);
 }

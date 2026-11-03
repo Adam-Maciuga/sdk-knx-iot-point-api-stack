@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-053.
+removed entry. The next number is F-054.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -17,13 +17,14 @@ removed entry. The next number is F-053.
 - **Suggested fix:** zero-initialize `ip_str` and only log/free it when `oc_endpoint_to_string()` succeeds. The current test sets `IPV6 | MULTICAST` to avoid masking this production defect.
 - **Fix:** `ip_str` is zero-initialized and only logged and freed when `oc_endpoint_to_string()` returns 0; a non-IPv6 or NULL endpoint logs that it has no IPv6 address. Tests: `test_oc_endpoint`, `EndpointPrint.DoesNotFreeAnythingForNonIpv6Endpoint` (fills the stack with garbage first, so the uninitialized string is not zero by chance), `EndpointPrint.DoesNotCrashOnNullEndpoint`.
 
-## F-030: an oversized response (ACK) is answered with a NON 4.13 instead of being ignored - OPEN
+## ~~F-030: an oversized response (ACK) is answered with a NON 4.13 instead of being ignored~~ - FIXED
 
 - **Files:** `messaging/coap/coap.c`, `coap_parse_udp_message()` (payload `>= OC_MAX_APP_DATA_SIZE` -> 4.13); `messaging/coap/engine.c`, `coap_receive()` (parser-error path, `echo_ctx` type `is_con ? ACK : NON`).
 - **Severity:** Low - protocol deviation; the device sends a response to a response, the waiting client callback learns nothing until it times out.
 - **Description:** a response the device receives as client (piggybacked ACK) with a payload of `OC_MAX_APP_DATA_SIZE` bytes or more fails in the parser with 4.13. `coap_receive()` treats every parser error alike and sends a NON 4.13 with the response's token and a fresh MID back to the peer. RFC 7252 4.2: rejecting an ACK means silently ignoring it (a rejected NON may get a RST, 4.3).
 - **Evidence:** `test_coap_receive_payload`, `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` asserts today's NON 4.13 (the callback is not called).
 - **Expected:** a rejected ACK/RST is dropped silently, a rejected NON response answered at most with a RST; then the two send expectations of that test become "nothing sent".
+- **Fix:** the parser-error tail of `coap_receive()` returns without a reply when the rejected message is an ACK, a RST or a NON separate response (RFC 7252 4.2, 4.3); a rejected CON (request or separate response) keeps the error reply (ACK), as 4.2 requires an ACK or RST for it. Still open as F-053: a rejected CON separate response gets an ACK 4.13 instead of the RST 4.2 asks for. Test: `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` now expects nothing sent.
 
 ## F-031: follow-up blocks of a block-wise /p notification carry Content-Format 0 (text/plain) - OPEN
 
@@ -214,3 +215,11 @@ removed entry. The next number is F-053.
 - **Description:** the periodic callback exists once per resource, not per observer. When `coap_observe_handler()` removes one observer, the handler calls `remove_periodic_observe_callback(resource)` without checking whether other observers are left. Related: F-036.
 - **Evidence:** code reading. A test: two clients observe a periodic resource, one deregisters, advance the clock past the period -> the other must still be notified.
 - **Expected:** remove the periodic callback on deregister only when `num_observers` of the resource has dropped to 0.
+
+## F-053: a rejected CON separate response is answered with ACK 4.13 instead of a RST - OPEN
+
+- **Files:** `messaging/coap/engine.c`, `coap_receive()`, parser-error tail (`coap_send_response_with_empty_application_payload()` with `echo_ctx` type `is_con ? ACK : NON`).
+- **Severity:** Low - protocol deviation; the peer's separate response is acknowledged with an error code it does not expect for a response.
+- **Description:** a CON separate response the device receives as client (e.g. payload `>= OC_MAX_APP_DATA_SIZE`, rejected by the parser with 4.13) gets the generic parser-error reply: an ACK carrying 4.13. RFC 7252 4.2: rejecting a Confirmable message is done by sending a matching Reset (empty, same MID) and otherwise ignoring it. The parser-error reply only builds ACK or NON messages, not a RST. Remainder of F-030 (rejected ACK, RST and NON responses are now ignored).
+- **Evidence:** code reading. A test: like `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback`, but the response is a CON separate response -> expect one RST, code 0.00, the response's MID, no token.
+- **Expected:** for a rejected CON separate response send an empty RST with its MID instead of the ACK 4.13.

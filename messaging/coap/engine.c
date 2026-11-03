@@ -1663,6 +1663,19 @@ int coap_receive(oc_message_t* incoming_message)
 
   OC_ERR("unexpected/invalid CoAP data");
 
+  /*
+    rejecting a message (RFC 7252 4.2, 4.3)
+    - rejected ACK (empty or piggybacked) or RST -> silently ignored (4.2)
+    - rejected NON separate response -> silently ignored, a RST is optional (4.3)
+    - rejected CON (request or separate response) -> MUST be acknowledged or reset (4.2): keeps the error reply below
+    - a message whose header could not be parsed keeps the error reply below as well
+  */
+  if (is_ack || inbound_coap_pkt->type == COAP_TYPE_RST || is_inbound_non_response)
+  {
+    OC_ERR("invalid CoAP response/ACK/RST dropped without reply");
+    return coap_status_code;
+  }
+
   // coap over UDP : mid/con/ack are relevant, no echo option
   echo_ctx.echo_len = 0;
   coap_send_response_with_empty_application_payload(&echo_ctx);
