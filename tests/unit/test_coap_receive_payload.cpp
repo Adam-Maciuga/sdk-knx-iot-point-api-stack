@@ -10,6 +10,13 @@
   coap_receive is called directly with a plain (unprotected) request; the size check comes before the resource lookup
   and the access control, so no resource, token or OSCORE context is needed.
 
+  A RESPONSE without Block2 (client side, answer to a request the device sent) carries its whole payload in one message:
+  - up to OC_MAX_APP_DATA_SIZE - 1           : copied into the client response buffer (no one-block cap) and handed to
+                                               the client callback complete
+  - from OC_MAX_APP_DATA_SIZE                : 4.13 already from the parser, the callback is not called (F-030)
+  The client callback is registered with oc_ri_alloc_client_cb (as oc_do_request does), its token and MID go into the
+  hand-built ACK.
+
   The network side is faked with the GNU linker --wrap facility (see tests/unit/CMakeLists.txt):
     --wrap=oc_main_initialized -> true, so coap_send_transaction() runs
     --wrap=coap_send_message   -> records the response bytes and releases the message
@@ -24,6 +31,8 @@
 extern "C" {
 #include "oc_buffer.h"
 #include "oc_buffer_settings.h"
+#include "oc_client_state.h"
+#include "oc_ri.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
@@ -87,6 +96,59 @@ static oc_message_t *make_put(coap_message_type_t type, uint16_t mid, size_t pay
   return m;
 }
 
+/* the peer of the client tests (same address/port as make_put) */
+static oc_endpoint_t peer_endpoint(void)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = 5683;
+  ep.addr.ipv6.address[0] = 0xFE;
+  ep.addr.ipv6.address[1] = 0x80;
+  ep.addr.ipv6.address[15] = 0x42;
+  return ep;
+}
+
+/*
+  a piggybacked ACK 2.05 with 'payload_len' bytes (byte i = i & 0xFF) in ONE message (no Block2); Content-Format
+  application/octet-stream, so the client side hands the raw bytes to the callback without a CBOR parse
+*/
+static oc_message_t* make_response(uint16_t mid, const uint8_t* token, uint8_t token_len, size_t payload_len)
+{
+  oc_message_t* m = oc_allocate_message();
+  if (!m)
+  {
+    return nullptr;
+  }
+
+  m->endpoint = peer_endpoint();
+
+  coap_packet_t pkt[1];
+  coap_udp_init_message(pkt, COAP_TYPE_ACK, CONTENT_2_05, mid);
+  coap_set_token(pkt, token, token_len);
+  coap_set_header_content_format(pkt, APPLICATION_OCTET_STREAM);
+
+  size_t len = coap_serialize_message(pkt, m->data);
+  m->data[len++] = 0xFF; /* payload marker */
+  for (size_t i = 0; i < payload_len; i++)
+  {
+    m->data[len + i] = (uint8_t)i;
+  }
+  m->length = len + payload_len;
+  return m;
+}
+
+/* -- client callback recorder --------------------------------------------- */
+
+static int g_cb_calls;
+static std::vector<uint8_t> g_cb_payload;
+
+static void record_client_response(oc_client_response_t* data)
+{
+  g_cb_calls++;
+  g_cb_payload.assign(data->_payload, data->_payload + data->_payload_len);
+}
+
 class CoapReceivePayload : public ::testing::Test {
 protected:
   void SetUp() override
@@ -97,6 +159,8 @@ protected:
     oc_coap_clear_request_history();
     g_send_calls = 0;
     g_sent_data.clear();
+    g_cb_calls = 0;
+    g_cb_payload.clear();
   }
 
   void TearDown() override
@@ -179,4 +243,90 @@ TEST_F(CoapReceivePayload, RequestOfExactlyOneBlockIsNotRejectedForItsSize)
   ASSERT_TRUE(sent(pkt));
   EXPECT_NE(pkt->type, COAP_TYPE_RST);
   EXPECT_NE(pkt->code, REQUEST_ENTITY_TOO_LARGE_4_13);
+}
+
+/*
+  client side: a response above one block (block + 1 and OC_MAX_APP_DATA_SIZE - 1) without Block2 reaches the client
+  callback complete
+  - not capped at the block size, not rejected (the response buffer holds OC_MAX_APP_DATA_SIZE)
+  - every byte as sent, the one-shot callback is released afterwards, nothing is sent back (piggybacked ACK)
+*/
+TEST_F(CoapReceivePayload, ClientResponseAboveOneBlockReachesTheCallbackComplete)
+{
+  const size_t sizes[] = {(size_t)oc_get_block_size() + 1, (size_t)oc_get_max_app_data_size() - 1};
+
+  for (size_t len : sizes)
+  {
+    SCOPED_TRACE(len);
+    g_cb_calls = 0;
+    g_cb_payload.clear();
+    g_send_calls = 0;
+
+    oc_endpoint_t ep = peer_endpoint();
+    oc_client_handler_t handler;
+    memset(&handler, 0, sizeof(handler));
+    handler.response = record_client_response;
+    oc_client_cb_t* cb = oc_ri_alloc_client_cb("/p/1", &ep, COAP_GET, nullptr, handler, HIGH_QOS, nullptr);
+    ASSERT_NE(cb, nullptr);
+
+    uint8_t token[COAP_TOKEN_LEN];
+    const uint8_t token_len = cb->token_len;
+    memcpy(token, cb->token, token_len);
+
+    oc_message_t* m = make_response(cb->mid, token, token_len, len);
+    ASSERT_NE(m, nullptr);
+
+    coap_receive(m);
+    oc_message_unref(m);
+
+    EXPECT_EQ(g_cb_calls, 1);
+    ASSERT_EQ(g_cb_payload.size(), len);
+    bool same = true;
+    for (size_t i = 0; i < len; i++)
+    {
+      if (g_cb_payload[i] != (uint8_t)i)
+      {
+        same = false;
+        break;
+      }
+    }
+    EXPECT_TRUE(same) << "payload content differs from what was sent";
+
+    /* one-shot callback (no Observe) is released with its response buffer */
+    EXPECT_EQ(oc_ri_find_client_cb_by_token(token, token_len), nullptr);
+    EXPECT_EQ(g_send_calls, 0);
+  }
+}
+
+/*
+  client side: a response of exactly OC_MAX_APP_DATA_SIZE does not fit the application buffer (one byte is kept for the
+  terminator), the parser (coap.c) rejects it with 4.13 as it does for requests
+  - the client callback is not called and stays registered (it still waits for an answer)
+  - what goes back is the generic parser-error reply: a NON 4.13 with the response's token. RFC 7252 4.2 wants a rejected
+    ACK silently ignored (F-030); when that is fixed, the two send expectations below change to "nothing sent"
+*/
+TEST_F(CoapReceivePayload, ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback)
+{
+  oc_endpoint_t ep = peer_endpoint();
+  oc_client_handler_t handler;
+  memset(&handler, 0, sizeof(handler));
+  handler.response = record_client_response;
+  oc_client_cb_t* cb = oc_ri_alloc_client_cb("/p/1", &ep, COAP_GET, nullptr, handler, HIGH_QOS, nullptr);
+  ASSERT_NE(cb, nullptr);
+
+  oc_message_t* m = make_response(cb->mid, cb->token, cb->token_len, oc_get_max_app_data_size());
+  ASSERT_NE(m, nullptr);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  EXPECT_EQ(g_cb_calls, 0);
+  EXPECT_EQ(oc_ri_find_client_cb_by_token(cb->token, cb->token_len), cb);
+
+  coap_packet_t pkt[1];
+  ASSERT_TRUE(sent(pkt));
+  EXPECT_EQ(pkt->code, REQUEST_ENTITY_TOO_LARGE_4_13);
+  EXPECT_EQ(pkt->type, COAP_TYPE_NON);
+
+  oc_ri_remove_client_cb(cb);
 }

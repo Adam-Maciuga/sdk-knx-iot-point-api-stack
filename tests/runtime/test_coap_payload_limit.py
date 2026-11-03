@@ -9,16 +9,23 @@ The rejection happens in the CoAP parser (messaging/coap/coap.c,
 coap_oscore_parse_options) before the request is routed to a resource, so the
 target path and the missing OSCORE protection are irrelevant for the result.
 
+A datagram larger than the receive buffer (OC_PDU_SIZE) never reaches the
+parser: the Linux IP adapter (port/linux/ipadapter.c, recv_msg) drops it on
+MSG_TRUNC without any answer.
+
 Reference:
   KNX IoT Point API spec 2.6.3.3.2 -- "Error Responses to Queries"
   RFC 7252 clause 12.1.2
   RFC 7959 -- block-wise transfer is the way to send larger bodies
 """
 
+import socket
+import struct
+
 import cbor2
 import pytest
 
-from transport.coap_client import APPLICATION_CBOR, _decode_block_option, _encode_block_option
+from transport.coap_client import APPLICATION_CBOR, _decode_block_option, _encode_block_option, _encode_option
 
 from fixtures import set_lsm
 
@@ -33,6 +40,13 @@ SIZE1_OPTION = 60
 
 # CoAP Block1 option (RFC 7959 2.1)
 BLOCK1_OPTION = 27
+
+# Must mirror COAP_MAX_MESSAGE_SIZE (messaging/coap/constants.h): api/oc_main.c static_asserts
+# OC_PDU_SIZE = KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET <= COAP_MAX_MESSAGE_SIZE
+COAP_MAX_MESSAGE_SIZE = 1152
+
+# A datagram surely above the receive buffer OC_PDU_SIZE (~1040), still below the 1500 byte veth MTU
+OVERSIZED_DATAGRAM_SIZE = COAP_MAX_MESSAGE_SIZE + 100
 
 
 def _payload(size: int) -> bytes:
@@ -87,6 +101,42 @@ class TestOversizedPayloadRejected:
             pytest.skip("DUT did not respond to the follow-up discovery request")
         assert resp.is_successful, (
             f"GET /.well-known/core after an oversized request failed: {resp.code}")
+
+
+class TestDatagramAboveReceiveBuffer:
+    """A UDP datagram larger than OC_PDU_SIZE is dropped silently; the device keeps serving.
+
+    The Linux IP adapter reads with recvmsg() into a buffer of OC_PDU_SIZE bytes. A larger
+    datagram sets MSG_TRUNC, recv_msg() returns -1, and the receive loop frees the message
+    without handing it to the CoAP layer: no response, no RST, no 4.13 (the parser that
+    answers 4.13 for the requests above never sees it).
+    """
+
+    def test_datagram_above_receive_buffer_is_dropped_without_response(self, coap):
+        mid = 0x7E57
+        token = b"\x0B\x16\xDA\x7A"
+        header = struct.pack("!BBH", (1 << 6) | (0 << 4) | len(token), 0x03, mid)  # CON, 0.03 PUT
+        options = _encode_option(11, b"p") + _encode_option(0, b"1") + _encode_option(1, bytes([APPLICATION_CBOR]))
+        head = header + token + options + b"\xFF"
+        datagram = head + _payload(OVERSIZED_DATAGRAM_SIZE - len(head))
+        assert len(datagram) == OVERSIZED_DATAGRAM_SIZE, f"datagram is {len(datagram)} bytes"
+
+        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+            sock.bind(("", 0))
+            sock.settimeout(coap.timeout)
+            sock.sendto(datagram, (coap.host, coap.port, 0, 0))
+            try:
+                data, _ = sock.recvfrom(4096)
+            except socket.timeout:
+                data = None
+        assert data is None, (
+            f"a {OVERSIZED_DATAGRAM_SIZE} byte datagram (above OC_PDU_SIZE) must be dropped, "
+            f"got a reply: type {(data[0] >> 4) & 0x03}, code {data[1] >> 5}.{data[1] & 0x1F:02d}")
+
+        resp = coap.get("/.well-known/core")
+        assert resp is not None, "GET /.well-known/core after the oversized datagram timed out"
+        assert resp.is_successful, (
+            f"GET /.well-known/core after the oversized datagram failed: {resp.code}")
 
 
 class TestOscoreRequestAboveOneBlock:

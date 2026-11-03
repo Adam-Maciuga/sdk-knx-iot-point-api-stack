@@ -1,8 +1,8 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1747 unit tests** on `windows-test-gcc` (57 files in `tests/unit/`, counted by CTest on 2026-11-03;
+> **1752 unit tests** on `windows-test-gcc` (57 files in `tests/unit/`, counted by CTest on 2026-11-03;
 > `linux-test-asan` adds the `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only, last counted 1787
-> before the 4 new tests, not re-run) and **292 runtime tests** (20 files in `tests/runtime/`, collected
+> before the 9 new tests, not re-run) and **293 runtime tests** (20 files in `tests/runtime/`, collected
 > on 2026-11-03).
 > The conformance tier is not listed here: the test tool
 > (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
@@ -10,7 +10,7 @@
 > `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-03): 1747/1747 passed on `windows-test-gcc`; `linux-test-asan` not run for this change. The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
+> Unit (2026-11-03): 1752/1752 passed on `windows-test-gcc`; `linux-test-asan` not run for this change. The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
 > Runtime and conformance: see "Last runtime run status" below.
 
 ## Contents
@@ -29,14 +29,14 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-03 (4.13 + Size1, s-mode envelope) | 2026-11-03 (observers) | 2026-11-03 |
-| **Unit tests** | **1747/1747** passed (`windows-test-gcc`); `linux-test-asan` not run | **1743/1743** passed (`windows-test-gcc`), **1787/1787** passed (`linux-test-asan`, Docker) | **1735/1735** passed (`windows-test-gcc`), **1779/1779** passed (`linux-test-asan`, Docker) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10): full run 7 passed + 5.6 failed (late 2.04 to an earlier request, token mismatch, in "Copy of AUTH PREPARATION"); 5.6 alone passed | **8 passed, 1 xfailed** (5.10, 363.60s) | **8 passed, 1 xfailed** (5.10, 362.79s) |
-| **Runtime tests** | **287 passed, 5 skipped** (292 collected, 801.90s, with the Block1 transfer test) | **285 passed, 5 skipped** (290 collected, 801.01s) | **285 passed, 5 skipped** (290 collected, 801.30s) |
-| Failed / errors | full run 2 / 0 (conformance 5.6, passed alone; runtime 766 B test that asserted the old RST behaviour, replaced), after the re-runs 0 / 0 | 0 / 0 | 0 / 0 |
-| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`, re-runs `-Tier conformance -Section 5.6` and `-Tier runtime` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
-| Covers | request without Block1 above one block -> 4.13 with Size1 = block size (was RST); s-mode envelope limited to one block (`OC_S_MODE_ENVELOPE_BUDGET`); `test_payload_below_max_is_not_rejected_with_413` (766 B) replaced by `test_payload_of_one_block_is_not_rejected_with_413` (512 B); protected 650 B POST /fp/g in two Block1 blocks reassembled (`TestOscoreBlock1Transfer`) | `/k` events only to subscribers whose token covers the GA (spec 3.5.4.1); observers removed on unload, both resets and when their token is deleted (token rotation, slot reuse) | `/k` Group Message event after a successful s-mode send (copy on the stack, none without a transaction, none for a read); unicast CON send unit test |
-| Not in the run | ASan | - | - |
+| Date | 2026-11-03 (payload paths, findings F-030 ... F-034) | 2026-11-03 (4.13 + Size1, s-mode envelope) | 2026-11-03 (observers) |
+| **Unit tests** | **1752/1752** passed (`windows-test-gcc`); `linux-test-asan` not run | **1747/1747** passed (`windows-test-gcc`); `linux-test-asan` not run | **1743/1743** passed (`windows-test-gcc`), **1787/1787** passed (`linux-test-asan`, Docker) |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.64s) | **8 passed, 1 xfailed** (5.10): full run 7 passed + 5.6 failed (late 2.04 to an earlier request, token mismatch, in "Copy of AUTH PREPARATION"); 5.6 alone passed | **8 passed, 1 xfailed** (5.10, 363.60s) |
+| **Runtime tests** | **288 passed, 5 skipped** (293 collected, 810.20s) | **287 passed, 5 skipped** (292 collected, 801.90s, with the Block1 transfer test) | **285 passed, 5 skipped** (290 collected, 801.01s) |
+| Failed / errors | 0 / 0 | full run 2 / 0 (conformance 5.6, passed alone; runtime 766 B test that asserted the old RST behaviour, replaced), after the re-runs 0 / 0 | 0 / 0 |
+| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`, re-runs `-Tier conformance -Section 5.6` and `-Tier runtime` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
+| Covers | client response 513 ... 768 B without Block2; /p notification above the observer's block size (Block2); token updated in place (observers follow the new scope); datagram above OC_PDU_SIZE dropped (`TestDatagramAboveReceiveBuffer`); dead declaration `coap_remove_observers_on_dos_change` removed | request without Block1 above one block -> 4.13 with Size1 = block size (was RST); s-mode envelope limited to one block (`OC_S_MODE_ENVELOPE_BUDGET`); `test_payload_below_max_is_not_rejected_with_413` (766 B) replaced by `test_payload_of_one_block_is_not_rejected_with_413` (512 B); protected 650 B POST /fp/g in two Block1 blocks reassembled (`TestOscoreBlock1Transfer`) | `/k` events only to subscribers whose token covers the GA (spec 3.5.4.1); observers removed on unload, both resets and when their token is deleted (token rotation, slot reuse) |
+| Not in the run | ASan | ASan | - |
 
 No stack C code was changed to make a test pass.
 
@@ -714,7 +714,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_receive_payload.cpp — Request Payload Size Limits (3 tests)
+### test_coap_receive_payload.cpp — Request Payload Size Limits (5 tests)
 
 **Source:** `messaging/coap/engine.c` (`coap_receive`, called directly with a plain request; network faked with `--wrap` of `oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`)
 
@@ -723,6 +723,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `CoapReceivePayload.ConRequestAboveOneBlockGets413WithSize1` | CON request without Block1, payload one block + 88 B: piggybacked ACK 4.13 with Size1 = block size (RFC 7959 2.9.3), same MID and token; before: RST |
 | `CoapReceivePayload.NonRequestAboveOneBlockGets413WithSize1` | NON request, payload one block + 1 B: NON 4.13 with Size1 = block size |
 | `CoapReceivePayload.RequestOfExactlyOneBlockIsNotRejectedForItsSize` | exactly one block: processed further, no RST and no 4.13 |
+| `CoapReceivePayload.ClientResponseAboveOneBlockReachesTheCallbackComplete` | client side: ACK 2.05 without Block2 with 513 and 767 payload bytes reaches the client callback complete (not cut at one block); the one-shot callback is released, nothing is sent |
+| `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` | client side: a response of exactly 768 bytes fails in the parser (4.13), the callback is not called and stays registered; today the device answers the response with a NON 4.13 (F-030) |
 
 ---
 
@@ -776,7 +778,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (27 tests)
+### test_coap_observe.cpp — Observer Management + Notify (30 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -803,6 +805,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `NotifyKObserversZeroLengthIsSafe` | Zero-length payload is a no-op |
 | `NotifyKObserversNoObserversIsSafe` | Empty /k observer list completes safely |
 | `NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber` | Token A (`<ga>` [1]) deleted, token B (`if.g.s`) in the same table slot: the old subscriber of A gets no `/k` event with B's rights |
+| `TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope` | POST /auth/at with the same id changes `<ga>` [1] to [2] (2.04): the observer stays, gets no `/k` event for GA 1, gets one for GA 2 (scope read at send time) |
+| `TokenUpdatedInPlaceKeepingTheGroupAddressStillNotifies` | `<ga>` [1] updated to [1, 3]: events for GA 1 and GA 3 both reach the subscriber |
+| `NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` | observer with Block2 64, 100 B value: CON notification with Block2 0/M=1/64, Size2 100, ETag, Observe; GET block 1 returns the last 36 B with M=0 and the same ETag from the buffer (handler not called again), buffer freed after |
 | `RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers` | `coap_remove_observers_by_access_token`: removes every observer of that token (any client/port), keeps the others; NULL → 0 |
 | `NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope` | `/k` events only to observers whose subscription token covers the GA (spec 3.5.4.1, 2.6.9.3): `if.g.s` → all, `<ga>` list → only listed GAs, no token → none |
 | `NotifyObserversNullResourceReturnsZero` | NULL resource → returns 0 |
@@ -1365,7 +1370,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 
 ---
 
-### test_coap_payload_limit.py — Oversized Application Payload (6 tests)
+### test_coap_payload_limit.py — Oversized Application Payload (7 tests)
 
 | Class | Test | Overlaps | What it checks |
 |-------|------|----------|----------------|
@@ -1373,6 +1378,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 |  | `test_payload_above_max_returns_413` |  | A payload clearly above MAX -> 4.13. |
 |  | `test_payload_of_one_block_is_not_rejected_with_413` |  | A payload of one block (512 B) without Block1 must not be answered with 4.13 (above one block: 4.13 + Size1, before: 766 B was checked) |
 |  | `test_dut_still_responsive_after_oversized_request` |  | The DUT must survive the oversized request and keep serving. |
+| **TestDatagramAboveReceiveBuffer** | `test_datagram_above_receive_buffer_is_dropped_without_response` |  | 1252 B CON PUT datagram (above OC_PDU_SIZE): dropped by the Linux IP adapter (MSG_TRUNC), no response, no RST, no 4.13; GET /.well-known/core succeeds after |
 | **TestOscoreRequestAboveOneBlock** | `test_oscore_payload_above_one_block_returns_413_with_size1` |  | Protected PUT without Block1, payload one block + 88 B (below MAX, so it passes the parser): 4.13 with Size1 = 512 (before: RST) |
 | **TestOscoreBlock1Transfer** | `test_post_above_one_block_with_block1_is_reassembled` |  | Protected POST /fp/g of 650 B (36 entries) in two Block1 blocks (the retry after 4.13 + Size1): block 0 -> 2.31 Continue, last block -> 2.01, Block1 echoed; the first and the last entry read back (reassembled payload parsed) |
 

@@ -24,8 +24,12 @@ extern "C" {
 #include "messaging/coap/oc_coap.h"
 #include "messaging/coap/transactions.h"
 #include "messaging/coap/constants.h"
+#include "messaging/coap/engine.h"
 #include "port/oc_network_events_mutex.h"
+#include "oc_blockwise.h"
+#include "oc_buffer.h"
 #include "oc_ri.h"
+#include "oc_rep.h"
 #include "api/oc_knx_sec.h"
 #include "util/oc_mmem.h"
 #include <stdlib.h>
@@ -33,6 +37,9 @@ extern "C" {
 
 /* the /k resource descriptor (api/oc_knx.c) */
 extern const oc_resource_t core_resource_knx_k;
+
+/* the /auth/at resource descriptor (api/oc_knx_sec.c), its POST handler updates an access token in place */
+extern const oc_resource_t core_resource_knx_auth_at;
 
 }
 
@@ -76,7 +83,8 @@ struct TestResource {
 static int add_test_observer(oc_resource_t *resource, oc_endpoint_t *ep,
                              const uint8_t *token, uint8_t token_len,
                              const char *uri, size_t uri_len,
-                             const char *query = "lt=86400")
+                             const char *query = "lt=86400",
+                             uint16_t block2_size = 0)
 {
   coap_packet_t req;
   memset(&req, 0, sizeof(req));
@@ -97,7 +105,7 @@ static int add_test_observer(oc_resource_t *resource, oc_endpoint_t *ep,
   memset(&res, 0, sizeof(res));
   res.code = CONTENT_2_05;
 
-  return coap_observe_handler(&req, &res, resource, 0, ep);
+  return coap_observe_handler(&req, &res, resource, block2_size, ep);
 }
 
 static void observe_get_handler(oc_request_t *request, oc_interface_mask_t,
@@ -114,9 +122,15 @@ extern "C" bool __wrap_oc_main_initialized(void) { return true; }
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
 static std::vector<uint16_t> g_sent_ports; /* destination port of each sent message */
 
+/* bytes of each sent message, plus one spare byte: the parser terminates the payload in place */
+static std::vector<std::vector<uint8_t>> g_sent_msgs;
+
 extern "C" void __wrap_coap_send_message(oc_message_t *message)
 {
   g_sent_ports.push_back(message->endpoint.addr.ipv6.port);
+  std::vector<uint8_t> bytes(message->data, message->data + message->length);
+  bytes.push_back(0);
+  g_sent_msgs.push_back(bytes);
   oc_message_unref(message);
 }
 
@@ -127,6 +141,7 @@ protected:
   void SetUp() override {
     oc_network_event_handler_mutex_init();
     g_sent_ports.clear();
+    g_sent_msgs.clear();
   }
   void TearDown() override {
     coap_free_all_observers();
@@ -578,6 +593,164 @@ TEST_F(CoapObserve, NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber)
   coap_free_all_transactions();
 }
 
+/*
+  an AT table slot with id 'tokU' and scope <ga> [ga], profile unknown (no OSCORE context is built for it); the cnf:osc
+  strings are empty like in a slot handed out by the stack (the POST handler stores them)
+*/
+static oc_auth_at_t* provision_ga_token(int index, uint32_t ga)
+{
+  oc_auth_at_t* slot = oc_get_auth_at_entry(index);
+  if (!slot)
+  {
+    return nullptr;
+  }
+
+  oc_new_string(&slot->id, "tokU", 4);
+  oc_new_byte_string(&slot->osc_id, "", 0);
+  oc_new_byte_string(&slot->osc_ms, "", 0);
+  oc_new_byte_string(&slot->osc_salt, "", 0);
+  oc_new_byte_string(&slot->osc_contextid, "", 0);
+  slot->profile = OC_PROFILE_UNKNOWN;
+  slot->scope = OC_ACL_GA;
+  slot->ga = (uint32_t*)malloc(sizeof(uint32_t));
+  if (!slot->ga)
+  {
+    return nullptr;
+  }
+  slot->ga[0] = ga;
+  slot->ga_len = 1;
+  return slot;
+}
+
+/* frees the slot's strings and ga array without re-creating them (LSan) */
+static void release_at_slot(oc_auth_at_t* slot)
+{
+  oc_free_string(&slot->id);
+  oc_free_string(&slot->osc_id);
+  oc_free_string(&slot->osc_ms);
+  oc_free_string(&slot->osc_salt);
+  oc_free_string(&slot->osc_contextid);
+  free(slot->ga);
+  slot->ga = nullptr;
+  slot->ga_len = 0;
+  slot->scope = OC_ACL_NONE;
+}
+
+/*
+  POST /auth/at through the real handler (oc_knx_sec.c) with a hand-encoded CBOR payload, returns the response code
+*/
+static int post_auth_at(const uint8_t* cbor, size_t len)
+{
+  oc_rep_t* rep = nullptr;
+  if (oc_parse_rep(cbor, (int)len, &rep) != 0)
+  {
+    oc_free_rep(rep);
+    return -1;
+  }
+
+  uint8_t buf[64];
+  oc_response_buffer_t response_buffer;
+  memset(&response_buffer, 0, sizeof(response_buffer));
+  response_buffer.buffer = buf;
+  response_buffer.buffer_size = sizeof(buf);
+  oc_response_t response;
+  memset(&response, 0, sizeof(response));
+  response.response_buffer = &response_buffer;
+  oc_request_t request;
+  memset(&request, 0, sizeof(request));
+  request.response = &response;
+  request.resource = &core_resource_knx_auth_at;
+  request.accept = APPLICATION_CBOR;
+  request.request_payload = rep;
+
+  core_resource_knx_auth_at.post_handler.cb(&request, OC_IF_SEC, nullptr);
+
+  oc_free_rep(rep);
+  return response_buffer.code;
+}
+
+/*
+  Token update in place (POST /auth/at with the id of an existing token): the subscription made with it stays, but from
+  then on only the group addresses in the UPDATED scope reach the subscriber (spec 3.5.4.1: the publisher SHALL only send
+  notifications with the group addresses in the subscription token's scope)
+  - the observer refers to the AT table slot (endpoint.access_token.inbound), not to a copy of the scope, and
+    coap_notify_k_observers reads the scope at notification time
+  - scope <ga> [1] -> [2]: no event for GA 1 any more, events for GA 2
+*/
+TEST_F(CoapObserve, TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope)
+{
+  oc_mmem_init();
+
+  oc_auth_at_t* slot = provision_ga_token(6, 1);
+  ASSERT_NE(slot, nullptr);
+
+  oc_endpoint_t ep = make_endpoint(5501);
+  ep.access_token.inbound = slot;
+  const uint8_t t[] = {0x51};
+  ASSERT_EQ(add_test_observer((oc_resource_t*)&core_resource_knx_k, &ep, t, 1, "k", 1), 0);
+
+  const uint8_t payload[] = {0xBF, 0x04, 0x01, 0xFF};
+
+  /* baseline: GA 1 is in the scope */
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+  EXPECT_EQ(g_sent_ports, (std::vector<uint16_t>{5501}));
+  g_sent_ports.clear();
+
+  /* { 0: { 0: "tokU", 9: [2] } } -> same id, so the entry is updated in place (2.04) */
+  const uint8_t cbor[] = {0xA1, 0x00, 0xA2, 0x00, 0x64, 't', 'o', 'k', 'U', 0x09, 0x81, 0x02};
+  ASSERT_EQ(post_auth_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+  ASSERT_EQ(oc_core_find_at_entry_by_access_token("tokU", 4), slot);
+  ASSERT_EQ(slot->ga_len, 1);
+  ASSERT_EQ(slot->ga[0], 2u);
+
+  /* the subscription itself is not ended by an update */
+  EXPECT_EQ(core_resource_knx_k.runtime_data->num_observers, 1);
+
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+  EXPECT_TRUE(g_sent_ports.empty()) << "GA 1 is no longer in the subscription token's scope (spec 3.5.4.1)";
+
+  coap_notify_k_observers(payload, sizeof(payload), 2);
+  EXPECT_EQ(g_sent_ports, (std::vector<uint16_t>{5501}));
+
+  coap_free_all_observers();
+  release_at_slot(slot);
+  coap_free_all_transactions();
+}
+
+/*
+  Token update in place that keeps the group address: scope <ga> [1] -> [1, 3], events for GA 1 still reach the
+  subscriber, and GA 3 is added
+*/
+TEST_F(CoapObserve, TokenUpdatedInPlaceKeepingTheGroupAddressStillNotifies)
+{
+  oc_mmem_init();
+
+  oc_auth_at_t* slot = provision_ga_token(6, 1);
+  ASSERT_NE(slot, nullptr);
+
+  oc_endpoint_t ep = make_endpoint(5502);
+  ep.access_token.inbound = slot;
+  const uint8_t t[] = {0x52};
+  ASSERT_EQ(add_test_observer((oc_resource_t*)&core_resource_knx_k, &ep, t, 1, "k", 1), 0);
+
+  /* { 0: { 0: "tokU", 9: [1, 3] } } */
+  const uint8_t cbor[] = {0xA1, 0x00, 0xA2, 0x00, 0x64, 't', 'o', 'k', 'U', 0x09, 0x82, 0x01, 0x03};
+  ASSERT_EQ(post_auth_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+  ASSERT_EQ(oc_core_find_at_entry_by_access_token("tokU", 4), slot);
+  ASSERT_EQ(slot->ga_len, 2);
+
+  const uint8_t payload[] = {0xBF, 0x04, 0x01, 0xFF};
+  coap_notify_k_observers(payload, sizeof(payload), 1);
+  EXPECT_EQ(g_sent_ports, (std::vector<uint16_t>{5502}));
+
+  coap_notify_k_observers(payload, sizeof(payload), 3);
+  EXPECT_EQ(g_sent_ports, (std::vector<uint16_t>{5502, 5502}));
+
+  coap_free_all_observers();
+  release_at_slot(slot);
+  coap_free_all_transactions();
+}
+
 /* ---------------- coap_notify_observers (/p + core res.) ------------------ */
 
 TEST_F(CoapObserve, NotifyObserversNullResourceReturnsZero)
@@ -593,6 +766,153 @@ TEST_F(CoapObserve, NotifyObserversNoObserversReturnsZero)
   TestResource tr("/test");
   EXPECT_EQ(tr.data.num_observers, 0);
   EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 0);
+}
+
+/* GET handler of a /p resource with a 100 byte value (byte i = i): more than one 64 byte block */
+static int g_long_get_calls;
+
+static void long_value_get_handler(oc_request_t* request, oc_interface_mask_t, void*)
+{
+  g_long_get_calls++;
+  for (int i = 0; i < 100; i++)
+  {
+    request->response->response_buffer->buffer[i] = (uint8_t)i;
+  }
+  request->response->response_buffer->response_length = 100;
+  request->response->response_buffer->code = CONTENT_2_05;
+  request->response->response_buffer->content_format = APPLICATION_CBOR;
+}
+
+/*
+  /p notification larger than the observer's block size (registered with Block2 size 64, RFC 7959 2.6 / RFC 7641)
+  - the notification carries the FIRST block: Block2 num 0, M = 1, size 64, 64 payload bytes, Size2 = whole body,
+    ETag, Observe, as CON
+  - the rest stays in a server block-wise response buffer; a follow-up GET with Block2 num 1 gets the last 36 bytes
+    with M = 0 and the same ETag from it, without calling the GET handler again; the buffer is released afterwards
+  - NOT asserted: the Content-Format of the follow-up block, it differs from the first block (F-031)
+*/
+TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest)
+{
+  oc_mmem_init();
+  oc_coap_clear_request_history();
+  g_long_get_calls = 0;
+
+  TestResource tr("/p/1");
+  tr.resource.get_handler.cb = long_value_get_handler;
+
+  /* link-local peer, no loopback match in coap_receive */
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = 5683;
+  ep.addr.ipv6.address[0] = 0xFE;
+  ep.addr.ipv6.address[1] = 0x80;
+  ep.addr.ipv6.address[15] = 0x61;
+
+  const uint8_t obs_token[] = {0x6A, 0x6B};
+  ASSERT_EQ(add_test_observer(&tr.resource, &ep, obs_token, 2, "p/1", 3, "lt=86400", 64), 0);
+
+  EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 1);
+  EXPECT_EQ(g_long_get_calls, 1);
+
+  /* -- the notification: first block -- */
+  ASSERT_EQ(g_sent_msgs.size(), 1u);
+  std::vector<uint8_t> first = g_sent_msgs[0];
+  coap_packet_t ntf[1];
+  ASSERT_EQ(coap_parse_udp_message(ntf, first.data(), first.size() - 1), COAP_NO_ERROR);
+  EXPECT_EQ(ntf->type, COAP_TYPE_CON);
+  EXPECT_EQ(ntf->code, CONTENT_2_05);
+  ASSERT_EQ(ntf->token_len, 2);
+  EXPECT_EQ(memcmp(ntf->token, obs_token, 2), 0);
+
+  uint32_t observe = 0;
+  EXPECT_TRUE(coap_get_header_observe(ntf, &observe));
+
+  uint32_t num = 99;
+  uint8_t more = 0;
+  uint16_t size = 0;
+  uint32_t offset = 99;
+  ASSERT_EQ(coap_get_header_block2(ntf, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 0u);
+  EXPECT_EQ(more, 1);
+  EXPECT_EQ(size, 64);
+  EXPECT_EQ(offset, 0u);
+
+  uint32_t size2 = 0;
+  ASSERT_EQ(coap_get_header_size2(ntf, &size2), 1);
+  EXPECT_EQ(size2, 100u);
+
+  oc_content_format_t cf = TEXT_PLAIN;
+  ASSERT_EQ(coap_get_header_content_format(ntf, &cf), 1);
+  EXPECT_EQ(cf, APPLICATION_CBOR);
+
+  const uint8_t* etag = nullptr;
+  ASSERT_EQ(coap_get_header_etag(ntf, &etag), COAP_ETAG_LEN);
+  uint8_t first_etag[COAP_ETAG_LEN];
+  memcpy(first_etag, etag, COAP_ETAG_LEN);
+
+  const uint8_t* payload = nullptr;
+  ASSERT_EQ(coap_get_payload(ntf, &payload), 64u);
+  for (int i = 0; i < 64; i++)
+  {
+    ASSERT_EQ(payload[i], (uint8_t)i) << "byte " << i;
+  }
+
+  /* -- the rest is kept for the follow-up GET -- */
+  oc_blockwise_state_t* rest = oc_blockwise_find_response_buffer("p/1", 3, &ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER);
+  ASSERT_NE(rest, nullptr);
+  EXPECT_EQ(rest->payload_size, 100u);
+  EXPECT_EQ(rest->next_block_offset, 64u);
+
+  /* -- follow-up GET /p/1 with Block2 num 1, size 64 (new token, own MID) -- */
+  oc_message_t* m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  m->endpoint = ep;
+  coap_packet_t get[1];
+  const uint8_t get_token[] = {0x7C, 0x7D};
+  coap_udp_init_message(get, COAP_TYPE_CON, COAP_GET, 0x7101);
+  coap_set_token(get, get_token, sizeof(get_token));
+  coap_set_header_uri_path(get, "/p/1", 4);
+  coap_set_header_block2(get, 1, 0, 64);
+  m->length = coap_serialize_message(get, m->data);
+  ASSERT_GT(m->length, 0u);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  ASSERT_EQ(g_sent_msgs.size(), 2u);
+  std::vector<uint8_t> second = g_sent_msgs[1];
+  coap_packet_t blk[1];
+  ASSERT_EQ(coap_parse_udp_message(blk, second.data(), second.size() - 1), COAP_NO_ERROR);
+  EXPECT_EQ(blk->type, COAP_TYPE_ACK);
+  EXPECT_EQ(blk->mid, 0x7101);
+  EXPECT_EQ(blk->code, CONTENT_2_05);
+  ASSERT_EQ(blk->token_len, 2);
+  EXPECT_EQ(memcmp(blk->token, get_token, 2), 0);
+
+  ASSERT_EQ(coap_get_header_block2(blk, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 1u);
+  EXPECT_EQ(more, 0);
+  EXPECT_EQ(size, 64);
+
+  ASSERT_EQ(coap_get_header_etag(blk, &etag), COAP_ETAG_LEN);
+  EXPECT_EQ(memcmp(etag, first_etag, COAP_ETAG_LEN), 0);
+
+  ASSERT_EQ(coap_get_payload(blk, &payload), 36u);
+  for (int i = 0; i < 36; i++)
+  {
+    ASSERT_EQ(payload[i], (uint8_t)(64 + i)) << "byte " << (64 + i);
+  }
+
+  EXPECT_EQ(g_long_get_calls, 1);
+
+  /* last block delivered: the response buffer is released */
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p/1", 3, &ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER), nullptr);
+
+  coap_free_all_observers();
+  coap_free_all_transactions();
+  oc_blockwise_scrub_buffers(true);
+  oc_coap_clear_request_history();
 }
 
 /* ---------------- get_observe_counter ------------------------------------ */

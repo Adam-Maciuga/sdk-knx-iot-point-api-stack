@@ -848,6 +848,11 @@ functions push a message onto the outbound process queue and are integration-lev
 | transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list (`NewTransactionWithMessage*`, `test_coap_transactions.cpp`); used by the s-mode send and the regenerated 'echo re-request' (the re-request of a unicast original takes a plain `coap_new_transaction` and is serialized from the original); s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |
 | transactions.c: coap_register_as_transaction_handler | DONE — smoke (records OC_PROCESS_CURRENT; no externally observable state in a unit context) |
 | engine.c: coap_receive, request payload above one block without Block1 | DONE — 4.13 with Size1 = block size instead of RST (`test_coap_receive_payload.cpp`, runtime `TestOscoreRequestAboveOneBlock`) |
+| engine.c: coap_receive, Block1 transfer above one block | DONE — runtime `TestOscoreBlock1Transfer` (650 B POST /fp/g in two blocks, 2.31 then 2.01, entries of both blocks read back) |
+| engine.c: coap_receive, client response 513 ... 768 B without Block2 | DONE — up to 767 B reaches the callback complete, 768 B rejected by the parser (`test_coap_receive_payload.cpp`; F-030: device answers the response with NON 4.13) |
+| observe.c: coap_notify_observers, /p notification above the observer's block size | DONE — first block with Block2, rest from the response buffer (`NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest`); F-031 content format of later blocks, F-032 second notification while a transfer is open loops (not tested, would hang) |
+| oc_knx_sec.c: POST /auth/at update in place, /k observers | DONE — observers follow the new scope (`TokenUpdatedInPlace*`, `test_coap_observe.cpp`) |
+| port/linux/ipadapter.c: recv_msg, datagram above OC_PDU_SIZE | DONE — dropped (MSG_TRUNC), no response (runtime `TestDatagramAboveReceiveBuffer`) |
 | engine.c: coap_init_engine | DONE — smoke (thin wrapper over coap_register_as_transaction_handler) |
 | engine.c: coap_send_response_with_empty_ack | INTEGRATION — calls coap_send_message → oc_send_message → oc_process_post to the message_buffer_handler process; requires the populated oc_events table + running process scheduler from oc_main_init |
 
