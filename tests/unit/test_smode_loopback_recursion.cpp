@@ -20,7 +20,7 @@
  *
  * The device log showed the resulting cycle: write on GA 2 -> PUT /p/1 -> the handler sends an
  * s-mode write for /p/2 on GA 2 -> loopback finds /p/1 writable -> PUT /p/1 -> ... unbounded, one
- * multicast and one OC_MAX_APP_DATA_SIZE malloc per level (consecutive MIDs inside one millisecond).
+ * multicast and one value buffer malloc per level (consecutive MIDs inside one millisecond).
  *
  * What these tests pin
  * --------------------

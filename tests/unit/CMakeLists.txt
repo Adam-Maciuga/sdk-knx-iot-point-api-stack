@@ -117,6 +117,14 @@ target_link_options(test_oc_ri_timed_callbacks PRIVATE
 )
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
+kis_add_test(test_coap_receive_payload test_coap_receive_payload.cpp)
+# Request payload size limits in coap_receive: --wrap fakes the network side (same pattern as test_smode_send_refcount)
+# and records the response.
+target_link_options(test_coap_receive_payload PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+)
 kis_add_test(test_coap_oscore       test_coap_oscore.cpp)
 # --wrap=coap_send_message redirects the network send performed by
 # oscore_send_error() to the recorder __wrap_coap_send_message(), so no real

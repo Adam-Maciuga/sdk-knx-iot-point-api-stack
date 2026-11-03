@@ -144,7 +144,7 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
      
   3. A MaC may legally map an input and its status output onto the SAME GA), which
      re-enters this function -> sends again -> loops back again -> unbounded recursion, one multicast
-     and one OC_MAX_APP_DATA_SIZE allocation per level until the stack or the message pool is gone
+     and one value buffer allocation per level until the stack or the message pool is gone
 
   MaC/ User Misconfiguration Example:
 
@@ -353,6 +353,14 @@ static void oc_encode_s_mode_envelope(uint32_t group_address, char service_type,
   oc_rep_end_root_object();                         // FF (1st level)
 }
 
+/*
+  Envelope budget of an s-mode message: ONE CoAP packet
+  - s-mode uses no blockwise transfer (a multicast POST to 'k' gets no response, spec 2.6.9.1), coap_set_payload
+    caps the payload at OC_BLOCK_SIZE (512 B with KNX_PAYLOAD_SIZE 768)
+  - an envelope above it would go out truncated (invalid CBOR); with this budget its encoding fails and nothing is sent
+*/
+#define OC_S_MODE_ENVELOPE_BUDGET (OC_MAX_APP_DATA_SIZE < OC_BLOCK_SIZE ? OC_MAX_APP_DATA_SIZE : OC_BLOCK_SIZE)
+
 // sends a mc (non) or uc (con/non) s-mode message ('non' flag is set by caller in case of mc)
 static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* path, uint32_t group_address, char service_type,
                                     const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
@@ -398,12 +406,10 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
 
   /*
     encode the envelope straight into the message, behind the room for the CoAP header (no copy)
-    - the budget is the FULL application data size KNX_PAYLOAD_SIZE
-    - the message buffer is OC_PDU_SIZE, which is KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET
-    - blockwise transfer is NOT used for s-mode messages, so the payload must fit into the message buffer
-      (otherwise KNX_PAYLOAD_SIZE must be increased) 
+    - the budget is OC_S_MODE_ENVELOPE_BUDGET (one CoAP packet, see above)
+    - the message buffer is OC_PDU_SIZE, which is KNX_PAYLOAD_SIZE + OC_COAP_HEADER_BUDGET, the envelope always fits
   */
-  oc_rep_new(message->data + COAP_MAX_HEADER_SIZE, OC_MAX_APP_DATA_SIZE);
+  oc_rep_new(message->data + COAP_MAX_HEADER_SIZE, OC_S_MODE_ENVELOPE_BUDGET);
   oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
 
   const int size = oc_rep_get_encoded_payload_size();
@@ -578,7 +584,7 @@ static bool g_iam_regenerating_an_echo_payload = false;
 
 int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object, char service_type, uint8_t* buffer)
 {
-  // the buffer cant be NULL here, the caller must have allocated a buffer of OC_MAX_APP_DATA_SIZE for the re-request payload
+  // the buffer cant be NULL here, the caller must provide OC_S_MODE_ENVELOPE_BUDGET bytes for the re-request payload
 
   // (a) go must be present otherwise we never would have been sent the org. message (an anchor can never 'survive' a GOT reconfiguration)
   if (!group_object)
@@ -607,10 +613,10 @@ int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object,
 
   /*
     The value must leave room for the envelope it is wrapped into, see OC_S_MODE_MAX_VALUE_SIZE.
-    The envelope budget is OC_MAX_APP_DATA_SIZE, the very same budget 'oc_issue_s_mode_message'
-    gives the original s-mode send, so this folds to a compile time constant.
+    The envelope budget is OC_S_MODE_ENVELOPE_BUDGET, the very same budget 'oc_issue_s_mode_message'
+    gives the original s-mode send.
   */
-  const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+  const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_S_MODE_ENVELOPE_BUDGET);
 
   // only for 'a' or 'w', 'r' does not have a value
   if (service_type != 'r' && max_value_size > 0)
@@ -634,7 +640,7 @@ int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object,
 
   // same envelope as the s-mode send path: { 4: <sia>, 5: { 7: <ga>, 6: <st>, 1: <value> } }
 
-  oc_rep_new(buffer, (int)OC_MAX_APP_DATA_SIZE);
+  oc_rep_new(buffer, (int)OC_S_MODE_ENVELOPE_BUDGET);
 
   oc_encode_s_mode_envelope(group_address, service_type, value_data, value_size);
 
@@ -645,7 +651,7 @@ int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object,
   if (size <= 0)
   {
     /*
-      the value was capped to 'OC_MAX_APP_DATA_SIZE - OC_S_MODE_ENVELOPE_OVERHEAD' above, so a size driven overflow
+      the value was capped to 'OC_S_MODE_ENVELOPE_BUDGET - OC_S_MODE_ENVELOPE_OVERHEAD' above, so a size driven overflow
       cannot occur here; this only triggers on an internal encoder error, which would hit a 'sia' only
       payload just the same, so the re-request is abandoned
     */
@@ -726,9 +732,9 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
       /*
         allocate the resource application value size that still leaves room for the s-mode envelope;
-        the envelope is encoded by 'oc_issue_s_mode_message' into a buffer of OC_MAX_APP_DATA_SIZE
+        the envelope is encoded by 'oc_issue_s_mode_message' with the budget OC_S_MODE_ENVELOPE_BUDGET
       */
-      const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+      const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_S_MODE_ENVELOPE_BUDGET);
 
       uint8_t* resource_value_buffer = (uint8_t*)malloc(max_value_size);
       if (!resource_value_buffer)
@@ -1044,9 +1050,9 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
     /*
       allocate the resource application value size that still leaves room for the s-mode envelope;
-      the envelope is encoded by 'oc_issue_s_mode_message' into a buffer of OC_MAX_APP_DATA_SIZE
+      the envelope is encoded by 'oc_issue_s_mode_message' with the budget OC_S_MODE_ENVELOPE_BUDGET
     */
-    const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_MAX_APP_DATA_SIZE);
+    const uint16_t max_value_size = OC_S_MODE_MAX_VALUE_SIZE(OC_S_MODE_ENVELOPE_BUDGET);
 
     uint8_t* resource_value_buffer = (uint8_t*)malloc(max_value_size);
     if (!resource_value_buffer)

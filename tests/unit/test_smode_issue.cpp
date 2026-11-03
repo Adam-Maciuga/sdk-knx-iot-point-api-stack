@@ -246,3 +246,35 @@ TEST_F(SModeIssue, UnicastConWriteSendsOneConPostAndNotifiesAfter)
   oc_free_string(&rec.at);
   oc_free_string(&at->id);
 }
+
+/*
+  An envelope larger than one packet (OC_BLOCK_SIZE, 512 B by default) is never sent truncated: s-mode has no
+  blockwise transfer, coap_set_payload caps the payload at the block size, so it is either sent complete or not at all
+*/
+TEST_F(SModeIssue, EnvelopeLargerThanOnePacketIsNeverSentTruncated)
+{
+  /* value { 1: h'<580 bytes>' } as the GET handler delivers it: BF 01 59 02 44 <580 bytes> FF */
+  std::vector<uint8_t> value = {0xBF, 0x01, 0x59, 0x02, 0x44};
+  value.insert(value.end(), 580, 0xA5);
+  value.push_back(0xFF);
+
+  oc_send_s_mode_multicast_message(5, 0x0101, 'w', value.data(), (int)value.size(), &recipient_, nullptr);
+
+  if (g_send_calls == 1)
+  {
+    coap_packet_t pkt[1];
+    ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size() - 1), COAP_NO_ERROR);
+
+    /* complete envelope: the 580 value bytes plus the closing FF FF of value map and root map */
+    EXPECT_GT(pkt->payload_len, 580U);
+    ASSERT_GE(pkt->payload_len, 2U);
+    EXPECT_EQ(pkt->payload[pkt->payload_len - 2], 0xFF);
+    EXPECT_EQ(pkt->payload[pkt->payload_len - 1], 0xFF);
+  }
+  else
+  {
+    /* not sent: no /k event either, the single message is released (ASan/LSan: no leak) */
+    EXPECT_EQ(g_send_calls, 0);
+    EXPECT_TRUE(g_events.empty());
+  }
+}

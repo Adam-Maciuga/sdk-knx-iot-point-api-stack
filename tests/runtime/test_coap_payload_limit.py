@@ -15,12 +15,24 @@ Reference:
   RFC 7959 -- block-wise transfer is the way to send larger bodies
 """
 
+import cbor2
 import pytest
 
-from transport.coap_client import APPLICATION_CBOR
+from transport.coap_client import APPLICATION_CBOR, _decode_block_option, _encode_block_option
+
+from fixtures import set_lsm
 
 # Must mirror KNX_PAYLOAD_SIZE from the root CMakeLists.txt
 MAX_APP_DATA_SIZE = 768
+
+# One block (OC_BLOCK_SIZE): the largest power of two <= MAX_APP_DATA_SIZE
+BLOCK_SIZE = 512
+
+# CoAP Size1 option (RFC 7959 4)
+SIZE1_OPTION = 60
+
+# CoAP Block1 option (RFC 7959 2.1)
+BLOCK1_OPTION = 27
 
 
 def _payload(size: int) -> bytes:
@@ -52,18 +64,19 @@ class TestOversizedPayloadRejected:
         assert resp.code == "4.13", (
             f"expected 4.13 for a {MAX_APP_DATA_SIZE + 100} byte payload, got {resp.code}")
 
-    def test_payload_below_max_is_not_rejected_with_413(self, coap):
-        """A payload that still fits must not be answered with 4.13.
+    def test_payload_of_one_block_is_not_rejected_with_413(self, coap):
+        """A payload of ONE block without Block1 must not be answered with 4.13.
 
+        Above one block the device answers 4.13 with Size1 (TestOscoreRequestAboveOneBlock).
         The unprotected request is rejected for other reasons (no OSCORE
         protection), the only assertion here is that the payload size is not
         the reason.
         """
-        resp = _put(coap, MAX_APP_DATA_SIZE - 2)
+        resp = _put(coap, BLOCK_SIZE)
         if resp is None:
             pytest.skip("DUT did not respond to the request")
         assert resp.code != "4.13", (
-            f"a {MAX_APP_DATA_SIZE - 2} byte payload must not be rejected as too large")
+            f"a {BLOCK_SIZE} byte payload (one block) must not be rejected as too large")
 
     def test_dut_still_responsive_after_oversized_request(self, coap):
         """The DUT must survive the oversized request and keep serving."""
@@ -74,3 +87,78 @@ class TestOversizedPayloadRejected:
             pytest.skip("DUT did not respond to the follow-up discovery request")
         assert resp.is_successful, (
             f"GET /.well-known/core after an oversized request failed: {resp.code}")
+
+
+class TestOscoreRequestAboveOneBlock:
+    """A protected request without Block1 whose payload exceeds ONE block -> 4.13 with Size1.
+
+    Above one block (but below MAX_APP_DATA_SIZE, which the parser rejects) the
+    engine answers 4.13 Request Entity Too Large with Size1 = block size, so the
+    client resends it blockwise (RFC 7959 2.9.3). Before, it answered with a RST.
+    The unprotected requests above never reach this check (no OSCORE).
+    """
+
+    def test_oscore_payload_above_one_block_returns_413_with_size1(self, coap, oscore_ctx):
+        resp = coap.oscore_put(oscore_ctx, "/p/1", payload=_payload(BLOCK_SIZE + 88))
+        assert resp is not None, "no response to a protected request above one block"
+        assert resp.code == "4.13", (
+            f"expected 4.13 for a {BLOCK_SIZE + 88} byte payload without Block1, got {resp.code}")
+        size1 = (resp.options or {}).get(SIZE1_OPTION)
+        assert size1 is not None, "4.13 must carry Size1 (the acceptable block size)"
+        assert int.from_bytes(size1, "big") == BLOCK_SIZE, (
+            f"Size1 must be the block size {BLOCK_SIZE}, got {int.from_bytes(size1, 'big')}")
+
+
+# group object table entries for the Block1 transfer: ~18 bytes CBOR each, 36 entries ~650 bytes,
+# above ONE block and below MAX_APP_DATA_SIZE (the reassembly buffer)
+GOT_FIRST_ID = 1100
+GOT_ENTRIES = 36
+
+
+class TestOscoreBlock1Transfer:
+    """A protected POST above one block, sent blockwise with Block1, is reassembled and processed.
+
+    This is the retry a client makes after the 4.13 + Size1 above (RFC 7959 2.9.3):
+    block 0 (512 bytes, M=1) -> 2.31 Continue with Block1 echoed, the last block (M=0)
+    -> the result of the handler on the whole payload. The entries of both blocks are
+    read back, so the device parsed the reassembled payload, not one block.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, coap, oscore_ctx):
+        set_lsm(coap, oscore_ctx, 4)  # unload
+        set_lsm(coap, oscore_ctx, 1)  # loading
+        self.coap = coap
+        self.ctx = oscore_ctx
+        yield
+        set_lsm(coap, oscore_ctx, 4)  # unload: no table entries left for later tests
+
+    def _post_block(self, num, more, chunk):
+        block1 = _encode_block_option(num, more, BLOCK_SIZE)
+        return self.coap.oscore_request(self.ctx, 2, "/fp/g", payload=chunk, content_format=APPLICATION_CBOR,
+                                        crit_option=(BLOCK1_OPTION, block1))
+
+    def test_post_above_one_block_with_block1_is_reassembled(self):
+        entries = [{0: GOT_FIRST_ID + i, 7: [1000 + i], 8: 0x01, 11: "/p/1"} for i in range(GOT_ENTRIES)]
+        body = cbor2.dumps(entries)
+        assert BLOCK_SIZE < len(body) < MAX_APP_DATA_SIZE, f"body must span two blocks and fit the buffer, is {len(body)}"
+
+        chunks = [body[i:i + BLOCK_SIZE] for i in range(0, len(body), BLOCK_SIZE)]
+        for num, chunk in enumerate(chunks):
+            more = num < len(chunks) - 1
+            resp = self._post_block(num, more, chunk)
+            assert resp is not None, f"no response to Block1 block {num}"
+            echoed = (resp.options or {}).get(BLOCK1_OPTION)
+            assert echoed is not None, f"block {num}: the response must echo Block1, got {resp.code}"
+            assert _decode_block_option(echoed)[0] == num, f"block {num}: Block1 echoes num {_decode_block_option(echoed)[0]}"
+            if more:
+                assert resp.code == "2.31", f"block {num} of {len(chunks)}: expected 2.31 Continue, got {resp.code}"
+            else:
+                assert resp.code == "2.01", f"last block: expected 2.01 (entries created), got {resp.code}"
+
+        for got_id in (GOT_FIRST_ID, GOT_FIRST_ID + GOT_ENTRIES - 1):
+            resp = self.coap.oscore_get(self.ctx, f"/fp/g/{got_id}", accept=APPLICATION_CBOR)
+            assert resp is not None and resp.code == "2.05", (
+                f"GET /fp/g/{got_id}: expected 2.05, got {resp.code if resp else 'timeout'}")
+            entry = cbor2.loads(resp.payload)
+            assert entry.get(7) == [1000 + got_id - GOT_FIRST_ID], f"/fp/g/{got_id} ga: got {entry}"

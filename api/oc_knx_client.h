@@ -97,7 +97,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
  *
  * @param group_object originating group object table entry, may be NULL (-> 'sia' only)
  * @param service_type 'w', 'r' or 'a' of the original request; 'r' never carries a value
- * @param buffer       destination buffer for the encoded CBOR payload, must hold OC_MAX_APP_DATA_SIZE bytes
+ * @param buffer       destination buffer for the encoded CBOR payload, must hold the s-mode envelope budget (one block, OC_BLOCK_SIZE)
  *
  * @return encoded payload length, or -1 on failure
  */

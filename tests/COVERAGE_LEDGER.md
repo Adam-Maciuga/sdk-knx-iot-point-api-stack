@@ -359,7 +359,7 @@ timed-event-driven IPv6 resolution state machine — all INTEGRATION.
 | oc_send_s_mode_multicast_message | INTEGRATION — builds + sends s-mode multicast |
 | oc_send_s_mode_mc_or_uc_message | INTEGRATION — needs running device + RI resource + GO/recipient tables |
 | ipv6_for_ia_is_resolved (static) | INTEGRATION — timed-event-driven resolve state machine; reachable only via senders |
-| oc_issue_s_mode_message (static) | DONE — builds, encodes and sends the s-mode request in one function (local message handed over to its transaction, static CoAP packet off the call stack); replaces `oc_init_s_mode_message_update` + `oc_do_s_mode_message_update`. Unit: `test_smode_issue.cpp` (NON POST to /k with the envelope, read, no transaction → message released; `/k` event after the send, none without a transaction, none for a read), runtime: the s-mode classes of `test_group_comm.py` |
+| oc_issue_s_mode_message (static) | DONE — envelope budget one CoAP packet (`OC_S_MODE_ENVELOPE_BUDGET` = MIN(app data, block size), `EnvelopeLargerThanOnePacketIsNeverSentTruncated`); builds, encodes and sends the s-mode request in one function (local message handed over to its transaction, static CoAP packet off the call stack); replaces `oc_init_s_mode_message_update` + `oc_do_s_mode_message_update`. Unit: `test_smode_issue.cpp` (NON POST to /k with the envelope, read, no transaction → message released; `/k` event after the send, none without a transaction, none for a read), runtime: the s-mode classes of `test_group_comm.py` |
 | oc_s_mode_get_resource_value (static) | INTEGRATION — invokes an RI app-resource GET handler |
 | knx_add_ipv6_address_coap_discovery_handler | INTEGRATION — allocates client-cb + sends well-known update |
 | knx_remove_ipv6_address_coap_discovery_handler (static) | INTEGRATION — delayed-callback cleanup of client-cb |
@@ -847,6 +847,7 @@ functions push a message onto the outbound process queue and are integration-lev
 | oscore.c: oscore_is_oscore_message | DONE — detects option 9, rejects other option / no options |
 | transactions.c: coap_new_transaction_with_message | DONE — adopts the caller's message (no copy), mid/token, registers in list (`NewTransactionWithMessage*`, `test_coap_transactions.cpp`); used by the s-mode send and the regenerated 'echo re-request' (the re-request of a unicast original takes a plain `coap_new_transaction` and is serialized from the original); s-mode send (`HandOver_*`, `test_smode_send_refcount.cpp`; one allocation per send, `test_oc_client_api.cpp`) |
 | transactions.c: coap_register_as_transaction_handler | DONE — smoke (records OC_PROCESS_CURRENT; no externally observable state in a unit context) |
+| engine.c: coap_receive, request payload above one block without Block1 | DONE — 4.13 with Size1 = block size instead of RST (`test_coap_receive_payload.cpp`, runtime `TestOscoreRequestAboveOneBlock`) |
 | engine.c: coap_init_engine | DONE — smoke (thin wrapper over coap_register_as_transaction_handler) |
 | engine.c: coap_send_response_with_empty_ack | INTEGRATION — calls coap_send_message → oc_send_message → oc_process_post to the message_buffer_handler process; requires the populated oc_events table + running process scheduler from oc_main_init |
 

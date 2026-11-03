@@ -1226,7 +1226,7 @@ int coap_receive(oc_message_t* incoming_message)
 
             /*
               regenerate into the carrier's OWN data buffer, behind the room for the CoAP header.
-              the budget is OC_MAX_APP_DATA_SIZE, the very same envelope budget 'oc_issue_s_mode_message'
+              the budget is one CoAP packet (OC_S_MODE_ENVELOPE_BUDGET), the very same envelope budget 'oc_issue_s_mode_message'
               gives the original s-mode send, so a regenerated payload can never exceed what the sender could emit
             */
             uint8_t* const regenerated = source_msg->data + COAP_MAX_HEADER_SIZE;

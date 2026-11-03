@@ -111,18 +111,44 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_ATT_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
-set(KNX_PAYLOAD_SIZE "768" CACHE STRING "CoAp PDU bytes, allocated by stack/applications per CoAP message" FORCE)
+set(KNX_PAYLOAD_SIZE "768" CACHE STRING "Application payload bytes per CoAP exchange (buffer size, see below)" FORCE)
 set(KNX_ECHO_RING_SIZE "64" CACHE STRING "Echo ring size, used buffers to defend against replayed 4.01 unicast echo responses")
 
 ## KNX payload size (bytes)
-# 768 is chosen so that the total CoAP PDU (payload + outer header + inner header = 768 + 272 = 1040)
-# stays below COAP_MAX_MESSAGE_SIZE (1152), the RFC 7252 clause 4.6 guidance for an unknown path MTU (1280)
-#  - used for stack AND application 'malloc/calloc' calls
-#    such as for application read responses or stack discovery responses
-#  - must be carefully chosen since stack resources usually need more bytes than application datapoints
-#    (such as for discovery linked list responses, here it depends on how many application resources
-#     are defined and responded)
-#  - can be overwritten at runtime by applications with oc_set_pdu_size()
+#
+#  The size of ONE application payload BUFFER the stack allocates in RAM, it DOES NOT define the max size of a msg on the wire.
+#
+#  FACTS
+#  -----
+#
+#  1. A msg SEND OUT by the stack carries at most ONE block (512 bytes, see *c) of PAYLOAD on the wire, a PAYLOAD larger than ONE 
+#     block is only sent blockwise where the service supports it (see *b below).
+#  2. A msg RECEIVED by the stack is accepted up to OC_PDU_SIZE (header + OSCORE options + payload) on the wire (see *a below).
+#
+#  DETAILS
+#  -------
+#
+#  The BUFFER is used to assemble or store application PAYLOAD data as a whole set
+#  - blockwise requests  : the received blocks are collected in the BUFFER and parsed as a whole (e.g. POST auth/at with many GAs)
+#  - blockwise responses : the response is built as a whole in the BUFFER, then sent block by block (e.g. discovery link lists)
+#  - storage             : a table entry is serialized into the BUFFER (e.g. one access token entry with many GAs)
+#    
+#  *a The total OC_PDU_SIZE = payload BUFFER size (768) + OC_COAP_HEADER_BUDGET (~272) = ~1040 bytes is below COAP_MAX_MESSAGE_SIZE (1152),
+#     see RFC 7252, 4.6 guidance for an unknown path MTU (1280)
+#
+#  *b several messages
+#     - responses (blockwise support)             : Block2 (GET responses, table pages, discovery link lists, separate responses)
+#     
+#     - s-mode messages (no blockwise support)    : mc and uc incl. the echo re-request (a mc POST to 'k' gets no response, spec 2.6.9.1)
+#                                                   -> envelope budget OC_S_MODE_ENVELOPE_BUDGET
+#     
+#     - '/p' notifications (blockwise support)    : Block2, only if the observer registered with a smaller block size, no blockwise, 
+#                                                   a msg is limited to ONE block
+#     
+#     - '/k' notifications (no blockwise support) : max 512 bytes CBOR (spec 2.6.9.3)
+#
+#  *c ONE block = OC_BLOCK_SIZE, the largest power of two <= the BUFFER size (768 -> 512)
+
 
 ## KNX_ECHO_RING_SIZE 
 #  The size should be carefully chosen for an embedded device, in accordance to the 
