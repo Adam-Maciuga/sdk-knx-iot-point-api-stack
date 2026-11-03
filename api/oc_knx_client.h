@@ -154,6 +154,14 @@ void oc_send_s_mode_unicast_message(
  */
 oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* data);
 
+/**
+ * @brief Reset the IPv6 resolver of every recipient table entry
+ *
+ * Drops pending CoAP discoveries (deferred request, client callback, timeout handler), the linked group object
+ * and the resolved state. Called on every load state transition and on a device reset, before the tables change.
+ */
+void oc_reset_unicast_resolvers(void);
+
 #ifdef __cplusplus
 }
 #endif

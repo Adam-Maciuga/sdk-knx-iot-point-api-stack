@@ -59,13 +59,14 @@ removed entry. The next number is F-053.
 - **Evidence:** code reading. A test: token with `<ga>` [1], POST the same id with `<ga>` [2] only -> 2.04, and `oc_init_oscore_from_storage` (wrapped) is not called.
 - **Expected:** set `scope_updated = true` in the `<ga>` branch as in the string branch.
 
-## F-035: a discovery response after the group object was deleted dereferences a NULL `ga` - OPEN
+## ~~F-035: a discovery response after the group object was deleted dereferences a NULL `ga`~~ - FIXED
 
 - **Files:** `api/oc_knx_client.c`, `ipv6_for_ia_is_resolved()` (caches `recipient->ipv6_res.group_object`) and the discovery response handler (`group_object->ga[0]`); `api/oc_knx_fp.c`, `oc_free_group_object_table_entry()`.
 - **Severity:** High - crash (NULL read) on a device that resolves a unicast s-mode recipient while the MaC changes the GOT.
 - **Description:** the first unicast s-mode send for an unresolved IA stores a pointer to the GOT entry and starts discovery. If that GO is deleted (POST /fp/g with id only) or the device is reset before the discovery response arrives, `oc_free_group_object_table_entry()` sets `ga = NULL`, `ga_len = 0` and frees `href`. Nothing clears `ipv6_res.group_object`, so the response handler reads `ga[0]` from NULL and `oc_string(href)` from an empty string.
 - **Evidence:** code reading. A test: unicast send to an unresolved IA (status RESOLVING), delete the GO, then call the discovery response handler with a matching IA/IID; under ASan it faults.
 - **Expected:** clear `ipv6_res.group_object` (and reset the status) when a GO or GRT entry is freed, or store the GO id and look it up again in the response handler; check `ga_len > 0` before `ga[0]`.
+- **Fix:** the GO table is only written in LOADING, so `oc_reset_unicast_resolvers()` (`api/oc_knx_client.c`) drops every resolver (deferred request, client callback, timeout handler, GO pointer, status) on each load state transition (`api/oc_knx.c`, next to `coap_free_s_mode_transactions()`) and in both reset modes of `oc_knx_device_reset()`; with the client callback gone, a late discovery response no longer reaches the handler. Test: `test_oc_knx`, `KnxHandlers.ALsmStartLoadingResetsPendingUnicastResolvers`.
 
 ## F-036: deleting an observed periodic resource leaves its periodic callback behind (use-after-free) - OPEN
 

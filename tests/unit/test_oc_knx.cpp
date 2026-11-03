@@ -467,3 +467,37 @@ TEST_F(KnxHandlers, ALsmUnloadRemovesAllObservers)
   coap_free_all_observers();
   oc_network_event_handler_mutex_destroy();
 }
+
+/* --- /a/lsm POST start loading: unicast IPv6 resolvers end with the configuration --- */
+
+/*
+  A resolver keeps a pointer to the sending group object until its discovery response arrives. In LOADING the
+  group object may be deleted (ga = NULL) or rewritten; a late response then read ga[0] from NULL. The load state
+  transition drops every resolver before the tables may change.
+*/
+TEST_F(KnxHandlers, ALsmStartLoadingResetsPendingUnicastResolvers)
+{
+  oc_group_table_t* recipient = oc_core_get_recipient_table_entry(0);
+  ASSERT_NE(recipient, nullptr);
+  recipient->ipv6_res.group_object = oc_core_get_group_object_table_entry(0);
+  recipient->ipv6_res.service_type = 'w';
+  recipient->ipv6_res.attempts = 3;
+  recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
+
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  oc_rep_t event;
+  memset(&event, 0, sizeof(event));
+  event.type = OC_REP_INT;
+  event.iname = 2;
+  event.value.integer = LSM_E_STARTLOADING;
+  request.request_payload = &event;
+  request.accept = APPLICATION_CBOR;
+
+  core_resource_a_lsm.post_handler.cb(&request, OC_IF_NONE, nullptr);
+
+  EXPECT_EQ(oc_core_get_device_info()->lsm_s, LSM_S_LOADING);
+  EXPECT_EQ(recipient->ipv6_res.group_object, nullptr);
+  EXPECT_EQ(recipient->ipv6_res.callback, nullptr);
+  EXPECT_EQ(recipient->ipv6_res.attempts, 0);
+  EXPECT_EQ(recipient->ipv6_res.resolve_status, OC_IP_STATUS_UNRESOLVED);
+}

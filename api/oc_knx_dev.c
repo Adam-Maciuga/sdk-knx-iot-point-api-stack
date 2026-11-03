@@ -17,6 +17,7 @@
 #include "messaging/coap/observe.h"
 #include "oc_helpers.h"
 #include "oc_knx_fp.h"
+#include "oc_knx_client.h"
 #include "oc_knx_helpers.h"
 #include "oc_knx_sec.h"
 #include "oc_main.h"
@@ -1124,6 +1125,9 @@ void oc_knx_device_reset(int reset_mode)
     // drop multicast memberships before clearing the tables AND resetting device IID
     oc_unregister_group_multicasts();
 
+    // drop pending/resolved unicast IPv6 resolvers, they reference group object table entries
+    oc_reset_unicast_resolvers();
+
     // set to KNX defaults (ports see below)
     device->pm = false;
     device->ia = 0xFFFF;
@@ -1182,9 +1186,12 @@ void oc_knx_device_reset(int reset_mode)
 
     // send the DNS-SD goodbye while the interface is still up, before leaving the multicast groups
     knx_dns_sd_stop();
-    
+
     // drop multicast memberships before clearing the tables AND resetting device IID
     oc_unregister_group_multicasts();
+
+    // drop pending/resolved unicast IPv6 resolvers, they reference group object table entries
+    oc_reset_unicast_resolvers();
 
     // set the KNX defaults (ports see above)
     device->pm = false;

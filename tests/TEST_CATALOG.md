@@ -669,7 +669,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx.cpp — KNX Core (33 tests)
+### test_oc_knx.cpp — KNX Core (34 tests)
 
 **Source:** `api/oc_knx.c`
 
@@ -680,7 +680,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `IsRedirectedRequestFrom` | 5 | URL routing classification (NULL, empty, /k, /p, other) |
 | `KnxLsm` | 1 | `oc_knx_lsm_state()` returns the device LSM field |
 | `KnxRuntime` | 3 | Runtime-ready true only when loaded and IID set |
-| `KnxHandlers` | 8 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors); `/a/lsm` POST unload removes every observer (`ALsmUnloadRemovesAllObservers`) |
+| `KnxHandlers` | 9 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors); `/a/lsm` POST unload removes every observer (`ALsmUnloadRemovesAllObservers`); POST start loading resets the unicast IPv6 resolvers (`ALsmStartLoadingResetsPendingUnicastResolvers`) |
 | `KnxFingerprintStorage` | 4 | 4-byte fingerprint record: absent key starts at 0, load continues from the stored value, an older 8-byte record keeps its low half and is rewritten as 4 bytes, wrap at `UINT32_MAX` |
 
 ---

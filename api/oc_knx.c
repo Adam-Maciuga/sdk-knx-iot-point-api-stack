@@ -578,12 +578,16 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
           - the OSCORE echo ring, its anchors REFERENCE group object table entries; a late echo response would
             otherwise regenerate its re-request payload from an entry that may belong to a different datapoint
 
+          - the unicast IPv6 resolvers, they REFERENCE the sending group object table entry; a late discovery
+            response would otherwise send from an entry that was deleted or rewritten meanwhile
+
           The replay records are deliberately NOT cleared here: they protect the server side against replayed
           inbound requests and are tied to the access token table, not to the group object table.
         */
         oc_unregister_group_multicasts();
         coap_free_s_mode_transactions();
         oc_oscore_free_all_echo_records();
+        oc_reset_unicast_resolvers();
 
         switch (new_lsm_state)
         {

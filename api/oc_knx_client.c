@@ -1148,3 +1148,40 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
 
   return OC_EVENT_DONE;
 }
+
+void oc_reset_unicast_resolvers(void)
+{
+  /*
+    FACTS
+    1. a resolver keeps a POINTER to the sending GO (group object table entry) from the first s-mode request until its discovery
+       response arrives (up to 25 s), the discovery response handler then reads href and ga[0] through it
+    2. the GO table is only written in LOADING, every load state transition (and a device reset) passes through here first
+    3. without this reset a late discovery response would read a GO that was deleted meanwhile (ga = NULL -> ga[0] crashes)
+       or that now belongs to another datapoint (-> the wrong datapoint is sent)
+    4. the dropped client callback is the only way to the discovery response handler -> a late response is dropped by the stack
+
+    DETAILS
+    - pending discovery: the deferred request, its client callback (*a) and its timeout handler are dropped
+    - resolved IPv6 addresses are dropped too -> the next s-mode request in LOADED resolves again
+
+    *a the client callback may already be freed by the stack (e.g. 5.03), so it is only removed when still valid
+  */
+  for (int i = 0; i < KNX_GRT_MAX_ENTRIES; i++)
+  {
+    oc_group_table_t* recipient = oc_core_get_recipient_table_entry(i);
+
+    oc_remove_delayed_callback(recipient, knx_add_ipv6_address_coap_discovery_handler);
+    oc_remove_delayed_callback(recipient, knx_remove_ipv6_address_coap_discovery_handler);
+
+    if (recipient->ipv6_res.callback && oc_ri_is_client_cb_valid(recipient->ipv6_res.callback))
+    {
+      oc_ri_remove_client_cb(recipient->ipv6_res.callback);
+    }
+
+    recipient->ipv6_res.callback = NULL;
+    recipient->ipv6_res.group_object = NULL;
+    recipient->ipv6_res.attempts = 0;
+    recipient->ipv6_res.missing_response_count = 0;
+    recipient->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+  }
+}
