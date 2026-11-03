@@ -1073,9 +1073,15 @@ int coap_receive(oc_message_t* incoming_message)
 
           goto request_handler;
         }
-        OC_ERR("incoming payload size exceeds block size");
-
-        goto init_reset_message;
+        /*
+          request without Block1 and a payload above one block (the parser already rejects >= OC_MAX_APP_DATA_SIZE)
+          - 4.13 Request Entity Too Large with Size1 = block size, the client resends it blockwise (RFC 7959 2.9.3)
+          - same answer as the parser gives for a payload that does not fit the buffer, no RST
+        */
+        OC_ERR("incoming payload size %u exceeds block size %u -> 4.13", (unsigned int)incoming_block_len, (unsigned int)block1_size);
+        outbound_coap_pkt->code = REQUEST_ENTITY_TOO_LARGE_4_13;
+        coap_set_header_size1(outbound_coap_pkt, block1_size);
+        goto send_message;
 
       request_handler :
         if (oc_ri_invoke_coap_entity_handler(inbound_coap_pkt,
