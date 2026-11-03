@@ -615,7 +615,7 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (47 tests)
+### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (49 tests)
 
 **Source:** `api/oc_knx_dev.c`
 
@@ -629,6 +629,8 @@ must forward. Verified non-vacuous: transposing one argument in
 | `InProgrammingModeReflectsSetFalse` | Getter returns false after set-false |
 | `GetterMatchesDeviceField` | Getter mirrors `device->pm` exactly |
 | `TogglingIsIdempotentPerValue` | Repeated set of same value is stable |
+
+**Device reset (`KnxDevResetObservers`, 2 tests)** — `oc_knx_device_reset` with erase code 2 (`ResetToDefaultStateRemovesAllObservers`) and 7 (`ResetToDefaultWithoutIaRemovesAllObservers`) removes every observer: subscriptions end with the access tokens they were made with.
 
 **Resource handlers (`KnxDevHandlers`, 41 tests)** — GET/PUT handlers for the
 device resources (`/dev/sn`, `/dev/hwv`, `/dev/fwv`, `/dev/hwt`, `/dev/model`,
@@ -668,7 +670,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx.cpp — KNX Core (32 tests)
+### test_oc_knx.cpp — KNX Core (33 tests)
 
 **Source:** `api/oc_knx.c`
 
@@ -679,7 +681,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `IsRedirectedRequestFrom` | 5 | URL routing classification (NULL, empty, /k, /p, other) |
 | `KnxLsm` | 1 | `oc_knx_lsm_state()` returns the device LSM field |
 | `KnxRuntime` | 3 | Runtime-ready true only when loaded and IID set |
-| `KnxHandlers` | 7 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors) |
+| `KnxHandlers` | 8 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint GET handlers (JSON/CBOR/accept errors); `/a/lsm` POST unload removes every observer (`ALsmUnloadRemovesAllObservers`) |
 | `KnxFingerprintStorage` | 4 | 4-byte fingerprint record: absent key starts at 0, load continues from the stored value, an older 8-byte record keeps its low half and is rewritten as 4 bytes, wrap at `UINT32_MAX` |
 
 ---

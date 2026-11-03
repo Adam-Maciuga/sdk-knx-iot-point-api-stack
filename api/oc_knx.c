@@ -17,6 +17,7 @@
 #include "oc_core_res.h"
 #include "oc_knx_client.h"
 #include "oc_knx_dev.h"
+#include "messaging/coap/observe.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_sec.h"
 #include "oc_main.h"
@@ -592,6 +593,14 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
             // do a reset like erase code 2 but not for the access token table, ia, iid, fid remains -> EITT test
             oc_delete_group_tables();
             oc_delete_group_object_table();
+
+            /*
+              subscriptions end with the configuration
+              - no runtime communication outside 'loaded' (spec 2.5.8.1), a subscriber subscribes again after the next load
+              - an observer keeps a pointer to the slot of its subscription token, the tokens may be changed before the
+                next 'loaded' (a surviving observer would then get /k events with the rights of another token)
+            */
+            coap_free_all_observers();
             break;
 
           case LSM_S_LOADED:

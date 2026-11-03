@@ -38,6 +38,12 @@ extern "C" {
 #include "oc_core_res.h"  /* oc_core_get_device_info, oc_device_info_t */
 #include "oc_knx_dev.h"   /* function under test */
 #include "oc_ri.h"        /* oc_request_t / oc_resource_t / oc_status_code */
+#include "messaging/coap/observe.h"
+#include "messaging/coap/coap.h"
+#include "port/oc_network_events_mutex.h"
+#include "util/oc_mmem.h"
+
+extern const oc_resource_t core_resource_knx_k;
 #include "oc_rep.h"       /* oc_rep_new */
 #include "oc_helpers.h"   /* oc_new_string / oc_free_string */
 #include "messaging/coap/oc_coap.h" /* full def of oc_response_buffer_s */
@@ -550,3 +556,79 @@ TEST_F(KnxDevApPvPut, StoreFailsInternalServerError)
   expect_apv(1, 1, 1);
 }
 
+/* --- device reset: subscriptions end with the access tokens --- */
+
+/*
+  register one observer on /k through the real observe handler (lt is mandatory), the way a subscriber does
+*/
+static int add_k_observer(uint16_t port)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = port;
+  ep.addr.ipv6.address[15] = 1;
+
+  static const char query[] = "lt=86400";
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.code = COAP_GET;
+  req.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&req, COAP_OPTION_OBSERVE);
+  req.token[0] = (uint8_t)port;
+  req.token_len = 1;
+  req.uri_path = "k";
+  req.uri_path_len = 1;
+  req.uri_query = query;
+  req.uri_query_len = (uint32_t)strlen(query);
+  SET_OPTION(&req, COAP_OPTION_URI_QUERY);
+
+  coap_packet_t res;
+  memset(&res, 0, sizeof(res));
+  res.code = CONTENT_2_05;
+
+  return coap_observe_handler(&req, &res, &core_resource_knx_k, 0, &ep);
+}
+
+static int k_observers(void)
+{
+  return core_resource_knx_k.runtime_data->num_observers;
+}
+
+class KnxDevResetObservers : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    oc_mmem_init();
+    oc_network_event_handler_mutex_init();
+  }
+  void TearDown() override
+  {
+    coap_free_all_observers();
+    oc_network_event_handler_mutex_destroy();
+  }
+};
+
+/*
+  A reset deletes the access tokens; every subscription made with them ends as well (no observer keeps a pointer
+  to an emptied or reused token slot)
+*/
+TEST_F(KnxDevResetObservers, ResetToDefaultStateRemovesAllObservers)
+{
+  ASSERT_EQ(add_k_observer(5101), 0);
+  ASSERT_EQ(k_observers(), 1);
+
+  oc_knx_device_reset(RESET_TO_DEFAULT_STATE);
+
+  EXPECT_EQ(k_observers(), 0);
+}
+
+TEST_F(KnxDevResetObservers, ResetToDefaultWithoutIaRemovesAllObservers)
+{
+  ASSERT_EQ(add_k_observer(5102), 0);
+  ASSERT_EQ(k_observers(), 1);
+
+  oc_knx_device_reset(RESET_TO_DEFAULT_WO_IA);
+
+  EXPECT_EQ(k_observers(), 0);
+}

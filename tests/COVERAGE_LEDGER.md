@@ -400,7 +400,9 @@ INTEGRATION (concrete reasons):
 - `oc_knx_set_and_store_lsm`, `oc_knx_load_fingerprint`,
   `oc_knx_increase_fingerprint` — read/write persistent storage
   (`oc_storage_read`/`oc_storage_write`).
-- `oc_core_a_lsm_post_handler`, `oc_core_knx_k_post_handler`,
+- `oc_core_a_lsm_post_handler` unload path: observers removed (`KnxHandlers.ALsmUnloadRemovesAllObservers`); `oc_knx_device_reset`
+  erase codes 2 and 7: observers removed (`KnxDevResetObservers.*`).
+- `oc_core_a_lsm_post_handler` (other transitions), `oc_core_knx_k_post_handler`,
   `oc_core_knx_ia_post_handler` — mutate device state and drive group multicast
   register/unregister, datapoint init, GO/recipient-table walks, s-mode
   unicast/multicast CoAP send and DNS-SD republish (need a bootstrapped device +

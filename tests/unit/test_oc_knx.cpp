@@ -24,10 +24,14 @@ extern "C" {
 #include "util/oc_mmem.h"
 #include "api/oc_knx_dev.h" /* KNX_STORAGE_KEY_FINGERPRINT */
 #include "port/oc_storage.h"
+#include "messaging/coap/observe.h"
+#include "messaging/coap/coap.h"
+#include "port/oc_network_events_mutex.h"
 
 /* static handlers are reachable via these non-static const resource literals */
 extern const oc_resource_t core_resource_knx;
 extern const oc_resource_t core_resource_a_lsm;
+extern const oc_resource_t core_resource_knx_k;
 extern const oc_resource_t core_resource_knx_fingerprint;
 }
 
@@ -272,6 +276,43 @@ TEST_F(KnxHandlers, KnxGetUnsupportedAcceptIsBadRequest)
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
+/*
+  register one observer on /k through the real observe handler (lt is mandatory), the way a subscriber does
+*/
+static int add_k_observer(uint16_t port)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = port;
+  ep.addr.ipv6.address[15] = 1;
+
+  static const char query[] = "lt=86400";
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.code = COAP_GET;
+  req.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&req, COAP_OPTION_OBSERVE);
+  req.token[0] = (uint8_t)port;
+  req.token_len = 1;
+  req.uri_path = "k";
+  req.uri_path_len = 1;
+  req.uri_query = query;
+  req.uri_query_len = (uint32_t)strlen(query);
+  SET_OPTION(&req, COAP_OPTION_URI_QUERY);
+
+  coap_packet_t res;
+  memset(&res, 0, sizeof(res));
+  res.code = CONTENT_2_05;
+
+  return coap_observe_handler(&req, &res, &core_resource_knx_k, 0, &ep);
+}
+
+static int k_observers(void)
+{
+  return core_resource_knx_k.runtime_data->num_observers;
+}
+
 /* --- /a/lsm GET --- */
 
 TEST_F(KnxHandlers, ALsmGetReturnsCurrentState)
@@ -393,4 +434,36 @@ TEST_F(KnxFingerprintStorage, IncreaseWrapsAtFourBytes)
   uint64_t stored;
   ASSERT_EQ(read_stored(&stored), 4);
   EXPECT_EQ(stored, 0u);
+}
+
+/* --- /a/lsm POST unload: subscriptions end with the configuration --- */
+
+/*
+  Unloading drops every observer (spec 2.5.8.1: no runtime communication outside "loaded"). Without it a /k
+  subscription survives into the next "loaded" and keeps the pointer to its access token slot, which may hold
+  another token by then.
+*/
+TEST_F(KnxHandlers, ALsmUnloadRemovesAllObservers)
+{
+  oc_network_event_handler_mutex_init();
+  ASSERT_EQ(add_k_observer(5001), 0);
+  ASSERT_EQ(add_k_observer(5002), 0);
+  ASSERT_EQ(k_observers(), 2);
+
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  oc_rep_t event;
+  memset(&event, 0, sizeof(event));
+  event.type = OC_REP_INT;
+  event.iname = 2;
+  event.value.integer = LSM_E_UNLOAD;
+  request.request_payload = &event;
+  request.accept = APPLICATION_CBOR;
+
+  core_resource_a_lsm.post_handler.cb(&request, OC_IF_NONE, nullptr);
+
+  EXPECT_EQ(oc_core_get_device_info()->lsm_s, LSM_S_UNLOADED);
+  EXPECT_EQ(k_observers(), 0);
+
+  coap_free_all_observers();
+  oc_network_event_handler_mutex_destroy();
 }

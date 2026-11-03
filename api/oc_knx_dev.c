@@ -14,6 +14,7 @@
 #include "oc_api.h"
 #include "oc_knx_dev.h"
 #include "messaging/coap/engine.h"
+#include "messaging/coap/observe.h"
 #include "oc_helpers.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_helpers.h"
@@ -1138,6 +1139,9 @@ void oc_knx_device_reset(int reset_mode)
     oc_delete_group_tables();
     oc_delete_at_table();
 
+    // subscriptions end with the access tokens they were made with
+    coap_free_all_observers();
+
     // terminate any in-flight PASE handshake so its state machine is reset to IDLE
     oc_spake_reset_pase_session();
 
@@ -1192,6 +1196,9 @@ void oc_knx_device_reset(int reset_mode)
     // first remove PASE token, then delete AT table, then reinit contexts
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
+
+    // subscriptions end with the access tokens they were made with
+    coap_free_all_observers();
 
     // (re)create the secure contexts from AT table (except PASE, see above)
     oc_init_oscore_from_storage(true);
