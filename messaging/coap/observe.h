@@ -60,8 +60,6 @@ typedef struct coap_observer_t
 
 int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size, oc_endpoint_t* endpoint);
 
-int coap_remove_observers_on_dos_change(bool reset);
-
 /**
  * @brief Notify /k observers (KNX clause 2.5.9.1)
  *        Each observer gets the fully-encoded S-Mode envelope forwarded as a notification, i.e.
