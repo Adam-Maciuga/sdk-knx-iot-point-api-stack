@@ -67,11 +67,14 @@ static otInstance *sInstance = NULL;
 static otUdpSocket mSocket;
 static oc_endpoint_t g_endpoint;
 
-/* All CoAP nodes (ff0x::fd), link-, realm- and site-local, see 3-10-5 2.6.4.2 */
+/* All CoAP nodes (ff0x::fd), site-, realm- and link-local, see 3-10-5 2.6.4.2.
+ * Widest scope first: if the multicast pool runs out, only link-local is lost,
+ * and ETS discovery through the border router needs site-local.
+ */
 static const otIp6Address ALL_COAP_NODES[] = {
-    { .mFields.m8 = { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
-    { .mFields.m8 = { 0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
     { .mFields.m8 = { 0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
+    { .mFields.m8 = { 0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
+    { .mFields.m8 = { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } },
 };
 
 static uint16_t g_unicast_port = COAP_PORT_UNSECURED; // Set via oc_connectivity_set_port() before oc_connectivity_init().
