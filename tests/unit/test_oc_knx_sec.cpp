@@ -747,13 +747,16 @@ protected:
                   OC_IF_SEC, nullptr, nullptr, payload);
   }
 
+  /* alg < 0: no cnf:osc:alg in the payload, otherwise cnf:osc:alg = alg (0..23) */
   static std::vector<uint8_t> make_complete_at_payload(size_t secret_len,
                                                         bool zero_secret,
-                                                        size_t sender_id_len = 1)
+                                                        size_t sender_id_len = 1,
+                                                        int alg = -1)
   {
     /* both lengths are emitted as a single-byte CBOR byte-string header */
     EXPECT_LE(secret_len, 23u);
     EXPECT_LE(sender_id_len, 23u);
+    EXPECT_LE(alg, 23);
 
     std::vector<uint8_t> cbor = {
       0xa1, 0x00,                         /* outer map: entry 0 */
@@ -762,7 +765,7 @@ protected:
       0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
       0x18, 0x26, 0x02,                   /* profile: coap_oscore */
       0x08, 0xa1, 0x04,                   /* cnf: osc */
-      0xa2,                               /* osc id + master secret */
+      (uint8_t)(alg < 0 ? 0xa2 : 0xa3),   /* osc id + master secret (+ alg) */
       0x00, (uint8_t)(0x40 + sender_id_len)
     };
 
@@ -774,6 +777,11 @@ protected:
     cbor.push_back((uint8_t)(0x40 + secret_len));
     for (size_t i = 0; i < secret_len; ++i) {
       cbor.push_back(zero_secret ? 0 : (uint8_t)(i + 1));
+    }
+
+    if (alg >= 0) {
+      cbor.push_back(0x04);                  /* cnf:osc:alg */
+      cbor.push_back((uint8_t)alg);
     }
     return cbor;
   }
@@ -839,6 +847,31 @@ TEST_F(SecAtPost, AllZeroMasterSecretIsRejected)
 TEST_F(SecAtPost, SenderIdLongerThanOscoreLimitIsRejected)
 {
   const std::vector<uint8_t> cbor = make_complete_at_payload(16, false, 8);
+
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()),
+            oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
+}
+
+/*
+  cnf:osc:alg must be checked on its own value: the check read the enclosing cnf object (a union holding a
+  pointer), so alg 10 was rejected and any alg value made the response 4.00 while the token was still stored
+*/
+TEST_F(SecAtPost, CompleteTokenWithAlgorithm10IsCreated)
+{
+  const std::vector<uint8_t> cbor = make_complete_at_payload(16, false, 1, 10);
+
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()),
+            oc_status_code(OC_STATUS_CREATED));
+  EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 1);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+TEST_F(SecAtPost, AlgorithmOtherThan10IsRejectedAndNotStored)
+{
+  const std::vector<uint8_t> cbor = make_complete_at_payload(16, false, 1, 11);
 
   EXPECT_EQ(post_at(cbor.data(), cbor.size()),
             oc_status_code(OC_STATUS_BAD_REQUEST));

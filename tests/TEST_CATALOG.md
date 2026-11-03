@@ -299,7 +299,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (82 tests)
+### test_oc_knx_sec.cpp — Security Credentials (84 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -313,7 +313,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
 | `SecHandlers` | 21 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: `DELETE /auth/at/{id}` ends the token's `/k` subscriptions (`AtEntryDeleteRemovesTheTokensObservers`); wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
 | `SecAcl` | 26 | `oc_knx_sec_check_acl`, the authorization gate: NULL resource and unsupported method → deny; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
-| `SecAtPost` | 5 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit |
+| `SecAtPost` | 7 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit; `cnf:osc:alg` 10 creates the token, any other value is rejected and not stored |
 | `AtTable` access token lookup | 2 | `oc_core_find_at_entry_by_access_token`: match, miss, prefix/longer id; empty or NULL id never matches an unused slot |
 
 ---

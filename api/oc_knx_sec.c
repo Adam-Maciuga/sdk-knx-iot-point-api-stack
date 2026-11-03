@@ -919,13 +919,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 {
                   if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
                   {
-                    // cnf:osc:ms (8:4:4)
+                    // cnf:osc:alg (8:4:4)
 
-                    /* algorithm (10) only supports value 10 at the moment, EITT test 5.3.19.3 */
-                    if (object->value.integer != 10)
+                    // algorithm (10) only supports value 10 at the moment
+                    if (oscore_object->value.integer != 10)
                     {
-                      OC_ERR("algorithm is not 10 : %d", (int)object->value.integer);
-                      return_status = OC_STATUS_BAD_REQUEST;
+                      OC_ERR("algorithm is not 10 : %d", (int)oscore_object->value.integer);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
                     }
 
                     other_updated = true;

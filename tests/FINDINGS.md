@@ -77,13 +77,14 @@ removed entry. The next number is F-053.
 - **Expected:** `oc_ri_delete_resource()` calls `remove_periodic_observe_callback(resource)`; deregister removes it only when the last observer is gone.
 - **Fix:** `oc_ri_delete_resource()` calls `remove_periodic_observe_callback(resource)` after removing the observers and before freeing the resource (the deregister part stays open as F-052). Test: `test_oc_ri`, `RiEntityHandlerPaths.DeletingPeriodicObservedResourceStopsItsPeriodicCallback`.
 
-## F-037: the cnf:osc:alg check reads the wrong rep node, a correct token is rejected but still stored - OPEN
+## ~~F-037: the cnf:osc:alg check reads the wrong rep node, a correct token is rejected but still stored~~ - FIXED
 
 - **Files:** `api/oc_knx_sec.c`, POST /auth/at handler, `cnf:osc` alg (8:4:4) branch.
 - **Severity:** Medium - a valid request is answered with 4.00; an invalid one (missing `ms`/`osc_id`) is stored anyway.
 - **Description:** the check tests `object->value.integer` (the outer `OC_REP_OBJECT`, whose `value` is a union holding a pointer) instead of `oscore_object->value.integer`, so the value 10 is effectively always rejected and `return_status` becomes `BAD_REQUEST` without returning. Because the status is no longer `CREATED`, the mandatory-property check is skipped; the entry gets its id, is stored and `oc_init_oscore_from_storage()` runs, while the client gets 4.00.
 - **Evidence:** code reading. A test: POST a new token with alg 10 -> expect 2.01 (today 4.00); POST a new token with alg 10 but without `ms` -> expect 4.00 and no entry (today an entry is stored).
 - **Expected:** test `oscore_object->value.integer`, and return 4.00 at once without changing the entry.
+- **Fix:** the check reads `oscore_object->value.integer` and answers 4.00 at once (like the other `cnf:osc` checks), so a new entry never gets its id and is not stored; members parsed before alg in an update are still changed in RAM (F-038). Tests: `test_oc_knx_sec`, `SecAtPost.CompleteTokenWithAlgorithm10IsCreated`, `SecAtPost.AlgorithmOtherThan10IsRejectedAndNotStored`.
 
 ## F-038: a rejected POST /auth/at update still changes the token's OSCORE key material in RAM - OPEN
 
