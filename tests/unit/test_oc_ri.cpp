@@ -36,6 +36,8 @@ extern "C" {
 #include "util/oc_mmem.h"
 
 extern int __real_coap_remove_observer_by_resource(const oc_resource_t* resource);
+extern void __real_oc_etimer_set(struct oc_etimer* et, oc_clock_time_t interval);
+extern void __real_oc_etimer_stop(struct oc_etimer* et);
 }
 
 static int g_removed_observer_resources;
@@ -48,6 +50,22 @@ extern "C" int __wrap_coap_remove_observer_by_resource(
   const int removed = __real_coap_remove_observer_by_resource(resource);
   g_removed_observers += removed;
   return removed;
+}
+
+/* pass-through recorders: the last timer started and the last timer stopped */
+static struct oc_etimer* g_last_etimer_set;
+static struct oc_etimer* g_last_etimer_stopped;
+
+extern "C" void __wrap_oc_etimer_set(struct oc_etimer* et, oc_clock_time_t interval)
+{
+  g_last_etimer_set = et;
+  __real_oc_etimer_set(et, interval);
+}
+
+extern "C" void __wrap_oc_etimer_stop(struct oc_etimer* et)
+{
+  g_last_etimer_stopped = et;
+  __real_oc_etimer_stop(et);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1240,3 +1258,48 @@ TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
   EXPECT_EQ(response_code, REQUEST_ENTITY_TOO_LARGE_4_13);
 }
 
+
+/*
+  An observe registration on an OC_PERIODIC resource starts a periodic callback that holds the resource as its
+  data. Deleting the resource must stop and drop that callback, otherwise the next period notifies the observers
+  of the freed resource (use-after-free).
+*/
+TEST(RiEntityHandlerPaths, DeletingPeriodicObservedResourceStopsItsPeriodicCallback)
+{
+  oc_mmem_init();
+  oc_network_event_handler_mutex_init();
+  RiEntityResource fixture;
+  fixture.resource->properties = (oc_resource_properties_t)(OC_OBSERVABLE | OC_PERIODIC);
+  fixture.resource->observe_period_seconds = 10;
+
+  coap_packet_t request;
+  coap_packet_t response;
+  memset(&request, 0, sizeof(request));
+  memset(&response, 0, sizeof(response));
+  coap_udp_init_message(&request, COAP_TYPE_CON, COAP_GET, 1);
+  coap_set_header_uri_path(&request, "unit", 4);
+  request.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&request, COAP_OPTION_OBSERVE);
+  request.token[0] = 0xB1;
+  request.token_len = 1;
+  request.uri_query = "lt=86400";
+  request.uri_query_len = 8;
+  SET_OPTION(&request, COAP_OPTION_URI_QUERY);
+
+  oc_blockwise_state_t* request_state = nullptr;
+  oc_blockwise_state_t* response_state = nullptr;
+  g_last_etimer_set = nullptr;
+  ASSERT_TRUE(oc_ri_invoke_coap_entity_handler(&request, &response, &request_state, &response_state, 64, &fixture.endpoint));
+  ASSERT_EQ(fixture.resource->runtime_data->num_observers, 1);
+  struct oc_etimer* const periodic_timer = g_last_etimer_set;
+  ASSERT_NE(periodic_timer, nullptr) << "the observe registration did not start the periodic callback";
+
+  g_last_etimer_stopped = nullptr;
+  oc_string_t uri = fixture.resource->uri;
+  EXPECT_TRUE(oc_ri_delete_resource(fixture.resource));
+  fixture.resource = nullptr;
+  oc_free_string(&uri);
+
+  EXPECT_EQ(g_last_etimer_stopped, periodic_timer) << "the periodic callback of the deleted resource is still running";
+  oc_network_event_handler_mutex_destroy();
+}

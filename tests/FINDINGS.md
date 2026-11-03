@@ -68,13 +68,14 @@ removed entry. The next number is F-053.
 - **Expected:** clear `ipv6_res.group_object` (and reset the status) when a GO or GRT entry is freed, or store the GO id and look it up again in the response handler; check `ga_len > 0` before `ga[0]`.
 - **Fix:** the GO table is only written in LOADING, so `oc_reset_unicast_resolvers()` (`api/oc_knx_client.c`) drops every resolver (deferred request, client callback, timeout handler, GO pointer, status) on each load state transition (`api/oc_knx.c`, next to `coap_free_s_mode_transactions()`) and in both reset modes of `oc_knx_device_reset()`; with the client callback gone, a late discovery response no longer reaches the handler. Test: `test_oc_knx`, `KnxHandlers.ALsmStartLoadingResetsPendingUnicastResolvers`.
 
-## F-036: deleting an observed periodic resource leaves its periodic callback behind (use-after-free) - OPEN
+## ~~F-036: deleting an observed periodic resource leaves its periodic callback behind (use-after-free)~~ - FIXED
 
 - **Files:** `api/oc_ri.c`, `oc_ri_delete_resource()`, `add_periodic_observe_callback()`, `periodic_observe_handler()`.
 - **Severity:** High - use-after-free on the next period of a deleted resource.
 - **Description:** a GET observe on an `OC_PERIODIC` resource adds an entry to `observe_callbacks` with `data = resource`. `oc_ri_delete_resource()` removes the observers and frees the resource, but not that entry (`remove_periodic_observe_callback()` only runs on deregister). The next expiry calls `oc_notify_observers()` on the freed resource. Related: F-052.
 - **Evidence:** code reading. A test: observe a periodic resource, `oc_ri_delete_resource()`, advance the clock past the period and poll; ASan reports heap-use-after-free.
 - **Expected:** `oc_ri_delete_resource()` calls `remove_periodic_observe_callback(resource)`; deregister removes it only when the last observer is gone.
+- **Fix:** `oc_ri_delete_resource()` calls `remove_periodic_observe_callback(resource)` after removing the observers and before freeing the resource (the deregister part stays open as F-052). Test: `test_oc_ri`, `RiEntityHandlerPaths.DeletingPeriodicObservedResourceStopsItsPeriodicCallback`.
 
 ## F-037: the cnf:osc:alg check reads the wrong rep node, a correct token is rejected but still stored - OPEN
 

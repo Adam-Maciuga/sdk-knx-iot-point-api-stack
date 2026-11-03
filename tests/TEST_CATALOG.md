@@ -817,7 +817,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (107 tests)
+### test_oc_ri.cpp — Resource Interface (108 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -846,7 +846,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `RiResourceLookup` | 1 | NULL and empty application-resource paths |
 | `RiClientCb` | 9 | Client-callback find-by-mid/token, list traversal, validity, get-by-uri/endpoint/method |
 | `RiEntityHandlerBlockwiseLifetime` | 2 | `oc_ri_invoke_coap_entity_handler`'s own internal blockwise scrub must not free the current request's buffer before the caller (`coap_receive`) is done with it |
-| `RiEntityHandlerPaths` | 6 | Registered-resource GET, PUT, POST, DELETE, malformed payload, and unsupported-method paths |
+| `RiEntityHandlerPaths` | 7 | Registered-resource GET, PUT, POST, DELETE, malformed payload, and unsupported-method paths; deleting a periodic observed resource stops its periodic callback |
 
 ---
 

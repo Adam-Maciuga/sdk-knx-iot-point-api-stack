@@ -109,6 +109,8 @@ kis_add_test(test_oc_knx_fp        test_oc_knx_fp.cpp)
 kis_add_test(test_oc_ri            test_oc_ri.cpp)
 target_link_options(test_oc_ri PRIVATE
     -Wl,--wrap=coap_remove_observer_by_resource
+    -Wl,--wrap=oc_etimer_set
+    -Wl,--wrap=oc_etimer_stop
 )
 # --wrap=oc_clock_time gives the timed event callback tests a clock they move themselves.
 kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)

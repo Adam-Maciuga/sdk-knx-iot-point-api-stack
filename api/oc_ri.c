@@ -36,6 +36,8 @@
 #ifdef OC_SERVER
 OC_LIST(app_resources);                // list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
 OC_LIST(observe_callbacks);            // list root node for callback handlers
+
+static void remove_periodic_observe_callback(const oc_resource_t* resource);
 #endif
 
 #ifdef OC_CLIENT
@@ -735,6 +737,9 @@ bool oc_ri_delete_resource(oc_resource_t* resource)
   {
     coap_remove_observer_by_resource(resource);
   }
+
+  // the periodic observe callback holds the resource as its data -> it must not fire on the freed resource
+  remove_periodic_observe_callback(resource);
 
   // dpa types (allocated), can handle NULL
   oc_free_string_array(&resource->types);
