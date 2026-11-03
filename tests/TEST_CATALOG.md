@@ -456,7 +456,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_endpoint.cpp — Endpoint Handling (40 tests)
+### test_oc_endpoint.cpp — Endpoint Handling (42 tests)
 
 **Source:** `api/oc_endpoint.c`
 
@@ -474,7 +474,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `Ipv6AddressScope` | 5 | RFC 6724 scope classification: loopback, link-local, deprecated site-local, ULA (fc00::/7), global |
 | `Ipv6EndpointScope` | 3 | Endpoint wrapper: delegates to address scope, NULL endpoint, non-IPv6 endpoint both return 0 |
 | `SetLocalAddress` | 1 | NULL endpoint is a no-op (found-match path needs a live port-layer connectivity list) |
-| `EndpointPrint` | 1 | Smoke test — does not crash on a valid endpoint |
+| `EndpointPrint` | 3 | Does not crash on a valid endpoint; a non-IPv6 or NULL endpoint prints and frees nothing |
 
 ---
 

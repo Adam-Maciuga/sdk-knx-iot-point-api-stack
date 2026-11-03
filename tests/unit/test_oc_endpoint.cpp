@@ -445,3 +445,29 @@ TEST(EndpointPrint, DoesNotCrashOnValidEndpoint)
   oc_endpoint_print(&ep);
 }
 
+/* fills the stack below the caller with garbage, so an uninitialized local of the next call is not zero by chance */
+static void __attribute__((noinline)) fill_stack_with_garbage(void)
+{
+  volatile uint8_t garbage[1024];
+  memset((void*)garbage, 0xA5, sizeof(garbage));
+}
+
+/*
+  A non-IPv6 endpoint (e.g. a DISCOVERY message without IPV6) has no string form: the string must neither be
+  printed nor freed. Before, an uninitialized oc_string_t was freed, which aborted the debug build.
+*/
+TEST(EndpointPrint, DoesNotFreeAnythingForNonIpv6Endpoint)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = DISCOVERY;
+
+  fill_stack_with_garbage();
+  oc_endpoint_print(&ep);
+}
+
+TEST(EndpointPrint, DoesNotCrashOnNullEndpoint)
+{
+  oc_endpoint_print(nullptr);
+}
+

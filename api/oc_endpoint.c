@@ -402,10 +402,17 @@ void oc_endpoint_print(oc_endpoint_t* ep)
 {
   #ifdef OC_DEBUG
   
-  oc_string_t ip_str;
-  oc_endpoint_to_string(ep, &ip_str);
-  OC_DBG("IP address (ep) to: %s", oc_string_checked(ip_str));
-  oc_free_string(&ip_str);
+  // only an IPv6 endpoint has a string form, otherwise ip_str stays untouched (-1) and must not be printed or freed
+  oc_string_t ip_str = {.next = NULL, .size = 0, .ptr = NULL};
+  if (oc_endpoint_to_string(ep, &ip_str) == 0)
+  {
+    OC_DBG("IP address (ep) to: %s", oc_string_checked(ip_str));
+    oc_free_string(&ip_str);
+  }
+  else
+  {
+    OC_DBG("IP address (ep): no IPv6 endpoint");
+  }
 
   #else
   (void)ep;

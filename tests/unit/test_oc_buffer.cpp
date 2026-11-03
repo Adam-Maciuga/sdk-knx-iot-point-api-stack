@@ -295,8 +295,6 @@ TEST_F(BufferProcess, SendMessageRoutesDiscoveryToDiscoveryTransport)
 {
   oc_message_t *discovery = oc_allocate_message();
   ASSERT_NE(discovery, nullptr);
-  /* IPV6 is required only to dodge F-029 (oc_endpoint_print frees an
-   * uninitialized oc_string_t when the endpoint is not IPv6-flagged). */
   discovery->endpoint.flags = (transport_flags_t)(DISCOVERY | IPV6 | MULTICAST);
   discovery->endpoint.addr.ipv6.port = 5683;
   discovery->endpoint.addr.ipv6.address[0] = 0xfe;
