@@ -154,6 +154,7 @@ target_link_options(test_smode_issue PRIVATE
     -Wl,--wrap=oc_etimer_restart
     -Wl,--wrap=oc_allocate_message
     -Wl,--wrap=coap_new_transaction_with_message
+    -Wl,--wrap=coap_notify_k_observers
 )
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(test_smode_issue PRIVATE -fpermissive)

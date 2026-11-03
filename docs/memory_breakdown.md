@@ -252,10 +252,11 @@ The OSCORE layer encrypts a message in place unless another holder keeps it (a C
 copy allocated for the moment of sending. Responses, multicast and NON s-mode sends therefore peak at the figures above,
 with one buffer per message. Before `c7a96789` + working tree each of them briefly held one copy more (an s-mode send two).
 
-Call stack: the s-mode send can run nested inside `coap_receive` (the read answers of a `/k` POST), the deepest stack
-path. Its CoAP packet (`coap_packet_t`, 328 B on 64-bit, ~260 B on 32-bit) stays static, and the `/k` observers are
-notified straight from the encoder buffer, so the former 512 B envelope copy (`OC_MAX_OBSERVE_SIZE`) is no longer on
-that path. The `.well-known/core` discovery builds its packet on the stack; it runs from a delayed callback in the main
+Call stack: the s-mode send can run nested inside `coap_receive` (the read answers of a `/k` POST, a write from an
+application PUT handler), the deepest stack path. Its CoAP packet (`coap_packet_t`, 328 B on 64-bit, ~260 B on 32-bit)
+stays static. A write keeps a 512 B copy of the envelope (`OC_MAX_OBSERVE_SIZE`) on the stack for the `/k` observers,
+notified after the s-mode message: the write path measures ~3.8 KiB plus the application handler (64-bit, `-O2`), well
+inside the 12 KiB stack thread. The `.well-known/core` discovery builds its packet on the stack; it runs from a delayed callback in the main
 loop, outside the deep path (measured with `-fstack-usage`, `-O2`, 64-bit: 864 B for that path).
 
 ### 7.4 Heap by scenario

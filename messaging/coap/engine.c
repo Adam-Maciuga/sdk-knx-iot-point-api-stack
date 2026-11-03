@@ -1301,14 +1301,18 @@ int coap_receive(oc_message_t* incoming_message)
           */
           
           /*
-            - regenerated carrier (anchor): handed over to the new transaction, serialized in place below
-            - original transaction message (unicast): copied, the original keeps its plaintext for further 4.01s
+            - regenerated carrier (anchor_found)
+              - handed over to the new transaction, serialized in place below (created a fresh message)
+            
+            - original transaction message (unicast): stays with the original transaction (its plaintext for further 4.01s)
+              - the new transaction gets a fresh message with the original's endpoint, the serialization below reads payload and 
+                options from the original (the packet was parsed from it) and writes them into the fresh message
           */
           coap_transaction_t* new_transaction = anchor_found
             ? coap_new_transaction_with_message(re_request_coap_packet->mid, re_request_coap_packet->token,
                                                 re_request_coap_packet->token_len, source_msg)
-            : coap_new_transaction_with_data(re_request_coap_packet->mid, re_request_coap_packet->token,
-                                             re_request_coap_packet->token_len, source_msg);
+            : coap_new_transaction(re_request_coap_packet->mid, re_request_coap_packet->token,
+                                   re_request_coap_packet->token_len, &source_msg->endpoint);
 
           if (new_transaction)
           {

@@ -30,14 +30,14 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-02 (echo re-request) | 2026-11-02 (last) | 2026-11-02 (later) |
-| **Unit tests** | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) | **1728/1728** passed (`windows-test-gcc`), **1772/1772** passed (`linux-test-asan`, Docker) | **1732/1732** passed (`windows-test-gcc`), **1776/1776** passed (`linux-test-asan`, Docker) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.70s) | **8 passed, 1 xfailed** (5.10, 361.68s) | **8 passed, 1 xfailed** (5.10, 377.36s) |
-| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 799.19s) | **285 passed, 5 skipped** (290 collected, 801.58s) | **285 passed, 5 skipped** (290 collected, 800.36s) |
+| Date | 2026-11-02 (with_data removed) | 2026-11-02 (echo re-request) | 2026-11-02 (last) |
+| **Unit tests** | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) | **1731/1731** passed (`windows-test-gcc`), **1775/1775** passed (`linux-test-asan`, Docker) | **1728/1728** passed (`windows-test-gcc`), **1772/1772** passed (`linux-test-asan`, Docker) |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.76s) | **8 passed, 1 xfailed** (5.10, 361.70s) | **8 passed, 1 xfailed** (5.10, 361.68s) |
+| **Runtime tests** | **285 passed, 5 skipped** (290 collected, 799.51s) | **285 passed, 5 skipped** (290 collected, 799.19s) | **285 passed, 5 skipped** (290 collected, 801.58s) |
 | Failed / errors | 0 / 0 | 0 / 0 | 0 / 0 |
-| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all` (conformance) and `-Tier runtime` (final version), `-IncludeUncommitted` | same |
-| Covers | regenerated 'echo re-request' built in its own carrier and handed over (no second buffer, serialized in place); `coap_send_transaction` returns on a NULL transaction / message (was a debug-only log, then a crash) | `.well-known` discovery sent in one call (`oc_send_well_known_message`, no static message); s-mode built and sent in one function (`oc_issue_s_mode_message`, init/do merged, static CoAP packet off the call stack); `/k` observers notified from the encoder buffer before the serialization (no 512 B stack copy) | s-mode message handed over to its transaction (no second buffer); OSCORE clones only a shared message (`ref_count` > 1, CON transaction), else encrypts in place |
-| Not in the run | - | conformance ran on the merge before the early return and the moved `/k` notification; runtime and unit ran on the final version | - |
+| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all` (conformance) and `-Tier runtime` (final version), `-IncludeUncommitted` |
+| Covers | `coap_new_transaction_with_data` removed: the 'echo re-request' of a unicast original takes a plain `coap_new_transaction` (endpoint only) and is serialized from the original (no PDU memcpy) | regenerated 'echo re-request' built in its own carrier and handed over (no second buffer, serialized in place); `coap_send_transaction` returns on a NULL transaction / message (was a debug-only log, then a crash) | `.well-known` discovery sent in one call (`oc_send_well_known_message`, no static message); s-mode built and sent in one function (`oc_issue_s_mode_message`, init/do merged, static CoAP packet off the call stack); `/k` observers notified from the encoder buffer before the serialization (no 512 B stack copy) |
+| Not in the run | - | - | conformance ran on the merge before the early return and the moved `/k` notification; runtime and unit ran on the final version |
 
 No stack C code was changed to make a test pass.
 
@@ -411,7 +411,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 | Test | What it verifies |
 |------|-----------------|
-| `M1_TransactionWithDataDoesNotTouchM1RefCount` | `coap_new_transaction_with_data` only memcpy's the caller's plaintext (M1); its ref_count stays 1 |
+| `M1_TransactionWithDataDoesNotTouchM1RefCount` | A transaction holding its own copy of the caller's plaintext (M1, test helper `new_transaction_with_copy`) leaves M1's ref_count at 1 |
 | `M1_RefCountUnchangedEvenIfTransactionFails` | Caller's unconditional unref of M1 is the sole release regardless of transaction outcome |
 | `M2_MulticastNon_FullLifecycle` | mc-NON: birth → add_ref → clear_transaction → echo-ring retain → send-ref drop → ring release, ends at 0 |
 | `M2_MulticastNon_RingRolloverReleases` | Echo-ring roll-over past capacity releases an mc-NON M2 via slot eviction instead of `free_all` |
@@ -756,8 +756,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `FreeByEndpointSelectiveRemoval` | Only removes matching endpoint |
 | `MultipleTransactionsCoexist` | Multiple tracked simultaneously |
 | `ZeroLengthTokenMatch` | Both token_len==0 matches correctly |
-| `NewTransactionWithDataCopiesPayload` | `coap_new_transaction_with_data()` copies the payload |
-| `NewTransactionWithDataRegistersInList` | Data transaction registered in the list |
+| `NewTransactionWithMessageAdoptsTheMessage` | `coap_new_transaction_with_message()` adopts the caller's message (no copy, ref_count stays 1), mid/token/endpoint set |
+| `NewTransactionWithMessageRegistersInList` | The adopting transaction is registered in the list |
 | `RegisterAsTransactionHandlerIsCallable` | Transaction-handler registration is callable |
 | `InitEngineRegistersHandler` | Engine init registers the transaction handler |
 
@@ -1216,15 +1216,19 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 ---
 
-### test_smode_issue.cpp — S-Mode Send Path (3 tests)
+### test_smode_issue.cpp — S-Mode Send Path (7 tests)
 
-**Source:** `api/oc_knx_client.c` (`oc_issue_s_mode_message()`, driven through the public `oc_send_s_mode_multicast_message()`), network faked with linker `--wrap` (`oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`; `oc_allocate_message` counted; `coap_new_transaction_with_message` can fail)
+**Source:** `api/oc_knx_client.c` (`oc_issue_s_mode_message()`, driven through the public `oc_send_s_mode_multicast_message()`), network faked with linker `--wrap` (`oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`; `oc_allocate_message` counted; `coap_new_transaction_with_message` can fail; `coap_notify_k_observers` recorded)
 
 | Test | What it verifies |
 |------|-----------------|
 | `SModeIssue.MulticastWriteSendsOneNonPostToK` | One message, sent as CoAP NON POST to `/k` with an 8-byte token; the payload is the s-mode envelope carrying the written value |
 | `SModeIssue.MulticastReadSendsOneMessage` | Read request (no value): one message allocated and sent |
 | `SModeIssue.NoTransactionReleasesTheMessage` | No transaction free: nothing sent, the single message is released (ASan/LSan: no leak) |
+| `SModeIssue.WriteNotifiesKObserversAfterTheSend` | `/k` Group Message event (spec 2.6.9.3) after the s-mode message, payload = the sent envelope |
+| `SModeIssue.NoTransactionNoKNotification` | No transaction, no s-mode message: no `/k` event either |
+| `SModeIssue.ReadDoesNotNotifyKObservers` | A read (`r`) is sent but gives no `/k` event (only `st = w`) |
+| `SModeIssue.UnicastConWriteSendsOneConPostAndNotifiesAfter` | Unicast write (own `at`, IPv6 resolved, CON): one message, CoAP CON POST, `/k` event after the send |
 
 ---
 

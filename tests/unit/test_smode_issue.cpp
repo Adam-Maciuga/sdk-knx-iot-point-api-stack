@@ -12,6 +12,7 @@
     --wrap=oc_etimer_restart                 -> no-op (no transaction process in a unit test)
     --wrap=oc_allocate_message               -> counts message allocations
     --wrap=coap_new_transaction_with_message -> pass-through, or NULL to simulate "no transaction free"
+    --wrap=coap_notify_k_observers           -> records the /k Group Message event (order and payload)
 */
 
 #include <gtest/gtest.h>
@@ -24,6 +25,8 @@ extern "C" {
 #include "oc_api.h"
 #include "oc_buffer.h"
 #include "api/oc_knx_client.h"
+#include "api/oc_knx_sec.h"
+#include "oc_helpers.h"
 #include "messaging/coap/coap.h"
 #include "messaging/coap/transactions.h"
 #include "port/oc_network_events_mutex.h"
@@ -37,6 +40,8 @@ static int g_send_calls;
 static int g_alloc_calls;
 static bool g_fail_transaction;
 static std::vector<uint8_t> g_sent_data;
+static std::vector<std::string> g_events;      /* order of "send" and "notify" */
+static std::vector<uint8_t> g_notified;        /* payload of the /k notification */
 
 extern "C" bool __wrap_oc_main_initialized(void)
 {
@@ -46,6 +51,7 @@ extern "C" bool __wrap_oc_main_initialized(void)
 extern "C" void __wrap_coap_send_message(oc_message_t *msg)
 {
   g_send_calls++;
+  g_events.push_back("send");
   /* one spare byte like the real message buffer (OC_PDU_SIZE + 1): the parser terminates the payload in place */
   g_sent_data.assign(msg->data, msg->data + msg->length);
   g_sent_data.push_back(0);
@@ -53,6 +59,12 @@ extern "C" void __wrap_coap_send_message(oc_message_t *msg)
 }
 
 extern "C" void __wrap_oc_etimer_restart(struct oc_etimer *) {}
+
+extern "C" void __wrap_coap_notify_k_observers(const uint8_t *payload, size_t payload_len)
+{
+  g_events.push_back("notify");
+  g_notified.assign(payload, payload + payload_len);
+}
 
 extern "C" oc_message_t *__real_oc_allocate_message(void);
 extern "C" oc_message_t *__wrap_oc_allocate_message(void)
@@ -88,6 +100,8 @@ protected:
     g_alloc_calls = 0;
     g_fail_transaction = false;
     g_sent_data.clear();
+    g_events.clear();
+    g_notified.clear();
     memset(&recipient_, 0, sizeof(recipient_));
     recipient_.grpid = 1;
     recipient_.iid = 1;
@@ -154,4 +168,80 @@ TEST_F(SModeIssue, NoTransactionReleasesTheMessage)
 
   EXPECT_EQ(g_alloc_calls, 1);
   EXPECT_EQ(g_send_calls, 0);
+}
+
+/*
+  /k Group Message event (spec 2.6.9.3): reported AFTER the s-mode message, with the same envelope as payload
+*/
+TEST_F(SModeIssue, WriteNotifiesKObserversAfterTheSend)
+{
+  oc_send_s_mode_multicast_message(5, 0x0101, 'w', k_value, (int)sizeof(k_value), &recipient_, nullptr);
+
+  ASSERT_EQ(g_events.size(), 2U);
+  EXPECT_EQ(g_events[0], "send");
+  EXPECT_EQ(g_events[1], "notify");
+
+  /* the sent payload ends with the envelope the observers get */
+  coap_packet_t pkt[1];
+  ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size() - 1), COAP_NO_ERROR);
+  ASSERT_EQ(g_notified.size(), (size_t)pkt->payload_len);
+  EXPECT_EQ(0, memcmp(g_notified.data(), pkt->payload, g_notified.size()));
+}
+
+/*
+  No transaction -> no s-mode message -> no Group Message event either
+*/
+TEST_F(SModeIssue, NoTransactionNoKNotification)
+{
+  g_fail_transaction = true;
+
+  oc_send_s_mode_multicast_message(5, 0x0101, 'w', k_value, (int)sizeof(k_value), &recipient_, nullptr);
+
+  EXPECT_TRUE(g_events.empty());
+}
+
+/*
+  A read is no Group Message event for /k (only st = 'w')
+*/
+TEST_F(SModeIssue, ReadDoesNotNotifyKObservers)
+{
+  oc_send_s_mode_multicast_message(5, 0x0101, 'r', nullptr, 0, &recipient_, nullptr);
+
+  ASSERT_EQ(g_events.size(), 1U);
+  EXPECT_EQ(g_events[0], "send");
+}
+
+/*
+  Unicast write (recipient with its own 'at', IPv6 resolved, CON): one message, sent as CoAP CON POST to /k with the
+  envelope, the /k event after the send (the transaction keeps the message for retransmits until TearDown)
+*/
+TEST_F(SModeIssue, UnicastConWriteSendsOneConPostAndNotifiesAfter)
+{
+  oc_auth_at_t *at = oc_get_auth_at_entry(0);
+  ASSERT_NE(at, nullptr);
+  oc_new_string(&at->id, "tokU", 4);
+
+  oc_group_table_t rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.ia = 0x1102;
+  rec.non = false;
+  rec.ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
+  oc_new_string(&rec.at, "tokU", 4);
+
+  oc_send_s_mode_unicast_message(0x0101, 'w', k_value, (int)sizeof(k_value), &rec, nullptr);
+
+  EXPECT_EQ(g_alloc_calls, 1);
+  ASSERT_EQ(g_send_calls, 1);
+
+  coap_packet_t pkt[1];
+  ASSERT_EQ(coap_parse_udp_message(pkt, g_sent_data.data(), g_sent_data.size() - 1), COAP_NO_ERROR);
+  EXPECT_EQ(pkt->type, COAP_TYPE_CON);
+  EXPECT_EQ(pkt->code, COAP_POST);
+
+  ASSERT_EQ(g_events.size(), 2U);
+  EXPECT_EQ(g_events[0], "send");
+  EXPECT_EQ(g_events[1], "notify");
+
+  oc_free_string(&rec.at);
+  oc_free_string(&at->id);
 }

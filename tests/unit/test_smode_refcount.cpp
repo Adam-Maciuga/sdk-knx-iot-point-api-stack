@@ -7,8 +7,9 @@
   security/oc_oscore_engine.c:
 
     M1  caller's message   - plaintext original allocated by the caller
-        (oc_client_api.c); coap_new_transaction_with_data only memcpy's its
-        data, so M1's ref_count is NEVER touched by the transaction layer.
+        (a copying caller, e.g. the 'echo re-request' of a unicast original); the
+        transaction only gets a copy of its data (new_transaction_with_copy below),
+        so M1's ref_count is NEVER touched by the transaction layer.
         The caller owns it start-to-finish and unref's it unconditionally.
 
     M2  t->message          - transaction-owned copy; separate lifecycle per
@@ -139,10 +140,26 @@ protected:
   }
 };
 
+/*
+  new_transaction_with_copy: a transaction that holds its OWN copy of 'src' (data + endpoint), the source stays with the
+  caller. This is the layout of the 'echo re-request' of a unicast original; the copy is done here in the test (the stack
+  serializes the re-request into a plain coap_new_transaction() message instead of copying)
+*/
+static coap_transaction_t *new_transaction_with_copy(uint16_t mid, const uint8_t *token, uint8_t token_len, const oc_message_t *src)
+{
+  coap_transaction_t *t = coap_new_transaction(mid, token, token_len, (oc_endpoint_t *)&src->endpoint);
+  if (t)
+  {
+    t->message->length = src->length;
+    memcpy(t->message->data, src->data, src->length);
+  }
+  return t;
+}
+
 /* -- M1: caller's message lifetime -------------------------------------- */
 
 /*
-  coap_new_transaction_with_data only memcpy's M1's data into a freshly
+  new_transaction_with_copy only memcpy's M1's data into a freshly
   allocated t->message. M1's ref_count MUST be unchanged (stays 1) so that
   the unconditional oc_message_unref(M1) at oc_client_api.c:86 is the sole
   and final release regardless of whether the transaction allocation succeeded.
@@ -155,7 +172,7 @@ TEST_F(SModeRefCount, M1_TransactionWithDataDoesNotTouchM1RefCount)
   EXPECT_EQ(m1->ref_count, 1); /* BIRTH */
 
   uint8_t token[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB01, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -172,7 +189,7 @@ TEST_F(SModeRefCount, M1_TransactionWithDataDoesNotTouchM1RefCount)
 TEST_F(SModeRefCount, M1_RefCountUnchangedEvenIfTransactionFails)
 {
   /*
-    Even when coap_new_transaction_with_data returns NULL (e.g. OOM),
+    Even when new_transaction_with_copy returns NULL (e.g. OOM),
     the caller at oc_client_api.c:86 still unref's M1.
     Simulate this by checking the invariant directly: M1 stays at 1
     after a successful transaction creation, and unref drops to 0.
@@ -204,7 +221,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB02, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -249,7 +266,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB03, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -310,7 +327,7 @@ TEST_F(SModeRefCount, M2_UnicastCon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB04, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -348,7 +365,7 @@ TEST_F(SModeRefCount, M2_UnicastCon_RetransmitCycleStaysAtOne)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xAA, 0xBB};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB05, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -384,7 +401,7 @@ TEST_F(SModeRefCount, M2_UnicastNon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xCA, 0xFE, 0xBA, 0xBE, 0x01, 0x02, 0x03, 0x04};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB06, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -422,7 +439,7 @@ TEST_F(SModeRefCount, M1AndM2_IndependentLifetimes)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xDE, 0xAD};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB07, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 

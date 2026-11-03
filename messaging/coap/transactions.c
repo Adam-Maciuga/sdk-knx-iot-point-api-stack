@@ -86,30 +86,6 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
   return t;
 }
 
-coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
-{
-  coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
-
-  if (t)
-  {
-    /*
-      copy the message: only for the 'unicast echo re-request' of a unicast original, the source is the still open original
-      transaction, it keeps its plaintext for further echo responses (the s-mode send and a regenerated re-request hand
-      their message over with 'coap_new_transaction_with_message' instead)
-    */
-
-    t->message->length = s_mode_message->length;
-    // memcpy can handle '0' bytes, so no extra check
-    memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
-  }
-  else
-  {
-    OC_WRN("insufficient memory to create s-mode transaction");
-  }
-
-  return t;
-}
-
 /*
   sends a message by 'transaction'
   NON

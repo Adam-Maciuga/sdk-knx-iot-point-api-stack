@@ -427,17 +427,20 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
   #endif
 
   /*
-    notify /k observers ONLY on s-mode write with the full S-Mode envelope { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } },
+    keep the envelope { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } } for the /k observers (copied always, cheap;
+    notified below ONLY on s-mode write, capped copy of a larger envelope is never used)
+
+    - Group Message event (spec 2.6.9.3): reported AFTER the s-mode message and only if it was handed over to its
+      transaction, so the envelope is copied here, the serialization below writes the CoAP message in place into
+      the encoder buffer
+   
+    - an update notification SHALL NOT exceed 512 bytes of CBOR (spec 2.6.9.3) -> OC_MAX_OBSERVE_SIZE
     
-    - from the encoder buffer, it still holds the plain envelope here 
-      (the serialization below writes the CoAP message in place into the same buffer
-    
-    - each observer notification '/k' copies the payload into its own message -> OK 
+    - the deepest write path (application PUT handler inside coap_receive) stays below ~4 KiB with it,
+      a nested loopback write runs only after this function returned (one copy at a time)
   */
-  if (service_type == 'w' && size <= OC_MAX_OBSERVE_SIZE)
-  {
-    coap_notify_k_observers(oc_rep_get_encoder_buf(), size);
-  }
+  uint8_t k_event[OC_MAX_OBSERVE_SIZE];
+  memcpy(k_event, oc_rep_get_encoder_buf(), (size_t)(size <= OC_MAX_OBSERVE_SIZE ? size : OC_MAX_OBSERVE_SIZE));
 
   /*
     coap payload gets ptr from message data (but data are NOT copied)
@@ -470,6 +473,12 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     t->recipient = recipient;
     coap_send_transaction(t);
     OC_INF("sent (uc/mc) s-mode message - OK");
+
+    // the Group Message event for the /k observers, after the s-mode message
+    if (service_type == 'w' && size <= OC_MAX_OBSERVE_SIZE)
+    {
+      coap_notify_k_observers(k_event, (size_t)size);
+    }
   }
   else
   {
