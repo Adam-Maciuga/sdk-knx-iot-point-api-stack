@@ -136,7 +136,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_mmem.cpp — Managed Memory (11 tests)
+### test_oc_mmem.cpp — Managed Memory (9 tests)
 
 **Source:** `util/oc_mmem.c`
 
@@ -149,10 +149,8 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `AllocFloat_MemoryIsWritable` | Allocated float memory can be written/read |
 | `AllocDouble_ReturnsNonNull` | Double allocation succeeds |
 | `AllocNull_ReturnsZero` | NULL/zero input returns 0 |
-| `Free_ClearsSize` | Free sets size to 0 |
-| `FreeNull_NoOp` | No crash on NULL |
+| `Free_ClearsSize` | Free sets size to 0 and ptr to NULL (no dangling pointer) |
 | `MultipleAllocFree` | Multiple alloc/free cycles work |
-| `Init_DoubleInit_NoOp` | Double init is safe |
 
 ---
 

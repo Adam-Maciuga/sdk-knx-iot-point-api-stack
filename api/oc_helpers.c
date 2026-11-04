@@ -15,8 +15,6 @@
 #include <inttypes.h>
 #include "oc_knx_helpers.h"
 
-static bool mmem_initialized = false;
-
 #ifndef MAX
 #define MAX(n, m) (((n) < (m)) ? (m) : (n))
 #endif
@@ -25,29 +23,9 @@ static bool mmem_initialized = false;
 #define MIN(n, m) (((n) < (m)) ? (n) : (m))
 #endif
 
-static void oc_malloc(oc_handle_t* block, size_t num_items, pool pool_type)
-{
-  if (!mmem_initialized)
-  {
-    oc_mmem_init();
-    mmem_initialized = true;
-  }
-
-  oc_mmem_alloc(block, num_items, pool_type);
-}
-
-static void oc_free(oc_handle_t* block, pool pool_type)
-{
-  oc_mmem_free(block, pool_type);
-
-  block->next = 0;
-  block->ptr = 0;
-  block->size = 0;
-}
-
 void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len)
 {
-  oc_malloc(ocstring, str_len + 1, BYTE_POOL);
+  oc_mmem_alloc(ocstring, str_len + 1, BYTE_POOL);
 
   // out of memory: the string stays empty (ptr NULL, size 0, see oc_mmem_alloc)
   if (oc_string(*ocstring) == NULL)
@@ -61,7 +39,7 @@ void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len)
 
 void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
 {
-  oc_malloc(ocstring, str_len, BYTE_POOL);
+  oc_mmem_alloc(ocstring, str_len, BYTE_POOL);
 
   // out of memory (or malloc(0) returned NULL): the string stays empty, nothing to copy
   if (oc_string(*ocstring) == NULL)
@@ -74,7 +52,7 @@ void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
 
 void _oc_alloc_string(oc_string_t* ocstring, size_t size)
 {
-  oc_malloc(ocstring, size, BYTE_POOL);
+  oc_mmem_alloc(ocstring, size, BYTE_POOL);
 }
 
 void _oc_free_string(oc_string_t* ocstring)
@@ -82,7 +60,7 @@ void _oc_free_string(oc_string_t* ocstring)
   // free whenever an allocation exists, not just when size > 0, see detailed notes on oc_free_string() in oc_helpers.h
   if (ocstring && ocstring->ptr)
   {
-    oc_free(ocstring, BYTE_POOL);
+    oc_mmem_free(ocstring, BYTE_POOL);
   }
 }
 
@@ -110,7 +88,7 @@ void _oc_new_array(oc_array_t* ocarray, size_t size, pool type)
   case BYTE_POOL:
   case FLOAT_POOL:
   case DOUBLE_POOL:
-    oc_malloc(ocarray, size, type);
+    oc_mmem_alloc(ocarray, size, type);
     break;
   default:
     break;
@@ -119,7 +97,7 @@ void _oc_new_array(oc_array_t* ocarray, size_t size, pool type)
 
 void _oc_free_array(oc_array_t* ocarray, pool type)
 {
-  oc_free(ocarray, type);
+  oc_mmem_free(ocarray, type);
 }
 
 void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size)

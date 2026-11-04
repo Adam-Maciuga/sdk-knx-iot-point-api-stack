@@ -51,7 +51,6 @@ class Separate : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     oc_network_event_handler_mutex_init();
     g_wrap_send_calls = 0;
   }

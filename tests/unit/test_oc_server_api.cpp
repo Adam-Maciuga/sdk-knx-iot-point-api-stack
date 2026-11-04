@@ -56,7 +56,6 @@ struct RespCtx {
 
 class ServerApiBase : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 static bool g_force_resource_alloc_failure;

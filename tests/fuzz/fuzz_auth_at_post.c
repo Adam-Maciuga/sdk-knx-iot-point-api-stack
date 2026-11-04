@@ -34,7 +34,6 @@ LLVMFuzzerInitialize(int *argc, char ***argv)
   (void)argc;
   (void)argv;
   psa_crypto_init();
-  oc_mmem_init();
 
   g_response_size = oc_get_max_app_data_size();
   g_response_data = (uint8_t *)malloc(g_response_size);

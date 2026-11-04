@@ -230,7 +230,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     oc_device_info_t *d = oc_core_get_device_info();
     saved_lsm = d->lsm_s;
     saved_iid = d->iid;

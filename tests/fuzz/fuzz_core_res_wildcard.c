@@ -23,7 +23,6 @@ LLVMFuzzerInitialize(int *argc, char ***argv)
 {
   (void)argc;
   (void)argv;
-  oc_mmem_init();
   return 0;
 }
 

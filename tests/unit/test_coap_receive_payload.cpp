@@ -155,7 +155,6 @@ protected:
   {
     oc_network_event_handler_mutex_init();
     oc_random_init();
-    oc_mmem_init();
     oc_coap_clear_request_history();
     g_send_calls = 0;
     g_sent_data.clear();

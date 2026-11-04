@@ -11,7 +11,6 @@
  *                                         core-resource table by index
  *
  * Requirements:
- *   - oc_mmem_init() for the oc_string_array_t resource types.
  *   - The framing helpers write through the global rep encoder, so the fixture
  *     calls oc_rep_new(buf, size) before each test; the written bytes are read
  *     back from buf for the first *response_length bytes.
@@ -50,7 +49,6 @@ protected:
   uint8_t buf[2048];
 
   void SetUp() override {
-    oc_mmem_init();
     memset(buf, 0, sizeof(buf));
     oc_rep_new(buf, sizeof(buf));
   }
@@ -72,7 +70,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     memset(buf, 0, sizeof(buf));
     memset(&request, 0, sizeof(request));
     memset(&response, 0, sizeof(response));

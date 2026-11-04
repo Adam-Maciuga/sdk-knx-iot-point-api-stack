@@ -56,19 +56,12 @@ size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
   return m->size * item_size;
 }
 
+// releases the buffer and leaves an EMPTY handle (no dangling ptr), free ignores a NULL ptr
 void oc_mmem_free(struct oc_mmem* m, pool pool_type)
 {
-  if (!m)
-  {
-    OC_ERR("oc_mmem is NULL");
-    return;
-  }
-
   (void)pool_type;
   free(m->ptr);
+  m->next = NULL;
+  m->ptr = NULL;
   m->size = 0;
-}
-
-void oc_mmem_init(void)
-{
 }

@@ -33,7 +33,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     rep = nullptr;
     memset(buf, 0, sizeof(buf));
   }

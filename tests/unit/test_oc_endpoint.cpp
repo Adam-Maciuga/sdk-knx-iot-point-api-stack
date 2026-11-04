@@ -287,7 +287,6 @@ TEST(FreeEndpoint, NullIsNoOp)
 
 class EndpointToString : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(EndpointToString, NullArgsReturnError)
@@ -327,7 +326,6 @@ TEST_F(EndpointToString, UnsecuredUsesCoapScheme)
 
 class EndpointParsePath : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(EndpointParsePath, NullArgsReturnError)

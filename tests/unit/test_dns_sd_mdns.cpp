@@ -39,7 +39,7 @@
  *                                 sender leaves it unknown
  *
  * Requirements:
- *   oc_mmem_init() and oc_ri_init() - the repeat is a delayed callback on the
+ *   oc_ri_init() - the repeat is a delayed callback on the
  *   RI timed-event list, and oc_main_poll() drives that list.
  *
  * Five symbols are redirected with the GNU linker --wrap facility, see
@@ -410,7 +410,6 @@ protected:
     /* start away from 0, so an expired timer never looks like an unset one */
     g_now = 100 * OC_CLOCK_SECOND;
     g_sendto_fails = false;
-    oc_mmem_init();
     oc_ri_init();
 
     /*

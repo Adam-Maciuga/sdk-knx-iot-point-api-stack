@@ -136,7 +136,6 @@ class AtTable : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     reset();
   }
   void TearDown() override { reset(); }
@@ -421,8 +420,7 @@ TEST_F(AtSsnStorage, WritesFourByteRecordAtMaxSsn)
  *
  * The handlers are static but reachable through the non-static const
  * oc_resource_t definitions, the same pattern test_oc_knx_dev.cpp and
- * test_oc_knx_swu.cpp use. Only oc_mmem_init() plus a stack request/response
- * pair are required.
+ * test_oc_knx_swu.cpp use. Only a stack request/response pair is required.
  *
  * The link-format list handlers (/auth, /auth/o, /auth/at) walk the core
  * resource table via oc_check_request_from_index(), which needs a bootstrapped
@@ -450,7 +448,6 @@ protected:
   /* the osndelay PUT handler stores the value, so storage must be configured */
   static void SetUpTestSuite() { oc_storage_config(kSecStoreDir); }
 
-  void SetUp() override { oc_mmem_init(); }
 
   int invoke(const oc_resource_t &res, oc_request_callback_t cb,
              oc_content_format_t accept, oc_interface_mask_t iface,

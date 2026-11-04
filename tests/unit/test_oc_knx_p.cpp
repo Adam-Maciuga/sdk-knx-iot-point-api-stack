@@ -62,7 +62,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     g_p_put_calls = 0;
   }
 

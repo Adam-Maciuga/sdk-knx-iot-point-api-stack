@@ -21,7 +21,7 @@ TEST(FunctionName, HappyPath) { /* ... */ }
 Used by: `oc_base64`, `oc_uuid`, `oc_knx_fb`, `coap/oscore` (PIV/SSN helpers),
 `coap/engine` (duplicate detection uses static history).
 
-### Pattern B: oc_mmem_init() needed (string/alloc operations)
+### Pattern B: string/alloc operations (no init needed, oc_mmem is malloc/free)
 
 ```cpp
 extern "C" {
@@ -31,7 +31,6 @@ extern "C" {
 
 class OcHelpersTest : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(OcHelpersTest, ConcatStrings) { /* ... */ }
@@ -110,7 +109,6 @@ static oc_endpoint_t make_endpoint(uint16_t port)
 | `error: 'struct_name' was not declared` | Missing `extern "C"` wrapper | Wrap the `#include` in `extern "C" { }` |
 | `error: invalid conversion from 'void*' to 'type*'` | C allows implicit void* cast, C++ doesn't | Add explicit `(type*)` cast in test code OR use the value differently |
 | `undefined reference to 'function_name'` | Function is `static` in .c file | Don't test it — test through public API instead |
-| `undefined reference to 'oc_mmem_init'` | Missing link library | `kis_add_test` already links kisClientServer which has it — check include path |
 | `multiple definition of 'variable'` | Global defined in header without `extern` | Include only the header you need, not the .c file |
 | Warning: `__attribute__((unused))` on MSVC | GCC attribute not portable | Use `[[maybe_unused]]` for C++17, or `(void)var;` |
 
@@ -119,7 +117,7 @@ static oc_endpoint_t make_endpoint(uint16_t port)
 | Symptom | Likely Cause | Resolution |
 |---------|-------------|------------|
 | Test hangs forever | Infinite loop in production code (e.g., circular linked list) | Use `GTEST_SKIP()` + document in FINDINGS.md |
-| Segfault in SetUp | Init function requires prior init it depends on | Check init order — `oc_mmem_init()` before string ops, `psa_crypto_init()` before HKDF |
+| Segfault in SetUp | Init function requires prior init it depends on | Check init order — `psa_crypto_init()` before HKDF |
 | Values differ between runs | Function depends on random/time | Test deterministic parts only, or seed with known value |
 | Test passes locally, fails in CI | Platform difference (endianness, clock resolution, IPv6 availability) | Add `#ifdef` or `GTEST_SKIP()` for platform-specific tests |
 | `EXPECT_EQ` on C strings fails | Comparing pointers not content | Use `EXPECT_STREQ` for null-terminated strings |
@@ -173,7 +171,6 @@ Test directly. Examples: `oc_base64`, `oc_uuid`, `oc_cflags_as_string`.
 
 ### Level 1 — Light init
 Use a test fixture with `SetUp()`/`TearDown()`. Examples:
-- `oc_mmem_init()` for string/memory operations
 - `psa_crypto_init()` for HKDF/AEAD operations
 - `oc_network_event_handler_mutex_init()` for message allocation
 

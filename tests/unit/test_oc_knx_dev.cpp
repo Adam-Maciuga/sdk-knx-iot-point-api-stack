@@ -99,7 +99,6 @@ class KnxDeviceProgrammingMode : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     /* start from a deterministic, known state */
     oc_knx_device_set_programming_mode(false);
   }
@@ -168,7 +167,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
 
     /* The string-valued device fields are serialised verbatim by the GET
      * handlers, so give them values with static lifetime. */
@@ -599,7 +597,6 @@ class KnxDevResetObservers : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     oc_network_event_handler_mutex_init();
   }
   void TearDown() override

@@ -99,7 +99,6 @@ class BufferProcess : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     oc_network_event_handler_mutex_init();
     oc_process_init();
     allocate_events();

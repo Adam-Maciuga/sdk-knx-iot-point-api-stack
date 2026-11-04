@@ -96,7 +96,6 @@ protected:
   {
     oc_network_event_handler_mutex_init();
     oc_random_init();
-    oc_mmem_init();
     g_send_calls = 0;
     g_alloc_calls = 0;
     g_fail_transaction = false;

@@ -37,7 +37,6 @@ class RepAllocFail : public ::testing::Test {
 protected:
   oc_rep_t *rep = nullptr;
 
-  void SetUp() override { oc_mmem_init(); }
   void TearDown() override
   {
     g_fail_next_malloc = false;

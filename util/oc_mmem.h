@@ -28,8 +28,6 @@ struct oc_mmem
 
 typedef enum { BYTE_POOL, INT_POOL, DOUBLE_POOL, FLOAT_POOL } pool;
 
-void oc_mmem_init(void);
-
 size_t oc_mmem_alloc(struct oc_mmem *m, size_t size, pool pool_type);
 
 void oc_mmem_free(struct oc_mmem *m, pool pool_type);

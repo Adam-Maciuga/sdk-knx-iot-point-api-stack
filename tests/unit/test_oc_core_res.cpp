@@ -10,7 +10,7 @@
  *   oc_core_reset_device_hostname_to_default — back to the default "knx-<serial>" (stored), -1 when not stored (RAM set anyway)
  *
  * Requirements:
- *   oc_mmem_init() — the hostname is an oc_string_t (allocated string).
+ *   the hostname is an oc_string_t (allocated string), no init needed.
  *   Storage is intentionally left UNCONFIGURED, setters that store are no-ops.
  *
  * Note: oc_core_get_device_info() returns a pointer to the static oc_device_info,
@@ -39,7 +39,6 @@ class DeviceHostname : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
 
     /*
       the setter stores first and fails without storage; one directory per test, since ctest runs every TEST_F as its
@@ -188,7 +187,6 @@ class DeviceInfo : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
 
     /* ia/iid/fid store first and fail without storage; one directory per test, see DeviceHostname */
     const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
@@ -575,7 +573,6 @@ protected:
   oc_resource_t resource{};
   void SetUp() override
   {
-    oc_mmem_init();
     oc_new_string_array(&resource.types, 1);
     oc_string_array_add_item(resource.types, "urn:knx:dpa.201.61");
   }

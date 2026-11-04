@@ -175,7 +175,6 @@ class KnxSwuBase : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     // reset the persistent file-static swu_device to a known baseline and
     // seed all oc_string_t fields so the string-serializing GET handlers do
     // not dereference NULL.

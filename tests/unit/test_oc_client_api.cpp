@@ -40,7 +40,6 @@ static const char *LF2 =
 
 class ClientApiLF : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 /* ───────────────────────────── oc_lf_number_of_entries ───────────────────── */

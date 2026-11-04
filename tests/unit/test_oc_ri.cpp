@@ -389,7 +389,6 @@ TEST(ScopeMask, AllKnownNamesMapToTheirOwnBit)
 
 class RiMask : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(RiMask, ScopeNamesSingleBit)
@@ -821,7 +820,6 @@ TEST(RiDeleteResource, RemovesObserversBeforeFreeingResource)
 {
   oc_resource_t *r = oc_ri_alloc_resource();
   ASSERT_NE(r, nullptr);
-  oc_mmem_init();
   oc_network_event_handler_mutex_init();
   oc_new_string(&r->uri, "/unit", 5);
   r->runtime_data = oc_ri_alloc_resource_data();
@@ -876,7 +874,6 @@ protected:
   oc_endpoint_t ep{};
   void SetUp() override
   {
-    oc_mmem_init();
     oc_random_init();
     memset(&ep, 0, sizeof(ep));
     ep.flags = IPV6;
@@ -994,7 +991,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     memset(&ep, 0, sizeof(ep));
     ep.flags = IPV6;
     ep.addr.ipv6.port = 5683;
@@ -1175,7 +1171,6 @@ static bool invoke_entity(oc_resource_t *resource, oc_endpoint_t *endpoint,
 
 TEST(RiEntityHandlerPaths, GetHandlerSuccess)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   g_ri_get_calls = 0;
   g_ri_emit_payload = false;
@@ -1188,7 +1183,6 @@ TEST(RiEntityHandlerPaths, GetHandlerSuccess)
 
 TEST(RiEntityHandlerPaths, PutPostAndDeleteHandlersDispatch)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   fixture.resource->put_handler.cb = ri_put_handler;
   fixture.resource->post_handler.cb = ri_post_handler;
@@ -1214,7 +1208,6 @@ TEST(RiEntityHandlerPaths, PutPostAndDeleteHandlersDispatch)
 
 TEST(RiEntityHandlerPaths, InvalidCborReturnsBadRequest)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   const uint8_t invalid[] = { 0xFF };
   int response_code = 0;
@@ -1226,7 +1219,6 @@ TEST(RiEntityHandlerPaths, InvalidCborReturnsBadRequest)
 
 TEST(RiEntityHandlerPaths, GetHandlerPayloadSetsResponseLength)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   g_ri_emit_payload = true;
   int response_code = 0;
@@ -1238,7 +1230,6 @@ TEST(RiEntityHandlerPaths, GetHandlerPayloadSetsResponseLength)
 
 TEST(RiEntityHandlerPaths, UnsupportedMethodReturnsMethodNotAllowed)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   int response_code = 0;
   EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_POST,
@@ -1248,7 +1239,6 @@ TEST(RiEntityHandlerPaths, UnsupportedMethodReturnsMethodNotAllowed)
 
 TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
 {
-  oc_mmem_init();
   RiEntityResource fixture;
   const uint8_t malformed[] = { 0xBF, 0x01 };
   int response_code = 0;
@@ -1266,7 +1256,6 @@ TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
 */
 TEST(RiEntityHandlerPaths, DeletingPeriodicObservedResourceStopsItsPeriodicCallback)
 {
-  oc_mmem_init();
   oc_network_event_handler_mutex_init();
   RiEntityResource fixture;
   fixture.resource->properties = (oc_resource_properties_t)(OC_OBSERVABLE | OC_PERIODIC);

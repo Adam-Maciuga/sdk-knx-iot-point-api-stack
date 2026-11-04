@@ -49,7 +49,6 @@ oc_endpoint_t make_endpoint(uint16_t port)
 
 class BlockwiseBase : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
   void TearDown() override
   {
     // free everything that may still be in the static lists

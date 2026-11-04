@@ -32,7 +32,6 @@ void* __wrap_malloc(size_t size)
 
 class AllocFail : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
   void TearDown() override { g_fail_next_malloc = false; }
 
   /* the next malloc (the one inside the call under test) returns NULL */

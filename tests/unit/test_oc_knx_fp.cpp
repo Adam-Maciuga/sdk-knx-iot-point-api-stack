@@ -409,7 +409,6 @@ class GoTableHref : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     clear_all();
   }
   void TearDown() override { clear_all(); }
@@ -545,7 +544,6 @@ class RecipientAccessToken : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     clear_all();
   }
 
@@ -618,7 +616,6 @@ class BelongsHref : public ::testing::Test {
 protected:
   std::vector<oc_resource_t *> added;
 
-  void SetUp() override { oc_mmem_init(); }
 
   void TearDown() override
   {
@@ -957,8 +954,8 @@ TEST_F(GroupTableStorage, WriterEncodesNonAsBoolean)
  *
  * The handlers are static, but the const oc_resource_t definitions that carry
  * them are not, so they are invoked through `<resource>.get_handler.cb` the
- * same way test_oc_knx_dev.cpp / test_oc_knx_swu.cpp do. Only oc_mmem_init()
- * and a stack-allocated request/response pair are needed — no device or
+ * same way test_oc_knx_dev.cpp / test_oc_knx_swu.cpp do. Only a
+ * stack-allocated request/response pair is needed — no device or
  * network init.
  *
  * POST runs with the device info's LSM set to loading for the call only
@@ -985,7 +982,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     clear_tables();
   }
   void TearDown() override { clear_tables(); }

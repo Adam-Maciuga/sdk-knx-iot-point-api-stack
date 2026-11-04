@@ -227,7 +227,7 @@ fixtures clear every slot to the empty sentinel and craft deterministic entries:
   handlers. The handlers are `static` but reachable through the non-static
   `const oc_resource_t` definitions (`core_resource_knx_fp_g` etc.), so a
   stack-allocated `oc_request_t` / `oc_response_t` / `oc_response_buffer_t`
-  triple plus `oc_mmem_init()` is enough — no device, RI table or network.
+  triple is enough — no device, RI table or network.
   Covered: wrong-Accept → 4.00, empty table → 2.05, `first_entry >= total` /
   `ps < 1` / `pn < 0` → 4.00, populated link-format serialisation incl. the
   comma separator and `add_next_page_indicator`, entry GET (unknown id → 4.04,
@@ -267,7 +267,7 @@ read/write through the public slot pointer `oc_get_auth_at_entry` plus
   `DeleteEntryRemovesTheObserversOfThatToken`).
 - `oc_core_find_and_remove_pase_token_in_at_table` (removes only PASE-profile
   entries, retains OSCORE entries).
-The `AtTable` fixture does `oc_mmem_init` and scrubs every slot via
+The `AtTable` fixture scrubs every slot via
 `oc_delete_at_table_entry` in SetUp/TearDown for determinism.
 - `SecHandlers`: the `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`,
   `/auth/at` and `/auth/at/*` handlers, reached through the non-static
@@ -526,7 +526,7 @@ ordering)**; the engine send/receive paths are additionally INTEGRATION
 ### messaging/coap/separate.c — DONE (full public OC_SERVER API)
 
 `test_separate.cpp` exercises the three public functions on stack structs
-(fixture calls `oc_mmem_init()` since the store keeps an `oc_string_t uri`).
+(the store keeps an `oc_string_t uri`).
 `coap_separate_accept` is tested via the **NON-request** path (no empty ACK), the
 dedup path (same token + observe reuses the store) and the new-store path
 (different observe). Key subtlety: `coap_separate_accept` calls

@@ -558,7 +558,6 @@ TEST_F(CoapObserve, RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers)
 */
 TEST_F(CoapObserve, NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber)
 {
-  oc_mmem_init();
 
   oc_auth_at_t *slot = oc_get_auth_at_entry(3);
   ASSERT_NE(slot, nullptr);
@@ -680,7 +679,6 @@ static int post_auth_at(const uint8_t* cbor, size_t len)
 */
 TEST_F(CoapObserve, TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope)
 {
-  oc_mmem_init();
 
   oc_auth_at_t* slot = provision_ga_token(6, 1);
   ASSERT_NE(slot, nullptr);
@@ -724,7 +722,6 @@ TEST_F(CoapObserve, TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope)
 */
 TEST_F(CoapObserve, TokenUpdatedInPlaceKeepingTheGroupAddressStillNotifies)
 {
-  oc_mmem_init();
 
   oc_auth_at_t* slot = provision_ga_token(6, 1);
   ASSERT_NE(slot, nullptr);
@@ -794,7 +791,6 @@ static void long_value_get_handler(oc_request_t* request, oc_interface_mask_t, v
 */
 TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest)
 {
-  oc_mmem_init();
   oc_coap_clear_request_history();
   g_long_get_calls = 0;
 
@@ -945,7 +941,6 @@ TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBu
 {
   /* the ETags come from oc_random_value(): without an initialized RNG both are all zeros */
   oc_random_init();
-  oc_mmem_init();
   oc_coap_clear_request_history();
   g_long_get_calls = 0;
 

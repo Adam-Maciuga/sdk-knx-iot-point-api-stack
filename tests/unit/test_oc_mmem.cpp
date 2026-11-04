@@ -12,10 +12,7 @@ extern "C" {
 #include "util/oc_mmem.h"
 }
 
-class OcMmemTest : public ::testing::Test {
-protected:
-  void SetUp() override { oc_mmem_init(); }
-};
+class OcMmemTest : public ::testing::Test {};
 
 /* ── oc_mmem_alloc / BYTE_POOL ─────────────────────────────────────────────── */
 
@@ -116,12 +113,7 @@ TEST_F(OcMmemTest, Free_ClearsSize)
 
   oc_mmem_free(&m, BYTE_POOL);
   EXPECT_EQ(m.size, 0u);
-}
-
-TEST_F(OcMmemTest, FreeNull_NoOp)
-{
-  // Should not crash
-  oc_mmem_free(nullptr, BYTE_POOL);
+  EXPECT_EQ(m.ptr, nullptr); // no dangling pointer after free
 }
 
 /* ── Multiple alloc/free cycles ────────────────────────────────────────────── */
@@ -140,18 +132,4 @@ TEST_F(OcMmemTest, MultipleAllocFree)
     oc_mmem_free(&blocks[i], BYTE_POOL);
     EXPECT_EQ(blocks[i].size, 0u);
   }
-}
-
-/* ── oc_mmem_init idempotent ───────────────────────────────────────────────── */
-
-TEST_F(OcMmemTest, Init_DoubleInit_NoOp)
-{
-  // Calling init twice should not crash or reset state
-  oc_mmem_init();
-  oc_mmem_init();
-
-  struct oc_mmem m = {};
-  size_t bytes = oc_mmem_alloc(&m, 8, BYTE_POOL);
-  EXPECT_GT(bytes, 0u);
-  oc_mmem_free(&m, BYTE_POOL);
 }

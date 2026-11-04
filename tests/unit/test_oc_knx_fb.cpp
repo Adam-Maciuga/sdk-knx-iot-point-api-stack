@@ -99,7 +99,6 @@ class CountFunctionalBlocks : public ::testing::Test {
 protected:
   std::vector<oc_resource_t *> added;
 
-  void SetUp() override { oc_mmem_init(); }
 
   void TearDown() override
   {
