@@ -32,6 +32,7 @@ extern "C" {
 #include "util/oc_mmem.h"
 #include "messaging/coap/observe.h"
 #include "port/oc_network_events_mutex.h"
+#include "security/oc_oscore_context.h"
 #include <string.h>
 
 /* the /k resource descriptor (api/oc_knx.c) */
@@ -914,6 +915,152 @@ TEST_F(SecAtPost, RejectedScopeUpdateKeepsTheGaScope)
   EXPECT_EQ(e->ga[0], 1u);
 
   /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  an update of the <ga> scope only keeps the OSCORE contexts as they are
+  - token "tok" created (OSCORE profile) -> its sender context exists; its SSN is moved on to 1234 (as after traffic)
+  - POST the same id with <ga> [2] only -> 2.04
+  - same context, SSN still 1234: the contexts were NOT re-initialized (a re-initialization frees and rebuilds them)
+*/
+TEST_F(SecAtPost, GaOnlyScopeUpdateKeepsTheOscoreContexts)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  oc_oscore_context_t* ctx = oc_oscore_find_context_by_access_token(e, true);
+  ASSERT_NE(ctx, nullptr);
+  ctx->ssn = 1234;
+
+  /* { 0: { 0: "tok", 9: [2] } } */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x09, 0x81, 0x02
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+
+  EXPECT_EQ(e->scope, OC_ACL_GA);
+  ASSERT_EQ(e->ga_len, 1);
+  EXPECT_EQ(e->ga[0], 2u);
+
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(e, true), ctx);
+  EXPECT_EQ(ctx->ssn, 1234u);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  an id-only entry (delete) in a request that otherwise only updates a scope drops the deleted token's OSCORE context
+  - tokens "toA" and "toB" created, both have a sender context
+  - POST { 0: { 0: "toA" }, 1: { 0: "toB", 9: [1] } } -> 2.04: "toA" deleted, "toB" scope only
+  - the scope-only request skips the re-initialization, so the delete itself must free "toA"'s context;
+    "toB" keeps its context
+*/
+TEST_F(SecAtPost, IdOnlyDeleteWithScopeOnlyUpdateFreesTheDeletedTokensContext)
+{
+  std::vector<uint8_t> create_a = make_complete_at_payload(16, false, 1, 10);
+  create_a[7] = 'A';
+  ASSERT_EQ(post_at(create_a.data(), create_a.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  std::vector<uint8_t> create_b = make_complete_at_payload(16, false, 2, 10);
+  create_b[7] = 'B';
+  ASSERT_EQ(post_at(create_b.data(), create_b.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* a = oc_core_find_at_entry_by_access_token("toA", 3);
+  oc_auth_at_t* b = oc_core_find_at_entry_by_access_token("toB", 3);
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+  ASSERT_NE(oc_oscore_find_context_by_access_token(a, true), nullptr);
+  ASSERT_NE(oc_oscore_find_context_by_access_token(b, true), nullptr);
+
+  const uint8_t cbor[] = {
+    0xa2,
+    0x00, 0xa1, 0x00, 0x63, 't', 'o', 'A',
+    0x01, 0xa2, 0x00, 0x63, 't', 'o', 'B', 0x09, 0x81, 0x01
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("toA", 3), nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(a, false), nullptr);
+  EXPECT_NE(oc_oscore_find_context_by_access_token(b, true), nullptr);
+
+  /* the created entries were also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  a profile change together with a scope update re-initializes the OSCORE contexts
+  - token "tok" with profile coap_oscore -> its sender context exists
+  - POST the same id with profile coap_dtls and scope ["if.sec"] -> 2.04
+  - the token has no OSCORE context any more (a non-OSCORE profile gets none on re-initialization)
+*/
+TEST_F(SecAtPost, ProfileAndScopeUpdateReinitializesTheOscoreContexts)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  ASSERT_NE(oc_oscore_find_context_by_access_token(e, true), nullptr);
+
+  /* { 0: { 0: "tok", 38: 1, 9: ["if.sec"] } } */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa3,
+    0x00, 0x63, 't', 'o', 'k',
+    0x18, 0x26, 0x01,
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c'
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+
+  EXPECT_EQ(e->profile, OC_PROFILE_COAP_DTLS);
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(e, false), nullptr);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  deleting an AT table entry frees ALL OSCORE contexts of the token, sender AND recipient
+  - token "tok" (scope moved to <ga>, so the device reset path deletes it) with its sender context and a recipient
+    context (as built for an inbound request)
+  - oc_delete_at_table_except_sec_scope_entries() (device reset) deletes it
+  - no context refers to the slot any more (the re-initialization after a reset frees sender contexts only)
+*/
+TEST_F(SecAtPost, DeletingAnEntryFreesItsSenderAndRecipientContexts)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  e->scope = OC_ACL_GA;
+
+  oc_oscore_context_params_t params;
+  memset(&params, 0, sizeof(params));
+  params.auth_at = e;
+  ASSERT_NE(oc_oscore_add_recipient_context(&params), nullptr);
+  ASSERT_NE(oc_oscore_find_context_by_access_token(e, true), nullptr);
+
+  oc_delete_at_table_except_sec_scope_entries();
+
+  EXPECT_EQ(oc_core_find_at_entry_by_access_token("tok", 3), nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_access_token(e, false), nullptr);
+
   oc_delete_at_table();
 }
 

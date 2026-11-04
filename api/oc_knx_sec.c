@@ -869,6 +869,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             */
             at_entry->scope = OC_ACL_GA;
             at_properties_seen |= AT_PROP_SCOPE;
+
+            // as in the string scope branch: a GA-only update needs no re-initialization of the OSCORE contexts (see below)
+            scope_updated = true;
           }
         }
         else if (object->type == OC_REP_STRING)
@@ -892,6 +895,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           {
             at_entry->profile = (oc_at_profile_t)object->value.integer;
             at_properties_seen |= AT_PROP_PROFILE;
+
+            // the profile decides whether an OSCORE context exists at all -> the contexts must be re-initialized
+            other_updated = true;
           }
         }
         else if (object->type == OC_REP_OBJECT)
@@ -1283,9 +1289,6 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   OC_DBG("delete AT table entry");
   oc_delete_at_table_entry(at_entry);
 
-  // delete the related oscore contexts
-  oc_oscore_free_contexts_at_id(at_entry);
-
   OC_INF("oc_core_auth_at_x_delete_handler - done");
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
@@ -1475,6 +1478,9 @@ static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
 
 /*
   Erases the SSN entry and the AT table entry of one AT table slot from storage and clears the RAM.
+  Everything that refers to the slot ends with it: its /k observers and ALL its OSCORE contexts (sender AND recipient).
+  - callers need no own context handling -> a single delete (DELETE /auth/at/{id}, POST id-only) can't forget it
+  - oc_init_oscore_from_storage() frees sender contexts only, a recipient context of a deleted token would stay otherwise
 
   NOTES:
   (a) AT table entry manipulations ALWAYS need to be reflected in the SSNT entry handling! The AT
@@ -1503,7 +1509,10 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
     */
     coap_remove_observers_by_access_token(entry);
 
-    /* 
+    // OSCORE contexts of this token (they point to this slot, a later token in the same slot would inherit them)
+    oc_oscore_free_contexts_at_id(entry);
+
+    /*
        SSN entry of the AT table entry (same index), erased first, see NOTES (c) above, otherwise it
        stays in storage forever and a future occupant of this AT table slot would start from the
        previous occupant's counter
@@ -1770,8 +1779,7 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
   {
     if (entry->profile == OC_PROFILE_COAP_PASE)
     {
-      oc_delete_at_table_entry(entry); // delete entry from AT table
-      oc_oscore_free_contexts_at_id(entry); // removes possible references
+      oc_delete_at_table_entry(entry); // delete entry from AT table, incl. its OSCORE contexts
       OC_DBG("PASE key found, invalidated...");
     }
   }

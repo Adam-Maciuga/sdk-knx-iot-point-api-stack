@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-055.
+removed entry. The next number is F-058.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -57,13 +57,14 @@ removed entry. The next number is F-055.
 - **Fix:** string scope: the GA list is freed and reset only after the names gave a valid mask; int array scope: the early `scope = OC_ACL_NONE` is gone (the empty check and the allocation already come before any write). Test: `test_oc_knx_sec`, `SecAtPost.RejectedScopeUpdateKeepsTheGaScope`. The `[]` case has no test: the parser makes an empty array an `OC_REP_NIL` item, so it never reaches the int array branch.
 - **Not covered:** a request with a VALID scope that is rejected later still keeps its changes in RAM, see F-054.
 
-## F-034: a scope update that only changes group addresses re-initializes all OSCORE contexts - OPEN
+## ~~F-034: a scope update that only changes group addresses re-initializes all OSCORE contexts~~ - FIXED
 
 - **Files:** `api/oc_knx_sec.c`, POST /auth/at handler: `scope_updated` is set only in the string-scope branch, not in the int-array (`<ga>`) branch.
 - **Severity:** Low - unnecessary work and a reset of the replay/sequence state of every context on a plain GA update (token rotation of a `<ga>` token).
 - **Description:** after the loop the handler skips `oc_init_oscore_from_storage(false)` only for `OC_STATUS_CHANGED && other_updated == false && scope_updated == true`. An update of `<ga>` alone leaves `scope_updated` false and takes the re-initialization path.
 - **Evidence:** code reading. A test: token with `<ga>` [1], POST the same id with `<ga>` [2] only -> 2.04, and `oc_init_oscore_from_storage` (wrapped) is not called.
 - **Expected:** set `scope_updated = true` in the `<ga>` branch as in the string branch.
+- **Fix:** the `<ga>` branch sets `scope_updated = true`. Test: `test_oc_knx_sec`, `SecAtPost.GaOnlyScopeUpdateKeepsTheOscoreContexts` (the token's sender context and its SSN survive a `<ga>`-only update; `oc_init_oscore_from_storage` is in the same file, so it cannot be wrapped).
 
 ## ~~F-035: a discovery response after the group object was deleted dereferences a NULL `ga`~~ - FIXED
 
@@ -235,3 +236,29 @@ removed entry. The next number is F-055.
 - **Description:** each property is written to the entry as soon as it is parsed. A later reject (e.g. `cnf:osc:alg` other than 10, short or all-zero master secret, too long sender ID, missing mandatory properties) returns 4.00 without undoing the earlier writes. The change is not stored (`oc_store_at_table_entry` is not reached), so RAM and storage differ until the next reboot or a successful update. Remainder of F-033 (an invalid scope itself no longer changes the entry).
 - **Evidence:** code reading. A test: token "tok" with scope ["if.sec"], POST the same id with scope ["if.swu"] and `cnf:osc:alg` 11 -> 4.00, then the entry still has scope `OC_ACL_SEC`.
 - **Expected:** parse and validate into a local copy, write the entry only when the whole request is accepted.
+
+## ~~F-055: an id-only POST /auth/at (delete) keeps the token's OSCORE context when the same request also updates a scope~~ - FIXED
+
+- **Files:** `api/oc_knx_sec.c`, POST /auth/at handler: id-only branch (`oc_delete_at_table_entry()`) and the final `scope_updated` / `other_updated` decision before `oc_init_oscore_from_storage(false)`.
+- **Severity:** Medium - the OSCORE context of a deleted token stays usable; requests protected with its key still decrypt although its AT table slot is empty.
+- **Description:** the id-only branch removes the token's observers, storage and RAM entry, but not its OSCORE context; the POST relies on the full re-initialization after the loop to drop it. The flags are shared by all entries of one request, so a request that deletes one token and changes only the scope of another (`[{0: "A"}, {0: "B", 9: ["if.sec"]}]` or `9: [1]`) ends with `OC_STATUS_CHANGED`, `scope_updated` and no `other_updated` -> no re-initialization, the context of "A" survives. DELETE /auth/at/{id} does not have this gap, it calls `oc_oscore_free_contexts_at_id()` itself.
+- **Evidence:** code reading. A test: create tokens "A" and "B", POST `[{0: "A"}, {0: "B", 9: [1]}]` -> 2.04, then no OSCORE context refers to "A"'s slot (`oc_oscore_find_context_by_access_token`).
+- **Expected:** the id-only branch frees the token's OSCORE contexts as DELETE /auth/at/{id} does (or forces the re-initialization).
+- **Fix:** `oc_delete_at_table_entry()` itself frees all OSCORE contexts of the token (see F-057), so the id-only branch no longer depends on the re-initialization. Test: `test_oc_knx_sec`, `SecAtPost.IdOnlyDeleteWithScopeOnlyUpdateFreesTheDeletedTokensContext`.
+
+## ~~F-056: a POST /auth/at that changes the profile together with the scope does not re-initialize the OSCORE contexts~~ - FIXED
+
+- **Files:** `api/oc_knx_sec.c`, POST /auth/at handler: profile (key 38) does not set `other_updated`.
+- **Severity:** Low - a token switched away from `coap_oscore` keeps its OSCORE context, a token switched to it gets none, until the next re-initialization (next key change, create, or reboot).
+- **Description:** the re-initialization is skipped for `OC_STATUS_CHANGED && !other_updated && scope_updated`. The profile decides in `oc_init_oscore_from_storage()` whether a context is built at all, but setting it does not mark `other_updated`, so an update of profile + scope only takes the "scope only" path.
+- **Evidence:** code reading. A test: token "tok" with profile `coap_oscore` (context exists), POST the same id with profile `coap_dtls` and scope ["if.sec"] -> 2.04, then no OSCORE context refers to the token.
+- **Expected:** setting the profile sets `other_updated = true`.
+- **Fix:** the profile branch sets `other_updated = true`. Test: `test_oc_knx_sec`, `SecAtPost.ProfileAndScopeUpdateReinitializesTheOscoreContexts`.
+
+## ~~F-057: deleting AT table entries on a device reset keeps the recipient OSCORE contexts of the deleted tokens~~ - FIXED
+
+- **Files:** `api/oc_knx_sec.c`, `oc_delete_at_table_entry()`, `oc_delete_at_table_except_sec_scope_entries()`; `oc_init_oscore_from_storage()` -> `oc_oscore_free_sender_contexts()`.
+- **Severity:** Low - stale contexts that point to an empty AT table slot stay in the context list (the access check finds no scope for them, so no access); they occupy context buffers and a later token in the same slot would find them.
+- **Description:** `oc_delete_at_table_entry()` did not free OSCORE contexts; each caller had to do it. The device reset path (`oc_delete_at_table_except_sec_scope_entries()` in `oc_knx_device_reset()`) relied on `oc_init_oscore_from_storage(true)` afterwards, which frees sender contexts only (`recipient_id_len == 0`), so recipient contexts of the deleted non-`if.sec` tokens survived. F-055 was the same gap on the POST id-only path.
+- **Evidence:** test below, fails without the fix.
+- **Fix:** `oc_delete_at_table_entry()` calls `oc_oscore_free_contexts_at_id()` (all contexts of the slot, sender and recipient); the separate calls in DELETE /auth/at/{id}, the POST id-only branch and the PASE token removal are gone. Test: `test_oc_knx_sec`, `SecAtPost.DeletingAnEntryFreesItsSenderAndRecipientContexts`.

@@ -223,6 +223,7 @@ extern "C" {
 	 * @brief deletes an AT table entry
 	 * - from RAM
 	 * - from storage (file system)
+	 * - its /k observers and ALL its OSCORE contexts (sender and recipient), callers need no own context handling
 	 *
 	 * @param entry pointer to the AT table entry to be deleted
    * @return 0 == success, - 1 == entry not found

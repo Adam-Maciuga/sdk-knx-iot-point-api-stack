@@ -32,6 +32,7 @@ extern "C" {
 #include "oc_rep.h"
 #include "api/oc_knx_sec.h"
 #include "util/oc_mmem.h"
+#include "port/oc_random.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -942,6 +943,8 @@ static void changing_long_value_get_handler(oc_request_t* request, oc_interface_
 */
 TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBuffer)
 {
+  /* the ETags come from oc_random_value(): without an initialized RNG both are all zeros */
+  oc_random_init();
   oc_mmem_init();
   oc_coap_clear_request_history();
   g_long_get_calls = 0;
@@ -1037,6 +1040,7 @@ TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBu
   coap_free_all_transactions();
   oc_blockwise_scrub_buffers(true);
   oc_coap_clear_request_history();
+  oc_random_destroy();
 }
 
 /* ---------------- get_observe_counter ------------------------------------ */
