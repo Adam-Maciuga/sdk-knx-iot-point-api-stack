@@ -100,6 +100,11 @@ target_link_options(test_oc_helpers_alloc_fail PRIVATE
 )
 kis_add_test(test_c_timestamp test_c_timestamp.cpp)
 kis_add_test(test_oc_rep      test_oc_rep.cpp)
+# --wrap=malloc: __wrap_malloc() fails the next call when a test arms it (allocation failure in the CBOR parser)
+kis_add_test(test_oc_rep_alloc_fail test_oc_rep_alloc_fail.cpp)
+target_link_options(test_oc_rep_alloc_fail PRIVATE
+    -Wl,--wrap=malloc
+)
 kis_add_test(test_coap              test_coap.cpp)
 kis_add_test(test_oc_oscore_crypto  test_oc_oscore_crypto.cpp)
 kis_add_test(test_oc_knx_sec       test_oc_knx_sec.cpp)

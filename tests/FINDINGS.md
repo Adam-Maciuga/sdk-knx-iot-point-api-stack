@@ -119,7 +119,7 @@ removed entry. The next number is F-058.
 - **Expected:** on failure leave `ptr = NULL`, `size = 0` and skip the copy; callers that need the string check `oc_string(x) != NULL`.
 - **Fix:** `oc_mmem_alloc()` sets `size = 0` and returns 0 when `malloc` fails; `_oc_new_string()`, `_oc_new_byte_string()`, `oc_concat_strings()` and `_oc_alloc_string_array()` return before the copy when the buffer is NULL, the handle stays empty. Callers that use the string afterwards (e.g. `strcmp` on `oc_string(x)`) are not part of this fix. Tests: `test_oc_helpers_alloc_fail` (6, `-Wl,--wrap=malloc`).
 
-## F-041: the CBOR parser writes through NULL when an array or string allocation fails - OPEN
+## ~~F-041: the CBOR parser writes through NULL when an array or string allocation fails~~ - FIXED
 
 - **Files:** `api/oc_rep.c`, array parsing (`oc_new_int_array`/`oc_new_bool_array`/`oc_new_double_array`/string array, then writes at index `k`), scalar strings (`oc_alloc_string` then `cbor_value_copy_*`), object/mixed arrays (`(*prev)->next = 0` after a failed nested parse).
 - **Severity:** Medium - peer-triggered crash under heap pressure; string arrays reserve 32 bytes per item, so a 1 KB payload of 1-byte strings needs ~32 KB.
@@ -130,6 +130,7 @@ removed entry. The next number is F-058.
   - `*err = cbor_value_advance(&array)` overwrites the error of the nested parse, so an OOM or illegal type inside an element is dropped.
 - **Evidence:** code reading. Fuzz harness or unit test with a failing `malloc` wrap at the n-th call.
 - **Expected:** check each allocation, set `CborErrorOutOfMemory` and return; combine errors with `|=`.
+- **Fix:** `oc_rep_allocated()` checks each string, key name and array buffer after its allocation and ends the parse with `CborErrorOutOfMemory`; a failed nested parse in an object or mixed array returns at once (before `(*prev)->next`), and the advance combines with `|=`. A failing `calloc` of a rep node still hits `oc_assert` in `_alloc_rep()` on debug builds (release builds return `CborErrorOutOfMemory`). Tests: `test_oc_rep_alloc_fail` (8, `-Wl,--wrap=malloc`).
 
 ## F-042: a timed callback that removes itself and returns OC_EVENT_DONE is freed twice - OPEN
 

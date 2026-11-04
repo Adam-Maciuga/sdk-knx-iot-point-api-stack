@@ -152,6 +152,21 @@ oc_free_rep(oc_rep_t *rep)
   _free_rep(rep);
 }
 
+/*
+  checks the allocation of a string or an array of the parsed rep
+  - a failed malloc leaves ptr NULL (size 0, see oc_mmem_alloc), the parse ends with CborErrorOutOfMemory
+  -> nothing is written through NULL, the handler never gets a NULL string or array
+*/
+static bool oc_rep_allocated(const struct oc_mmem* m, CborError* err)
+{
+  if (m->ptr == NULL)
+  {
+    *err |= CborErrorOutOfMemory;
+    return false;
+  }
+  return true;
+}
+
 static void oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep,
                                       CborError *err);
 static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep,
@@ -211,6 +226,10 @@ oc_parse_single_entity(CborValue *value, oc_rep_t **rep, CborError *err)
     if (*err != CborNoError || len == 0)
       return;
     oc_alloc_string(&cur->value.string, len);
+    if (!oc_rep_allocated(&cur->value.string, err))
+    {
+      return;
+    }
     *err |= cbor_value_copy_byte_string(
       value, oc_cast(cur->value.string, uint8_t), &len, NULL);
     cur->type = OC_REP_BYTE_STRING;
@@ -221,6 +240,10 @@ oc_parse_single_entity(CborValue *value, oc_rep_t **rep, CborError *err)
     if (*err != CborNoError || len == 0)
       return;
     oc_alloc_string(&cur->value.string, len);
+    if (!oc_rep_allocated(&cur->value.string, err))
+    {
+      return;
+    }
     *err |= cbor_value_copy_text_string(value, oc_string(cur->value.string),
                                         &len, NULL);
     cur->type = OC_REP_STRING;
@@ -268,6 +291,10 @@ oc_parse_rep_value(CborValue *value, oc_rep_t **rep, CborError *err)
     if (*err != CborNoError || len == 0)
       return;
     oc_alloc_string(&cur->name, len);
+    if (!oc_rep_allocated(&cur->name, err))
+    {
+      return;
+    }
     *err |= cbor_value_copy_text_string(value, (char *)oc_string(cur->name),
                                         &len, NULL);
     if (*err != CborNoError)
@@ -525,6 +552,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         if (k == 0) {
           oc_new_int_array(&cur->value.array, len);
           cur->type = OC_REP_INT_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
         if (array.type != CborIntegerType) {
           *err |= CborErrorIllegalType;
@@ -536,6 +567,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         if (k == 0) {
           oc_new_bool_array(&cur->value.array, len);
           cur->type = OC_REP_BOOL_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
         if (array.type != CborBooleanType) {
           *err |= CborErrorIllegalType;
@@ -548,6 +583,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         if (k == 0) {
           oc_new_float_array(&cur->value.array, len);
           cur->type = OC_REP_FLOAT_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
         if (array.type != CborFloatType) {
           *err |= CborErrorIllegalType;
@@ -560,6 +599,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         if (k == 0) {
           oc_new_double_array(&cur->value.array, len);
           cur->type = OC_REP_DOUBLE_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
         if (array.type != CborDoubleType) {
           *err |= CborErrorIllegalType;
@@ -574,6 +617,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         {
           oc_new_byte_string_array(&cur->value.array, len);
           cur->type = OC_REP_BYTE_STRING_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
 
         if (array.type != CborByteStringType) 
@@ -597,6 +644,10 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         {
           oc_new_string_array(&cur->value.array, len);
           cur->type = OC_REP_STRING_ARRAY;
+          if (!oc_rep_allocated(&cur->value.array, err))
+          {
+            return;
+          }
         }
         if (array.type != CborTextStringType) 
         {
@@ -626,6 +677,11 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
           return;
         }
         oc_parse_rep_value_object(&array, prev, err);
+        // a failed nested parse (e.g. out of memory, *prev may be NULL then) ends the parse with its error
+        if (*err != CborNoError)
+        {
+          return;
+        }
         (*prev)->next = 0;
         prev = &(*prev)->next;
       } break;
@@ -646,13 +702,18 @@ static void oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError
         }
 
         oc_parse_single_entity(&array, prev, err);
+        // a failed nested parse (e.g. out of memory, *prev may be NULL then) ends the parse with its error
+        if (*err != CborNoError)
+        {
+          return;
+        }
         (*prev)->next = 0;
         prev = &(*prev)->next;
 
       } break;
     }
 
-    *err = cbor_value_advance(&array);
+    *err |= cbor_value_advance(&array);
     
     if (*err != CborNoError)
       return;

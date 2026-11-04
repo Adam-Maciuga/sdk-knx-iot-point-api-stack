@@ -238,6 +238,23 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
+### test_oc_rep_alloc_fail.cpp — Allocation Failure in the CBOR Parser (8 tests)
+
+**Source:** `api/oc_rep.c` (`oc_parse_rep`); linked with `-Wl,--wrap=malloc`, `__wrap_malloc()` fails the next call once a test arms it (rep nodes come from `calloc`, so it hits the first string/array buffer)
+
+| Test | What it verifies |
+|------|-----------------|
+| `IntArrayAllocationFailureIsOutOfMemory` | `{0: [1, 2]}`: a failed int array allocation returns `CborErrorOutOfMemory` instead of writing through NULL |
+| `StringArrayAllocationFailureIsOutOfMemory` | same for a string array |
+| `TextStringAllocationFailureIsOutOfMemory` | a failed text string allocation returns `CborErrorOutOfMemory` (no NULL string for the handler) |
+| `ByteStringAllocationFailureIsOutOfMemory` | same for a byte string |
+| `KeyNameAllocationFailureIsOutOfMemory` | same for a text key name |
+| `NestedFailureInAnObjectArrayIsNotDropped` | an OOM inside an object array element is not overwritten by the advance to the next element |
+| `NestedFailureInAMixedArrayIsNotDropped` | same for a mixed array element |
+| `NotArmedParseWorks` | without arming, the same mixed array payload parses |
+
+---
+
 ### test_coap.cpp — CoAP Parser/Serializer (95 tests)
 
 **Source:** `messaging/coap/coap.c`
