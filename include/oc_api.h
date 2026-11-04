@@ -545,24 +545,43 @@ extern "C"
   void oc_resource_set_functional_block_data(oc_resource_t* resource, uint16_t fb_number, uint8_t fb_instance, uint8_t fb_number_datapoints);
 
   /**
-   * Add a resource to the stack.
+   * Add a resource to the stack (counterpart of oc_delete_resource).
    *
-   * The resource will be validated then added to the stack.
+   * The resource is validated, then added to the application resource list:
+   * - at least one method handler (GET/PUT/POST/DELETE) is set
+   * - a periodic observable resource has a period > 0
+   * - the interfaces of all handlers are not if.i AND if.o at the same time
+   *
+   * @note the uri stays owned by the caller (oc_new_resource only stores its pointer),
+   * it must stay valid until the resource is deleted (oc_delete_resource); the resource
+   * itself is freed by the stack on delete or shutdown.
    *
    * @param[in] resource the resource to add to the stack
    *
    * @return
    *  - true: the resource was successfully added to the stack.
-   *  - false: the resource can not be added to the stack.
+   *  - false: NULL, a const (core) resource or a failed validation, nothing added.
    */
   bool oc_add_resource(oc_resource_t* resource);
 
   /**
-   * Schedule a callback to remove a resource.
+   * Delete a resource from the stack (counterpart of oc_add_resource).
+   *
+   * Deletes immediately: its observers, its periodic observe entry, runtime data
+   * and the resource itself (the uri is NOT freed, it belongs to the caller).
+   *
+   * @note must NOT be called from the resource's own handler (GET/PUT/POST/DELETE)
+   * or from its notification: the caller still uses the resource afterwards.
+   * To delete it as the result of a request, schedule the delete with
+   * oc_set_delayed_callback() so it runs outside the handler.
    *
    * @param[in] resource the resource to delete
+   *
+   * @return
+   *  - true: the resource was deleted.
+   *  - false: NULL or a const (core) resource, nothing deleted.
    */
-  void oc_delayed_delete_resource(oc_resource_t* resource);
+  bool oc_delete_resource(oc_resource_t* resource);
 
   /**
    * This resets the query iterator to the start of the URI query parameter

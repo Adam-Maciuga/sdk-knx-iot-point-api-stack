@@ -1173,7 +1173,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_server_api.cpp — Server API (41 tests)
+### test_oc_server_api.cpp — Server API (42 tests)
 
 **Source:** `api/oc_server_api.c`
 
@@ -1181,7 +1181,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `ServerApiQuery` | 9 | Query value/exists lookups, empty and non-empty iteration, NULL request |
 | `ServerApiResponse` | 9 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, missing-buffer guards |
-| `ServerApiResource` | 23 | Resource allocation failure, separate setup, delayed callbacks, bind/handler/interface/ACL/property and const/null guards |
+| `ServerApiResource` | 24 | Resource allocation failure, add then `oc_delete_resource` (leaves the app list, NULL -> false), separate setup, delayed callbacks, bind/handler/interface/ACL/property and const/null guards |
 
 ---
 

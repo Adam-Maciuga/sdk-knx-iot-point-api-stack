@@ -315,6 +315,23 @@ TEST_F(ServerApiResource, NewResourceValidPath)
   oc_ri_delete_resource(r);
 }
 
+/* oc_delete_resource is the counterpart of oc_add_resource: the resource leaves the application list */
+TEST_F(ServerApiResource, AddThenDeleteResource)
+{
+  char path[] = "/del";
+  oc_resource_t *r = oc_new_resource(path, 0);
+  ASSERT_NE(r, nullptr);
+  oc_resource_set_request_handler(r, COAP_GET, [](oc_request_t *, oc_interface_mask_t, void *) {}, nullptr,
+                                  OC_ACL_NONE, OC_IF_D);
+  ASSERT_TRUE(oc_add_resource(r));
+  ASSERT_EQ(oc_ri_get_app_resources(), r);
+
+  EXPECT_TRUE(oc_delete_resource(r));
+  EXPECT_EQ(oc_ri_get_app_resources(), nullptr);
+
+  EXPECT_FALSE(oc_delete_resource(nullptr));
+}
+
 TEST_F(ServerApiResource, NewResourceTooLongPathReturnsNull)
 {
   char path[OC_MAX_URL_LENGTH + 8];

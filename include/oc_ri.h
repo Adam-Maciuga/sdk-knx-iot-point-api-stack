@@ -626,19 +626,23 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void);
 /**
  * @brief add resource to the system
  *
+ * Internal, applications use oc_add_resource() in oc_api.h (full description and rules there).
+ *
  * @param resource the resource to be added to the list of application resources
  * @return true success
- * @return false failure
+ * @return false failure (NULL, const resource or failed validation)
  */
 bool oc_ri_add_resource(oc_resource_t* resource);
 
 /**
  * @brief remove the resource from the list of application resources
  *
+ * Internal, applications use oc_delete_resource() in oc_api.h (full description and rules there).
+ *
  * @param resource the resource to be removed from the list of application
  * resources
  * @return true success
- * @return false failure
+ * @return false failure (NULL or const resource)
  */
 bool oc_ri_delete_resource(oc_resource_t* resource);
 #endif 

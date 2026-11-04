@@ -277,7 +277,7 @@ removed entry. The next number is F-060.
 - **Expected:** `remove_periodic_observe_callback()` uses the `callback_active` toggle of F-042 and frees only outside the running callback.
 - **Fix:** `remove_periodic_observe_callback()` toggles `callback_active` (as `oc_ri_remove_timed_event_callback()`, F-042) and frees only when it is then true; a running entry is freed once by the poll loop. Tests: `test_oc_ri_periodic_observe` (2, the notification is wrapped and deletes the resource, so the freed resource of F-059 is not touched); without the fix the DONE test crashes, the CONTINUE case shows under ASan.
 
-## F-059: a resource deleted from its own handler is used after it is freed; `oc_delayed_delete_resource()` is declared but not implemented - OPEN
+## ~~F-059: a resource deleted from its own handler is used after it is freed; `oc_delayed_delete_resource()` is declared but not implemented~~ - FIXED (by contract)
 
 - **Files:** `api/oc_ri.c`, `oc_ri_invoke_coap_entity_handler()` (after the method handler call) and `oc_ri_delete_resource()`; `messaging/coap/observe.c`, `coap_notify_observers()` (after the GET handler call); `include/oc_api.h`, `oc_delayed_delete_resource()`.
 - **Severity:** Low - needs an application handler that deletes its own resource; no stack code does it, but the API offers no safe way to do so.
@@ -287,3 +287,4 @@ removed entry. The next number is F-060.
   - `oc_delayed_delete_resource()` ("Schedule a callback to remove a resource") is declared in `oc_api.h` but has no implementation, a caller gets a link error.
 - **Evidence:** code reading.
 - **Expected:** implement `oc_delayed_delete_resource()` (a timed callback that calls `oc_ri_delete_resource()` outside any handler) and document that a handler must use it instead of deleting its resource directly; or remove the declaration and document the rule.
+- **Fix:** the declaration of `oc_delayed_delete_resource()` is removed from `oc_api.h` (no implementation, no caller); the new public `oc_delete_resource()` in `oc_api.h` (counterpart of `oc_add_resource()`, wraps `oc_ri_delete_resource()`) states that it must not be called from the resource's own handler or notification and that a delete as the result of a request is scheduled with `oc_set_delayed_callback()`. No behaviour change of the delete itself. Test: `test_oc_server_api`, `ServerApiResource.AddThenDeleteResource`.

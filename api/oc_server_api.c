@@ -543,6 +543,11 @@ bool oc_add_resource(oc_resource_t* resource)
   return oc_ri_add_resource(resource);
 }
 
+bool oc_delete_resource(oc_resource_t* resource)
+{
+  return oc_ri_delete_resource(resource);
+}
+
 void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t* handle)
 {
   request->response->separate_response = handle;
