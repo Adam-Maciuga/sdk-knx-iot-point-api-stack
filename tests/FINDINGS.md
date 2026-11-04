@@ -55,7 +55,7 @@ removed entry. The next number is F-058.
 - **Evidence:** code reading. A test: token with `<ga>` [1], POST the same id with scope `["if.unknown"]` (or `[]`) -> 4.00, then the entry still has `<ga>` [1] and a /k event for GA 1 still reaches its subscriber.
 - **Expected:** validate the new scope first (into locals), change the entry only when the request is accepted.
 - **Fix:** string scope: the GA list is freed and reset only after the names gave a valid mask; int array scope: the early `scope = OC_ACL_NONE` is gone (the empty check and the allocation already come before any write). Test: `test_oc_knx_sec`, `SecAtPost.RejectedScopeUpdateKeepsTheGaScope`. The `[]` case has no test: the parser makes an empty array an `OC_REP_NIL` item, so it never reaches the int array branch.
-- **Not covered:** a request with a VALID scope that is rejected later still keeps its changes in RAM, see F-054.
+- **Not covered:** a request with a VALID scope that is rejected later still kept its changes in RAM, see F-054 (fixed).
 
 ## ~~F-034: a scope update that only changes group addresses re-initializes all OSCORE contexts~~ - FIXED
 
@@ -93,13 +93,14 @@ removed entry. The next number is F-058.
 - **Expected:** test `oscore_object->value.integer`, and return 4.00 at once without changing the entry.
 - **Fix:** the check reads `oscore_object->value.integer` and answers 4.00 at once (like the other `cnf:osc` checks), so a new entry never gets its id and is not stored; members parsed before alg in an update are still changed in RAM (F-038). Tests: `test_oc_knx_sec`, `SecAtPost.CompleteTokenWithAlgorithm10IsCreated`, `SecAtPost.AlgorithmOtherThan10IsRejectedAndNotStored`.
 
-## F-038: a rejected POST /auth/at update still changes the token's OSCORE key material in RAM - OPEN
+## ~~F-038: a rejected POST /auth/at update still changes the token's OSCORE key material in RAM~~ - FIXED
 
 - **Files:** `api/oc_knx_sec.c`, POST /auth/at handler, `cnf:osc` members `ms`, `contextId`, `id`, `salt` of an existing entry.
 - **Severity:** Medium - rejected key material can become live; complements F-033 (same in-place pattern for the scope).
 - **Description:** each member frees and replaces the field of the live entry as it is parsed. A later member that fails validation (e.g. a valid `ms`, then an `osc_id` of a wrong size) returns 4.00, but the earlier fields are already replaced. The change is not stored, but the next successful AT POST or PASE calls `oc_init_oscore_from_storage()`, which builds the contexts from RAM, so the rejected key becomes active.
 - **Evidence:** code reading. A test: token with `ms` A, POST the same id with `ms` B and an invalid `osc_id` -> 4.00, then the entry still holds `ms` A.
 - **Expected:** parse and validate into locals, write the entry only when the whole request is accepted.
+- **Fix:** with F-054: POST /auth/at parses each token into a shadow copy (allocator bits as on fp/r), a rejected request frees only its new values, the entry keeps its key material. Test: `test_oc_knx_sec`, `SecAtPost.UpdateRejectedAfterAValidMasterSecretKeepsTheOldOne` (ms B, then a too long `osc_id` -> 4.00, ms A and the sender ID unchanged).
 
 ## F-039: the endpoint list is freed by the network thread while the main thread walks it - OPEN
 
@@ -229,13 +230,14 @@ removed entry. The next number is F-058.
 - **Evidence:** code reading. A test: like `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback`, but the response is a CON separate response -> expect one RST, code 0.00, the response's MID, no token.
 - **Expected:** for a rejected CON separate response send an empty RST with its MID instead of the ACK 4.13.
 
-## F-054: a POST /auth/at update rejected after a valid scope still changes the token in RAM - OPEN
+## ~~F-054: a POST /auth/at update rejected after a valid scope still changes the token in RAM~~ - FIXED
 
 - **Files:** `api/oc_knx_sec.c`, POST /auth/at handler: the entry (same id, update in place) is written field by field while the payload is parsed.
 - **Severity:** Medium - a request answered with 4.00 changes scope, profile or OSCORE fields of a live token; access checks read the entry at use time.
 - **Description:** each property is written to the entry as soon as it is parsed. A later reject (e.g. `cnf:osc:alg` other than 10, short or all-zero master secret, too long sender ID, missing mandatory properties) returns 4.00 without undoing the earlier writes. The change is not stored (`oc_store_at_table_entry` is not reached), so RAM and storage differ until the next reboot or a successful update. Remainder of F-033 (an invalid scope itself no longer changes the entry).
 - **Evidence:** code reading. A test: token "tok" with scope ["if.sec"], POST the same id with scope ["if.swu"] and `cnf:osc:alg` 11 -> 4.00, then the entry still has scope `OC_ACL_SEC`.
 - **Expected:** parse and validate into a local copy, write the entry only when the whole request is accepted.
+- **Fix:** shadow copy as on POST fp/g, fp/p, fp/r: each token is parsed into a copy of its entry, a new value gets its own allocation flagged in an allocator bitmask; a rejected request (4.00/5.00) frees only the flagged values of the copy and leaves the entry (or the empty slot) as it was, an accepted one frees the flagged values of the entry and takes over the copy (`oc_free_allocated_at_elements()`). A repeated key frees only a value of the same request (bit already set). Tests: `test_oc_knx_sec`, `SecAtPost.UpdateRejectedAfterAValidScopeKeepsTheToken`, `SecAtPost.UpdateRejectedAfterAValidMasterSecretKeepsTheOldOne`, `SecAtPost.RepeatedMasterSecretInAnUpdateKeepsTheLastOne`.
 
 ## ~~F-055: an id-only POST /auth/at (delete) keeps the token's OSCORE context when the same request also updates a scope~~ - FIXED
 

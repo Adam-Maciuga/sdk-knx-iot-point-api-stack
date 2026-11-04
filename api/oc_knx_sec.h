@@ -142,6 +142,10 @@ extern "C" {
 		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 
 
+		                            // sub     (2) - not implemented 
+                                // exp     (4) - not implemented
+                                // nbf     (5) - not implemented
+
 	} oc_auth_at_t;
 
 	/**

@@ -1064,6 +1064,171 @@ TEST_F(SecAtPost, DeletingAnEntryFreesItsSenderAndRecipientContexts)
   oc_delete_at_table();
 }
 
+/*
+  an update rejected AFTER a valid scope leaves the token as it was (shadow copy)
+  - token "tok" with scope ["if.sec"], no GA list
+  - POST the same id with <ga> [5] and then cnf:osc:alg 11 -> 4.00
+  - scope and GA list are unchanged (the valid scope used to be written before the alg check rejected the request)
+*/
+TEST_F(SecAtPost, UpdateRejectedAfterAValidScopeKeepsTheToken)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  const oc_acl_mask_t scope_before = e->scope;
+  ASSERT_EQ(e->ga, nullptr);
+
+  /* { 0: { 0: "tok", 9: [5], 8: { 4: { 4: 11 } } } } */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa3,
+    0x00, 0x63, 't', 'o', 'k',
+    0x09, 0x81, 0x05,
+    0x08, 0xa1, 0x04, 0xa1, 0x04, 0x0b
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_BAD_REQUEST));
+
+  EXPECT_EQ(e->scope, scope_before);
+  EXPECT_EQ(e->ga, nullptr);
+  EXPECT_EQ(e->ga_len, 0);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  an update rejected after a valid master secret keeps the old master secret (shadow copy)
+  - token "tok" with master secret 01..10
+  - POST the same id with master secret 21..30 and then a sender id of 8 bytes (too long) -> 4.00
+  - the master secret is still 01..10
+*/
+TEST_F(SecAtPost, UpdateRejectedAfterAValidMasterSecretKeepsTheOldOne)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+
+  /* { 0: { 0: "tok", 8: { 4: { 2: h'21..30', 0: h'0102030405060708' } } } } */
+  std::vector<uint8_t> cbor = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x08, 0xa1, 0x04, 0xa2,
+    0x02, 0x50
+  };
+  for (uint8_t i = 0; i < 16; ++i) {
+    cbor.push_back((uint8_t)(0x21 + i));
+  }
+  cbor.push_back(0x00);
+  cbor.push_back(0x48);
+  for (uint8_t i = 0; i < 8; ++i) {
+    cbor.push_back((uint8_t)(i + 1));
+  }
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()), oc_status_code(OC_STATUS_BAD_REQUEST));
+
+  ASSERT_EQ(oc_byte_string_len(e->osc_ms), 16u);
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ((uint8_t)oc_string(e->osc_ms)[i], (uint8_t)(i + 1));
+  }
+  ASSERT_EQ(oc_byte_string_len(e->osc_id), 1u);
+  EXPECT_EQ((uint8_t)oc_string(e->osc_id)[0], 1u);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  a repeated master secret key in an update: the last one wins, the first new one is freed, the live one released on commit
+  - token "tok" with master secret 01..10
+  - POST the same id with master secret 21..30 and again 41..50 -> 2.04
+  - the master secret is 41..50 (no leak or double free: checked by the ASan preset)
+*/
+TEST_F(SecAtPost, RepeatedMasterSecretInAnUpdateKeepsTheLastOne)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+
+  /* { 0: { 0: "tok", 8: { 4: { 2: h'21..30', 2: h'41..50' } } } } */
+  std::vector<uint8_t> cbor = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x08, 0xa1, 0x04, 0xa2,
+    0x02, 0x50
+  };
+  for (uint8_t i = 0; i < 16; ++i) {
+    cbor.push_back((uint8_t)(0x21 + i));
+  }
+  cbor.push_back(0x02);
+  cbor.push_back(0x50);
+  for (uint8_t i = 0; i < 16; ++i) {
+    cbor.push_back((uint8_t)(0x41 + i));
+  }
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()), oc_status_code(OC_STATUS_CHANGED));
+
+  ASSERT_EQ(oc_byte_string_len(e->osc_ms), 16u);
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ((uint8_t)oc_string(e->osc_ms)[i], (uint8_t)(0x41 + i));
+  }
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  a repeated scope key in an update: <ga> first, then a string scope -> the string scope wins
+  - token "tok" with <ga> scope [7] (live ga array)
+  - POST the same id with <ga> [1] and then ["if.sec"] -> 2.04
+  - the scope is no <ga> scope any more, no ga array: the [1] array of the same request is freed when the string
+    scope removes it, the live [7] array on commit (no leak or double free: checked by the ASan preset)
+*/
+TEST_F(SecAtPost, RepeatedScopeGaThenStringFreesTheGa)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  e->ga = (uint32_t*)malloc(sizeof(uint32_t));
+  ASSERT_NE(e->ga, nullptr);
+  e->ga[0] = 7;
+  e->ga_len = 1;
+  e->scope = OC_ACL_GA;
+
+  /* { 0: { 0: "tok", 9: [1], 9: ["if.sec"] } } */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa3,
+    0x00, 0x63, 't', 'o', 'k',
+    0x09, 0x81, 0x01,
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c'
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+
+  EXPECT_NE(e->scope, OC_ACL_GA);
+  EXPECT_NE(e->scope, OC_ACL_NONE);
+  EXPECT_EQ(e->ga, nullptr);
+  EXPECT_EQ(e->ga_len, 0);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_knx_sec_check_acl — the authorization gate
  *

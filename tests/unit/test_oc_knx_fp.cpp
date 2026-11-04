@@ -23,6 +23,7 @@ extern "C" {
 #include "oc_rep.h"
 #include "oc_helpers.h"
 #include "oc_knx.h"                 /* oc_knx_get_lsm / LSM_S_LOADING */
+#include "oc_core_res.h"            /* oc_core_get_device_info */
 #include "messaging/coap/oc_coap.h" /* full def of oc_response_buffer_s */
 #include "util/oc_mmem.h"
 #include "port/oc_storage.h"
@@ -960,9 +961,10 @@ TEST_F(GroupTableStorage, WriterEncodesNonAsBoolean)
  * and a stack-allocated request/response pair are needed — no device or
  * network init.
  *
- * Not covered here: the POST handlers' table-mutation paths and the DELETE
- * happy path (requires LSM_S_LOADING, which is persisted through storage);
- * those remain integration-level per tests/COVERAGE_LEDGER.md.
+ * POST runs with the device info's LSM set to loading for the call only
+ * (invoke_post); covered: a repeated ga key. Not covered here: the other POST
+ * table-mutation paths and the DELETE happy path; those remain
+ * integration-level per tests/COVERAGE_LEDGER.md.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 extern "C" {
@@ -1026,7 +1028,8 @@ protected:
      handlers to extract the entry id. */
   int invoke(const oc_resource_t &res, oc_request_callback_t cb,
              oc_content_format_t accept, oc_interface_mask_t iface,
-             const char *query = nullptr, const char *uri_path = nullptr)
+             const char *query = nullptr, const char *uri_path = nullptr,
+             oc_rep_t *payload = nullptr)
   {
     memset(&request, 0, sizeof(request));
     memset(&response, 0, sizeof(response));
@@ -1046,6 +1049,7 @@ protected:
       request.uri_path = uri_path;
       request.uri_path_len = strlen(uri_path);
     }
+    request.request_payload = payload;
     oc_rep_new(buf, sizeof(buf));
     cb(&request, iface, nullptr);
     return response_buffer.code;
@@ -1067,6 +1071,21 @@ protected:
   {
     return invoke(res, res.delete_handler.cb, APPLICATION_CBOR, OC_IF_C,
                   nullptr, uri_path);
+  }
+
+  /* POST a hand-encoded CBOR payload to a table resource, the device is in loading state for this call only */
+  int invoke_post(const oc_resource_t &res, const uint8_t *cbor, size_t len)
+  {
+    oc_rep_t *rep = nullptr;
+    EXPECT_EQ(oc_parse_rep(cbor, (int)len, &rep), CborNoError);
+    oc_device_info_t *dev = oc_core_get_device_info();
+    const oc_lsm_state_t lsm = dev->lsm_s;
+    dev->lsm_s = LSM_S_LOADING;
+    const int code = invoke(res, res.post_handler.cb, APPLICATION_CBOR, OC_IF_C,
+                            nullptr, nullptr, rep);
+    dev->lsm_s = lsm;
+    oc_free_rep(rep);
+    return code;
   }
 
   /* raw scan of the serialized link-format response for a literal substring */
@@ -1327,3 +1346,102 @@ TEST_F(FpHandlers, RcpEntryDeleteOutsideLoadingStateBadRequest)
             oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
+/* ───────── POST handlers: repeated ga key in one entry (shadow copy) ───────
+
+   A repeated key is accepted, the last one wins. The ga array of the earlier
+   key exists only in the shadow copy and is freed there (allocator bit set);
+   the live array of the entry is freed once on commit. A leak or a double free
+   shows up under the ASan preset, the asserts check the last value won. */
+
+/* { 0: { 0: 1, 13: 1, 7: [9] } } -> multicast entry 1 with ga [9] */
+static const uint8_t kGroupTableCreate[] = {
+  0xa1, 0x00, 0xa3, 0x00, 0x01, 0x0d, 0x01, 0x07, 0x81, 0x09
+};
+
+/* { 0: { 0: 1, 7: [1], 7: [] } } -> the empty array arrives as OC_REP_NIL */
+static const uint8_t kGroupTableGaThenEmpty[] = {
+  0xa1, 0x00, 0xa3, 0x00, 0x01, 0x07, 0x81, 0x01, 0x07, 0x80
+};
+
+/*
+  { 0: { 0: 1 } } -> id only: deletes entry 1, frees its elements and erases its stored file
+  - a run of all tests in one process (exe without ctest) still has the storage path of an earlier storage test,
+    the created entry would stay there as a file otherwise
+*/
+static const uint8_t kTableDeleteId1[] = {
+  0xa1, 0x00, 0xa1, 0x00, 0x01
+};
+
+TEST_F(FpHandlers, PubPostRepeatedGaThenEmptyKeepsTheEmptyGa)
+{
+  ASSERT_EQ(invoke_post(core_resource_knx_fp_p, kGroupTableCreate, sizeof(kGroupTableCreate)),
+            oc_status_code(OC_STATUS_CREATED));
+  const int index = oc_core_find_index_in_publisher_table_from_id(1);
+  ASSERT_NE(index, -1);
+  oc_group_table_t *e = oc_core_get_publisher_table_entry(index);
+  ASSERT_EQ(e->ga_len, 1);
+
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_p, kGroupTableGaThenEmpty, sizeof(kGroupTableGaThenEmpty)),
+            oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(e->ga, nullptr);
+  EXPECT_EQ(e->ga_len, 0);
+
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_p, kTableDeleteId1, sizeof(kTableDeleteId1)),
+            oc_status_code(OC_STATUS_CHANGED));
+}
+
+TEST_F(FpHandlers, RcpPostRepeatedGaThenEmptyKeepsTheEmptyGa)
+{
+  ASSERT_EQ(invoke_post(core_resource_knx_fp_r, kGroupTableCreate, sizeof(kGroupTableCreate)),
+            oc_status_code(OC_STATUS_CREATED));
+  const int index = oc_core_find_index_in_recipient_table_from_id(1);
+  ASSERT_NE(index, -1);
+  oc_group_table_t *e = oc_core_get_recipient_table_entry(index);
+  ASSERT_EQ(e->ga_len, 1);
+
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_r, kGroupTableGaThenEmpty, sizeof(kGroupTableGaThenEmpty)),
+            oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(e->ga, nullptr);
+  EXPECT_EQ(e->ga_len, 0);
+
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_r, kTableDeleteId1, sizeof(kTableDeleteId1)),
+            oc_status_code(OC_STATUS_CHANGED));
+}
+
+/* a GO entry has no empty ga (4.00), so the GO table repeats a filled one: [1] then [2] */
+TEST_F(FpHandlers, GoPostRepeatedGaKeepsTheLastGa)
+{
+  /* the href must name a discoverable resource of the device */
+  oc_resource_t *r = oc_ri_alloc_resource();
+  ASSERT_NE(r, nullptr);
+  r->get_handler.cb = fp_dummy_handler;
+  r->properties = OC_DISCOVERABLE;
+  oc_new_string(&r->uri, "/p/x", 4);
+  ASSERT_TRUE(oc_ri_add_resource(r));
+
+  /* { 0: { 0: 1, 11: "/p/x", 8: w, 7: [9] } } */
+  const uint8_t create[] = {
+    0xa1, 0x00, 0xa4, 0x00, 0x01, 0x0b, 0x64, '/', 'p', '/', 'x', 0x08, 0x10, 0x07, 0x81, 0x09
+  };
+  ASSERT_EQ(invoke_post(core_resource_knx_fp_g, create, sizeof(create)), oc_status_code(OC_STATUS_CREATED));
+  const int index = oc_core_find_index_in_group_object_table_from_id(1);
+  ASSERT_NE(index, -1);
+  oc_group_object_table_t *e = oc_core_get_group_object_table_entry(index);
+
+  /* { 0: { 0: 1, 7: [1], 7: [2] } } */
+  const uint8_t update[] = {
+    0xa1, 0x00, 0xa3, 0x00, 0x01, 0x07, 0x81, 0x01, 0x07, 0x81, 0x02
+  };
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_g, update, sizeof(update)), oc_status_code(OC_STATUS_CHANGED));
+  ASSERT_EQ(e->ga_len, 1);
+  ASSERT_NE(e->ga, nullptr);
+  EXPECT_EQ(e->ga[0], 2u);
+
+  /* the fixture's clear_tables() drops the ga pointer without freeing it, the delete frees it */
+  EXPECT_EQ(invoke_post(core_resource_knx_fp_g, kTableDeleteId1, sizeof(kTableDeleteId1)),
+            oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(e->ga, nullptr);
+
+  oc_free_string(&r->uri);
+  oc_ri_delete_resource(r);
+}
