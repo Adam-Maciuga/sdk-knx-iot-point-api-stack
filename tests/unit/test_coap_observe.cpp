@@ -919,6 +919,126 @@ TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTh
   oc_coap_clear_request_history();
 }
 
+/* GET handler of a /p resource with a 100 byte value that changes on each call: byte i = i + 100 * (call - 1) */
+static void changing_long_value_get_handler(oc_request_t* request, oc_interface_mask_t, void*)
+{
+  g_long_get_calls++;
+  for (int i = 0; i < 100; i++)
+  {
+    request->response->response_buffer->buffer[i] = (uint8_t)(i + 100 * (g_long_get_calls - 1));
+  }
+  request->response->response_buffer->response_length = 100;
+  request->response->response_buffer->code = CONTENT_2_05;
+  request->response->response_buffer->content_format = APPLICATION_CBOR;
+}
+
+/*
+  second /p notification above the block size while the first one's follow-up blocks were not fetched yet
+  - the call returns (an unfinished buffer of the observer used to make the observer loop endless; this test hangs then)
+  - the second notification goes out as block 0 of the NEW value with a NEW ETag: the newer state replaces the buffer
+  - a follow-up GET with Block2 num 1 gets the last 36 bytes of the NEW value with the NEW ETag and M = 0, so a client
+    that still holds block 0 of the old value sees the ETag change (RFC 7959 2.4) and restarts
+  - the old buffer is freed: after the last block no buffer is left for the observer
+*/
+TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBuffer)
+{
+  oc_mmem_init();
+  oc_coap_clear_request_history();
+  g_long_get_calls = 0;
+
+  TestResource tr("/p/1");
+  tr.resource.get_handler.cb = changing_long_value_get_handler;
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = 5683;
+  ep.addr.ipv6.address[0] = 0xFE;
+  ep.addr.ipv6.address[1] = 0x80;
+  ep.addr.ipv6.address[15] = 0x62;
+
+  const uint8_t obs_token[] = {0x6C, 0x6D};
+  ASSERT_EQ(add_test_observer(&tr.resource, &ep, obs_token, 2, "p/1", 3, "lt=86400", 64), 0);
+
+  EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 1);
+  EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 1);
+  EXPECT_EQ(g_long_get_calls, 2);
+
+  /* -- both notifications: block 0 of their own value, own ETag -- */
+  ASSERT_EQ(g_sent_msgs.size(), 2u);
+  uint8_t etags[2][COAP_ETAG_LEN];
+  uint32_t num = 99;
+  uint8_t more = 0;
+  uint16_t size = 0;
+  uint32_t offset = 99;
+  const uint8_t* etag = nullptr;
+  const uint8_t* payload = nullptr;
+  for (size_t n = 0; n < 2; n++)
+  {
+    std::vector<uint8_t> msg = g_sent_msgs[n];
+    coap_packet_t ntf[1];
+    ASSERT_EQ(coap_parse_udp_message(ntf, msg.data(), msg.size() - 1), COAP_NO_ERROR);
+    ASSERT_EQ(coap_get_header_block2(ntf, &num, &more, &size, &offset), 1);
+    EXPECT_EQ(num, 0u);
+    EXPECT_EQ(more, 1);
+    ASSERT_EQ(coap_get_header_etag(ntf, &etag), COAP_ETAG_LEN);
+    memcpy(etags[n], etag, COAP_ETAG_LEN);
+    ASSERT_EQ(coap_get_payload(ntf, &payload), 64u);
+    for (int i = 0; i < 64; i++)
+    {
+      ASSERT_EQ(payload[i], (uint8_t)(i + 100 * n)) << "notification " << n << " byte " << i;
+    }
+  }
+  EXPECT_NE(memcmp(etags[0], etags[1], COAP_ETAG_LEN), 0);
+
+  /* -- follow-up GET /p/1 with Block2 num 1: served from the NEW buffer -- */
+  oc_message_t* m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  m->endpoint = ep;
+  coap_packet_t get[1];
+  const uint8_t get_token[] = {0x7E, 0x7F};
+  coap_udp_init_message(get, COAP_TYPE_CON, COAP_GET, 0x7102);
+  coap_set_token(get, get_token, sizeof(get_token));
+  coap_set_header_uri_path(get, "/p/1", 4);
+  coap_set_header_block2(get, 1, 0, 64);
+  m->length = coap_serialize_message(get, m->data);
+  ASSERT_GT(m->length, 0u);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  ASSERT_EQ(g_sent_msgs.size(), 3u);
+  std::vector<uint8_t> third = g_sent_msgs[2];
+  coap_packet_t blk[1];
+  ASSERT_EQ(coap_parse_udp_message(blk, third.data(), third.size() - 1), COAP_NO_ERROR);
+  EXPECT_EQ(blk->type, COAP_TYPE_ACK);
+  EXPECT_EQ(blk->code, CONTENT_2_05);
+
+  ASSERT_EQ(coap_get_header_block2(blk, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 1u);
+  EXPECT_EQ(more, 0);
+
+  ASSERT_EQ(coap_get_header_etag(blk, &etag), COAP_ETAG_LEN);
+  EXPECT_EQ(memcmp(etag, etags[1], COAP_ETAG_LEN), 0);
+  EXPECT_NE(memcmp(etag, etags[0], COAP_ETAG_LEN), 0);
+
+  ASSERT_EQ(coap_get_payload(blk, &payload), 36u);
+  for (int i = 0; i < 36; i++)
+  {
+    ASSERT_EQ(payload[i], (uint8_t)(64 + i + 100)) << "byte " << (64 + i);
+  }
+
+  EXPECT_EQ(g_long_get_calls, 2);
+
+  /* last block delivered and the old buffer freed on replacement: no buffer left for the observer */
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p/1", 3, &ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER), nullptr);
+
+  coap_free_all_observers();
+  coap_free_all_transactions();
+  oc_blockwise_scrub_buffers(true);
+  oc_coap_clear_request_history();
+}
+
 /* ---------------- get_observe_counter ------------------------------------ */
 
 TEST_F(CoapObserve, GetObserveCounterIsAtLeastFirstNotificationValue)

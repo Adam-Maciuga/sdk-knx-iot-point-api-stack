@@ -35,13 +35,14 @@ removed entry. The next number is F-054.
 - **Expected:** `coap_notify_observers()` stores the GET handler's `content_format` in the response buffer; then that test also asserts application/cbor on block 1.
 - **Fix:** `coap_notify_observers()` copies the GET handler's `content_format` into the response buffer's `return_content_type` right after the payload. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` now asserts application/cbor on block 1.
 
-## F-032: a second /p notification while a block-wise one is still open loops forever - OPEN
+## ~~F-032: a second /p notification while a block-wise one is still open loops forever~~ - FIXED
 
 - **Files:** `messaging/coap/observe.c`, `coap_notify_observers()`, block-wise branch: the `continue` taken when a not yet completed response buffer exists for the observer.
 - **Severity:** High - the event loop hangs (busy loop, a MID consumed per turn); a notification whose follow-up blocks are not (yet) fetched by the client is enough, e.g. two value changes in a row or a client that never fetches the rest.
 - **Description:** the `continue` jumps back to `while (obs)` without `obs = obs->next`, so the same observer is examined again, the same unfinished buffer is found again, and the loop never ends. The buffer's timeout (`OC_EXCHANGE_LIFETIME`) cannot fire because the loop does not return.
 - **Evidence:** code reading. No test: it would hang; a test for the fix calls `coap_notify_observers()` twice for an observer with Block2 64 and a 100 byte value (same set-up as `NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest`).
 - **Expected:** advance to the next observer (or replace the unfinished buffer with the newer state) instead of re-examining the same one.
+- **Fix:** `coap_notify_observers()` frees any earlier response buffer of the observer (finished or not) and builds the new one, so the `continue` is gone; the newer state wins (RFC 7641 4.2) and its new ETag tells the client the old body is gone. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBuffer` (hangs without the fix).
 
 ## F-033: a rejected POST /auth/at update still changes the token's scope in RAM - OPEN
 

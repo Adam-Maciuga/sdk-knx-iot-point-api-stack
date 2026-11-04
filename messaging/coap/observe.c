@@ -387,22 +387,25 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         if (response_buf->response_length > obs->block2_size)
         {
           notification->type = COAP_TYPE_CON;
+          /*
+            buffer key = URI path WITHOUT the leading '/' (+1 skips it, -1 drops it from the length), here and in the alloc below
+            - resource uri always starts with '/' (oc_check_uri asserts it), e.g. "/p/1"
+            - the follow-up GET looks the buffer up in coap_receive() by its Uri-Path options, which carry no leading '/' -> "p/1"
+            -> both must match, otherwise the client's Block2 request does not find this buffer
+          */
           response_state = oc_blockwise_find_response_buffer(
             oc_string(obs->resource->uri) + 1,
             oc_string_len(obs->resource->uri) - 1,
             &obs->endpoint, COAP_GET,
             NULL, 0, OC_BLOCKWISE_SERVER);
+          /*
+            a buffer of an earlier notification to this observer (finished or not) is replaced by the newer state
+            - RFC 7641 4.2: only the newest notification matters; its own ETag tells the client the old body is gone
+            - keeping an unfinished buffer and skipping the observer would drop the new value
+          */
           if (response_state)
           {
-            if (response_state->payload_size == response_state->next_block_offset)
-            {
-              oc_blockwise_free_response_buffer(response_state);
-              response_state = NULL;
-            }
-            else
-            {
-              continue;
-            }
+            oc_blockwise_free_response_buffer(response_state);
           }
 
           response_state = oc_blockwise_alloc_response_buffer(

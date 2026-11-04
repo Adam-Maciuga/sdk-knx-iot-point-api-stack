@@ -778,7 +778,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (30 tests)
+### test_coap_observe.cpp — Observer Management + Notify (31 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -808,6 +808,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope` | POST /auth/at with the same id changes `<ga>` [1] to [2] (2.04): the observer stays, gets no `/k` event for GA 1, gets one for GA 2 (scope read at send time) |
 | `TokenUpdatedInPlaceKeepingTheGroupAddressStillNotifies` | `<ga>` [1] updated to [1, 3]: events for GA 1 and GA 3 both reach the subscriber |
 | `NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` | observer with Block2 64, 100 B value: CON notification with Block2 0/M=1/64, Size2 100, ETag, Observe; GET block 1 returns the last 36 B with M=0, the same ETag and Content-Format application/cbor from the buffer (handler not called again), buffer freed after |
+| `NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBuffer` | two notifications above the block size (value changes per call), block 1 of the first not fetched: both calls return, each goes out as block 0 of its own value with its own ETag; GET block 1 returns the last 36 B of the NEW value with the NEW ETag and M=0 (handler not called again); old buffer freed, none left after the last block |
 | `RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers` | `coap_remove_observers_by_access_token`: removes every observer of that token (any client/port), keeps the others; NULL → 0 |
 | `NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope` | `/k` events only to observers whose subscription token covers the GA (spec 3.5.4.1, 2.6.9.3): `if.g.s` → all, `<ga>` list → only listed GAs, no token → none |
 | `NotifyObserversNullResourceReturnsZero` | NULL resource → returns 0 |
