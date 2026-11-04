@@ -1,4 +1,4 @@
-From 406bd2d2b259667df0989465d1d7002168ca4869 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Alexander Burker <burker@ucs.at>
 Date: Tue, 23 Jun 2026 00:24:59 +0200
 Subject: [PATCH] settings: nvs: keyed settings_load_one and delete-aware name
@@ -9,7 +9,7 @@ Subject: [PATCH] settings: nvs: keyed settings_load_one and delete-aware name
  1 file changed, 96 insertions(+)
 
 diff --git a/subsys/settings/src/settings_nvs.c b/subsys/settings/src/settings_nvs.c
-index 85902cbddf0..a33f1962351 100644
+index 1a1e8bb029..e1c446e996 100644
 --- a/subsys/settings/src/settings_nvs.c
 +++ b/subsys/settings/src/settings_nvs.c
 @@ -33,9 +33,11 @@ static int settings_nvs_load(struct settings_store *cs,
@@ -67,7 +67,7 @@ index 85902cbddf0..a33f1962351 100644
  static uint16_t settings_nvs_cache_match(struct settings_nvs *cf, const char *name,
  					 char *rdname, size_t len)
  {
-@@ -212,6 +244,66 @@ static int settings_nvs_load(struct settings_store *cs,
+@@ -220,6 +252,66 @@ static int settings_nvs_load(struct settings_store *cs,
  	return ret;
  }
  
@@ -134,7 +134,7 @@ index 85902cbddf0..a33f1962351 100644
  static int settings_nvs_save(struct settings_store *cs, const char *name,
  			     const char *value, size_t val_len)
  {
-@@ -297,6 +389,10 @@ found:
+@@ -309,6 +401,10 @@ found:
  			return rc;
  		}
  
@@ -146,5 +146,5 @@ index 85902cbddf0..a33f1962351 100644
  			cf->last_name_id--;
  			rc = nvs_write(&cf->cf_nvs, NVS_NAMECNT_ID,
 -- 
-2.53.0
+2.51.0.windows.1
 
