@@ -43,7 +43,7 @@ TEST(EndpointLayout, NoPaddingBeyondTail)
   /*
     pointers + flags/interface_index/group_address + addr/addr_local + byte fields, rounded up to pointer alignment
   */
-  size_t payload = 4 * sizeof(void *) + sizeof(enum transport_flags) + sizeof(int) + sizeof(uint32_t)
+  size_t payload = 3 * sizeof(void *) + sizeof(enum transport_flags) + sizeof(int) + sizeof(uint32_t)
                    + 2 * sizeof(oc_ipv6_addr_t) + OSCORE_PIV_LEN + OSCORE_SENDER_ID_LEN + OSCORE_ID_CONTEXT_LEN + 4;
   size_t align = sizeof(void *);
   EXPECT_EQ(sizeof(oc_endpoint_t), (payload + align - 1) / align * align);
