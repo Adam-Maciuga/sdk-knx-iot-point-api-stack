@@ -26,13 +26,14 @@ removed entry. The next number is F-054.
 - **Expected:** a rejected ACK/RST is dropped silently, a rejected NON response answered at most with a RST; then the two send expectations of that test become "nothing sent".
 - **Fix:** the parser-error tail of `coap_receive()` returns without a reply when the rejected message is an ACK, a RST or a NON separate response (RFC 7252 4.2, 4.3); a rejected CON (request or separate response) keeps the error reply (ACK), as 4.2 requires an ACK or RST for it. Still open as F-053: a rejected CON separate response gets an ACK 4.13 instead of the RST 4.2 asks for. Test: `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` now expects nothing sent.
 
-## F-031: follow-up blocks of a block-wise /p notification carry Content-Format 0 (text/plain) - OPEN
+## ~~F-031: follow-up blocks of a block-wise /p notification carry Content-Format 0 (text/plain)~~ - FIXED
 
 - **Files:** `messaging/coap/observe.c`, `coap_notify_observers()` (block-wise branch, `oc_blockwise_alloc_response_buffer()`); `messaging/coap/engine.c`, `coap_receive()` (Block2 continuation sets `return_content_type`).
 - **Severity:** Low - a client that checks Content-Format per block, or uses the last block's, decodes the body as text/plain.
 - **Description:** when a notification is larger than the observer's Block2 size, the first block goes out with the GET handler's Content-Format (application/cbor), the rest is kept in a server response buffer. That buffer's `return_content_type` is never set (calloc -> 0), and the Block2 continuation copies it into every later block, so blocks 1..n say Content-Format 0. All blocks of one representation must carry the same Content-Format (RFC 7959 2.4).
 - **Evidence:** `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` fetches block 1 and leaves its Content-Format unasserted because of this.
 - **Expected:** `coap_notify_observers()` stores the GET handler's `content_format` in the response buffer; then that test also asserts application/cbor on block 1.
+- **Fix:** `coap_notify_observers()` copies the GET handler's `content_format` into the response buffer's `return_content_type` right after the payload. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` now asserts application/cbor on block 1.
 
 ## F-032: a second /p notification while a block-wise one is still open loops forever - OPEN
 

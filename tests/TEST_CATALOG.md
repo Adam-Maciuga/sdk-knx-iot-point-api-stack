@@ -807,7 +807,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `NewTokenInTheFreedSlotDoesNotReachTheOldSubscriber` | Token A (`<ga>` [1]) deleted, token B (`if.g.s`) in the same table slot: the old subscriber of A gets no `/k` event with B's rights |
 | `TokenUpdatedInPlaceNarrowsTheSubscriptionToTheNewScope` | POST /auth/at with the same id changes `<ga>` [1] to [2] (2.04): the observer stays, gets no `/k` event for GA 1, gets one for GA 2 (scope read at send time) |
 | `TokenUpdatedInPlaceKeepingTheGroupAddressStillNotifies` | `<ga>` [1] updated to [1, 3]: events for GA 1 and GA 3 both reach the subscriber |
-| `NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` | observer with Block2 64, 100 B value: CON notification with Block2 0/M=1/64, Size2 100, ETag, Observe; GET block 1 returns the last 36 B with M=0 and the same ETag from the buffer (handler not called again), buffer freed after |
+| `NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` | observer with Block2 64, 100 B value: CON notification with Block2 0/M=1/64, Size2 100, ETag, Observe; GET block 1 returns the last 36 B with M=0, the same ETag and Content-Format application/cbor from the buffer (handler not called again), buffer freed after |
 | `RemoveObserversByAccessTokenRemovesOnlyThatTokensObservers` | `coap_remove_observers_by_access_token`: removes every observer of that token (any client/port), keeps the others; NULL → 0 |
 | `NotifyKObserversOnlyToSubscribersWithTheGroupAddressInScope` | `/k` events only to observers whose subscription token covers the GA (spec 3.5.4.1, 2.6.9.3): `if.g.s` → all, `<ga>` list → only listed GAs, no token → none |
 | `NotifyObserversNullResourceReturnsZero` | NULL resource → returns 0 |

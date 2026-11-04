@@ -788,8 +788,8 @@ static void long_value_get_handler(oc_request_t* request, oc_interface_mask_t, v
   - the notification carries the FIRST block: Block2 num 0, M = 1, size 64, 64 payload bytes, Size2 = whole body,
     ETag, Observe, as CON
   - the rest stays in a server block-wise response buffer; a follow-up GET with Block2 num 1 gets the last 36 bytes
-    with M = 0 and the same ETag from it, without calling the GET handler again; the buffer is released afterwards
-  - NOT asserted: the Content-Format of the follow-up block, it differs from the first block (F-031)
+    with M = 0, the same ETag and the same Content-Format (application/cbor, RFC 7959 2.4) from it, without calling
+    the GET handler again; the buffer is released afterwards
 */
 TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest)
 {
@@ -897,6 +897,10 @@ TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTh
 
   ASSERT_EQ(coap_get_header_etag(blk, &etag), COAP_ETAG_LEN);
   EXPECT_EQ(memcmp(etag, first_etag, COAP_ETAG_LEN), 0);
+
+  cf = TEXT_PLAIN;
+  ASSERT_EQ(coap_get_header_content_format(blk, &cf), 1);
+  EXPECT_EQ(cf, APPLICATION_CBOR);
 
   ASSERT_EQ(coap_get_payload(blk, &payload), 36u);
   for (int i = 0; i < 36; i++)
