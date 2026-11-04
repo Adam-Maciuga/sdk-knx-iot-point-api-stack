@@ -1232,19 +1232,24 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     // check access, use as payload the CBOR data
     if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, new_request.request_payload))
     {
-      // access NOT ok, 4.01 unauthorized without valid OSCORE credentials, otherwise 4.03 forbidden
+      /* 
+         - access NOT ok, 4.01 unauthorized without valid OSCORE credentials, otherwise 4.03 forbidden
+         - belows test uses the same check as in check acl 
+           (a) -> message was able to decrypt, but scope check failed 
+           (b) -> message was not able to decrypt, hence no valid OSCORE credentials
+      */
       if ((endpoint->flags & (OSCORE | OSCORE_DECRYPTED)) == (OSCORE | OSCORE_DECRYPTED))
-      {
+      { // (a)
         forbidden = true;
       }
       else
-      {
+      { // (b) 
         unauthorized = true;
       }
     }
     else
     {
-      // access scope ok, invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
+      // check ok, invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 
 
       if (method == COAP_GET && matching_resource->get_handler.cb)
