@@ -48,6 +48,13 @@ static void oc_free(oc_handle_t* block, pool pool_type)
 void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(ocstring, str_len + 1, BYTE_POOL);
+
+  // out of memory: the string stays empty (ptr NULL, size 0, see oc_mmem_alloc)
+  if (oc_string(*ocstring) == NULL)
+  {
+    return;
+  }
+
   memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
   memcpy(oc_string(*ocstring) + str_len, (const uint8_t*)"", 1);
 }
@@ -55,6 +62,13 @@ void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len)
 void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(ocstring, str_len, BYTE_POOL);
+
+  // out of memory (or malloc(0) returned NULL): the string stays empty, nothing to copy
+  if (oc_string(*ocstring) == NULL)
+  {
+    return;
+  }
+
   memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
 }
 
@@ -76,6 +90,13 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)
 {
   size_t len1 = strlen(str1), len2 = strlen(str2);
   oc_alloc_string(concat, len1 + len2 + 1);
+
+  // out of memory: the string stays empty (ptr NULL, size 0, see oc_mmem_alloc)
+  if (oc_string(*concat) == NULL)
+  {
+    return;
+  }
+
   memcpy(oc_string(*concat), str1, len1);
   memcpy(oc_string(*concat) + len1, str2, len2);
   memcpy(oc_string(*concat) + len1 + len2, (const char*)"", 1);
@@ -104,6 +125,12 @@ void _oc_free_array(oc_array_t* ocarray, pool type)
 void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size)
 {
   _oc_alloc_string(ocstringarray, size * STRING_ARRAY_ITEM_MAX_LEN);
+
+  // out of memory: the array stays empty (ptr NULL, size 0, see oc_mmem_alloc)
+  if (oc_string(*ocstringarray) == NULL)
+  {
+    return;
+  }
 
   for (size_t i = 0; i < size; i++)
   {

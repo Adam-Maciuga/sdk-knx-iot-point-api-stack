@@ -93,6 +93,11 @@ kis_add_test(test_oc_uuid    test_oc_uuid.cpp)
 kis_add_test(test_oc_list    test_oc_list.cpp)
 kis_add_test(test_oc_helpers test_oc_helpers.cpp)
 kis_add_test(test_oc_mmem    test_oc_mmem.cpp)
+# --wrap=malloc: __wrap_malloc() fails the next call when a test arms it (allocation failure in the string layer)
+kis_add_test(test_oc_helpers_alloc_fail test_oc_helpers_alloc_fail.cpp)
+target_link_options(test_oc_helpers_alloc_fail PRIVATE
+    -Wl,--wrap=malloc
+)
 kis_add_test(test_c_timestamp test_c_timestamp.cpp)
 kis_add_test(test_oc_rep      test_oc_rep.cpp)
 kis_add_test(test_coap              test_coap.cpp)

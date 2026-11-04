@@ -156,6 +156,21 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
+### test_oc_helpers_alloc_fail.cpp — Allocation Failure in the String Layer (6 tests)
+
+**Source:** `util/oc_mmem.c`, `api/oc_helpers.c`; linked with `-Wl,--wrap=malloc`, `__wrap_malloc()` fails the next call once a test arms it
+
+| Test | What it verifies |
+|------|-----------------|
+| `MmemAllocLeavesAnEmptyHandle` | a failed `malloc` in `oc_mmem_alloc()` returns 0 and leaves ptr NULL, size 0 (no length for a NULL buffer) |
+| `NewStringLeavesAnEmptyString` | `oc_new_string()` on a failed `malloc` leaves an empty string instead of copying into NULL |
+| `NewByteStringLeavesAnEmptyString` | same for `oc_new_byte_string()` |
+| `ConcatStringsLeavesAnEmptyString` | same for `oc_concat_strings()` |
+| `NewStringArrayLeavesAnEmptyArray` | `oc_new_string_array()` on a failed `malloc` leaves ptr NULL, size 0 |
+| `NotArmedAllocationWorks` | without arming, the wrap passes the call to the real `malloc` |
+
+---
+
 ### test_oc_helpers.cpp — String & Hex Utilities (76 tests)
 
 **Source:** `api/oc_helpers.c`

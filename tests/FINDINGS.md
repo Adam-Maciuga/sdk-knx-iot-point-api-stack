@@ -110,13 +110,14 @@ removed entry. The next number is F-058.
 - **Evidence:** code reading.
 - **Expected:** readers hold the mutex while iterating, or receive a copy; or the refresh swaps in a new list and frees the old one only when no reader is active.
 
-## F-040: allocation failures in the string/array layer write through NULL - OPEN
+## ~~F-040: allocation failures in the string/array layer write through NULL~~ - FIXED
 
 - **Files:** `util/oc_mmem.c` (`oc_mmem_alloc()` sets `size` even when `malloc` fails); `api/oc_helpers.c`, `_oc_new_string()`, `oc_concat_strings()`, `_oc_alloc_string_array()`; `include/oc_helpers.h`.
 - **Severity:** Medium - crash on heap exhaustion instead of an error; reachable from remote requests (observe registration, blockwise href, uri_query copies in `engine.c`, `separate.c`).
 - **Description:** the `malloc` result is not checked; `memcpy`/`strcpy` then write to NULL, and `oc_string_len()` reports a length for a NULL buffer. The API returns `void`, so callers cannot detect the failure.
 - **Evidence:** code reading. A test with a failing `malloc` wrap: `oc_new_string()` must leave an empty string (size 0, ptr NULL) instead of faulting.
 - **Expected:** on failure leave `ptr = NULL`, `size = 0` and skip the copy; callers that need the string check `oc_string(x) != NULL`.
+- **Fix:** `oc_mmem_alloc()` sets `size = 0` and returns 0 when `malloc` fails; `_oc_new_string()`, `_oc_new_byte_string()`, `oc_concat_strings()` and `_oc_alloc_string_array()` return before the copy when the buffer is NULL, the handle stays empty. Callers that use the string afterwards (e.g. `strcmp` on `oc_string(x)`) are not part of this fix. Tests: `test_oc_helpers_alloc_fail` (6, `-Wl,--wrap=malloc`).
 
 ## F-041: the CBOR parser writes through NULL when an array or string allocation fails - OPEN
 

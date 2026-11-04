@@ -25,35 +25,35 @@ size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
     return 0;
   }
 
-  size_t bytes_allocated = 0;
-
+  // the pool only decides the item size, size = number of items
+  size_t item_size;
   switch (pool_type)
   {
   case BYTE_POOL:
-    bytes_allocated += size * sizeof(uint8_t);
-    m->ptr = malloc(size);
-    m->size = size;
+    item_size = sizeof(uint8_t);
     break;
   case INT_POOL:
-    bytes_allocated += size * sizeof(int64_t);
-    m->ptr = malloc(size * sizeof(int64_t));
-    m->size = size;
+    item_size = sizeof(int64_t);
     break;
   case FLOAT_POOL:
-    bytes_allocated += size * sizeof(float);
-    m->ptr = malloc(size * sizeof(float));
-    m->size = size;
+    item_size = sizeof(float);
     break;
   case DOUBLE_POOL:
-    bytes_allocated += size * sizeof(double);
-    m->ptr = malloc(size * sizeof(double));
-    m->size = size;
+    item_size = sizeof(double);
     break;
   default:
-    break;
+    return 0;
   }
 
-  return (int)bytes_allocated;
+  m->ptr = malloc(size * item_size);
+
+  /*
+    a failed malloc leaves an EMPTY handle (ptr NULL, size 0), not a length for a NULL buffer
+    - callers see the failure as oc_string(x) == NULL / oc_string_len(x) == 0
+    - malloc(0) may also return NULL, the size is 0 there anyway
+  */
+  m->size = m->ptr ? size : 0;
+  return m->size * item_size;
 }
 
 void oc_mmem_free(struct oc_mmem* m, pool pool_type)
