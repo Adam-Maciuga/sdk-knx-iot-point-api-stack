@@ -132,13 +132,14 @@ removed entry. The next number is F-058.
 - **Expected:** check each allocation, set `CborErrorOutOfMemory` and return; combine errors with `|=`.
 - **Fix:** `oc_rep_allocated()` checks each string, key name and array buffer after its allocation and ends the parse with `CborErrorOutOfMemory`; a failed nested parse in an object or mixed array returns at once (before `(*prev)->next`), and the advance combines with `|=`. A failing `calloc` of a rep node still hits `oc_assert` in `_alloc_rep()` on debug builds (release builds return `CborErrorOutOfMemory`). Tests: `test_oc_rep_alloc_fail` (8, `-Wl,--wrap=malloc`).
 
-## F-042: a timed callback that removes itself and returns OC_EVENT_DONE is freed twice - OPEN
+## ~~F-042: a timed callback that removes itself and returns OC_EVENT_DONE is freed twice~~ - FIXED
 
 - **Files:** `api/oc_ri.c`, `poll_event_callback_timers()` and `oc_ri_remove_timed_event_callback()`; `api/oc_server_api.c`, `oc_remove_delayed_callback()`.
 - **Severity:** Low - double free; no stack caller does it today, but it is a natural application pattern and is not documented as forbidden.
-- **Description:** inside the callback `oc_remove_delayed_callback(data, itself)` removes and frees the running entry; on `OC_EVENT_DONE` the poll loop removes and frees the same pointer again.
+- **Description:** inside the callback `oc_remove_delayed_callback(data, itself)` removes and frees the running entry; on `OC_EVENT_DONE` the poll loop removes and frees the same pointer again. On `OC_EVENT_CONTINUE` it is worse: the poll loop restarts the timer of the freed entry (use-after-free, the freed timer is linked into the etimer list again).
 - **Evidence:** code reading. A test: a delayed callback that calls `oc_remove_delayed_callback()` on itself and returns `OC_EVENT_DONE`; ASan reports a double free.
 - **Expected:** mark the running entry and defer the free, or document that a callback must not remove itself.
+- **Fix:** `oc_event_callback_t` has an `callback_active` flag toggled with XOR: the poll loop sets it before the callback and toggles it after, `oc_ri_remove_timed_event_callback()` toggles it and frees only when it is then true (outside a callback); a self-removed entry is freed once by the poll loop after the callback and neither removes nor restarts it. Tests: `test_oc_ri_timed_callbacks` (3, `-Wl,--wrap=oc_clock_time`); without the fix both self-removing tests crash.
 
 ## F-043: OSCORE engine frees a persistent context or leaks a temporary one on error paths - OPEN
 

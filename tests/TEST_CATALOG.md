@@ -881,16 +881,15 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri_timed_callbacks.cpp - Timed Event Callbacks (4 tests)
+### test_oc_ri_timed_callbacks.cpp — RI Timed-Event List (3 tests)
 
-**Source:** `api/oc_ri.c` (`oc_ri_add_timed_event_callback_ticks`, `oc_ri_remove_timed_event_callback`, the event loop through `oc_main_poll`), clock under test control (`--wrap=oc_clock_time`)
+**Source:** `api/oc_ri.c` (timed-event list, `poll_event_callback_timers`) via `oc_set_delayed_callback` / `oc_remove_delayed_callback`; linked with `-Wl,--wrap=oc_clock_time`, `oc_main_poll()` drives the list
 
-| Test | What it covers |
-|------|----------------|
-| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsDoneRunsOnce` | A callback that removes its own entry and returns `OC_EVENT_DONE` runs once, its entry is freed once (a double free before the fix) |
-| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsContinueRunsOnce` | The removal wins over `OC_EVENT_CONTINUE`, the timer of the removed entry is not restarted |
-| `RiTimedCallback.CallbackThatArmsItselfAgainRunsAfterTheNewDelay` | A callback that removes itself and arms itself again with 2 s runs again 2 s later, not earlier (the new entry was lost before the fix) |
-| `RiTimedCallback.CallbackThatRemovesAnotherCallbackStopsIt` | A callback that removes another pending callback keeps that one from running |
+| Test | What it verifies |
+|------|-----------------|
+| `SelfRemovingCallbackReturningDoneRunsOnce` | a callback that removes itself and returns `OC_EVENT_DONE` runs once and is freed once (no double free) |
+| `SelfRemovingCallbackReturningContinueRunsOnce` | same with `OC_EVENT_CONTINUE`: the removed entry is not restarted, it never fires again |
+| `ContinueRepeatsUntilRemovedFromOutside` | normal path: `OC_EVENT_CONTINUE` repeats, a removal from outside stops it |
 
 ---
 

@@ -834,14 +834,17 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
       OC_PROCESS_CONTEXT_END(&timed_callback_events);
       oc_list_remove(timed_callbacks, event_cb);
 
-      // the running callback removes itself, poll_event_callback_timers() frees it after its return
-      if (event_cb == running_event_cb)
-      {
-        running_event_cb_removed = true;
-        break;
-      }
+      /*
+        toggle: callback_active is true only while the entry's own callback executes (set by the poll loop)
+        - now true  -> 0 xor 1 = 1, callback NOT running, free here
+        - now false -> 1 xor 1 = 0, callback IS running, frees NOT here
+      */
+      event_cb->callback_active ^= true;
 
-      free(event_cb);
+      if (event_cb->callback_active)
+      {
+        free(event_cb);
+      }
       break;
     }
 
@@ -885,13 +888,23 @@ static void poll_event_callback_timers(oc_list_t list)
 
     if (oc_etimer_expired(&event_cb->timer))
     {
-      running_event_cb = event_cb;
-      running_event_cb_removed = false;
-      const oc_event_callback_retval_t result = event_cb->callback(event_cb->data);
-      running_event_cb = NULL;
+      /*
+        set true before the callback, toggled after it; a callback may remove itself (see oc_ri_remove_timed_event_callback)
+        - now false -> 1 xor 1       = 0 -> not removed by the callback -> DONE / CONTINUE below
+        - now true  -> 1 xor 1 xor 1 = 1 -> the callback removed itself (toggled it in between, unlinked, timer stopped) -> free here
+      */
+      event_cb->callback_active = true;
+      const oc_event_callback_retval_t retval = event_cb->callback(event_cb->data);
+      event_cb->callback_active ^= true;
 
-      // an entry the callback removed is out of the list already, it is freed like a done one
-      if (running_event_cb_removed || result == OC_EVENT_DONE)
+      if (event_cb->callback_active)
+      {
+        free(event_cb);
+        event_cb = (oc_event_callback_t*)oc_list_head(list);
+        continue;
+      }
+
+      if (retval == OC_EVENT_DONE)
       {
         // remove callback
         oc_list_remove(list, event_cb);

@@ -525,6 +525,7 @@ typedef struct oc_event_callback_s
   struct oc_etimer timer;              /**< timer */
   oc_trigger_t callback;               /**< callback to be invoked */
   void* data;                          /**< data for the callback */
+  bool callback_active;                /**< true while its callback executes, toggled (XOR) by the poll loop and the remove in oc_ri.c */
 } oc_event_callback_t;
 
 /**
