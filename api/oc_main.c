@@ -343,10 +343,6 @@ int oc_main_init(const oc_handler_t* handler)
   */
   oc_network_refresh_endpoints();
 
-  OC_INF("Reregister DNS-SD service after stack initialization");
-  const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_dns_sd_update_service(device);
-
   #ifdef OC_CLIENT
   // called one time on startup after all network initialization
   if (app_callbacks->requests_entry)
@@ -358,9 +354,14 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
   #endif
 
-  // add as last step to avoid half init's 
+  // set before the DNS-SD update: knx_dns_sd_update_service() guards on oc_main_initialized()
+  // to skip early NETWORK_INTERFACE_UP calls; the flag must be true for the end-of-init call
   OC_DBG("Stack initialized ...");
   initialized = true;
+
+  OC_INF("Reregister DNS-SD service after stack initialization");
+  const oc_device_info_t* const  device = oc_core_get_device_info();
+  knx_dns_sd_update_service(device);
 
   return 0;
 }
