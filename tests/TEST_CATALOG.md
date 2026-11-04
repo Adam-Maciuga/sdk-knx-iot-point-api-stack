@@ -893,6 +893,17 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
+### test_oc_ri_periodic_observe.cpp — Periodic Observe List (2 tests)
+
+**Source:** `api/oc_ri.c` (periodic observe callbacks on the observe list); observer registered through `coap_receive()` (GET + Observe 0 + `lt`), `oc_main_poll()` drives the list; linked with `-Wl,--wrap=oc_clock_time`, `oc_main_initialized`, `coap_send_message`, `oc_notify_observers` (the armed notification deletes its resource)
+
+| Test | What it verifies |
+|------|-----------------|
+| `ResourceDeletedInItsNotificationReturningDoneFreesTheEntryOnce` | the periodic callback whose resource is deleted during its notification and returns `OC_EVENT_DONE` frees its entry once (no double free) |
+| `ResourceDeletedInItsNotificationReturningContinueFreesTheEntryOnce` | same with `OC_EVENT_CONTINUE`: the removed entry is not restarted (use-after-free shows under ASan) |
+
+---
+
 ### test_oc_abort.cpp — Abort / Exit / Assert (6 tests)
 
 **Source:** `port/.../oc_assert.h` (`oc_abort`, `oc_exit`, `OC_ASSERT`) — GoogleTest death tests.

@@ -889,7 +889,7 @@ static void poll_event_callback_timers(oc_list_t list)
     if (oc_etimer_expired(&event_cb->timer))
     {
       /*
-        set true before the callback, toggled after it; a callback may remove itself (see oc_ri_remove_timed_event_callback)
+        set true before the callback, toggled after it; a callback may remove itself (same as on remove observe callback)
         - now false -> 1 xor 1       = 0 -> not removed by the callback -> DONE / CONTINUE below
         - now true  -> 1 xor 1 xor 1 = 1 -> the callback removed itself (toggled it in between, unlinked, timer stopped) -> free here
       */
@@ -978,7 +978,18 @@ static void remove_periodic_observe_callback(const oc_resource_t* resource)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(observe_callbacks, event_cb);
-    free(event_cb);
+
+    /*
+        set true before the callback, toggled after it; a callback may remove itself (same as on remove event callback)
+        - now false -> 1 xor 1       = 0 -> not removed by the callback -> DONE / CONTINUE below
+        - now true  -> 1 xor 1 xor 1 = 1 -> the callback removed itself (toggled it in between, unlinked, timer stopped) -> free here
+    */
+    event_cb->callback_active ^= true;
+
+    if (event_cb->callback_active)
+    {
+      free(event_cb);
+    }
   }
 }
 

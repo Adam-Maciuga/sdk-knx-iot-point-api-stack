@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-058.
+removed entry. The next number is F-060.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -267,3 +267,23 @@ removed entry. The next number is F-058.
 - **Description:** `oc_delete_at_table_entry()` did not free OSCORE contexts; each caller had to do it. The device reset path (`oc_delete_at_table_except_sec_scope_entries()` in `oc_knx_device_reset()`) relied on `oc_init_oscore_from_storage(true)` afterwards, which frees sender contexts only (`recipient_id_len == 0`), so recipient contexts of the deleted non-`if.sec` tokens survived. F-055 was the same gap on the POST id-only path.
 - **Evidence:** test below, fails without the fix.
 - **Fix:** `oc_delete_at_table_entry()` calls `oc_oscore_free_contexts_at_id()` (all contexts of the slot, sender and recipient); the separate calls in DELETE /auth/at/{id}, the POST id-only branch and the PASE token removal are gone. Test: `test_oc_knx_sec`, `SecAtPost.DeletingAnEntryFreesItsSenderAndRecipientContexts`.
+
+## ~~F-058: a periodic observe callback whose GET handler deletes its own resource is freed twice~~ - FIXED
+
+- **Files:** `api/oc_ri.c`, `poll_event_callback_timers()` (observe list), `periodic_observe_handler()`, `remove_periodic_observe_callback()`; reached through `oc_ri_delete_resource()`.
+- **Severity:** Low - needs an application GET handler that deletes its own resource while a periodic notification is built; no stack code does it.
+- **Description:** the same pattern as F-042 on the observe list. `periodic_observe_handler()` runs `oc_notify_observers()`, which calls the resource's GET handler; if that handler deletes the resource, `oc_ri_delete_resource()` calls `remove_periodic_observe_callback()`, which unlinks and frees the running entry. Back in the poll loop the entry is freed again (`OC_EVENT_DONE`) or its timer restarted (`OC_EVENT_CONTINUE`). The deregister path (`OC_OBSERVE_DEREGISTER`) only runs for an incoming request, never inside the poll loop. Note: in this path the resource itself is freed while the notification code still uses it, see F-059.
+- **Evidence:** test below.
+- **Expected:** `remove_periodic_observe_callback()` uses the `callback_active` toggle of F-042 and frees only outside the running callback.
+- **Fix:** `remove_periodic_observe_callback()` toggles `callback_active` (as `oc_ri_remove_timed_event_callback()`, F-042) and frees only when it is then true; a running entry is freed once by the poll loop. Tests: `test_oc_ri_periodic_observe` (2, the notification is wrapped and deletes the resource, so the freed resource of F-059 is not touched); without the fix the DONE test crashes, the CONTINUE case shows under ASan.
+
+## F-059: a resource deleted from its own handler is used after it is freed; `oc_delayed_delete_resource()` is declared but not implemented - OPEN
+
+- **Files:** `api/oc_ri.c`, `oc_ri_invoke_coap_entity_handler()` (after the method handler call) and `oc_ri_delete_resource()`; `messaging/coap/observe.c`, `coap_notify_observers()` (after the GET handler call); `include/oc_api.h`, `oc_delayed_delete_resource()`.
+- **Severity:** Low - needs an application handler that deletes its own resource; no stack code does it, but the API offers no safe way to do so.
+- **Description:**
+  - a GET/PUT/POST/DELETE handler that calls `oc_ri_delete_resource()` on its own resource frees it (strings, runtime data, the resource); `oc_ri_invoke_coap_entity_handler()` then still reads `matching_resource` (observe handling: `properties`, `OC_PERIODIC`, observer registration).
+  - during a notification `coap_notify_observers()` calls the GET handler and then still reads `resource->runtime_data` and compares `obs->resource` with the freed pointer; the periodic observe entry of that resource is freed twice as well (F-058).
+  - `oc_delayed_delete_resource()` ("Schedule a callback to remove a resource") is declared in `oc_api.h` but has no implementation, a caller gets a link error.
+- **Evidence:** code reading.
+- **Expected:** implement `oc_delayed_delete_resource()` (a timed callback that calls `oc_ri_delete_resource()` outside any handler) and document that a handler must use it instead of deleting its resource directly; or remove the declaration and document the rule.

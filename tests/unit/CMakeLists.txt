@@ -133,6 +133,14 @@ kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)
 target_link_options(test_oc_ri_timed_callbacks PRIVATE
     -Wl,--wrap=oc_clock_time
 )
+# periodic observe list driven by oc_main_poll(); the notification is wrapped and deletes its resource (see the test)
+kis_add_test(test_oc_ri_periodic_observe test_oc_ri_periodic_observe.cpp)
+target_link_options(test_oc_ri_periodic_observe PRIVATE
+    -Wl,--wrap=oc_clock_time
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_notify_observers
+)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
 kis_add_test(test_coap_receive_payload test_coap_receive_payload.cpp)
 # Request payload size limits in coap_receive: --wrap fakes the network side (same pattern as test_smode_send_refcount)
