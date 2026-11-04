@@ -781,12 +781,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // set default scope
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
 
-            // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
-            free(at_entry->ga);
-
-            // in case of scopes the GA/GA len property is not used
-            at_entry->ga = NULL;
-            at_entry->ga_len = 0;
             for (int i = 0; i < array_size; i++)
             {
               // address each string
@@ -804,13 +798,20 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               acl_scopes |= oc_ri_get_scope_mask(acl_string, strlen(acl_string));
             }
 
-            // (a) - (d)
+            // (a) - (d), checked BEFORE the entry is changed: a rejected request leaves the existing token as it is
             if (acl_scopes == OC_ACL_NONE)
             {
               OC_ERR("No valid access scope was set!");
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
               return;
             }
+
+            // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
+            free(at_entry->ga);
+
+            // in case of scopes the GA/GA len property is not used
+            at_entry->ga = NULL;
+            at_entry->ga_len = 0;
 
             scope_updated = true;
 
@@ -827,9 +828,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // scope with GA integer array from MaC such as [200, 201]
           if (object->iname == 9)
           {
-            // default, will be overwritten if GA array was correctly assigned
-            at_entry->scope = OC_ACL_NONE;
-
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int array_size = oc_int_array_size(object->value.array);

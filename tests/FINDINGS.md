@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-054.
+removed entry. The next number is F-055.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -44,7 +44,7 @@ removed entry. The next number is F-054.
 - **Expected:** advance to the next observer (or replace the unfinished buffer with the newer state) instead of re-examining the same one.
 - **Fix:** `coap_notify_observers()` frees any earlier response buffer of the observer (finished or not) and builds the new one, so the `continue` is gone; the newer state wins (RFC 7641 4.2) and its new ETag tells the client the old body is gone. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeTwiceReplacesTheUnfinishedBuffer` (hangs without the fix).
 
-## F-033: a rejected POST /auth/at update still changes the token's scope in RAM - OPEN
+## ~~F-033: a rejected POST /auth/at update still changes the token's scope in RAM~~ - FIXED
 
 - **Files:** `api/oc_knx_sec.c`, POST /auth/at handler, scope (key 9) of an existing entry (same id, update in place).
 - **Severity:** Medium - a request answered with 4.00 narrows or clears the scope of a live token; its /k subscribers and its access checks follow the changed entry (the scope is read at use time).
@@ -54,6 +54,8 @@ removed entry. The next number is F-054.
   - the change is not stored (`oc_store_at_table_entry` is not reached), so RAM and storage differ until the next reboot or a successful update.
 - **Evidence:** code reading. A test: token with `<ga>` [1], POST the same id with scope `["if.unknown"]` (or `[]`) -> 4.00, then the entry still has `<ga>` [1] and a /k event for GA 1 still reaches its subscriber.
 - **Expected:** validate the new scope first (into locals), change the entry only when the request is accepted.
+- **Fix:** string scope: the GA list is freed and reset only after the names gave a valid mask; int array scope: the early `scope = OC_ACL_NONE` is gone (the empty check and the allocation already come before any write). Test: `test_oc_knx_sec`, `SecAtPost.RejectedScopeUpdateKeepsTheGaScope`. The `[]` case has no test: the parser makes an empty array an `OC_REP_NIL` item, so it never reaches the int array branch.
+- **Not covered:** a request with a VALID scope that is rejected later still keeps its changes in RAM, see F-054.
 
 ## F-034: a scope update that only changes group addresses re-initializes all OSCORE contexts - OPEN
 
@@ -225,3 +227,11 @@ removed entry. The next number is F-054.
 - **Description:** a CON separate response the device receives as client (e.g. payload `>= OC_MAX_APP_DATA_SIZE`, rejected by the parser with 4.13) gets the generic parser-error reply: an ACK carrying 4.13. RFC 7252 4.2: rejecting a Confirmable message is done by sending a matching Reset (empty, same MID) and otherwise ignoring it. The parser-error reply only builds ACK or NON messages, not a RST. Remainder of F-030 (rejected ACK, RST and NON responses are now ignored).
 - **Evidence:** code reading. A test: like `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback`, but the response is a CON separate response -> expect one RST, code 0.00, the response's MID, no token.
 - **Expected:** for a rejected CON separate response send an empty RST with its MID instead of the ACK 4.13.
+
+## F-054: a POST /auth/at update rejected after a valid scope still changes the token in RAM - OPEN
+
+- **Files:** `api/oc_knx_sec.c`, POST /auth/at handler: the entry (same id, update in place) is written field by field while the payload is parsed.
+- **Severity:** Medium - a request answered with 4.00 changes scope, profile or OSCORE fields of a live token; access checks read the entry at use time.
+- **Description:** each property is written to the entry as soon as it is parsed. A later reject (e.g. `cnf:osc:alg` other than 10, short or all-zero master secret, too long sender ID, missing mandatory properties) returns 4.00 without undoing the earlier writes. The change is not stored (`oc_store_at_table_entry` is not reached), so RAM and storage differ until the next reboot or a successful update. Remainder of F-033 (an invalid scope itself no longer changes the entry).
+- **Evidence:** code reading. A test: token "tok" with scope ["if.sec"], POST the same id with scope ["if.swu"] and `cnf:osc:alg` 11 -> 4.00, then the entry still has scope `OC_ACL_SEC`.
+- **Expected:** parse and validate into a local copy, write the entry only when the whole request is accepted.

@@ -878,6 +878,45 @@ TEST_F(SecAtPost, AlgorithmOtherThan10IsRejectedAndNotStored)
   EXPECT_EQ(oc_core_items_used_in_auth_at_table(), 0);
 }
 
+/*
+  a rejected scope update leaves the existing token as it is
+  - token "tok" with <ga> scope [1]
+  - POST the same id with scope ["if.unknown"] (no valid name) -> 4.00
+  - the token still has its <ga> scope and GA 1 (the GA list used to be freed before the scope was checked)
+*/
+TEST_F(SecAtPost, RejectedScopeUpdateKeepsTheGaScope)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  e->ga = (uint32_t*)malloc(sizeof(uint32_t));
+  ASSERT_NE(e->ga, nullptr);
+  e->ga[0] = 1;
+  e->ga_len = 1;
+  e->scope = OC_ACL_GA;
+
+  /* { 0: { 0: "tok", 9: ["if.unknown"] } } */
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x09, 0x81, 0x6a, 'i', 'f', '.', 'u', 'n', 'k', 'n', 'o', 'w', 'n'
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_BAD_REQUEST));
+
+  EXPECT_EQ(e->scope, OC_ACL_GA);
+  ASSERT_EQ(e->ga_len, 1);
+  ASSERT_NE(e->ga, nullptr);
+  EXPECT_EQ(e->ga[0], 1u);
+
+  /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_knx_sec_check_acl — the authorization gate
  *
