@@ -1119,13 +1119,12 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       /*
-        a: created +  id only/< min elements = ERROR (to few elements, the claimed slot stays free
-                                               because the id is written as the last step)
+        a: created +  id only/< min elements = ERROR (to few elements, the claimed slot stays free because the id is written as the last step)
         b: created +  5 elements             = OK (create)
         c: changed +  id only                = OK (delete)
         d: changed +  1...n elements         = OK (update, a rejected update never deletes the entry)
         e: changed +  cnf + < min elements   = ERROR (spec 2.6.7.3: 'cnf' is not updatable, the existing token stays as it is)
-                                               - a full token (all mandatory elements) with the same id is 
+                                               - a full token (with ALL mandatory elements) with the same id is 
                                                  seen as allowed to overwrite, its cnf is accepted (case d)
       */
       if (return_status == OC_STATUS_CHANGED && id_only)
@@ -1134,35 +1133,33 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         OC_DBG("only found id in request, deleting entry...");
         oc_delete_at_table_entry(at_entry);
       }
+      else if ((return_status == OC_STATUS_CREATED || at_properties_seen & AT_PROP_CNF) &&
+               (at_properties_seen & MANDATORY_AT_PROPERTIES) != MANDATORY_AT_PROPERTIES)
+      {
+        // a + e
+        OC_WRN("mandatory items missing, entry not created / cnf not updated");
+        oc_free_allocated_at_elements(&tmp, allocator);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
       else
       {
-        if ((return_status == OC_STATUS_CREATED || at_properties_seen & AT_PROP_CNF) &&
-            (at_properties_seen & MANDATORY_AT_PROPERTIES) != MANDATORY_AT_PROPERTIES)
-        {
-          // a + e
-          OC_WRN("mandatory items missing, entry not created / cnf not updated");
-          oc_free_allocated_at_elements(&tmp, allocator);
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
         // b + d
         OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
 
         /*
-          new key material for an existing token (ms / id / salt / contextId, or another profile)
+          an existing token rewritten with cnf (full token only) or profile, even with the same values
           
-          - ALL its contexts are freed
-          
-          - oc_init_oscore_from_storage() below rebuilds only the sender contexts
+          1. ALL its contexts are freed
+          2. oc_init_oscore_from_storage() below rebuilds only the sender contexts
           
           - a cached recipient context (it also encrypts the response) still holds keys of the OLD master secret, it would
             keep decrypting requests protected with the old key; it is created again from the new key on the next request
           
-          - a scope-only update (ga / scope) keeps the contexts, the scope is read when a request is checked
+          - only cnf and profile are part of a context, so only they free the entry 
+            
         */
-        if (return_status == OC_STATUS_CHANGED &&
-            ((allocator & (AT_ALLOC_OSC_ID | AT_ALLOC_OSC_MS | AT_ALLOC_OSC_SALT | AT_ALLOC_OSC_CONTEXTID)) || tmp.profile != at_entry->profile))
+        if (return_status == OC_STATUS_CHANGED && at_properties_seen & (AT_PROP_CNF | AT_PROP_PROFILE))
         {
           oc_oscore_free_contexts_at_id(at_entry);
         }
@@ -1184,28 +1181,25 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
     rep = rep->next;
   }
 
-  if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true)
-  {
-    /* 
-      2.6.7.3 -> secure related data from 'cnf' claim are not allowed to be updated, but all others from table 49
-      - scope   (9)
-      - profile (38)
-      - sub     (2) - not implemented 
-      - exp     (4) - not implemented
-      - nbf     (5) - not implemented
+  /*
+    spec 2.6.7.3 -> secure related data from 'cnf' claim are not allowed to be updated, but all others from table 49
+    - scope   (9)
+    - profile (38)
+    - sub     (2) - not implemented
+    - exp     (4) - not implemented
+    - nbf     (5) - not implemented
 
-      Use Case
-      - update an access token in place, such as extend 'exp' time of an access token without rewriting the key
-        (such as a token for a diagnostic function that publishes a live value to a visualization)
-    */
-    OC_INF("updated scopes only, NO reinitializing of all used oscore keys");
-  }
-  else
+    Use Case
+    - update an access token in place, such as to extend the 'exp' time of an access token without rewriting the key
+      (such as a token for a diagnostic function that publishes a live value to a visualization)
+    -> a scope-only update needs no re-initialization, all other cases add the oscore contexts by reinitializing all used oscore keys
+  */
+  const bool scope_only = return_status == OC_STATUS_CHANGED && !other_updated && scope_updated;
+  if (!scope_only)
   {
-    // add the oscore contexts by reinitializing all used oscore keys
     oc_init_oscore_from_storage(false);
-    OC_INF("activating oscore context");
   }
+  OC_DBG("oscore contexts %s", scope_only ? "kept (scope-only update)" : "reinitialized");
 
   // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
