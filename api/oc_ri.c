@@ -1435,8 +1435,17 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         */
 
         if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint) > 0)
-        { // (e) 
-          if (matching_resource->properties & OC_PERIODIC)
+        { // (e)
+
+          /*
+            the periodic callback exists ONCE per resource, not per observer
+            - coap_observe_handler() above removed only THIS client's observer (same endpoint + token, RFC 7641), and
+              decreased num_observers
+            - each periodic tick notifies every observer still in the list: the deregistered client gets nothing more,
+              the other observers keep their notifications
+            -> the callback is removed only when the LAST observer has left (num_observers == 0)
+          */
+          if (matching_resource->properties & OC_PERIODIC && matching_resource->runtime_data->num_observers == 0)
           {
             remove_periodic_observe_callback(matching_resource);
           }

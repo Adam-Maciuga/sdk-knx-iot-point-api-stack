@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <vector>
 
 extern "C" {
 #include "oc_api.h"
@@ -46,8 +47,12 @@ extern "C" bool __wrap_oc_main_initialized(void)
   return true;
 }
 
+/* last address byte of the destination of each sent message (responses and notifications) */
+static std::vector<uint8_t> g_sent_to;
+
 extern "C" void __wrap_coap_send_message(oc_message_t* msg)
 {
+  g_sent_to.push_back(msg->endpoint.addr.ipv6.address[15]);
   oc_message_unref(msg);
 }
 
@@ -56,6 +61,7 @@ extern "C" int __real_oc_notify_observers(const oc_resource_t* resource);
 static oc_resource_t* g_delete_in_notify; /* armed: this resource is deleted inside its notification */
 static int g_notify_retval;               /* returned by the armed notification: 0 -> OC_EVENT_DONE, 1 -> CONTINUE */
 static int g_armed_notify_calls;
+static int g_notify_calls; /* not armed calls, passed through to the real oc_notify_observers() */
 
 extern "C" int __wrap_oc_notify_observers(const oc_resource_t* resource)
 {
@@ -68,6 +74,7 @@ extern "C" int __wrap_oc_notify_observers(const oc_resource_t* resource)
     oc_ri_delete_resource(res);
     return g_notify_retval;
   }
+  g_notify_calls++;
   return __real_oc_notify_observers(resource);
 }
 
@@ -92,6 +99,8 @@ protected:
     g_now = 100 * OC_CLOCK_SECOND;
     g_delete_in_notify = nullptr;
     g_armed_notify_calls = 0;
+    g_notify_calls = 0;
+    g_sent_to.clear();
     oc_network_event_handler_mutex_init();
     oc_random_init();
     oc_ri_init();
@@ -114,8 +123,12 @@ protected:
     oc_network_event_handler_mutex_destroy();
   }
 
-  /* GET /p/x with Observe 0 and lt: registers an observer, which adds the periodic observe callback */
-  static void register_observer(void)
+  /*
+    GET /p/x with an Observe option from the link-local peer fe80::<addr>, token {0x5A, tok}
+    - observe 0 (with lt): registers an observer, the first one adds the periodic observe callback
+    - observe 1: deregisters the observer of that endpoint + token
+  */
+  static void send_observe(uint8_t addr, uint8_t tok, uint32_t observe, uint16_t mid)
   {
     oc_message_t* m = oc_allocate_message();
     ASSERT_NE(m, nullptr);
@@ -123,20 +136,38 @@ protected:
     m->endpoint.addr.ipv6.port = 5683;
     m->endpoint.addr.ipv6.address[0] = 0xFE;
     m->endpoint.addr.ipv6.address[1] = 0x80;
-    m->endpoint.addr.ipv6.address[15] = 0x43;
+    m->endpoint.addr.ipv6.address[15] = addr;
 
     coap_packet_t pkt[1];
-    const uint8_t token[] = {0x5A, 0x5B};
-    coap_udp_init_message(pkt, COAP_TYPE_NON, COAP_GET, 0x3301);
+    const uint8_t token[] = {0x5A, tok};
+    coap_udp_init_message(pkt, COAP_TYPE_NON, COAP_GET, mid);
     coap_set_token(pkt, token, sizeof(token));
     coap_set_header_uri_path(pkt, g_uri, strlen(g_uri));
-    coap_set_header_uri_query(pkt, "lt=86400");
-    coap_set_header_observe(pkt, 0);
+    if (observe == 0)
+    {
+      coap_set_header_uri_query(pkt, "lt=86400");
+    }
+    coap_set_header_observe(pkt, observe);
     m->length = coap_serialize_message(pkt, m->data);
     ASSERT_GT(m->length, 0u);
 
     coap_receive(m);
     oc_message_unref(m);
+  }
+
+  static void register_observer(void)
+  {
+    send_observe(0x43, 0x5B, 0, 0x3301);
+  }
+
+  static int sent_to(uint8_t addr)
+  {
+    int n = 0;
+    for (uint8_t a : g_sent_to)
+    {
+      n += (a == addr) ? 1 : 0;
+    }
+    return n;
   }
 
   /* move the clock and let the RI event loop run every due callback */
@@ -174,4 +205,48 @@ TEST_F(PeriodicObserve, ResourceDeletedInItsNotificationReturningDoneFreesTheEnt
 TEST_F(PeriodicObserve, ResourceDeletedInItsNotificationReturningContinueFreesTheEntryOnce)
 {
   delete_resource_in_its_notification(1);
+}
+
+/*
+  the periodic callback exists once per resource: a deregister removes it only when the LAST observer has left
+  - observers A (fe80::45) and B (fe80::46) on the periodic resource, A deregisters (Observe 1, same token)
+  - the next periodic tick notifies B and not A (A's observer is gone, the callback stays for B)
+*/
+TEST_F(PeriodicObserve, DeregisterOfOneObserverKeepsThePeriodicNotificationsForTheOthers)
+{
+  send_observe(0x45, 0x01, 0, 0x3401);
+  send_observe(0x46, 0x02, 0, 0x3402);
+  ASSERT_EQ(res->runtime_data->num_observers, 2);
+
+  send_observe(0x45, 0x01, 1, 0x3403);
+  ASSERT_EQ(res->runtime_data->num_observers, 1);
+
+  g_sent_to.clear();
+  advance_ms(1100);
+
+  EXPECT_GE(sent_to(0x46), 1);
+  EXPECT_EQ(sent_to(0x45), 0);
+}
+
+/*
+  the deregister of the LAST observer removes the periodic callback at once
+  - observers A and B register, both deregister -> num_observers 0
+  - the next periodic tick no longer runs: oc_notify_observers() is not called, nothing is sent
+  - (a callback left behind would still tick once, find no observer and end itself; only the call count shows it)
+*/
+TEST_F(PeriodicObserve, DeregisterOfTheLastObserverRemovesThePeriodicCallback)
+{
+  send_observe(0x45, 0x01, 0, 0x3501);
+  send_observe(0x46, 0x02, 0, 0x3502);
+  send_observe(0x45, 0x01, 1, 0x3503);
+  send_observe(0x46, 0x02, 1, 0x3504);
+  ASSERT_EQ(res->runtime_data->num_observers, 0);
+
+  g_sent_to.clear();
+  g_notify_calls = 0;
+  advance_ms(1100);
+  advance_ms(1100);
+
+  EXPECT_EQ(g_notify_calls, 0);
+  EXPECT_TRUE(g_sent_to.empty());
 }

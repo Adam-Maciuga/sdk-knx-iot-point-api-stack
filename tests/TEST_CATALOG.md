@@ -910,7 +910,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri_periodic_observe.cpp — Periodic Observe List (2 tests)
+### test_oc_ri_periodic_observe.cpp — Periodic Observe List (4 tests)
 
 **Source:** `api/oc_ri.c` (periodic observe callbacks on the observe list); observer registered through `coap_receive()` (GET + Observe 0 + `lt`), `oc_main_poll()` drives the list; linked with `-Wl,--wrap=oc_clock_time`, `oc_main_initialized`, `coap_send_message`, `oc_notify_observers` (the armed notification deletes its resource)
 
@@ -918,6 +918,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |------|-----------------|
 | `ResourceDeletedInItsNotificationReturningDoneFreesTheEntryOnce` | the periodic callback whose resource is deleted during its notification and returns `OC_EVENT_DONE` frees its entry once (no double free) |
 | `ResourceDeletedInItsNotificationReturningContinueFreesTheEntryOnce` | same with `OC_EVENT_CONTINUE`: the removed entry is not restarted (use-after-free shows under ASan) |
+| `DeregisterOfOneObserverKeepsThePeriodicNotificationsForTheOthers` | observers A and B, A deregisters (Observe 1, same token): the next periodic tick notifies B and not A |
+| `DeregisterOfTheLastObserverRemovesThePeriodicCallback` | both observers deregister: the periodic callback is removed at once, `oc_notify_observers()` is not called again and nothing is sent |
 
 ---
 

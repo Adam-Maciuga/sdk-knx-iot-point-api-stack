@@ -220,13 +220,14 @@ removed entry. The next number is F-064.
 - **Evidence:** code reading. A test: two observers of one resource, Block2 64, a 100 byte value, a failing `malloc` wrap for the first buffer only -> the second observer must still get its first block.
 - **Expected:** skip only the current observer (`obs = obs->next; continue;`).
 
-## F-052: one observer's deregister stops the periodic notifications for all observers of the resource - OPEN
+## ~~F-052: one observer's deregister stops the periodic notifications for all observers of the resource~~ - FIXED
 
 - **Files:** `api/oc_ri.c`, GET with Observe = 1 (deregister) on an `OC_PERIODIC` resource, `remove_periodic_observe_callback()`.
 - **Severity:** Low - the remaining observers of a periodic resource get no more periodic notifications.
 - **Description:** the periodic callback exists once per resource, not per observer. When `coap_observe_handler()` removes one observer, the handler calls `remove_periodic_observe_callback(resource)` without checking whether other observers are left. Related: F-036.
-- **Evidence:** code reading. A test: two clients observe a periodic resource, one deregisters, advance the clock past the period -> the other must still be notified.
+- **Evidence:** test below.
 - **Expected:** remove the periodic callback on deregister only when `num_observers` of the resource has dropped to 0.
+- **Fix:** the deregister path in `oc_ri_invoke_coap_entity_handler()` removes the periodic callback only when `num_observers` is 0 after `coap_observe_handler()` removed this client's observer (endpoint + token); each tick notifies every observer still in the list. Tests: `test_oc_ri_periodic_observe`, `PeriodicObserve.DeregisterOfOneObserverKeepsThePeriodicNotificationsForTheOthers` (A deregisters, B is still notified, A not) and `PeriodicObserve.DeregisterOfTheLastObserverRemovesThePeriodicCallback` (the last deregister removes the callback at once, no further tick).
 
 ## F-053: a rejected CON separate response is answered with ACK 4.13 instead of a RST - OPEN
 
