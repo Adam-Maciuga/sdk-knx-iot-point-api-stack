@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-061.
+removed entry. The next number is F-062.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -169,13 +169,14 @@ removed entry. The next number is F-061.
 - **Evidence:** code reading. A test: `oc_string_copy(&s, s)` under ASan.
 - **Expected:** allocate and copy into a new string first, then free the old one (or return early when source and destination are the same).
 
-## F-046: blockwise buffer lookup matches on an href prefix - OPEN
+## ~~F-046: blockwise buffer lookup matches on an href prefix~~ - FIXED
 
 - **Files:** `api/oc_blockwise.c`, `oc_blockwise_find_buffer()`.
 - **Severity:** Low - a request for `k` can be attached to the buffer of `k/1` (same endpoint, method, role, query).
 - **Description:** `strncmp(href, buffer->href, href_len)` compares only the length of the incoming href, so a shorter href matches a longer stored one.
-- **Evidence:** code reading. A test: buffer for `p/1`, find with `p` -> must return NULL.
+- **Evidence:** test below.
 - **Expected:** compare the lengths too (`href_len == oc_string_len(buffer->href)`).
+- **Fix:** `oc_blockwise_find_buffer()` compares the href in length and content (`href_len == oc_string_len(buffer->href) && memcmp(...)`), as the query. Test: `test_oc_blockwise`, `BlockwiseAlloc.FindByHrefPrefixDoesNotMatch` (buffer for `p/1`: `p` and `p/1/x` -> NULL, `p/1` -> the buffer).
 
 ## F-047: unicast s-mode loopback parses with a negative size when the value does not fit - OPEN
 
@@ -298,3 +299,14 @@ removed entry. The next number is F-061.
 - **Description:** an update with key material (`cnf:osc:ms`, `id`, `contextId`, `salt`, profile) sets `other_updated` and calls `oc_init_oscore_from_storage()`, which frees and rebuilds only the sender contexts (`recipient_id_len == 0`). A recipient context created for an earlier inbound request keeps its keys derived from the old master secret; the next inbound request with the same `kid` / `kid_context` finds it (`oc_oscore_find_context_by_kid_and_kid_context`) and is decrypted with the old key. Replay records and the echo ring are not touched by an update either (only DELETE /auth/at clears them).
 - **Evidence:** code reading.
 - **Expected:** an update with key material frees all contexts of that token (sender AND recipient, e.g. `oc_oscore_free_contexts_at_id()` for the entry) before the re-initialization.
+
+## F-061: a block-wise separate response keeps neither the Content-Format nor the query in its response buffer - OPEN
+
+- **Files:** `api/oc_server_api.c`, separate response with a payload above the block size (`oc_blockwise_alloc_response_buffer()` for the separate request, two call sites); served by `messaging/coap/engine.c` (follow-up GET with Block2, `coap_set_header_content_format(..., response_buffer->return_content_type)`); `api/oc_blockwise.c`, `oc_blockwise_find_buffer()` (query match).
+- **Severity:** Low - a block-wise separate response is rare; the client gets a wrong Content-Format on the follow-up blocks or a lookup miss.
+- **Description:**
+  - `oc_blockwise_init_buffer()` leaves `return_content_type` and `uri_query` to the caller. The normal response path (`oc_ri.c`) and the notification path (`observe.c`, F-031) set the Content-Format; the separate response path sets neither.
+  - `return_content_type` stays 0, so the follow-up blocks served from the buffer carry Content-Format 0 (text/plain) instead of the format of the first block (RFC 7959 2.4: all blocks of a body carry the same Content-Format).
+  - `uri_query` stays empty; when the original request had a query and the client repeats it in the follow-up GET, `oc_blockwise_find_buffer()` (`query_len == oc_string_len(uri_query)`) does not find the buffer.
+- **Evidence:** code reading.
+- **Expected:** after allocating the separate response buffer, store the Content-Format of the response (as `observe.c` does) and the query of the separate request (store it with the separate request if needed).

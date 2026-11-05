@@ -921,7 +921,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_blockwise.cpp — Blockwise Transfer (26 tests)
+### test_oc_blockwise.cpp — Blockwise Transfer (27 tests)
 
 **Source:** `api/oc_blockwise.c`
 
@@ -929,7 +929,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `BlockwiseDispatch` | 4 | Outgoing block slicing (offset beyond payload, advances offset, partial/mid slices) |
 | `BlockwiseHandle` | 5 | Incoming block reassembly (sequential append, offset/size overflow, gap, duplicate) |
-| `BlockwiseAlloc` | 11 | Request/response buffer alloc + lookup by href/token/mid/client-cb (both request- and response-list variants of each `_by_token`/`_by_mid`/`_by_client_cb` wrapper), including a NULL empty-query lookup |
+| `BlockwiseAlloc` | 12 | Request/response buffer alloc + lookup by href (length and content: a prefix such as `p` does not match `p/1`)/token/mid/client-cb (both request- and response-list variants of each `_by_token`/`_by_mid`/`_by_client_cb` wrapper), including a NULL empty-query lookup |
 | `BlockwiseScrub` | 6 | Free/scrub buffers (incl. NULL-buffer no-op), ref-count-based reclamation, scrub-for-client-cb on both the request and response lists |
 
 ---

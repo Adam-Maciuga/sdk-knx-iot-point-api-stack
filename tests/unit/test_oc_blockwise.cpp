@@ -241,6 +241,19 @@ TEST_F(BlockwiseAlloc, AllocResponseThenFindByHref)
   EXPECT_EQ(found, b);
 }
 
+/* the href must match in length too: a buffer for "p/1" is not found with the prefix "p" (nor "p" with "p/1") */
+TEST_F(BlockwiseAlloc, FindByHrefPrefixDoesNotMatch)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  oc_blockwise_state_t *b = oc_blockwise_alloc_response_buffer(
+    "p/1", strlen("p/1"), &ep, COAP_GET, OC_BLOCKWISE_SERVER);
+  ASSERT_NE(b, nullptr);
+
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p", strlen("p"), &ep, COAP_GET, "", 0, OC_BLOCKWISE_SERVER), nullptr);
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p/1/x", strlen("p/1/x"), &ep, COAP_GET, "", 0, OC_BLOCKWISE_SERVER), nullptr);
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p/1", strlen("p/1"), &ep, COAP_GET, "", 0, OC_BLOCKWISE_SERVER), b);
+}
+
 TEST_F(BlockwiseAlloc, FindByTokenClient)
 {
   oc_endpoint_t ep = make_endpoint(5683);

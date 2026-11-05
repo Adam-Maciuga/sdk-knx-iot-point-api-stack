@@ -258,9 +258,14 @@ static oc_blockwise_state_t* oc_blockwise_find_buffer(oc_list_t list, const char
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_list_head(list);
   while (buffer)
   {
-    if (strncmp(href, oc_string(buffer->href), href_len) == 0 && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 && buffer->method == method &&
-        buffer->role == role && query_len == oc_string_len(buffer->uri_query) &&
-        (query_len == 0 || memcmp(query, oc_string(buffer->uri_query), query_len) == 0))
+    // href and query -> same length AND same content, a shorter href ("p") must not match a longer stored one ("p/1")
+    if (href_len == oc_string_len(buffer->href) 
+        && memcmp(href, oc_string(buffer->href), href_len) == 0 
+        && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 
+        && buffer->method == method 
+        && buffer->role == role 
+        && query_len == oc_string_len(buffer->uri_query) 
+        && (query_len == 0 || memcmp(query, oc_string(buffer->uri_query), query_len) == 0))
     {
       break;
     }
