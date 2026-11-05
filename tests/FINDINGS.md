@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-064.
+removed entry. The next number is F-065.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -332,3 +332,11 @@ removed entry. The next number is F-064.
 - **Evidence:** test below; spec 2.2.4 and 2.5.11.1 (Table 32: `p` cbor).
 - **Expected:** `oc_new_resource()` binds application/cbor as the default (`content_type[0] = APPLICATION_CBOR`, `[1] = CONTENT_NONE`); an application overrides it with `oc_resource_bind_content_type()`.
 - **Fix:** `oc_new_resource()` sets `content_type[0] = APPLICATION_CBOR`, `content_type[1] = CONTENT_NONE` (spec 2.2.4); `oc_resource_bind_content_type()` still overrides it. Test: `test_oc_server_api`, `ServerApiResource.NewResourceDefaultsToCborContentFormat` (default CBOR, override with octet-stream).
+
+## F-064: an OSCORE message that cannot be queued for sending is never released - OPEN
+
+- **Files:** `security/oc_oscore_engine.c`, `oc_oscore_send_multicast_message()` and `oc_oscore_send_unicast_message()`: `oc_process_post(&message_buffer_handler, OUTBOUND_NETWORK_EVENT_ENCRYPTED, outgoing_msg) == OC_PROCESS_ERR_FULL`.
+- **Severity:** Low - each rejected post loses one message buffer for good; under an event flood the message pool runs dry.
+- **Description:** on `OC_PROCESS_ERR_FULL` both send paths only log "could not send message" and keep `outgoing_msg` (the message encrypted in place, or its clone for a shared CON message). The other callers (`oc_receive_message()`, `oc_send_message()`, the OSCORE inbound hand-over to the CoAP engine) release their message on `ERR_FULL`. Hidden until F-050: `oc_process_post()` never returned `ERR_FULL` before.
+- **Evidence:** `test_oc_oscore_echo_tx`, `OscoreEngine.OutboundMulticastWithFullQueueReleasesTheMessage` and `OscoreEngine.OutboundUnicastWithFullQueueReleasesTheMessage` (queue filled to `OC_PROCESS_MAX_EVENTS`, engine run with `oc_process_post_synch()`): no `oc_message_unref()` of the message.
+- **Expected:** release `outgoing_msg` with `oc_message_unref()` in both `ERR_FULL` branches.

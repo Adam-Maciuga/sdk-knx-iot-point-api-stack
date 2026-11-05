@@ -68,6 +68,27 @@ extern "C" void __wrap_coap_send_message(oc_message_t* message)
   oc_message_unref(message);
 }
 
+/* every message the code under test releases (oc_message_unref is wrapped and passed through) */
+static std::vector<const oc_message_t*> g_unrefs;
+
+extern "C" void __real_oc_message_unref(oc_message_t* message);
+
+extern "C" void __wrap_oc_message_unref(oc_message_t* message)
+{
+  g_unrefs.push_back(message);
+  __real_oc_message_unref(message);
+}
+
+static int unrefs_of(const oc_message_t* message)
+{
+  int n = 0;
+  for (const oc_message_t* m : g_unrefs)
+  {
+    n += (m == message) ? 1 : 0;
+  }
+  return n;
+}
+
 /* armed: the next oc_oscore_encrypt() fails (an encrypt error path of the engine), every other call is the real one */
 static bool g_fail_next_encrypt;
 
@@ -863,6 +884,7 @@ protected:
     g_last_network_flags = (transport_flags_t)0;
     g_last_network_message = nullptr;
     g_fail_next_encrypt = false;
+    g_unrefs.clear();
 
     memset(&at_, 0, sizeof(at_));
     const uint8_t master_secret[OSCORE_MASTER_SECRET_LEN] = {
@@ -1414,4 +1436,70 @@ TEST_F(OscoreEngine, OutboundMulticastRequestSharedIsClonedAndStaysPlaintext)
   ASSERT_EQ(message->length, plaintext.size());
   EXPECT_EQ(0, memcmp(message->data, plaintext.data(), plaintext.size()));
   oc_message_unref(message);
+}
+
+/* ───────────── full process event queue: the engine releases the message ──── */
+
+/* a process that is never started: its events only occupy queue slots */
+OC_PROCESS(oscore_queue_filler, "queue filler");
+OC_PROCESS_THREAD(oscore_queue_filler, ev, data)
+{
+  (void)ev;
+  (void)data;
+  OC_PROCESS_BEGIN();
+  OC_PROCESS_END();
+}
+
+/* fills the process event queue up to OC_PROCESS_MAX_EVENTS (the next post returns OC_PROCESS_ERR_FULL) */
+static void fill_process_queue(void)
+{
+  while (oc_process_nevents() < OC_PROCESS_MAX_EVENTS)
+  {
+    ASSERT_EQ(oc_process_post(&oscore_queue_filler, OC_PROCESS_EVENT_CONTINUE, nullptr), OC_PROCESS_ERR_OK);
+  }
+}
+
+/*
+  inbound request, decrypted, but the hand-over to the CoAP engine is rejected (queue full): the message is released
+  - the engine is run directly (oc_process_post_synch), its own post then hits the full queue
+*/
+TEST_F(OscoreEngine, InboundRequestWithFullQueueReleasesTheMessage)
+{
+  const uint8_t plaintext[] = { COAP_POST };
+  oc_message_t* message = make_encrypted_request(plaintext, sizeof(plaintext));
+  ASSERT_NE(message, nullptr);
+
+  fill_process_queue();
+  oc_process_post_synch(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], message);
+
+  EXPECT_EQ(message->ref_count, 1U);
+  oc_message_unref(message);
+}
+
+/* outbound multicast request (not shared, encrypted in place), the hand-over for sending is rejected: the message is released */
+TEST_F(OscoreEngine, OutboundMulticastWithFullQueueReleasesTheMessage)
+{
+  oc_message_t* message = make_outbound_request(COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST | S_MODE_NON_REQUEST));
+  ASSERT_NE(message, nullptr);
+  ASSERT_EQ(message->ref_count, 1U);
+
+  fill_process_queue();
+  oc_process_post_synch(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], message);
+
+  EXPECT_EQ(g_network_send_calls, 0);
+  EXPECT_EQ(unrefs_of(message), 1);
+}
+
+/* outbound unicast response (not shared, encrypted in place), the hand-over for sending is rejected: the message is released */
+TEST_F(OscoreEngine, OutboundUnicastWithFullQueueReleasesTheMessage)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+  ASSERT_EQ(message->ref_count, 1U);
+
+  fill_process_queue();
+  oc_process_post_synch(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message);
+
+  EXPECT_EQ(g_network_send_calls, 0);
+  EXPECT_EQ(unrefs_of(message), 1);
 }

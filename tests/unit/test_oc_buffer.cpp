@@ -364,3 +364,56 @@ TEST_F(BufferProcess, EncryptedEventWithoutOscoreFlagIsDropped)
 
   oc_message_unref(message);
 }
+
+/* ───────────── full process event queue: the caller releases its message ──── */
+
+/* a process that is never started: its events only occupy queue slots (dropped on delivery) */
+OC_PROCESS(queue_filler, "queue filler");
+OC_PROCESS_THREAD(queue_filler, ev, data)
+{
+  (void)ev;
+  (void)data;
+  OC_PROCESS_BEGIN();
+  OC_PROCESS_END();
+}
+
+/* fills the process event queue up to OC_PROCESS_MAX_EVENTS (the next post returns OC_PROCESS_ERR_FULL) */
+static void fill_process_queue(void)
+{
+  while (oc_process_nevents() < OC_PROCESS_MAX_EVENTS) {
+    ASSERT_EQ(oc_process_post(&queue_filler, OC_PROCESS_EVENT_CONTINUE, nullptr), OC_PROCESS_ERR_OK);
+  }
+}
+
+/*
+  oc_receive_message() with a full queue: the INBOUND_NETWORK_EVENT is rejected, the message is released
+  (an extra test reference keeps it alive to check the count: 2 -> 1)
+*/
+TEST_F(BufferProcess, ReceiveMessageWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, false);
+  ASSERT_NE(message, nullptr);
+  oc_message_add_ref(message);
+
+  fill_process_queue();
+  oc_receive_message(message);
+
+  EXPECT_EQ(message->ref_count, 1U);
+  EXPECT_EQ(oc_process_nevents(), OC_PROCESS_MAX_EVENTS);
+  oc_message_unref(message);
+}
+
+/* oc_send_message() with a full queue: the OUTBOUND_NETWORK_EVENT is rejected, the message is released */
+TEST_F(BufferProcess, SendMessageWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, false);
+  ASSERT_NE(message, nullptr);
+  oc_message_add_ref(message);
+
+  fill_process_queue();
+  oc_send_message(message);
+
+  EXPECT_EQ(message->ref_count, 1U);
+  EXPECT_EQ(oc_process_nevents(), OC_PROCESS_MAX_EVENTS);
+  oc_message_unref(message);
+}

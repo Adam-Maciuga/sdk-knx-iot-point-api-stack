@@ -951,7 +951,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_buffer.cpp — Message Buffer Pool (17 tests)
+### test_oc_buffer.cpp — Message Buffer Pool (19 tests)
 
 **Source:** `api/oc_buffer.c`
 
@@ -974,6 +974,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `SendMessageRoutesMulticastOscoreToOscoreLayer` | Multicast OSCORE messages use the multicast OSCORE event |
 | `EncryptedOscoreMessageIsSentToNetwork` | Encrypted OSCORE messages reach the wrapped network send |
 | `EncryptedEventWithoutOscoreFlagIsDropped` | Encrypted events without the OSCORE flag are not sent |
+| `ReceiveMessageWithFullQueueReleasesTheMessage` | `oc_receive_message()` with the process event queue full: the event is rejected and the message released |
+| `SendMessageWithFullQueueReleasesTheMessage` | `oc_send_message()` with the process event queue full: the event is rejected and the message released |
 
 ---
 
@@ -1153,7 +1155,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_process.cpp — Process / Event Loop (16 tests)
+### test_oc_process.cpp — Process / Event Loop (18 tests)
 
 **Source:** `util/oc_process.c`
 
@@ -1175,6 +1177,8 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `ExitOnNeverStartedProcessIsNoOp` | Exiting a process never added to the list is a no-op (`exit_process`'s not-found branch) |
 | `ExitNotifiesSiblingAndUnlinksFromListMiddle` | With two processes running, exiting the list head notifies the surviving sibling with `OC_PROCESS_EVENT_EXITED` and unlinks correctly |
 | `PostBeyondCapacityGrowsQueueAndPreservesOrder` | Posting well past the initial ring capacity forces the realloc + wraparound-copy growth path in `oc_process_post`, preserving FIFO order |
+| `PostAfterShutdownIsRejected` | after `oc_process_shutdown()` a post returns `OC_PROCESS_ERR_FULL` (no write into freed memory); after a new init posting works again |
+| `PostAtTheMaximumIsRejectedAndTheQueueRecovers` | `OC_PROCESS_MAX_EVENTS` posts succeed, the next returns `OC_PROCESS_ERR_FULL` (no `oc_abort`); after one delivered event (order kept) posting works again |
 
 ---
 
