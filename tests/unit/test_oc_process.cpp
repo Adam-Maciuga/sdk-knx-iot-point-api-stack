@@ -253,7 +253,7 @@ TEST_F(OcProcess, PostBeyondCapacityGrowsQueueAndPreservesOrder)
 {
   oc_process_start(&test_proc, nullptr);
 
-  /* Comfortably exceeds the initial ring capacity (10) and any prior growth
+  /* Comfortably exceeds the initial ring capacity (8) and any prior growth
      from earlier tests in this binary, forcing oc_process_post()'s realloc
      + wraparound-copy growth path at least once. */
   static constexpr int kCount = 64;
@@ -274,3 +274,45 @@ TEST_F(OcProcess, PostBeyondCapacityGrowsQueueAndPreservesOrder)
   EXPECT_EQ(oc_process_nevents(), 0);
 }
 
+/*
+  after oc_process_shutdown() the queue is gone: a late post (e.g. from the network thread) is rejected with
+  OC_PROCESS_ERR_FULL instead of writing into freed memory (the caller releases its data)
+*/
+TEST_F(OcProcess, PostAfterShutdownIsRejected)
+{
+  oc_process_start(&test_proc, nullptr);
+  oc_process_shutdown();
+
+  static int marker = 7;
+  EXPECT_EQ(oc_process_post(&test_proc, OC_PROCESS_EVENT_MSG, &marker), OC_PROCESS_ERR_FULL);
+  EXPECT_EQ(oc_process_nevents(), 0);
+
+  /* a new init gives a working queue again (TearDown shuts it down) */
+  oc_process_init();
+  EXPECT_EQ(oc_process_post(&test_proc, OC_PROCESS_EVENT_MSG, &marker), OC_PROCESS_ERR_OK);
+}
+
+/*
+  the queue grows only up to OC_PROCESS_MAX_EVENTS: the next post is rejected with OC_PROCESS_ERR_FULL (no oc_abort);
+  once an event is delivered, posting works again
+*/
+TEST_F(OcProcess, PostAtTheMaximumIsRejectedAndTheQueueRecovers)
+{
+  oc_process_start(&test_proc, nullptr);
+
+  static int markers[OC_PROCESS_MAX_EVENTS + 1];
+  for (int i = 0; i < OC_PROCESS_MAX_EVENTS; i++) {
+    markers[i] = i;
+    ASSERT_EQ(oc_process_post(&test_proc, OC_PROCESS_EVENT_MSG, &markers[i]), OC_PROCESS_ERR_OK) << "event " << i;
+  }
+  ASSERT_EQ(oc_process_nevents(), OC_PROCESS_MAX_EVENTS);
+
+  markers[OC_PROCESS_MAX_EVENTS] = OC_PROCESS_MAX_EVENTS;
+  EXPECT_EQ(oc_process_post(&test_proc, OC_PROCESS_EVENT_MSG, &markers[OC_PROCESS_MAX_EVENTS]), OC_PROCESS_ERR_FULL);
+  EXPECT_EQ(oc_process_nevents(), OC_PROCESS_MAX_EVENTS);
+
+  /* the first event is delivered (order kept), then one slot is free again */
+  oc_process_run();
+  EXPECT_EQ(*static_cast<int *>(g_last_data), 0);
+  EXPECT_EQ(oc_process_post(&test_proc, OC_PROCESS_EVENT_MSG, &markers[OC_PROCESS_MAX_EVENTS]), OC_PROCESS_ERR_OK);
+}

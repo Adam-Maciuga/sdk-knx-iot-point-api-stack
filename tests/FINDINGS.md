@@ -204,13 +204,14 @@ removed entry. The next number is F-064.
 - **Evidence:** code reading.
 - **Expected:** bound `str_len` by the slot size; allocate `(len + 1) / 2` and free `out` on failure.
 
-## F-050: the process event queue grows without limit and is used after shutdown - OPEN
+## ~~F-050: the process event queue grows without limit and is used after shutdown~~ - FIXED
 
 - **Files:** `util/oc_process.c`, `oc_process_post()`, `oc_process_shutdown()`; `api/oc_buffer.c` (ERR_FULL unref paths).
 - **Severity:** Low - a flood of events grows the queue until `oc_abort`; a post after shutdown uses freed memory.
 - **Description:** `oc_process_post()` doubles the queue with `realloc` and never returns `OC_PROCESS_ERR_FULL`, so the callers' ERR_FULL paths that unref the message are dead code. `oc_process_shutdown()` frees `events` without setting it to NULL or resetting the counters.
 - **Evidence:** code reading.
 - **Expected:** cap the queue (return ERR_FULL at the cap) and reset `events`/counters in `oc_process_shutdown()`.
+- **Fix:** `oc_process_post()` doubles the queue only up to `OC_PROCESS_MAX_EVENTS` and returns `OC_PROCESS_ERR_FULL` at the maximum, when `realloc` fails (old queue kept) or after shutdown (`events == NULL`), so the callers' unref paths are live. `oc_process_shutdown()` sets `events` to NULL and resets `nevents`, `fevent` and the queue size. Tests: `test_oc_process`, `OcProcess.PostBeyondCapacityGrowsQueueAndPreservesOrder`, `OcProcess.PostAfterShutdownIsRejected`, `OcProcess.PostAtTheMaximumIsRejectedAndTheQueueRecovers`.
 
 ## F-051: a failed block-wise buffer allocation stops notifying all remaining observers - OPEN
 

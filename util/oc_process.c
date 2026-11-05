@@ -34,7 +34,10 @@ struct event_data
   struct oc_process* p;
 };
 
-static unsigned long OC_PROCESS_NUMEVENTS = 10;
+// start size of the event queue (power of two as the default maximum), it doubles on demand up to OC_PROCESS_MAX_EVENTS (oc_process.h)
+#define OC_PROCESS_START_EVENTS 8
+
+static oc_process_num_events_t OC_PROCESS_NUMEVENTS = OC_PROCESS_START_EVENTS;
 
 static oc_process_num_events_t nevents, fevent;
 static struct event_data* events;
@@ -156,9 +159,17 @@ void oc_process_exit(struct oc_process* p)
   exit_process(p, OC_PROCESS_CURRENT());
 }
 
+/*
+  frees the event queue and resets it completely
+  - events = NULL: a late oc_process_post() (e.g. from the network thread) is rejected, it does not write into freed memory
+  - counters and size back to the start: a following oc_process_init() starts with a clean, small queue
+*/
 void oc_process_shutdown(void)
 {
   free(events);
+  events = NULL;
+  nevents = fevent = 0;
+  OC_PROCESS_NUMEVENTS = OC_PROCESS_START_EVENTS;
 }
 
 void oc_process_init(void)
@@ -286,31 +297,45 @@ int oc_process_post(struct oc_process* p, oc_process_event_t ev, oc_process_data
 {
   static oc_process_num_events_t snum;
 
+  // after oc_process_shutdown(): no queue, the caller releases its data (see OC_PROCESS_ERR_FULL)
+  if (!events)
+  {
+    return OC_PROCESS_ERR_FULL;
+  }
+
   if (nevents == OC_PROCESS_NUMEVENTS)
   {
-    OC_PROCESS_NUMEVENTS <<= 1;
+    /*
+      queue full: grow (double) up to OC_PROCESS_MAX_EVENTS
+      - at the maximum, or when 'reallocation' fails, the event is rejected with OC_PROCESS_ERR_FULL and the caller drops it
+      -> an event flood loses single events instead of ending in oc_abort() (process exit, device reset on the embedded ports)
+    */
+    if (OC_PROCESS_NUMEVENTS >= OC_PROCESS_MAX_EVENTS)
+    {
+      OC_WRN("process event queue full (%u events), event dropped", (unsigned int)OC_PROCESS_NUMEVENTS);
+      return OC_PROCESS_ERR_FULL;
+    }
 
-    // check this with s-mode
-    struct event_data* new_event = (struct event_data*)realloc(events, (OC_PROCESS_NUMEVENTS) * sizeof(struct event_data));
+    // double the size, at most up to the maximum (a configured maximum need not be a power of two)
+    const oc_process_num_events_t new_size = OC_PROCESS_NUMEVENTS * 2 > OC_PROCESS_MAX_EVENTS ? OC_PROCESS_MAX_EVENTS : OC_PROCESS_NUMEVENTS * 2;
 
+    // on failure 'reallocation' leaves the old queue untouched and valid, the size is taken over only on success
+    struct event_data* new_event = (struct event_data*)realloc(events, new_size * sizeof(struct event_data));
     if (!new_event)
     {
-      free(events);
+      OC_WRN("process event queue cannot grow (out of memory), event dropped");
+      return OC_PROCESS_ERR_FULL;
     }
 
     events = new_event;
-    if (!events)
-    {
-      oc_abort("Insufficient memory");
-    }
+    OC_PROCESS_NUMEVENTS = new_size;
 
     oc_process_num_events_t i = fevent, n = nevents - fevent, j = 0;
     while (i < (OC_PROCESS_NUMEVENTS - n))
     {
       if (i < nevents)
       {
-        memcpy(&events[OC_PROCESS_NUMEVENTS - n + j], &events[i],
-               sizeof(struct event_data));
+        memcpy(&events[OC_PROCESS_NUMEVENTS - n + j], &events[i], sizeof(struct event_data));
         j++;
       }
       memset(&events[i], 0, sizeof(struct event_data));

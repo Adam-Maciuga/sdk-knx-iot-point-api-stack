@@ -19,6 +19,7 @@
 
 #pragma once
 #include "util/pt/pt.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +31,7 @@ extern "C" {
 
 typedef unsigned char oc_process_event_t;
 typedef void *oc_process_data_t;
-typedef unsigned long oc_process_num_events_t;
+typedef uint16_t oc_process_num_events_t; // queue size and counters, bounded by OC_PROCESS_MAX_EVENTS
 
 /**
  * \name Return values
@@ -52,6 +53,22 @@ typedef unsigned long oc_process_num_events_t;
  *             not be posted.
  */
 #define OC_PROCESS_ERR_FULL 1
+
+/**
+ * \brief      Maximum number of queued process events.
+ *
+ *             The queue starts small and doubles on demand up to this size; at the
+ *             maximum oc_process_post() returns OC_PROCESS_ERR_FULL (the caller drops
+ *             the event) instead of growing until the heap is exhausted.
+ */
+#ifndef OC_PROCESS_MAX_EVENTS
+#define OC_PROCESS_MAX_EVENTS 64
+#endif
+
+// the queue size and counters are oc_process_num_events_t (uint16_t)
+#if OC_PROCESS_MAX_EVENTS > 65535
+#error "OC_PROCESS_MAX_EVENTS must not exceed 65535 (oc_process_num_events_t is uint16_t)"
+#endif
 /* @} */
 
 #define OC_PROCESS_NONE NULL
