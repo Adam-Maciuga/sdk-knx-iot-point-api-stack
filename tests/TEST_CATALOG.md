@@ -370,7 +370,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (58 tests)
+### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (60 tests)
 
 **Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
@@ -431,6 +431,8 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OutboundResponseNotSharedIsEncryptedInPlace` | Response with `ref_count` 1 is encrypted in place and sent |
 | `OutboundUnicastConRequestSharedIsClonedAndStaysPlaintext` | Shared unicast CON request (`ref_count` 2, the CON transaction) is cloned; the original stays plaintext, only the engine's reference is released |
 | `OutboundMulticastRequestSharedIsClonedAndStaysPlaintext` | Shared multicast request is cloned; the original stays plaintext |
+| `MulticastRequestWithTokenWithoutGroupAddressIsSilentlyDropped` | A multicast OSCORE request whose token has no group addresses is discarded before decryption and context creation, no reply (spec 2.6.9.1 + 2.5.9.6) |
+| `MulticastEchoResponseEncryptFailureFreesTheTemporaryContext` | An encrypt error frees the temporary 'Response Sender Context' of a multicast caused echo response (`--wrap=oc_oscore_encrypt`) |
 
 ---
 

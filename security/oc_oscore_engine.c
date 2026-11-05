@@ -725,37 +725,40 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       // find context from inbound request
       oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(coap_pkt->kid, coap_pkt->kid_len, coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 
+      // token of the cached context, or the auth/at entry with the 'kid' from the inbound message
+      const oc_auth_at_t* at_entry = oscore_ctx ? oscore_ctx->auth_at : oc_core_find_at_entry_by_osc_id(coap_pkt);
+
+      /*
+        (a) 'kid' from 'request' not found as part of my own contexts, the inbound sender is not known to the server
+            - an inbound GA as 'kid' that does not match to the server's AT table but using a (by server) registered
+              multicast address, mc later ignored, standard case (a MULTICAST group value write where the GA is
+              not used in THIS device)
+            - uc 4.01, MaC misconfiguration (a UNICAST group value write where the GA is not used in THIS device)
+        (b) a multicast request with an access token without group addresses (also a cached context), spec:
+            - 2.6.9.1: multicast is s-mode group communication, responses are suppressed except the SSN synchronization (echo)
+            - 2.5.9.6: the access token of the recipient context must contain the group address of the message in its scope
+            -> never authorized: silently discarded BEFORE a context is created and before the replay check could send an echo
+      */
+      if (!at_entry || ((msg->endpoint.flags & MULTICAST) && at_entry->ga_len == 0))
+      {
+        if (msg->endpoint.flags & MULTICAST)
+        {
+          // multicast: silently discard — do not reply
+          OC_DBG("no access token (8.2 step 2) or one without group addresses for 'kid' from inbound multicast request message, silently discarding");
+        }
+        else
+        {
+          // unicast (a): respond with unsecured 4.01 (RFC 8613 § 8.2 step 2 / KNX IoT § 3.6.5)
+          OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound unicast 's-mode' request message, return unsecured 4.01");
+          oscore_send_error(coap_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
+        }
+        OC_DBG("drop no at entry message, counter is %d", msg->ref_count);
+        oc_message_unref(msg);
+        return -1;
+      }
+
       if (!oscore_ctx)
       { // no beforehand cached context available, make one (usually on a fresh req[in])
-
-        // find auth/at entry with corresponding 'kid' from inbound message
-        const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt);
-        if (!at_entry)
-        {
-          /*
-            'kid' from 'request' not found as part of my own contexts,
-             the inbound sender is not known to the server
-             - an inbound GA as 'kid' that does not match to the server's AT table but using a (by server) registered
-               multicast address, mc later ignored, standard case (a MULTICAST group value write where the GA is 
-               not used in THIS device)
-             - uc 4.01, MaC misconfiguration (a UNICAST group value write where the GA is not used in THIS device)
-          */
-
-          if (msg->endpoint.flags & MULTICAST)
-          {
-            // multicast: silently discard — do not reply
-            OC_DBG("could not find an access token (8.2 step 2) for 'kid' from inbound multicast 's-mode' request message, silently discarding");
-          }
-          else
-          {
-            // unicast: respond with unsecured 4.01 (RFC 8613 § 8.2 step 2 / KNX IoT § 3.6.5)
-            OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound unicast 's-mode' request message, return unsecured 4.01");
-            oscore_send_error(coap_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
-          }
-          OC_DBG("drop no at entry message, counter is %d", msg->ref_count);
-          oc_message_unref(msg);
-          return -1;
-        }
 
         /*
 
@@ -796,7 +799,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         }
       }
 
-      // use as kid (new or existing context) 
+      // use as kid (new or existing context)
       request_kid = nonce_kid = oscore_ctx->recipient_id;
       request_kid_len = nonce_kid_len = oscore_ctx->recipient_id_len;
       
@@ -1606,67 +1609,71 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     if (unicast_echo_response_by_mc)
     { // s-mode (x0) - overwrites the context retrieved by (uc-a) with a temporary 'Response Sender Context'
 
-      bool is_smode = oscore_ctx->auth_at->ga_len > 0;
-      if (is_smode)
-      { // any context using an access token with ga len > 0 is an s-mode message
-        
-        // mc echo data = random
-        uint8_t rnd[OC_ECHO_KID_CTX_LEN];
+      /*
+        only s-mode tokens get here: the 'receiver' side drops a multicast request whose token has no group addresses
+        - small window, accepted: the echo response is sent delayed (0 ... osndelay ms), a POST /auth/at in between may
+          remove the group addresses of the token meanwhile
+        -> harmless, the temporary context below does not depend on the group addresses, the echo is still encrypted
+           correctly (own context, nonce and AAD); this branch always replaces oscore_ctx by the temporary context, so the
+           frees below (flag unicast_echo_response_by_mc) never free the persistent context
+      */
+      
+      // mc echo data = random
+      uint8_t rnd[OC_ECHO_KID_CTX_LEN];
 
-        psa_generate_random(rnd, sizeof(rnd));
+      psa_generate_random(rnd, sizeof(rnd));
 
-        /*
-               'Server' Side (details see method 'oc_oscore_receive_message' header), create:
-                Response Sender Context
-                - kid (oc_oscore_add_sender_context')
-                - kid_context (here, rnd)
-                - ms + salt from token (inside 'oc_oscore_add_context')
-                - ssn = 0, not used: outbound_piv is set directly from inbound_piv, 
-                - read_ssn_from_storage = false
-                
-                context is freed after use; C99 zero - initializes unnamed fields
-        */
-        oc_oscore_context_params_t oscore_params = 
-        {
-          // .ssn = 0 
-          .id_context = rnd,
-          .id_context_size = OC_ECHO_KID_CTX_LEN,
-          .auth_at = at_entry, 
-          // .read_ssn_from_storage = false
-        };
-        oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
+      /*
+             'Server' Side (details see method 'oc_oscore_receive_message' header), create:
+              Response Sender Context
+              - kid (oc_oscore_add_sender_context')
+              - kid_context (here, rnd)
+              - ms + salt from token (inside 'oc_oscore_add_context')
+              - ssn = 0, not used: outbound_piv is set directly from inbound_piv, 
+              - read_ssn_from_storage = false
+              
+              context is freed after use; C99 zero - initializes unnamed fields
+      */
+      oc_oscore_context_params_t oscore_params = 
+      {
+        // .ssn = 0 
+        .id_context = rnd,
+        .id_context_size = OC_ECHO_KID_CTX_LEN,
+        .auth_at = at_entry, 
+        // .read_ssn_from_storage = false
+      };
+      oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
-        if (!oscore_ctx)
-        {
-          // this should not happen, because there was with LRU a context released
-          OC_ERR("could not create oscore sender context, return unsecured 5.00");
-          oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, ep, false);
-          oc_message_unref(outgoing_msg);
-          return -1;
-        }
-
-        // 8.1 (a) below : update ALL context data for echo responses caused by s-mode multicast requests (was a new context)
-        kid = oscore_ctx->sender_id;
-        kid_len = oscore_ctx->sender_id_len;
-        kid_context = oscore_ctx->id_context;
-        kid_context_len = oscore_ctx->id_context_len;
-
-        // RFC 8613, 8.3, point 3 lower *, echo response reuses the inbound SSN and Sender ID to compute a new AEAD nonce
-        oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
-                             oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
-
-        // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
-        oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
-
-        UNSET_BIT(ep->flags, ECHO_CAUSED_BY_MC_SRC);
-        
-        OC_DBG("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
-        OC_LOGbytes(inbound_piv, inbound_piv_len);
-
-        // 8.1 (a) below, PIV shall be included
-        outbound_piv = inbound_piv;
-        outbound_piv_len = inbound_piv_len;
+      if (!oscore_ctx)
+      {
+        // this should not happen, because there was with LRU a context released
+        OC_ERR("could not create oscore sender context, return unsecured 5.00");
+        oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, ep, false);
+        oc_message_unref(outgoing_msg);
+        return -1;
       }
+
+      // 8.1 (a) below : update ALL context data for echo responses caused by s-mode multicast requests (was a new context)
+      kid = oscore_ctx->sender_id;
+      kid_len = oscore_ctx->sender_id_len;
+      kid_context = oscore_ctx->id_context;
+      kid_context_len = oscore_ctx->id_context_len;
+
+      // RFC 8613, 8.3, point 3 lower *, echo response reuses the inbound SSN and Sender ID to compute a new AEAD nonce
+      oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
+                           oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
+
+      // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
+      oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
+
+      UNSET_BIT(ep->flags, ECHO_CAUSED_BY_MC_SRC);
+      
+      OC_DBG("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
+      OC_LOGbytes(inbound_piv, inbound_piv_len);
+
+      // 8.1 (a) below, PIV shall be included
+      outbound_piv = inbound_piv;
+      outbound_piv_len = inbound_piv_len;
     }
     else if (unicast_echo_response_by_uc)
     { // s-mode (x1) | non s-mode (x6), context retrieved by (uc-a)
@@ -1808,80 +1815,84 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
     oc_message_unref(outgoing_msg);
-    return -1;
-  }
-
-  OC_DBG("encrypting OSCORE payload : success (0)");
-
-  // adjust payload length to include the size of the authentication tag
-  coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
-
-  /*
-     set for a OSCORE request/ response the OUTER CoAp code and Max-Age option for the
-     CoAp message in relation of a present observe option.
-   
-     NOTE: no observe option (POST, 2.04 Changed), observe option (FETCH, 2.05 OK)
-  */
-  const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
-  if (observe)
-  {
-    coap_pkt->code = is_outbound_request ? COAP_FETCH : (uint8_t)oc_status_code(OC_STATUS_OK);
-
-    // set max age = no caching by client
-    coap_set_header_max_age(coap_pkt, 0);
   }
   else
   {
-    coap_pkt->code = is_outbound_request ? COAP_POST : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
+    OC_DBG("encrypting OSCORE payload : success (0)");
+
+    // adjust payload length to include the size of the authentication tag
+    coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
+
+    /*
+       set for a OSCORE request/ response the OUTER CoAp code and Max-Age option for the
+       CoAp message in relation of a present observe option.
+   
+       NOTE: no observe option (POST, 2.04 Changed), observe option (FETCH, 2.05 OK)
+    */
+    const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
+    if (observe)
+    {
+      coap_pkt->code = is_outbound_request ? COAP_FETCH : (uint8_t)oc_status_code(OC_STATUS_OK);
+
+      // set max age = no caching by client
+      coap_set_header_max_age(coap_pkt, 0);
+    }
+    else
+    {
+      coap_pkt->code = is_outbound_request ? COAP_POST : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
+    }
+
+    // restore, reflects the former inner 'observe' option (see above)
+    coap_pkt->observe = observe_option;
+
+    /*
+        set the OSCORE option
+
+        8.1
+
+        (a) for a request or unicast_echo_response we always include the PIV, kid and kid_context in the OSCORE option,
+            since these are needed for the receiver to derive the AEAD nonce and do replay protection
+
+        8.3 + KNX IoT 3.6.5 (we use the AEAD nonce from request, hence no PIV)
+
+        (b) for a response we do NOT include the PIV in the message, except for observe responses we always include the kid and kid_context
+            in the OSCORE option and PIV (from second response SHALL, from first response MAY), since these are needed for
+            the receiver to derive the AEAD nonce and do replay protection
+
+        (c) note, an (4-byte) empty ACK is not processed by THIS OSCORE layer since it does not include any options/data
+
+    */
+    coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
+
+    // serialize OSCORE message
+    outgoing_msg->length = oscore_serialize_message(coap_pkt, outgoing_msg->data);
+    OC_DBG("serialized OSCORE message");
+
+    // from here on any message is encrypted ...
+    UNSET_BIT(ep->flags, OSCORE_DECRYPTED);
+
+    #ifdef OC_CLIENT
+
+    if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
+    {
+      OC_ERR("could not send message");
+    }
+
+    #endif
   }
 
-  // restore, reflects the former inner 'observe' option (see above)
-  coap_pkt->observe = observe_option;
-
   /*
-      set the OSCORE option
-
-      8.1
-
-      (a) for a request or unicast_echo_response we always include the PIV, kid and kid_context in the OSCORE option,
-          since these are needed for the receiver to derive the AEAD nonce and do replay protection
-
-      8.3 + KNX IoT 3.6.5 (we use the AEAD nonce from request, hence no PIV)
-
-      (b) for a response we do NOT include the PIV in the message, except for observe responses we always include the kid and kid_context
-          in the OSCORE option and PIV (from second response SHALL, from first response MAY), since these are needed for
-          the receiver to derive the AEAD nonce and do replay protection
-
-      (c) note, an (4-byte) empty ACK is not processed by THIS OSCORE layer since it does not include any options/data
-
+    the temporary context of a multicast caused echo response is freed once here, on success and on an encryption error
+    - not earlier: kid / kid_context point into it until the OSCORE message is serialized
+    - it must not stay in the context list (LRU eviction removes recipient contexts only)
   */
-  coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
-
-  // serialize OSCORE message
-  outgoing_msg->length = oscore_serialize_message(coap_pkt, outgoing_msg->data);
-  OC_DBG("serialized OSCORE message");
-
   if (unicast_echo_response_by_mc)
   {
-    // free context after use it above, since it was only created for multicast caused 'echo response'
     oc_oscore_free_context(oscore_ctx);
   }
 
-  // from here on any message is encrypted ...
-  UNSET_BIT(ep->flags, OSCORE_DECRYPTED);
-
-  #ifdef OC_CLIENT
-
-  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
-  {
-    OC_ERR("could not send message");
-  }
-
-  return 0;
-
-  #endif
-
-  return 0;
+  // -1: error (message released), 0: encrypted and queued for sending
+  return ret == 0 ? 0 : -1;
 }
 
 OC_PROCESS_THREAD(oc_oscore_handler, ev, data)

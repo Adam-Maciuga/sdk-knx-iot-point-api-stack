@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-060.
+removed entry. The next number is F-061.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -141,15 +141,17 @@ removed entry. The next number is F-060.
 - **Expected:** mark the running entry and defer the free, or document that a callback must not remove itself.
 - **Fix:** `oc_event_callback_t` has an `callback_active` flag toggled with XOR: the poll loop sets it before the callback and toggles it after, `oc_ri_remove_timed_event_callback()` toggles it and frees only when it is then true (outside a callback); a self-removed entry is freed once by the poll loop after the callback and neither removes nor restarts it. Tests: `test_oc_ri_timed_callbacks` (3, `-Wl,--wrap=oc_clock_time`); without the fix both self-removing tests crash.
 
-## F-043: OSCORE engine frees a persistent context or leaks a temporary one on error paths - OPEN
+## ~~F-043: OSCORE engine frees a persistent context or leaks a temporary one on error paths~~ - FIXED
 
 - **Files:** `security/oc_oscore_engine.c`, outbound response encryption (`unicast_echo_response_by_mc` branch).
-- **Severity:** Low - latent; the free needs a multicast-caused echo response for a token without group addresses, which is not reachable today.
+- **Severity:** Medium - reachable: the 'receiver' side accepted a multicast OSCORE request with the kid of any token, and the engine sends an echo for any unsynced decrypted request; a peer with a valid token without group addresses triggered it.
 - **Description:**
   - the temporary response sender context is only created when `auth_at->ga_len > 0`, but `oc_oscore_free_context(oscore_ctx)` runs whenever `unicast_echo_response_by_mc` is set; with `ga_len == 0` it frees the persistent context found earlier.
   - when `oc_oscore_encrypt()` fails, the function returns before that free, so the temporary context stays in the context list (LRU eviction only removes recipient contexts).
-- **Evidence:** code reading.
+  - in that `ga_len == 0` case nothing computes the AEAD nonce and AAD: the echo response is encrypted with an uninitialized stack nonce and an empty AAD.
+- **Evidence:** tests below.
 - **Expected:** keep a flag "temporary context created" and free exactly that context on every exit path.
+- **Fix:** (1) 'receiver' side: the token is taken from the cached context or the AT lookup, and a multicast request whose token has no group addresses is silently discarded together with an unknown kid, before a context is created and before an echo can be sent (spec 2.6.9.1 multicast = s-mode, 2.5.9.6 the token must hold the group address). (2) 'sender' side: the temporary 'Response Sender Context' is always created for a multicast caused echo response (no `ga_len` condition, so the flag `unicast_echo_response_by_mc` always means it replaced `oscore_ctx`); it is freed once after the encrypt `if`/`else`, on success and on an encrypt error. A token that loses its group addresses during the echo delay (POST /auth/at) is accepted: the echo is still encrypted with its own context. Tests: `test_oc_oscore_echo_tx`, `OscoreEngine.MulticastRequestWithTokenWithoutGroupAddressIsSilentlyDropped`, `OscoreEngine.MulticastEchoResponseEncryptFailureFreesTheTemporaryContext` (`-Wl,--wrap=oc_oscore_encrypt`).
 
 ## F-044: netlink replies shorter than a header are read past the buffer - OPEN
 
@@ -288,3 +290,11 @@ removed entry. The next number is F-060.
 - **Evidence:** code reading.
 - **Expected:** implement `oc_delayed_delete_resource()` (a timed callback that calls `oc_ri_delete_resource()` outside any handler) and document that a handler must use it instead of deleting its resource directly; or remove the declaration and document the rule.
 - **Fix:** the declaration of `oc_delayed_delete_resource()` is removed from `oc_api.h` (no implementation, no caller); the new public `oc_delete_resource()` in `oc_api.h` (counterpart of `oc_add_resource()`, wraps `oc_ri_delete_resource()`) states that it must not be called from the resource's own handler or notification and that a delete as the result of a request is scheduled with `oc_set_delayed_callback()`. No behaviour change of the delete itself. Test: `test_oc_server_api`, `ServerApiResource.AddThenDeleteResource`.
+
+## F-060: a new master secret written with POST /auth/at does not reach the cached recipient context, the old key still decrypts - OPEN
+
+- **Files:** `api/oc_knx_sec.c`, POST /auth/at handler -> `oc_init_oscore_from_storage()`; `security/oc_oscore_context.c`, `oc_oscore_free_sender_contexts()`; `security/oc_oscore_engine.c`, `oc_oscore_receive_message()` (context lookup by `kid` + `kid_context`).
+- **Severity:** Medium - a key rotation through an AT update does not take effect for inbound traffic: requests protected with the OLD key keep being accepted until the cached recipient context is evicted (LRU) or the table is deleted.
+- **Description:** an update with key material (`cnf:osc:ms`, `id`, `contextId`, `salt`, profile) sets `other_updated` and calls `oc_init_oscore_from_storage()`, which frees and rebuilds only the sender contexts (`recipient_id_len == 0`). A recipient context created for an earlier inbound request keeps its keys derived from the old master secret; the next inbound request with the same `kid` / `kid_context` finds it (`oc_oscore_find_context_by_kid_and_kid_context`) and is decrypted with the old key. Replay records and the echo ring are not touched by an update either (only DELETE /auth/at clears them).
+- **Evidence:** code reading.
+- **Expected:** an update with key material frees all contexts of that token (sender AND recipient, e.g. `oc_oscore_free_contexts_at_id()` for the entry) before the re-initialization.

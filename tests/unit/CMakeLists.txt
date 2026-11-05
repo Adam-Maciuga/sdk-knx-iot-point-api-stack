@@ -113,6 +113,7 @@ kis_add_test(test_oc_oscore_echo_tx test_oc_oscore_echo_tx.cpp)
 target_link_options(test_oc_oscore_echo_tx PRIVATE
     -Wl,--wrap=coap_send_message
     -Wl,--wrap=oc_send_buffer
+    -Wl,--wrap=oc_oscore_encrypt
 )
 kis_add_test(test_oc_endpoint       test_oc_endpoint.cpp)
 kis_add_test(test_oc_knx_fp        test_oc_knx_fp.cpp)

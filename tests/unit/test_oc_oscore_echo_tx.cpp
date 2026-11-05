@@ -68,6 +68,25 @@ extern "C" void __wrap_coap_send_message(oc_message_t* message)
   oc_message_unref(message);
 }
 
+/* armed: the next oc_oscore_encrypt() fails (an encrypt error path of the engine), every other call is the real one */
+static bool g_fail_next_encrypt;
+
+extern "C" int __real_oc_oscore_encrypt(const uint8_t* plaintext, size_t plaintext_len, size_t tag_len, const uint8_t* key,
+                                        size_t key_len, const uint8_t* nonce, size_t nonce_len, const uint8_t* AAD,
+                                        size_t AAD_len, uint8_t* output);
+
+extern "C" int __wrap_oc_oscore_encrypt(const uint8_t* plaintext, size_t plaintext_len, size_t tag_len, const uint8_t* key,
+                                        size_t key_len, const uint8_t* nonce, size_t nonce_len, const uint8_t* AAD,
+                                        size_t AAD_len, uint8_t* output)
+{
+  if (g_fail_next_encrypt)
+  {
+    g_fail_next_encrypt = false;
+    return -1;
+  }
+  return __real_oc_oscore_encrypt(plaintext, plaintext_len, tag_len, key, key_len, nonce, nonce_len, AAD, AAD_len, output);
+}
+
 extern "C" int __wrap_oc_send_buffer(oc_message_t* message)
 {
   g_network_send_calls++;
@@ -843,6 +862,7 @@ protected:
     g_last_network_length = 0;
     g_last_network_flags = (transport_flags_t)0;
     g_last_network_message = nullptr;
+    g_fail_next_encrypt = false;
 
     memset(&at_, 0, sizeof(at_));
     const uint8_t master_secret[OSCORE_MASTER_SECRET_LEN] = {
@@ -1128,6 +1148,59 @@ TEST_F(OscoreEngine, OutboundMulticastEchoResponseIsEncryptedAndSent)
   oc_process_run();
   oc_process_run();
   EXPECT_EQ(g_network_send_calls, 1);
+}
+
+/* number of contexts in the list from the first one (all contexts of this fixture belong to at_) */
+static int count_contexts(const oc_oscore_context_t* first)
+{
+  int n = 0;
+  for (const oc_oscore_context_t* ctx = first; ctx != nullptr; ctx = ctx->next)
+  {
+    n++;
+  }
+  return n;
+}
+
+/*
+  a multicast request must use an s-mode token (spec 2.6.9.1 + 2.5.9.6): a token without group addresses is
+  silently discarded before decryption, so no echo response can be sent for it
+*/
+TEST_F(OscoreEngine, MulticastRequestWithTokenWithoutGroupAddressIsSilentlyDropped)
+{
+  at_.ga_len = 0;
+
+  const uint8_t plaintext[] = { COAP_POST };
+  oc_message_t* message = make_encrypted_request(plaintext, sizeof(plaintext));
+  ASSERT_NE(message, nullptr);
+  message->data[0] = 0x50; /* NON, as a multicast request */
+  message->endpoint.flags = MULTICAST;
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], message), OC_PROCESS_ERR_OK);
+  oc_process_run();
+
+  EXPECT_EQ(message->endpoint.flags & OSCORE_DECRYPTED, 0);
+  EXPECT_EQ(oc_process_nevents(), 0);
+  EXPECT_EQ(g_oscore_send_calls, 0);
+  EXPECT_EQ(message->ref_count, 1U);
+  oc_message_unref(message);
+}
+
+/* a failed encryption of a multicast caused echo response frees its temporary context (it used to stay in the list) */
+TEST_F(OscoreEngine, MulticastEchoResponseEncryptFailureFreesTheTemporaryContext)
+{
+  const int contexts_before = count_contexts(recipient_context_);
+
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = (transport_flags_t)(message->endpoint.flags | ECHO_CAUSED_BY_MC_SRC);
+
+  g_fail_next_encrypt = true;
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message), OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+
+  EXPECT_EQ(g_network_send_calls, 0);
+  EXPECT_EQ(count_contexts(recipient_context_), contexts_before);
 }
 
 TEST_F(OscoreEngine, AuthenticatedRequestIsDecryptedAndQueuedForRi)
