@@ -90,7 +90,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_request_buffer(const char* href, size_t
 }
 
 oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_t href_len, oc_endpoint_t* endpoint, coap_method_t method,
-                                                         oc_blockwise_role_t role)
+                                                         oc_blockwise_role_t role, oc_content_format_t content_format)
 {
   oc_blockwise_response_state_t* buffer =
     (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_response_state_t), href, href_len, endpoint, method, role);
@@ -100,6 +100,9 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
     // copy 8 bytes of etag on outbound messages 
     const uint32_t a = oc_random_value(); memcpy(buffer->etag + 0, &a, sizeof(a));
     const uint32_t b = oc_random_value(); memcpy(buffer->etag + 4, &b, sizeof(b));
+
+    // RFC 7959 2.4: the follow-up blocks (served from this buffer) carry the same Content-Format as the first one
+    buffer->base.return_content_type = content_format;
 
     #ifdef OC_CLIENT
     buffer->observe_seq = OC_OBSERVE_NOT_INITIALIZED;

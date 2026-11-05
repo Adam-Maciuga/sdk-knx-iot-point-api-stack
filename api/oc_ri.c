@@ -1212,8 +1212,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     if (!*response_state)
     {
       OC_DBG("creating new block-wise response state");
-      *response_state = oc_blockwise_alloc_response_buffer(
-        uri_path, uri_path_len, endpoint, method, OC_BLOCKWISE_SERVER);
+
+      // the Content-Format of the buffer is set after the handler ran, from the format the handler set (see below)
+      *response_state = oc_blockwise_alloc_response_buffer(uri_path, uri_path_len, endpoint, method, OC_BLOCKWISE_SERVER,
+                                                           CONTENT_NONE);
 
       if (!*response_state)
       {
@@ -1226,13 +1228,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         {
           oc_new_string(&(*response_state)->uri_query, uri_query, uri_query_len);
         }
-
-        /*
-          - an absent (inbound) 'Accept option set as default the 'accept' to CONTENT_NONE  
-          - the response Content-Format resolves that case to the default format of the corresponding device resource
-            (clause 2.2.4) 
-        */
-        (*response_state)->return_content_type = accept == CONTENT_NONE ? matching_resource->content_type[0] : accept;
 
         // here the response buffer is assigned
         response_buffer.buffer = (*response_state)->buffer;
@@ -1524,6 +1519,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       if (response_buffer.response_length > 0)
       {
         (*response_state)->payload_size = (uint32_t)response_buffer.response_length;
+
+        /*
+          RFC 7959 2.4: the follow-up blocks (served from this buffer) carry the same Content-Format as the first one
+          - the buffer was allocated BEFORE the handler ran, the format was not known then
+          - the first block below goes out with the format the handler set -> the buffer takes the same one
+        */
+        (*response_state)->return_content_type = response_buffer.content_format;
 
         if (response_buffer.content_format > 0)
         {

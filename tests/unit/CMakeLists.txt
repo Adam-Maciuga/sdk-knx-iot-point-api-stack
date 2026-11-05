@@ -161,6 +161,13 @@ target_link_options(test_coap_oscore PRIVATE
 kis_add_test(test_oc_knx_fb         test_oc_knx_fb.cpp)
 kis_add_test(test_oc_timer           test_oc_timer.cpp)
 kis_add_test(test_coap_transactions  test_coap_transactions.cpp)
+kis_add_test(test_coap_blockwise_server test_coap_blockwise_server.cpp)
+# server side Block1/Block2 through coap_receive(): the responses go to the recorder __wrap_coap_send_message()
+target_link_options(test_coap_blockwise_server PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=coap_send_message
+)
 kis_add_test(test_coap_observe       test_coap_observe.cpp)
 target_link_options(test_coap_observe PRIVATE
     -Wl,--wrap=oc_main_initialized
@@ -281,6 +288,7 @@ kis_add_test(test_separate           test_separate.cpp)
 # recorder __wrap_coap_send_message(), so no real socket I/O runs.
 target_link_options(test_separate PRIVATE
     -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_main_initialized
 )
 kis_add_test(test_oc_process         test_oc_process.cpp)
 kis_add_test(test_oc_etimer          test_oc_etimer.cpp)

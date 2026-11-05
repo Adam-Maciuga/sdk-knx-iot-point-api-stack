@@ -315,6 +315,24 @@ TEST_F(ServerApiResource, NewResourceValidPath)
   oc_ri_delete_resource(r);
 }
 
+/*
+  a new resource has application/cbor as its default Content-Format (spec 2.2.4: Points use CBOR), not 0 (text/plain);
+  oc_resource_bind_content_type() still overrides it
+*/
+TEST_F(ServerApiResource, NewResourceDefaultsToCborContentFormat)
+{
+  char path[] = "/p/cf";
+  oc_resource_t *r = oc_new_resource(path, 0);
+  ASSERT_NE(r, nullptr);
+  EXPECT_EQ(r->content_type[0], APPLICATION_CBOR);
+  EXPECT_EQ(r->content_type[1], CONTENT_NONE);
+
+  oc_resource_bind_content_type(r, APPLICATION_OCTET_STREAM, CONTENT_NONE);
+  EXPECT_EQ(r->content_type[0], APPLICATION_OCTET_STREAM);
+
+  oc_ri_delete_resource(r);
+}
+
 /* oc_delete_resource is the counterpart of oc_add_resource: the resource leaves the application list */
 TEST_F(ServerApiResource, AddThenDeleteResource)
 {

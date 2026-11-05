@@ -24,8 +24,9 @@ extern "C" {
  *
  */
 typedef enum {
-  OC_BLOCKWISE_CLIENT = 0, /**< client */
-  OC_BLOCKWISE_SERVER      /**< server */
+  OC_BLOCKWISE_CLIENT = 0,     /**< client */
+  OC_BLOCKWISE_SERVER,         /**< server */
+  OC_BLOCKWISE_SEPARATE_BUILD  /**< build buffer of a separate response (the application writes the body into it), never found by a lookup */
 } oc_blockwise_role_t;
 
 typedef struct oc_blockwise_state_s
@@ -186,11 +187,13 @@ oc_blockwise_state_t *oc_blockwise_alloc_request_buffer(
  * @param endpoint the endpoint
  * @param method the CoAP method
  * @param role the role (client or server)
+ * @param content_format Content-Format of the response body, used for every block served from the buffer
+ *                       (RFC 7959 2.4); CONTENT_NONE for a buffer that is not served (client side, separate response build buffer)
  * @return oc_blockwise_state_t*
  */
 oc_blockwise_state_t *oc_blockwise_alloc_response_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  coap_method_t method, oc_blockwise_role_t role);
+  coap_method_t method, oc_blockwise_role_t role, oc_content_format_t content_format);
 
 /**
  * @brief free the request buffer

@@ -409,10 +409,10 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
           }
 
           response_state = oc_blockwise_alloc_response_buffer(
-            oc_string(obs->resource->uri) + 1,
-            oc_string_len(obs->resource->uri) - 1,
+            oc_string(obs->resource->uri) + 1, // exclude leading '/', as this is how the URI path is stored in the request buffer, see oc_blockwise_alloc_request_buffer
+            oc_string_len(obs->resource->uri) - 1, // exclude leading '/' = -1
             &obs->endpoint, COAP_GET,
-            OC_BLOCKWISE_SERVER);
+            OC_BLOCKWISE_SERVER, response_buf->content_format);
 
           if (!response_state)
           {
@@ -421,8 +421,6 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 
           memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
           response_state->payload_size = (uint32_t)response_buf->response_length;
-          // RFC 7959 2.4: the follow-up blocks (served from this buffer) carry the same Content-Format as the first one
-          response_state->return_content_type = response_buf->content_format;
           uint32_t payload_size = 0;
           const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
           if (payload)

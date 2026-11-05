@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-062.
+removed entry. The next number is F-064.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -33,7 +33,7 @@ removed entry. The next number is F-062.
 - **Description:** when a notification is larger than the observer's Block2 size, the first block goes out with the GET handler's Content-Format (application/cbor), the rest is kept in a server response buffer. That buffer's `return_content_type` is never set (calloc -> 0), and the Block2 continuation copies it into every later block, so blocks 1..n say Content-Format 0. All blocks of one representation must carry the same Content-Format (RFC 7959 2.4).
 - **Evidence:** `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` fetches block 1 and leaves its Content-Format unasserted because of this.
 - **Expected:** `coap_notify_observers()` stores the GET handler's `content_format` in the response buffer; then that test also asserts application/cbor on block 1.
-- **Fix:** `coap_notify_observers()` copies the GET handler's `content_format` into the response buffer's `return_content_type` right after the payload. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` now asserts application/cbor on block 1.
+- **Fix:** `coap_notify_observers()` passes the GET handler's `content_format` to `oc_blockwise_alloc_response_buffer()` (parameter `content_format`, added for all response buffers with F-061), which stores it as `return_content_type`. Test: `test_coap_observe`, `CoapObserve.NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTheRest` now asserts application/cbor on block 1.
 
 ## ~~F-032: a second /p notification while a block-wise one is still open loops forever~~ - FIXED
 
@@ -300,7 +300,7 @@ removed entry. The next number is F-062.
 - **Evidence:** code reading.
 - **Expected:** an update with key material frees all contexts of that token (sender AND recipient, e.g. `oc_oscore_free_contexts_at_id()` for the entry) before the re-initialization.
 
-## F-061: a block-wise separate response keeps neither the Content-Format nor the query in its response buffer - OPEN
+## ~~F-061: a block-wise separate response keeps neither the Content-Format nor the query in its response buffer~~ - FIXED
 
 - **Files:** `api/oc_server_api.c`, separate response with a payload above the block size (`oc_blockwise_alloc_response_buffer()` for the separate request, two call sites); served by `messaging/coap/engine.c` (follow-up GET with Block2, `coap_set_header_content_format(..., response_buffer->return_content_type)`); `api/oc_blockwise.c`, `oc_blockwise_find_buffer()` (query match).
 - **Severity:** Low - a block-wise separate response is rare; the client gets a wrong Content-Format on the follow-up blocks or a lookup miss.
@@ -308,5 +308,25 @@ removed entry. The next number is F-062.
   - `oc_blockwise_init_buffer()` leaves `return_content_type` and `uri_query` to the caller. The normal response path (`oc_ri.c`) and the notification path (`observe.c`, F-031) set the Content-Format; the separate response path sets neither.
   - `return_content_type` stays 0, so the follow-up blocks served from the buffer carry Content-Format 0 (text/plain) instead of the format of the first block (RFC 7959 2.4: all blocks of a body carry the same Content-Format).
   - `uri_query` stays empty; when the original request had a query and the client repeats it in the follow-up GET, `oc_blockwise_find_buffer()` (`query_len == oc_string_len(uri_query)`) does not find the buffer.
-- **Evidence:** code reading.
-- **Expected:** after allocating the separate response buffer, store the Content-Format of the response (as `observe.c` does) and the query of the separate request (store it with the separate request if needed).
+  - a block-wise separate response is never sent: the lookup for a running earlier transfer finds the build buffer `handle->response_state` (the buffer the application writes the response body into) (same href, endpoint, method, role, no query; `payload_size` set, `next_block_offset` 0) and takes the 'earlier transfer still served' branch; no response is serialized, the transaction created before stays in the transaction list, the client gets nothing.
+- **Evidence:** test below.
+- **Expected:** after allocating the separate response buffer, store the Content-Format of the response (as `observe.c` does) and the query of the separate request (store it with the separate request if needed); the lookup must not take the build buffer for an earlier transfer, and an unused transaction is cleared.
+- **Fix:** (1) `oc_blockwise_alloc_response_buffer()` takes the Content-Format as a parameter and stores it as `return_content_type`; every caller passes it (normal response, notification, separate transfer buffer), buffers that are not served pass `CONTENT_NONE`. (3) the build buffer of a separate response (`handle->response_state`, the application writes the body into it) gets its own role `OC_BLOCKWISE_SEPARATE_BUILD`, so no lookup finds it; the response is sent and a transfer buffer is allocated; a transaction that is not used (earlier transfer still served, alloc failed) is cleared. (2) the query is not stored: today no separate response with a payload above one block answers a request with a query (SPAKE has none, `/a/swu` answers 2.04 without payload); the reason is noted in `coap_separate_t`. Test: `test_separate`, `Separate.BlockwiseResponseBufferKeepsTheContentFormat` (100 bytes, block size 64: first block sent, transfer buffer with offset 64 and CBOR; `--wrap=oc_main_initialized`).
+
+## ~~F-062: follow-up blocks of a block-wise GET response carry the guessed Content-Format instead of the handler's~~ - FIXED
+
+- **Files:** `api/oc_ri.c`, `oc_ri_invoke_coap_entity_handler()` (block-wise response buffer allocated before the handler; first block Content-Format after it); served by `messaging/coap/engine.c` (follow-up GET with Block2, `response_buffer->return_content_type`).
+- **Severity:** Low - a client that checks Content-Format per block, or uses the last block's, decodes the body with the wrong format.
+- **Description:** the response buffer is allocated BEFORE the handler runs, with the Accept option or the resource default (`content_type[0]`) as its Content-Format. The first block goes out with the format the handler actually set (`response_buffer.content_format`), the follow-up blocks with the guessed one. Without Accept and without a bound content type (`content_type[0] = 0`) the follow-up blocks carry Content-Format 0 (text/plain) while the first block is application/cbor (RFC 7959 2.4: all blocks of a body carry the same Content-Format). Same class as F-031 (notifications) and F-061 (separate response).
+- **Evidence:** test below, fails without the fix (block 1 carries the resource default instead of the handler's CBOR).
+- **Expected:** the buffer takes the handler's Content-Format once the handler has run.
+- **Fix:** after the handler, `oc_ri_invoke_coap_entity_handler()` stores `response_buffer.content_format` as `return_content_type` of the response buffer (next to `payload_size`). Test: `test_coap_blockwise_server`, `CoapBlockwiseServer.Block2FollowUpCarriesTheHandlersContentFormat` (resource default octet-stream, the handler answers CBOR: block 0 and block 1 carry CBOR). Found by `Block2FollowUpWithTheSameQueryIsServedFromTheBuffer` with an unbound resource; since F-063 an unbound resource defaults to CBOR, so that test no longer depends on this fix.
+
+## ~~F-063: an application resource without a bound Content-Format defaults to 0 (text/plain), not to application/cbor~~ - FIXED
+
+- **Files:** `api/oc_server_api.c`, `oc_new_resource()` (resource from `calloc`, `content_type[]` not set) and `oc_resource_bind_content_type()` (optional); used by `api/oc_ri.c` (default format without an Accept option, response buffer guess) and the link-format `ct=` of the resource.
+- **Severity:** Low - an application that does not call `oc_resource_bind_content_type()` gets text/plain as the resource default; since F-062 the block-wise follow-up blocks no longer depend on it.
+- **Description:** `oc_new_resource()` leaves `content_type[0]` / `[1]` at 0, and `oc_add_resource()` does not check them. Content-Format 0 is text/plain, so 'not bound' and 'text/plain' cannot be told apart, and every place that takes the resource default (request without Accept, spec 2.2.4) uses text/plain. Spec 2.2.4: Points SHALL use application/cbor, and without Accept / Content-Format the device SHALL assume the default format of the resource; text/plain is not one of the formats a KNX IoT resource supports (link-format, octet-stream, CBOR, optional JSON).
+- **Evidence:** test below; spec 2.2.4 and 2.5.11.1 (Table 32: `p` cbor).
+- **Expected:** `oc_new_resource()` binds application/cbor as the default (`content_type[0] = APPLICATION_CBOR`, `[1] = CONTENT_NONE`); an application overrides it with `oc_resource_bind_content_type()`.
+- **Fix:** `oc_new_resource()` sets `content_type[0] = APPLICATION_CBOR`, `content_type[1] = CONTENT_NONE` (spec 2.2.4); `oc_resource_bind_content_type()` still overrides it. Test: `test_oc_server_api`, `ServerApiResource.NewResourceDefaultsToCborContentFormat` (default CBOR, override with octet-stream).

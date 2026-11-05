@@ -235,6 +235,15 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
   resource->post_handler.acl_scope_mask = resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
   resource->post_handler.interface_mask = resource->delete_handler.interface_mask = OC_IF_NONE;
 
+  /*
+    default Content-Format = application/cbor, spec 2.2.4:
+    - Points SHALL use application/cbor, without an Accept / Content-Format option the device assumes the default format
+      of the resource (content_type[0])
+    -> an application resource with another format (link-format, octet-stream) binds it with oc_resource_bind_content_type()
+  */
+  resource->content_type[0] = APPLICATION_CBOR;
+  resource->content_type[1] = CONTENT_NONE;
+
   // runtime modifiable data, ptr cant be NULL
   resource->runtime_data = data;
   resource->runtime_data->num_observers = 0;
@@ -563,10 +572,18 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
     return;
   }
 
+  /*
+    build buffer of the separate response: the application writes the whole response body into it (oc_rep_new below)
+    - oc_send_separate_response() sends the first block from it, a body larger than one block is copied into a
+      transfer buffer per separate request, which serves the client's follow-up blocks (Block2 GETs)
+    - freed at the end of oc_send_separate_response(), only reached by its pointer (handle->response_state)
+    - own role OC_BLOCKWISE_SEPARATE_BUILD: no lookup ever finds it, it has the same href, endpoint and method as a
+      transfer buffer and would otherwise be taken for an unfinished earlier transfer (the response was then never sent)
+  */
   handle->response_state = oc_blockwise_alloc_response_buffer(
     oc_string(cur->uri), oc_string_len(cur->uri), 
     &cur->endpoint,
-    cur->method, OC_BLOCKWISE_SERVER);
+    cur->method, OC_BLOCKWISE_SEPARATE_BUILD, CONTENT_NONE);
 
   if (!handle->response_state)
   {
@@ -637,27 +654,35 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
         oc_blockwise_state_t* response_state = NULL;
         if (response_buffer.response_length > current->block2_size)
         {
+          /*
+            transfer buffer of an EARLIER separate response to the same client and resource that is not finished yet
+            - only role OC_BLOCKWISE_SERVER: the build buffer of THIS response (handle->response_state) has its own role
+              and is never found here (see oc_set_separate_response_buffer)
+          */
           response_state = oc_blockwise_find_response_buffer(
             oc_string(current->uri), oc_string_len(current->uri), &current->endpoint,
             current->method, NULL, 0, OC_BLOCKWISE_SERVER);
+
           if (response_state)
           {
             if (response_state->payload_size == response_state->next_block_offset)
             {
               oc_blockwise_free_response_buffer(response_state);
-              response_state = NULL;
             }
             else
             {
+              // an earlier transfer is still served: no response now, the transaction is not used
+              coap_clear_transaction(t);
               goto next_separate_request;
             }
           }
 
           response_state = oc_blockwise_alloc_response_buffer(oc_string(current->uri),
                                                               oc_string_len(current->uri), &current->endpoint, current->method,
-                                                              OC_BLOCKWISE_SERVER);
+                                                              OC_BLOCKWISE_SERVER, response_buffer.content_format);
           if (!response_state)
           {
+            coap_clear_transaction(t);
             goto next_separate_request;
           }
 

@@ -760,6 +760,21 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
+### test_coap_blockwise_server.cpp — Server Side Block-wise Transfer (6 tests)
+
+**Source:** `messaging/coap/engine.c` (`coap_receive()`, Block1/Block2 server path), `api/oc_ri.c` (response buffer); app resource `/p/1` (GET 100 bytes CBOR, POST records the body); linked with `-Wl,--wrap=oc_main_initialized`, `-Wl,--wrap=oc_etimer_restart`, `-Wl,--wrap=coap_send_message`
+
+| Test | What it verifies |
+|------|-----------------|
+| `Block1RequestIsReassembledAndHandledOnce` | POST in two blocks (64 + 36): block 0 -> 2.31 Continue (Block1 num 0), handler not called; block 1 -> handler called once with all 100 bytes, 2.04 with Block1 num 1 |
+| `Block1RepeatedBlockDoesNotDoubleThePayload` | a repeated block 0 (new MID) does not double the body, the handler gets exactly 100 bytes |
+| `Block1GapIsRejectedAndNotHandled` | block 0 then block 2 (gap): not taken, the handler is never called |
+| `Block2FollowUpWithTheSameQueryIsServedFromTheBuffer` | GET `/p/1?x=1`, block size 64: block 0 (M=1, ETag, CBOR); follow-up block 1 with the same query from the buffer: last 36 bytes, M=0, same ETag and Content-Format CBOR, handler called once |
+| `Block2FollowUpCarriesTheHandlersContentFormat` | resource default octet-stream, the GET handler answers CBOR: block 0 and the follow-up block 1 both carry CBOR (the buffer takes the handler's format) |
+| `Block2FollowUpWithoutTheQueryIsNotServedFromTheBuffer` | the response buffer is keyed by the query too: block 1 without the query is not served from it, handler not called again |
+
+---
+
 ### test_coap_engine.cpp — Duplicate Detection + Response Cache (12 tests)
 
 **Source:** `messaging/coap/engine.c`
@@ -1175,7 +1190,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_server_api.cpp — Server API (42 tests)
+### test_oc_server_api.cpp — Server API (43 tests)
 
 **Source:** `api/oc_server_api.c`
 
@@ -1183,7 +1198,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 |-------|-------|----------------|
 | `ServerApiQuery` | 9 | Query value/exists lookups, empty and non-empty iteration, NULL request |
 | `ServerApiResponse` | 9 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, missing-buffer guards |
-| `ServerApiResource` | 24 | Resource allocation failure, add then `oc_delete_resource` (leaves the app list, NULL -> false), separate setup, delayed callbacks, bind/handler/interface/ACL/property and const/null guards |
+| `ServerApiResource` | 25 | Resource allocation failure, new resource defaults to Content-Format CBOR (bind overrides it), add then `oc_delete_resource` (leaves the app list, NULL -> false), separate setup, delayed callbacks, bind/handler/interface/ACL/property and const/null guards |
 
 ---
 
@@ -1211,9 +1226,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_separate.cpp — Separate Responses (7 tests)
+### test_separate.cpp — Separate Responses (8 tests)
 
-**Source:** `messaging/coap/separate.c`
+**Source:** `messaging/coap/separate.c`, `api/oc_server_api.c` (separate response send); linked with `-Wl,--wrap=coap_send_message`, `-Wl,--wrap=oc_main_initialized`
 
 | Test | What it verifies |
 |------|-----------------|
@@ -1224,6 +1239,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `ResumeInitializesResponsePacket` | Resume initialises the response packet |
 | `ResumeWithObserveZeroSetsObserveHeader` | Resume with observe 0 sets the observe header |
 | `ClearRemovesMiddleStore` | Clear removes a middle store |
+| `BlockwiseResponseBufferKeepsTheContentFormat` | A 100-byte separate response with block size 64 is sent (the build buffer is not taken for an earlier transfer); the transfer buffer keeps the rest (offset 64) with Content-Format CBOR |
 
 ---
 

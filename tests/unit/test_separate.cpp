@@ -32,6 +32,9 @@ extern "C" {
 #include "util/oc_list.h"
 #include "util/oc_mmem.h"
 #include "oc_buffer.h"
+#include "oc_api.h"
+#include "oc_blockwise.h"
+#include "messaging/coap/transactions.h"
 }
 
 /*
@@ -45,6 +48,12 @@ extern "C" void __wrap_coap_send_message(oc_message_t *message)
 {
   g_wrap_send_calls++;
   oc_message_unref(message);
+}
+
+/* the stack is not started here: report it initialized, so coap_send_transaction() hands a separate response to the recorder */
+extern "C" bool __wrap_oc_main_initialized(void)
+{
+  return true;
 }
 
 class Separate : public ::testing::Test {
@@ -279,4 +288,51 @@ TEST_F(Separate, ClearRemovesMiddleStore)
   coap_separate_t *s;
   while ((s = (coap_separate_t *)oc_list_head(handle.requests)) != nullptr)
     coap_separate_clear(&handle, s);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * separate response above the block size — buffer of the follow-up blocks
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+  a separate response of 100 bytes to a request with block size 64 keeps the rest in a response buffer;
+  the follow-up blocks served from it carry the same Content-Format as the first block (RFC 7959 2.4): CBOR, not 0
+*/
+TEST_F(Separate, BlockwiseResponseBufferKeepsTheContentFormat)
+{
+  oc_separate_response_t handle;
+  memset(&handle, 0, sizeof(handle));
+  OC_LIST_STRUCT_INIT(&handle, requests);
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+
+  const uint8_t token[2] = {0x31, 0x32};
+  coap_packet_t req;
+  make_req(&req, COAP_TYPE_NON, token, sizeof(token), "p/1", COAP_GET);
+  ASSERT_EQ(coap_separate_accept(&req, &handle, &ep, OC_OBSERVE_NOT_APPLICABLE, 64), 1);
+
+  /* the build buffer the application writes the response into: 100 bytes of payload */
+  oc_set_separate_response_buffer(&handle);
+  ASSERT_NE(handle.response_state, nullptr);
+  for (int i = 0; i < 100; i++) {
+    handle.response_state->buffer[i] = (uint8_t)i;
+  }
+  handle.response_state->payload_size = 100;
+
+  oc_send_separate_response(&handle, OC_STATUS_OK);
+
+  /* the first block is sent (the build buffer used to be taken for a running transfer, nothing was sent) */
+  EXPECT_EQ(g_wrap_send_calls, 1);
+
+  /* the build buffer is freed, the transfer buffer for the follow-up blocks stays */
+  oc_blockwise_state_t *rest = oc_blockwise_find_response_buffer("p/1", 3, &ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER);
+  ASSERT_NE(rest, nullptr);
+  EXPECT_EQ(rest->payload_size, 100u);
+  EXPECT_EQ(rest->next_block_offset, 64u);
+  EXPECT_EQ(rest->return_content_type, APPLICATION_CBOR);
+
+  oc_blockwise_free_response_buffer(rest);
+  coap_free_all_transactions();
 }

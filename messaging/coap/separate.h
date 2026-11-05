@@ -20,7 +20,6 @@ typedef struct coap_separate
 {
   struct coap_separate *next;
   coap_message_type_t type;
-  uint8_t token_len;
   uint8_t token[COAP_TOKEN_LEN];
   uint16_t block2_size;
   uint32_t observe;           /* RFC 7641: CoAP Observe option value (0..2^24-1)
@@ -31,6 +30,17 @@ typedef struct coap_separate
   oc_endpoint_t endpoint;
   coap_method_t method;
   oc_string_t uri;
+                              /*
+                                the query of the request is NOT stored
+                                - a separate response larger than one block keeps the rest in a block-wise response buffer without a query
+                                - a client that repeats the query in its follow-up GET (RFC 7959) would then not find that buffer
+                                - today no separate response user needs it
+                                  - SPAKE has no query 
+                                  - /a/swu (query po/ps/pkgs) answers 2.04 without  payload -> no response buffer
+                                -> store the query here (and in the response buffer) once a separate response with a large payload 
+                                   WILL answer a request with a query
+                              */
+  uint8_t token_len;
 } coap_separate_t;
 
 int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc_endpoint_t* endpoint, uint32_t observe, uint16_t block2_size);
