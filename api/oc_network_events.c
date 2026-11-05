@@ -47,18 +47,30 @@ static void oc_process_network_event(void)
     message = (oc_message_t*)oc_list_pop(network_events);
   }
 
-  if (interface_event_pending)
+  /*
+    an interface event stays pending until it is queued (as the etimer does for its timer event)
+    - OC_PROCESS_ERR_FULL: the flag is kept and the process polled again, the next run tries once more
+  */
+  if (interface_up)
   {
-    if (interface_event == NETWORK_INTERFACE_UP)
-    {
-      oc_process_post(&oc_network_events, oc_events[INTERFACE_UP], NULL);
-    }
-    else
-    {
-      oc_process_post(&oc_network_events, oc_events[INTERFACE_DOWN], NULL);
-    }
-
-    interface_event_pending = false;
+    interface_up = oc_process_post(&oc_network_events, oc_events[INTERFACE_UP], NULL) != OC_PROCESS_ERR_OK;
+  }
+  if (interface_down)
+  {
+    interface_down = oc_process_post(&oc_network_events, oc_events[INTERFACE_DOWN], NULL) != OC_PROCESS_ERR_OK;
+  }
+  /*
+    still pending (post rejected) -> poll the own process again
+    
+    - this poll handler only runs when the process is polled, normally by the network thread (next packet / interface change)
+    - without own poll below the pending event would wait for the next network activity, maybe forever
+    
+    -> the next oc_process_run() calls this handler again and retries the post, once a queue slot is free it is queued
+       and the flag is reset (no further poll)
+  */
+  if (interface_up || interface_down)
+  {
+    oc_process_poll(&oc_network_events);
   }
   oc_network_event_handler_mutex_unlock();
 }

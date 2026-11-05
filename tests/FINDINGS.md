@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-065.
+removed entry. The next number is F-066.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -333,10 +333,23 @@ removed entry. The next number is F-065.
 - **Expected:** `oc_new_resource()` binds application/cbor as the default (`content_type[0] = APPLICATION_CBOR`, `[1] = CONTENT_NONE`); an application overrides it with `oc_resource_bind_content_type()`.
 - **Fix:** `oc_new_resource()` sets `content_type[0] = APPLICATION_CBOR`, `content_type[1] = CONTENT_NONE` (spec 2.2.4); `oc_resource_bind_content_type()` still overrides it. Test: `test_oc_server_api`, `ServerApiResource.NewResourceDefaultsToCborContentFormat` (default CBOR, override with octet-stream).
 
-## F-064: an OSCORE message that cannot be queued for sending is never released - OPEN
+## ~~F-064: an OSCORE message that cannot be queued for sending is never released~~ - FIXED
 
 - **Files:** `security/oc_oscore_engine.c`, `oc_oscore_send_multicast_message()` and `oc_oscore_send_unicast_message()`: `oc_process_post(&message_buffer_handler, OUTBOUND_NETWORK_EVENT_ENCRYPTED, outgoing_msg) == OC_PROCESS_ERR_FULL`.
 - **Severity:** Low - each rejected post loses one message buffer for good; under an event flood the message pool runs dry.
 - **Description:** on `OC_PROCESS_ERR_FULL` both send paths only log "could not send message" and keep `outgoing_msg` (the message encrypted in place, or its clone for a shared CON message). The other callers (`oc_receive_message()`, `oc_send_message()`, the OSCORE inbound hand-over to the CoAP engine) release their message on `ERR_FULL`. Hidden until F-050: `oc_process_post()` never returned `ERR_FULL` before.
 - **Evidence:** `test_oc_oscore_echo_tx`, `OscoreEngine.OutboundMulticastWithFullQueueReleasesTheMessage` and `OscoreEngine.OutboundUnicastWithFullQueueReleasesTheMessage` (queue filled to `OC_PROCESS_MAX_EVENTS`, engine run with `oc_process_post_synch()`): no `oc_message_unref()` of the message.
 - **Expected:** release `outgoing_msg` with `oc_message_unref()` in both `ERR_FULL` branches.
+- **Fix:** both send paths hand `outgoing_msg` to `oc_message_post()` (F-065), which releases it on `ERR_FULL` (in place: the only reference; shared: the clone, the original stays with its transaction); the message is not used after the post. Tests: `test_oc_oscore_echo_tx`, `OscoreEngine.OutboundMulticastWithFullQueueReleasesTheMessage`, `OscoreEngine.OutboundUnicastWithFullQueueReleasesTheMessage` (the message is handed to `oc_message_post` and rejected there), `OscoreEngine.InboundRequestWithFullQueueReleasesTheMessage` (the inbound hand-over to the CoAP engine).
+
+## ~~F-065: the message routing process leaks a message, and an interface event is lost, when the event queue is full~~ - FIXED
+
+- **Files:** `api/oc_buffer.c`, `message_buffer_handler` (forwards to the OSCORE layer and the CoAP engine: inbound OSCORE / plain, outbound OSCORE multicast / unicast); `api/oc_network_events.c`, `oc_process_network_event()` (`INTERFACE_UP` / `INTERFACE_DOWN`).
+- **Severity:** Low - each rejected forward loses one message buffer for good (every plain and OSCORE message passes this handler); a rejected interface event is never handled (e.g. endpoints not refreshed after an address change).
+- **Description:**
+  - `message_buffer_handler` takes over the reference of the message from the queue and posts it on; the return value of these 4 `oc_process_post()` calls is ignored, so on `OC_PROCESS_ERR_FULL` nobody holds the message any more. Same pattern as F-064 in the OSCORE engine; hidden until F-050.
+  - `oc_process_network_event()` resets `interface_up` / `interface_down` even when the post was rejected, so the event is dropped.
+  - the release of a message on `ERR_FULL` was written by hand at every caller (5 places) and missing at 6 (4 here, 2 in F-064).
+- **Evidence:** tests below.
+- **Expected:** one place releases a message whose post is rejected (all message posts go through it); an interface event stays pending and is posted again (as the etimer does for its timer event).
+- **Fix:** new `oc_message_post()` (`oc_buffer.c/.h`): posts a message and releases it on `OC_PROCESS_ERR_FULL`; all 9 message posts use it (`oc_receive_message`, `oc_send_message`, the 4 routes of `message_buffer_handler`, the 3 OSCORE posts), the hand-written `ERR_FULL` branches are gone; the caller does not use the message after the call. `oc_process_network_event()` resets `interface_up` / `interface_down` only when the post was accepted and polls its own process while one is pending, so the next run retries. Tests: `test_oc_buffer`, `BufferProcess.RouteInboundPlainWithFullQueueReleasesTheMessage`, `...RouteInboundOscoreWithFullQueueReleasesTheMessage`, `...RouteOutboundOscoreMulticastWithFullQueueReleasesTheMessage`, `...RouteOutboundOscoreUnicastWithFullQueueReleasesTheMessage`; `test_oc_network_events`, `NetworkEvents.InterfaceEventWithFullQueueStaysPendingAndIsDispatchedLater`.

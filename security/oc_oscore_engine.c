@@ -1092,11 +1092,7 @@ static void oc_oscore_receive_message(oc_message_t* msg)
   PRINTipaddr_flags(msg->endpoint);
 
   // dispatch the (received and decrypted) message to the CoAP layer
-  if (oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], msg) == OC_PROCESS_ERR_FULL)
-  {
-    // error is > 0 ...
-    oc_message_unref(msg);
-  }
+  (void)oc_message_post(&coap_engine, oc_events[INBOUND_RI_EVENT], msg);
 
   OC_DBG("####### OSCORE END #######");
 }
@@ -1321,10 +1317,8 @@ static void oc_oscore_send_multicast_message(oc_message_t* msg)
   // from here on any message is encrypted ...
   UNSET_BIT(outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
 
-  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
-  {
-    OC_ERR("could not send message");
-  }
+  // not queued: released by oc_message_post (in place: the only reference; shared: the clone, the original stays with its transaction)
+  (void)oc_message_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg);
 }
 #endif
 
@@ -1869,10 +1863,8 @@ static void oc_oscore_send_unicast_message(oc_message_t* msg)
 
     #ifdef OC_CLIENT
 
-    if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg) == OC_PROCESS_ERR_FULL)
-    {
-      OC_ERR("could not send message");
-    }
+    // not queued: released by oc_message_post (in place: the only reference; shared: the clone, the original stays with its transaction)
+    (void)oc_message_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], outgoing_msg);
 
     #endif
   }

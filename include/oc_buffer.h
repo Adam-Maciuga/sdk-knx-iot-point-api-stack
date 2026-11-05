@@ -43,6 +43,20 @@ void oc_message_add_ref(oc_message_t *message);
 void oc_message_unref(oc_message_t *message);
 
 /**
+ * @brief post a message to a process, the reference of the caller goes to the queue
+ *
+ * One place for the release of a message that cannot be queued: on OC_PROCESS_ERR_FULL
+ * (queue full or after shutdown) nobody else takes the reference, it is released here.
+ * The caller must not use the message after the call, whatever the result.
+ *
+ * @param p the receiving process
+ * @param ev the event
+ * @param message the message (its reference of the caller is handed over)
+ * @return OC_PROCESS_ERR_OK (queued) or OC_PROCESS_ERR_FULL (released)
+ */
+int oc_message_post(struct oc_process *p, oc_process_event_t ev, oc_message_t *message);
+
+/**
  * @brief receive (CoAP) message
  *
  * @param message the received message

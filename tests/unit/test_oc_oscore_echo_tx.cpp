@@ -68,21 +68,28 @@ extern "C" void __wrap_coap_send_message(oc_message_t* message)
   oc_message_unref(message);
 }
 
-/* every message the code under test releases (oc_message_unref is wrapped and passed through) */
-static std::vector<const oc_message_t*> g_unrefs;
+/*
+  every message whose post the real oc_message_post() rejected (OC_PROCESS_ERR_FULL) and therefore released
+  (oc_message_post is wrapped and passed through; its release itself is checked in test_oc_buffer)
+*/
+static std::vector<const oc_message_t*> g_rejected_posts;
 
-extern "C" void __real_oc_message_unref(oc_message_t* message);
+extern "C" int __real_oc_message_post(struct oc_process* p, oc_process_event_t ev, oc_message_t* message);
 
-extern "C" void __wrap_oc_message_unref(oc_message_t* message)
+extern "C" int __wrap_oc_message_post(struct oc_process* p, oc_process_event_t ev, oc_message_t* message)
 {
-  g_unrefs.push_back(message);
-  __real_oc_message_unref(message);
+  const int ret = __real_oc_message_post(p, ev, message);
+  if (ret == OC_PROCESS_ERR_FULL)
+  {
+    g_rejected_posts.push_back(message); /* pointer only, the message is released */
+  }
+  return ret;
 }
 
-static int unrefs_of(const oc_message_t* message)
+static int rejected_posts_of(const oc_message_t* message)
 {
   int n = 0;
-  for (const oc_message_t* m : g_unrefs)
+  for (const oc_message_t* m : g_rejected_posts)
   {
     n += (m == message) ? 1 : 0;
   }
@@ -884,7 +891,7 @@ protected:
     g_last_network_flags = (transport_flags_t)0;
     g_last_network_message = nullptr;
     g_fail_next_encrypt = false;
-    g_unrefs.clear();
+    g_rejected_posts.clear();
 
     memset(&at_, 0, sizeof(at_));
     const uint8_t master_secret[OSCORE_MASTER_SECRET_LEN] = {
@@ -1476,7 +1483,7 @@ TEST_F(OscoreEngine, InboundRequestWithFullQueueReleasesTheMessage)
   oc_message_unref(message);
 }
 
-/* outbound multicast request (not shared, encrypted in place), the hand-over for sending is rejected: the message is released */
+/* outbound multicast request (not shared, encrypted in place), the hand-over for sending is rejected: the message is released (oc_message_post) */
 TEST_F(OscoreEngine, OutboundMulticastWithFullQueueReleasesTheMessage)
 {
   oc_message_t* message = make_outbound_request(COAP_TYPE_NON, (transport_flags_t)(OSCORE | MULTICAST | S_MODE_NON_REQUEST));
@@ -1487,10 +1494,10 @@ TEST_F(OscoreEngine, OutboundMulticastWithFullQueueReleasesTheMessage)
   oc_process_post_synch(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], message);
 
   EXPECT_EQ(g_network_send_calls, 0);
-  EXPECT_EQ(unrefs_of(message), 1);
+  EXPECT_EQ(rejected_posts_of(message), 1); /* handed to oc_message_post, rejected and released there */
 }
 
-/* outbound unicast response (not shared, encrypted in place), the hand-over for sending is rejected: the message is released */
+/* outbound unicast response (not shared, encrypted in place), the hand-over for sending is rejected: the message is released (oc_message_post) */
 TEST_F(OscoreEngine, OutboundUnicastWithFullQueueReleasesTheMessage)
 {
   oc_message_t* message = make_outbound_response();
@@ -1501,5 +1508,5 @@ TEST_F(OscoreEngine, OutboundUnicastWithFullQueueReleasesTheMessage)
   oc_process_post_synch(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message);
 
   EXPECT_EQ(g_network_send_calls, 0);
-  EXPECT_EQ(unrefs_of(message), 1);
+  EXPECT_EQ(rejected_posts_of(message), 1); /* handed to oc_message_post, rejected and released there */
 }

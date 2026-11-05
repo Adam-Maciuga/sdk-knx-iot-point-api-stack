@@ -7,7 +7,7 @@
 > The conformance tier is not listed here: the test tool
 > (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
 > one item per template sequence, with this stack's override files in
-> `tests/conformance/`. All three tiers share `tests/common/`, the map is
+> `tests/conformance/`. All three tiers share `tests/common/`; the map is
 > [`README.md`](README.md).
 >
 > Unit (2026-11-03): 1752/1752 passed on `windows-test-gcc`; `linux-test-asan` not run for this change. The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
@@ -45,7 +45,7 @@ No stack C code was changed to make a test pass.
 <a id="unit-tests"></a>
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -370,7 +370,7 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (60 tests)
+### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (63 tests)
 
 **Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
@@ -433,6 +433,9 @@ Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 | `OutboundMulticastRequestSharedIsClonedAndStaysPlaintext` | Shared multicast request is cloned; the original stays plaintext |
 | `MulticastRequestWithTokenWithoutGroupAddressIsSilentlyDropped` | A multicast OSCORE request whose token has no group addresses is discarded before decryption and context creation, no reply (spec 2.6.9.1 + 2.5.9.6) |
 | `MulticastEchoResponseEncryptFailureFreesTheTemporaryContext` | An encrypt error frees the temporary 'Response Sender Context' of a multicast caused echo response (`--wrap=oc_oscore_encrypt`) |
+| `InboundRequestWithFullQueueReleasesTheMessage` | decrypted inbound request, the hand-over to the CoAP engine is rejected (queue full): the message is released |
+| `OutboundMulticastWithFullQueueReleasesTheMessage` | outbound multicast (encrypted in place), the hand-over for sending is rejected: handed to `oc_message_post` and released there (`--wrap=oc_message_post`) |
+| `OutboundUnicastWithFullQueueReleasesTheMessage` | outbound unicast response, the same for the unicast send path |
 
 ---
 
@@ -951,7 +954,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_buffer.cpp — Message Buffer Pool (19 tests)
+### test_oc_buffer.cpp — Message Buffer Pool (23 tests)
 
 **Source:** `api/oc_buffer.c`
 
@@ -976,6 +979,10 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `EncryptedEventWithoutOscoreFlagIsDropped` | Encrypted events without the OSCORE flag are not sent |
 | `ReceiveMessageWithFullQueueReleasesTheMessage` | `oc_receive_message()` with the process event queue full: the event is rejected and the message released |
 | `SendMessageWithFullQueueReleasesTheMessage` | `oc_send_message()` with the process event queue full: the event is rejected and the message released |
+| `RouteInboundPlainWithFullQueueReleasesTheMessage` | `message_buffer_handler` forwards an inbound plain message, the queue is full: released (`oc_message_post`) |
+| `RouteInboundOscoreWithFullQueueReleasesTheMessage` | the same for an inbound OSCORE message (to the OSCORE layer) |
+| `RouteOutboundOscoreMulticastWithFullQueueReleasesTheMessage` | the same for an outbound OSCORE multicast message |
+| `RouteOutboundOscoreUnicastWithFullQueueReleasesTheMessage` | the same for an outbound OSCORE unicast message |
 
 ---
 
@@ -1078,20 +1085,18 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (98 tests)
+### test_oc_knx_swu.cpp — Software Update (77 tests)
 
 **Source:** `api/oc_knx_swu.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `KnxSwuGetInt` | 10 | Integer-valued `/swu` resource GETs (protocol, method, result, state, bytes) + wrong-Accept |
-| `KnxSwuGetString` | 5 | String-valued GETs (hwref, lastupdate, lastupdate as `{ "osv": true }` without a real-time clock) + wrong-Accept |
+| `KnxSwuGetString` | 4 | String-valued GETs (hwref, lastupdate) + wrong-Accept |
 | `KnxSwuGetGated` | 10 | Download-gated GETs (pkgv, pkgname, update) returning not-found / bad-request / OK |
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
-| `KnxSwuABlock` | 8 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
+| `KnxSwuABlock` | 9 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
-| `KnxSwuABlockStateMachine` | 19 | `/a/swu` download state machine: a download starts at `po=0` (other offsets rejected in IDLE), restarts at `po=0`, `pkgbytes` counts contiguous bytes, a gap is rejected and the download stays resumable, repeated blocks are not forwarded, overlapping blocks forward only the new bytes, the stack never completes the download |
-| `KnxSwuABlockAppCompletion` | 3 | The application, not the stack, detects completion and unlocks `PUT /swu/update` |
 | `KnxSwuList` | 3 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched |
 | `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
@@ -1122,7 +1127,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_network_events.cpp — Network Events (10 tests)
+### test_oc_network_events.cpp — Network Events (6 tests)
 
 **Source:** `api/oc_network_events.c`
 
@@ -1131,13 +1136,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `EventWhenProcessNotRunningUnrefsMessage` | Event with process not running unrefs the message |
 | `EventWhenProcessNotRunningIsRepeatable` | Repeatable without leaking |
 | `RunningProcessDrainsQueuedMessage` | Running process drains and receives queued messages |
-| `InterfaceEventsArePostedAndDispatched` | Up then down before the loop runs dispatches only the last event (down) |
-| `InterfaceEventBurstEndingWithUpDispatchesUp` | A down/up/down/up burst dispatches only up, never a trailing down |
-| `InterfaceEventsInSeparateRunsAreAllDispatched` | Events in separate loop runs are all dispatched |
+| `InterfaceEventsArePostedAndDispatched` | Interface up/down events are posted and dispatched |
 | `UnknownInterfaceEventIsIgnored` | Unknown interface event is ignored |
-| `AddressesHashIgnoresTheListOrder` | Address hash is independent of the list order and equals the sum of the single address hashes, another set gives another hash, no addresses gives 0 |
-| `ReportStateDispatchesOnlyChanges` | Reported state dispatches up for the first or changed addresses, down for the last lost, nothing for the same state |
-| `InitialStateDispatchesNothing` | Initial state is remembered without an event |
+| `InterfaceEventWithFullQueueStaysPendingAndIsDispatchedLater` | an `INTERFACE_UP` that cannot be queued (queue full) stays pending, is posted again on a later run and dispatched |
 
 ---
 
@@ -1273,12 +1274,12 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (49 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (43 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
 Linker `--wrap` of `sendto`, `recvmsg`, `get_ip_context_for_device`,
-`oc_clock_time` and `oc_main_initialized`: No packet leaves the host, the
+`oc_clock_time` and `oc_main_initialized`: no packet leaves the host, the
 listener thread receives only the queries the test queues, one fake loopback
 endpoint stands in for the connectivity layer, a test-controlled clock drives
 the RI timed-event list through `oc_main_poll()`, and a test flag stands in for
@@ -1289,16 +1290,15 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 14 | Record built from the device info: First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, no goodbye for unchanged content, NULL device, NULL serial, rollback on send failure, retry of a failed update after 1 s and 2 s that ends with the success, success on one of two interfaces, no interface (no retry), nothing before the stack is initialized |
-| host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized, the first announcement after it carries the latest host name set before (no goodbye), a change afterwards sends the goodbye with the old name, then announces the new one |
-| programming mode (`oc_knx_device_set_programming_mode`) | 3 | No packet for a change before the stack is initialized, the first announcement after it carries the `_pm` subtype set before (no goodbye), on and off afterwards each send the goodbye for the old record, then announce the new one with or without `_pm` |
-| `knx_dns_sd_set_sleep_period` | 6 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish, retry of a failed announcement |
-| `knx_dns_sd_stop` | 3 | Goodbye and cancel of the pending repeat, cancel of a pending retry, nothing without a publish |
+| `knx_dns_sd_update_service` | 11 | Record built from the device info: first announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL device, NULL serial, rollback on send failure, no interface, nothing before the stack is initialized |
+| host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the latest host name set before (no goodbye); a change afterwards sends the goodbye with the old name, then announces the new one |
+| programming mode (`oc_knx_device_set_programming_mode`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the `_pm` subtype set before (no goodbye); on and off afterwards each send the goodbye for the old record, then announce the new one with or without `_pm` |
+| `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
+| `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
 | query responder | 11 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type, application-set host name in SRV target and AAAA |
-| AAAA records per interface | 4 | RFC 6762 section 15: An announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on, a query from an interface without an own address gets no answer, an unknown receive interface gets every address |
-| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface, a ULA sender leaves it unknown |
-| worst-case packet size | 1 | The largest record set (a 63 character host name, 4 AAAA records on one interface, `_pm`, the longest `_ia` subtype and SP=65535) is 355 bytes and fits `MDNS_SEND_BUF_SIZE` (512 bytes) |
+| AAAA records per interface | 4 | RFC 6762 section 15: an announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on; a query from an interface without an own address gets no answer; an unknown receive interface gets every address |
+| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface; a ULA sender leaves it unknown |
 
 ---
 

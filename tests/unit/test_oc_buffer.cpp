@@ -417,3 +417,47 @@ TEST_F(BufferProcess, SendMessageWithFullQueueReleasesTheMessage)
   EXPECT_EQ(oc_process_nevents(), OC_PROCESS_MAX_EVENTS);
   oc_message_unref(message);
 }
+
+/*
+  message_buffer_handler forwards a message to the next process; with the queue full that forward is rejected and the
+  message released (one place: oc_message_post). The handler is run directly (oc_process_post_synch), its own post then
+  hits the full queue; an extra test reference keeps the message alive to check the count (2 -> 1).
+*/
+static void route_with_full_queue(oc_process_event_t ev, oc_message_t *message)
+{
+  oc_message_add_ref(message);
+  fill_process_queue();
+  oc_process_post_synch(&message_buffer_handler, ev, message);
+  EXPECT_EQ(message->ref_count, 1U);
+  oc_message_unref(message);
+}
+
+TEST_F(BufferProcess, RouteInboundPlainWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, false);
+  ASSERT_NE(message, nullptr);
+  route_with_full_queue(oc_events[INBOUND_NETWORK_EVENT], message);
+}
+
+TEST_F(BufferProcess, RouteInboundOscoreWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, true);
+  ASSERT_NE(message, nullptr);
+  route_with_full_queue(oc_events[INBOUND_NETWORK_EVENT], message);
+}
+
+TEST_F(BufferProcess, RouteOutboundOscoreMulticastWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, false);
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = (transport_flags_t)(OSCORE | MULTICAST);
+  route_with_full_queue(oc_events[OUTBOUND_NETWORK_EVENT], message);
+}
+
+TEST_F(BufferProcess, RouteOutboundOscoreUnicastWithFullQueueReleasesTheMessage)
+{
+  oc_message_t *message = make_message(8, false);
+  ASSERT_NE(message, nullptr);
+  message->endpoint.flags = OSCORE;
+  route_with_full_queue(oc_events[OUTBOUND_NETWORK_EVENT], message);
+}

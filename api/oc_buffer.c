@@ -84,23 +84,31 @@ void oc_message_unref(oc_message_t* message)
   }
 }
 
-void oc_receive_message(oc_message_t* message) 
+/*
+  posts a message to a process, the reference of the caller goes to the queue
+  - OC_PROCESS_ERR_FULL (queue full or after shutdown): nobody else takes this reference -> released here
+  -> one place for the release, every message post goes through it, no caller can forget it
+*/
+int oc_message_post(struct oc_process* p, oc_process_event_t ev, oc_message_t* message)
 {
-  if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
+  const int ret = oc_process_post(p, ev, message);
+  if (ret == OC_PROCESS_ERR_FULL)
   {
-    OC_ERR("oc_receive_message ref_count decrease due to FULL");
+    OC_ERR("process event queue full, message dropped");
     oc_message_unref(message);
   }
+  return ret;
+}
+
+void oc_receive_message(oc_message_t* message) 
+{
+  (void)oc_message_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT], message);
 }
 
 void oc_send_message(oc_message_t* message) 
 {
   // forward message (any type such as plain/ secured, CON/NON request, ... )
-	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
-  {
-		OC_ERR("oc_send_message ref_count decrease due to FULL");
-    oc_message_unref(message);
-	}
+  (void)oc_message_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message);
 
   _oc_signal_event_loop();
 }
@@ -121,12 +129,12 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         {
           // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE layer
           OC_DBG("Inbound OSCORE message, forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
+          (void)oc_message_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], message);
         }
         else
         {
           OC_DBG("Inbound plain message, forwarding to CoAP layer");
-          oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
+          (void)oc_message_post(&coap_engine, oc_events[INBOUND_RI_EVENT], message);
         }
       }
       else if (ev == oc_events[OUTBOUND_NETWORK_EVENT])
@@ -140,13 +148,13 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
           {
             // multicast
             OC_DBG("Outbound plain multicast message, forwarding to OSCORE layer");
-            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
+            (void)oc_message_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], message);
           }
           else
           {
             // unicast
             OC_DBG("Outbound plain unicast message, forwarding to OSCORE layer");
-            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
+            (void)oc_message_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message);
           }
         }
         else if (message->endpoint.flags & DISCOVERY)
