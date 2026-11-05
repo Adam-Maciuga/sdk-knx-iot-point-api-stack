@@ -490,38 +490,40 @@ size_t oc_char_println_hex(const char* str, size_t str_len)
 
 int oc_string_copy(oc_string_t* string1, oc_string_t string2)
 {
-  oc_free_string(string1);
-  oc_new_string(string1, oc_string(string2), oc_string_len(string2));
-  return 0;
+  return oc_string_copy_from_char_with_size(string1, oc_string(string2), oc_string_len(string2));
 }
 
 int oc_byte_string_copy(oc_string_t* string1, oc_string_t string2)
 {
-  oc_free_string(string1);
-  oc_new_byte_string(string1, oc_string(string2), oc_byte_string_len(string2));
-  return 0;
+  return oc_byte_string_copy_from_char_with_size(string1, oc_string(string2), oc_byte_string_len(string2));
 }
 
 int oc_string_copy_from_char(oc_string_t* string1, const char* string2)
 {
-  oc_free_string(string1);
-  oc_new_string(string1, string2, strlen(string2));
+  return oc_string_copy_from_char_with_size(string1, string2, strlen(string2));
+}
+
+/*
+  The new value is copied into 'tmp' first, the old value of string1 is freed after it.
+  - string2 may point into string1, e.g. oc_string_copy(&s, s) or a setter called with its own current value
+  -> a free before the copy would make the copy read freed memory
+*/
+int oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2, size_t string2_len)
+{
+  oc_string_t tmp = { 0 };                    // tmp
+  oc_new_string(&tmp, string2, string2_len);  // tmp = s2
+  oc_free_string(string1);                    // clr s1
+  *string1 = tmp;                             // s1 = tmp
   return 0;
 }
 
-int oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2,
-                                       size_t string2_len)
+// same as oc_string_copy_from_char_with_size, but for byte strings
+int oc_byte_string_copy_from_char_with_size(oc_string_t* string1, const char* string2, size_t string2_len)
 {
+  oc_string_t tmp = { 0 };
+  oc_new_byte_string(&tmp, string2, string2_len);
   oc_free_string(string1);
-  oc_new_string(string1, string2, string2_len);
-  return 0;
-}
-
-int oc_byte_string_copy_from_char_with_size(oc_string_t* string1,
-                                            const char* string2, size_t string2_len)
-{
-  oc_free_string(string1);
-  oc_new_byte_string(string1, string2, string2_len);
+  *string1 = tmp;
   return 0;
 }
 

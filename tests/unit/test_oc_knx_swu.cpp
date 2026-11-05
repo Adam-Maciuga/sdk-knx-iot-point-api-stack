@@ -70,6 +70,39 @@ extern const oc_resource_t core_resource_knx_swu_pkgcmd; // /a/swu
 extern const oc_resource_t core_resource_knx_swu_pkgbytes;
 extern const oc_resource_t core_resource_knx_swu_pkgnames;
 extern const oc_resource_t core_resource_knx_swu; // /swu list
+
+/*
+  linked with -Wl,--wrap=malloc,--wrap=free (CMakeLists.txt), both pass through unless a test arms them
+  - capture: the first malloc after arming is recorded -> the buffer a setter allocates for its string (swu_device is file-static)
+  - poison: the first byte of ONE armed block is overwritten with 'X' when it is freed -> a read after free is visible
+*/
+void* __real_malloc(size_t size);
+void __real_free(void* ptr);
+
+static bool g_capture_next_malloc = false;
+static void* g_captured_malloc = NULL;
+static void* g_poison_on_free = NULL;
+
+void* __wrap_malloc(size_t size)
+{
+  void* ptr = __real_malloc(size);
+  if (g_capture_next_malloc)
+  {
+    g_capture_next_malloc = false;
+    g_captured_malloc = ptr;
+  }
+  return ptr;
+}
+
+void __wrap_free(void* ptr)
+{
+  if (ptr != NULL && ptr == g_poison_on_free)
+  {
+    ((char*)ptr)[0] = 'X';
+    g_poison_on_free = NULL;
+  }
+  __real_free(ptr);
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +491,63 @@ TEST_F(KnxSwuGetGated, PkgNameWrongAccept)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_pkgnames, ctx, APPLICATION_JSON);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+// ===========================================================================
+// string setters called with their OWN current value (pointer into swu_device)
+// ===========================================================================
+class KnxSwuSetOwnValue : public KnxSwuBase {
+protected:
+  void TearDown() override
+  {
+    g_capture_next_malloc = false;
+    g_captured_malloc = NULL;
+    g_poison_on_free = NULL;
+    KnxSwuBase::TearDown();
+  }
+};
+
+/*
+  the package name set again with its own buffer keeps the value
+  - the old buffer is poisoned on free -> a setter that frees before copying returns "Xirmware.bin"
+  - the old buffer is still freed (no leak)
+*/
+TEST_F(KnxSwuSetOwnValue, PackageNameSetWithItsOwnValueKeepsIt)
+{
+  g_capture_next_malloc = true;
+  oc_swu_set_package_name("firmware.bin");
+  const char* own = (const char*)g_captured_malloc;
+  ASSERT_NE(own, nullptr);
+  ASSERT_STREQ(own, "firmware.bin");
+
+  g_poison_on_free = (void*)own;
+  oc_swu_set_package_name(own);
+  EXPECT_EQ(g_poison_on_free, nullptr);
+
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADED);
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_pkgnames, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "firmware.bin"));
+}
+
+// the last update time set again with its own buffer keeps the value (same poisoning as above)
+TEST_F(KnxSwuSetOwnValue, LastUpdateSetWithItsOwnValueKeepsIt)
+{
+  g_capture_next_malloc = true;
+  oc_swu_set_last_update("2025-01-01T00:00:00Z");
+  const char* own = (const char*)g_captured_malloc;
+  ASSERT_NE(own, nullptr);
+  ASSERT_STREQ(own, "2025-01-01T00:00:00Z");
+
+  g_poison_on_free = (void*)own;
+  oc_swu_set_last_update(own);
+  EXPECT_EQ(g_poison_on_free, nullptr);
+
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "2025-01-01T00:00:00Z"));
 }
 
 TEST_F(KnxSwuGetGated, UpdateGetIdleBadRequest)

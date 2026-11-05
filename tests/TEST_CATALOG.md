@@ -154,9 +154,9 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_helpers_alloc_fail.cpp — Allocation Failure in the String Layer (6 tests)
+### test_oc_helpers_alloc_fail.cpp — Allocation Failure in the String Layer (8 tests)
 
-**Source:** `util/oc_mmem.c`, `api/oc_helpers.c`; linked with `-Wl,--wrap=malloc`, `__wrap_malloc()` fails the next call once a test arms it
+**Source:** `util/oc_mmem.c`, `api/oc_helpers.c`; linked with `-Wl,--wrap=malloc`, `__wrap_malloc()` fails the next call once a test arms it, and `-Wl,--wrap=free`, `__wrap_free()` overwrites the first byte of one armed block with 'X' before it is released
 
 | Test | What it verifies |
 |------|-----------------|
@@ -166,6 +166,8 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `ConcatStringsLeavesAnEmptyString` | same for `oc_concat_strings()` |
 | `NewStringArrayLeavesAnEmptyArray` | `oc_new_string_array()` on a failed `malloc` leaves ptr NULL, size 0 |
 | `NotArmedAllocationWorks` | without arming, the wrap passes the call to the real `malloc` |
+| `StringCopyOfItselfKeepsTheValue` | `oc_string_copy(&s, s)` and `oc_string_copy_from_char(&s, oc_string(s))` keep "abc": the copy is made before the old (poisoned) block is freed, and the old block is still freed |
+| `ByteStringCopyOfItselfKeepsTheValue` | same for `oc_byte_string_copy(&s, s)` |
 
 ---
 
@@ -1085,9 +1087,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (77 tests)
+### test_oc_knx_swu.cpp — Software Update (96 tests)
 
-**Source:** `api/oc_knx_swu.c`
+**Source:** `api/oc_knx_swu.c`; linked with `-Wl,--wrap=malloc` and `-Wl,--wrap=free` (pass through unless armed: capture a setter's string buffer, poison a block on free)
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
@@ -1095,10 +1097,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxSwuGetString` | 4 | String-valued GETs (hwref, lastupdate) + wrong-Accept |
 | `KnxSwuGetGated` | 10 | Download-gated GETs (pkgv, pkgname, update) returning not-found / bad-request / OK |
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
-| `KnxSwuABlock` | 9 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
+| `KnxSwuABlock` | 8 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
 | `KnxSwuList` | 3 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched |
+| `KnxSwuABlockStateMachine` | 15 | Download state machine on `/a/swu`: the first block starts a download and clears stale metadata, an empty payload does not; received bytes accumulate and are reported only while downloading; offset 0 or a missing offset restarts an interrupted or finished download; a continuation block outside DOWNLOADING is rejected; the stack never moves to DOWNLOADED itself; restart after a failed update; update refused while updating |
+| `KnxSwuABlockAppCompletion` | 3 | The application completes the download with its own counter; the stack counter matches it; update rejected until the application completes |
 | `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |
+| `KnxSwuSetOwnValue` | 2 | `oc_swu_set_package_name()` / `oc_swu_set_last_update()` called with their own current buffer keep the value (the old, poisoned buffer is freed after the copy) |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
 
 ---

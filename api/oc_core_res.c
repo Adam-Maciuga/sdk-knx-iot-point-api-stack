@@ -161,9 +161,8 @@ int oc_core_set_device_hostname(const char* host_name)
     knx_dns_sd_stop();
   }
 
-  // (b)
-  oc_free_string(&oc_device_info.iot_hostname);
-  oc_new_string(&oc_device_info.iot_hostname, host_name, host_name_len);
+  // (b) copied before the old one is freed, host_name may be the current host name itself
+  oc_string_copy_from_char_with_size(&oc_device_info.iot_hostname, host_name, host_name_len);
 
   if (reannounce)
   { // (a)

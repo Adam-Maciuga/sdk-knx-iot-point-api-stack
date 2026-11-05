@@ -927,14 +927,12 @@ void oc_create_knx_swu_resources(void)
 
 void oc_swu_set_package_name(const char* name)
 {
-  oc_free_string(&swu_device.pkg_name);
-  oc_new_string(&swu_device.pkg_name, name, strlen(name));
+  oc_string_copy_from_char(&swu_device.pkg_name, name);
 }
 
 void oc_swu_set_last_update(const char* time)
 {
-  oc_free_string(&swu_device.last_update);
-  oc_new_string(&swu_device.last_update, time, strlen(time));
+  oc_string_copy_from_char(&swu_device.last_update, time);
   
   // persist to storage so timestamp survives reboot
   oc_storage_write(KNX_STORAGE_KEY_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update),

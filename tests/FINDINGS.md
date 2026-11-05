@@ -161,13 +161,14 @@ removed entry. The next number is F-066.
 - **Evidence:** code reading.
 - **Expected:** check `NLMSG_OK(response, len)` before each header access.
 
-## F-045: string setters free their source when called with their own value - OPEN
+## ~~F-045: string setters free their source when called with their own value~~ - FIXED
 
 - **Files:** `api/oc_helpers.c`, `oc_string_copy()`, `oc_byte_string_copy()`, `oc_string_copy_from_char*()`; `api/oc_core_res.c`, `oc_core_set_device_hostname()`; `api/oc_knx_swu.c`, `oc_swu_set_package_name()`, `oc_swu_set_last_update()`.
 - **Severity:** Low - read after free; no in-tree caller passes its own value today, but these are public APIs (e.g. re-announcing the current host name).
 - **Description:** each setter frees the destination first and then copies from the source; when the source points into the destination (`oc_string_copy(&s, s)`, `oc_core_set_device_hostname(oc_string(info->iot_hostname))`), the copy reads freed memory.
 - **Evidence:** code reading. A test: `oc_string_copy(&s, s)` under ASan.
 - **Expected:** allocate and copy into a new string first, then free the old one (or return early when source and destination are the same).
+- **Fix:** `oc_string_copy_from_char_with_size()` and `oc_byte_string_copy_from_char_with_size()` copy into a local `tmp` first, free the old value after it and take over `tmp`; `oc_string_copy()`, `oc_byte_string_copy()` and `oc_string_copy_from_char()` call them, so the order lives in one place. `oc_core_set_device_hostname()`, `oc_swu_set_package_name()` and `oc_swu_set_last_update()` use these setters instead of their own free + new. Tests (`--wrap=free` poisons the freed block, so a read after free shows on every platform, not only under ASan): `test_oc_helpers_alloc_fail`, `AllocFail.StringCopyOfItselfKeepsTheValue`, `AllocFail.ByteStringCopyOfItselfKeepsTheValue`; `test_oc_knx_swu`, `KnxSwuSetOwnValue.PackageNameSetWithItsOwnValueKeepsIt`, `KnxSwuSetOwnValue.LastUpdateSetWithItsOwnValueKeepsIt` (`--wrap=malloc` captures the setter's buffer).
 
 ## ~~F-046: blockwise buffer lookup matches on an href prefix~~ - FIXED
 

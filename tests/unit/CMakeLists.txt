@@ -97,6 +97,7 @@ kis_add_test(test_oc_mmem    test_oc_mmem.cpp)
 kis_add_test(test_oc_helpers_alloc_fail test_oc_helpers_alloc_fail.cpp)
 target_link_options(test_oc_helpers_alloc_fail PRIVATE
     -Wl,--wrap=malloc
+    -Wl,--wrap=free
 )
 kis_add_test(test_c_timestamp test_c_timestamp.cpp)
 kis_add_test(test_oc_rep      test_oc_rep.cpp)
@@ -242,6 +243,11 @@ target_link_options(test_oc_knx_dev PRIVATE
 kis_add_test(test_oc_knx_sub         test_oc_knx_sub.cpp)
 kis_add_test(test_oc_knx_p           test_oc_knx_p.cpp)
 kis_add_test(test_oc_knx_swu         test_oc_knx_swu.cpp)
+# --wrap=malloc/free: a string setter called with its own value (capture its buffer, poison it on free)
+target_link_options(test_oc_knx_swu PRIVATE
+    -Wl,--wrap=malloc
+    -Wl,--wrap=free
+)
 kis_add_test(test_oc_blockwise       test_oc_blockwise.cpp)
 kis_add_test(test_oc_test_control    test_oc_test_control.cpp)
 kis_add_test(test_oc_server_api      test_oc_server_api.cpp)
