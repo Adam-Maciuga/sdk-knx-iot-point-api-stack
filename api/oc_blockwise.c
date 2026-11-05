@@ -23,31 +23,22 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(size_t size, const char* h
   if (href_len == 0)
     return NULL;
 
+  // calloc zeroes: next, payload_size, next_block_offset, uri_query, return_content_type, token, token_len, mid, client_cb
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)calloc(1, size);
   if (buffer)
   {
-    if (!buffer->buffer)
-    {
-      buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
-    }
+    buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     if (!buffer->buffer)
     {
       free(buffer);
       return NULL;
     }
-    buffer->next_block_offset = 0;
-    buffer->payload_size = 0;
     buffer->ref_count = 1;
     buffer->method = method;
     buffer->role = role;
     memcpy(&buffer->endpoint, endpoint, sizeof(oc_endpoint_t));
     buffer->endpoint.next = NULL;
     oc_new_string(&buffer->href, href, href_len);
-    buffer->next = NULL;
-  #ifdef OC_CLIENT
-    buffer->mid = 0;
-    buffer->client_cb = NULL;
-  #endif /* OC_CLIENT */
     return buffer;
   }
   OC_WRN("block-wise buffers exhausted");
