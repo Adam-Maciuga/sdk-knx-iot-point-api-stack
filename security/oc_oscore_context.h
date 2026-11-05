@@ -88,6 +88,8 @@ void oc_oscore_free_all_contexts(void);
  *
  * @note releases any context if it is not used as any "Recipient Context"
  *
+ * @note recipient contexts are kept: they still hold the keys they were created with; a key update of an
+ *       access token (POST /auth/at) therefore frees all contexts of that token itself (oc_oscore_free_contexts_at_id)
  */
 void oc_oscore_free_sender_contexts(void);
 
@@ -120,6 +122,13 @@ typedef struct oc_oscore_context_params_t {
 
 /**
  * @brief creates an OSCORE context (e.g. the internal structure for encoding/decoding)
+ *
+ * A context has ONE id: a sender context (sender_id) or a recipient context (recipient_id), set by
+ * oc_oscore_add_sender_context / oc_oscore_add_recipient_context; the other id stays empty (len 0).
+ * BOTH keys (sender_key, recipient_key) and the common IV are always derived, a missing id as an empty id:
+ * - a recipient context decrypts a request with its recipient_key and encrypts the response to it with its
+ *   sender_key (the engine answers with the context found for the request)
+ * - all key material comes from the master secret / salt of the access token at creation time
  *
  * @param params pointer to the context parameters struct
  * @return != NULL context can be used for encryption/decryption, else not

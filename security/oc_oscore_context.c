@@ -395,7 +395,7 @@ oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* pa
 oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* params)
 {
 
-  //get a free sender context
+  // allocate a context (sender OR recipient, see the header: one id, both keys)
   oc_oscore_context_t* ctx = calloc(1, sizeof(oc_oscore_context_t));
 
   if (!ctx)
@@ -492,6 +492,11 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
     ctx->recipient_id_len = params->recipient_id_size;
   }
 
+  /*
+    both keys are derived for every context, a missing id (len 0) as an empty id
+    - sender_key: requests of a sender context, responses of a recipient context
+    - recipient_key: requests to a recipient context, responses to a sender context
+  */
   if (oc_oscore_context_derive_param(ctx->sender_id, ctx->sender_id_len,
                                      ctx->id_context, ctx->id_context_len, "Key", mastersecret,
                                      mastersecret_size, salt, salt_size,

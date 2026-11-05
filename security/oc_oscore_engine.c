@@ -1792,7 +1792,12 @@ static void oc_oscore_send_unicast_message(oc_message_t* msg)
   coap_pkt->payload = dst1;
   coap_pkt->payload_len = (uint32_t)plaintext_size;
 
-  // use sender key for encryption
+  /*
+    encryption always uses the sender_key of the context
+    - own request                       -> the sender context
+    - response                          -> the recipient context of the request (its sender_key, derived from the empty sender id)
+    - multicast caused echo response    -> the temporary sender context
+  */
   uint8_t* encryption_key = oscore_ctx->sender_key;
 
   // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used

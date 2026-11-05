@@ -1145,7 +1145,7 @@ TEST_F(SecAtPost, UpdateRejectedAfterAValidMasterSecretKeepsTheOldOne)
 /*
   a repeated master secret key in an update: the last one wins, the first new one is freed, the live one released on commit
   - token "tok" with master secret 01..10
-  - POST the same id with master secret 21..30 and again 41..50 -> 2.04
+  - POST the full token (same id) with master secret 21..30 and again 41..50 -> 2.04 (cnf only in a full token, spec 2.6.7.3)
   - the master secret is 41..50 (no leak or double free: checked by the ASan preset)
 */
 TEST_F(SecAtPost, RepeatedMasterSecretInAnUpdateKeepsTheLastOne)
@@ -1158,12 +1158,15 @@ TEST_F(SecAtPost, RepeatedMasterSecretInAnUpdateKeepsTheLastOne)
   oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
   ASSERT_NE(e, nullptr);
 
-  /* { 0: { 0: "tok", 8: { 4: { 2: h'21..30', 2: h'41..50' } } } } */
+  // { 0: { 0: "tok", 9: ["if.sec"], 38: 2, 8: { 4: { 0: h'01', 2: h'21..30', 2: h'41..50' } } } }
   std::vector<uint8_t> cbor = {
     0xa1, 0x00,
-    0xa2,
+    0xa4,
     0x00, 0x63, 't', 'o', 'k',
-    0x08, 0xa1, 0x04, 0xa2,
+    0x09, 0x81, 0x66, 'i', 'f', '.', 's', 'e', 'c',
+    0x18, 0x26, 0x02,
+    0x08, 0xa1, 0x04, 0xa3,
+    0x00, 0x41, 0x01,
     0x02, 0x50
   };
   for (uint8_t i = 0; i < 16; ++i) {
@@ -1223,6 +1226,125 @@ TEST_F(SecAtPost, RepeatedScopeGaThenStringFreesTheGa)
   EXPECT_EQ(e->ga_len, 0);
 
   /* the created entry was also stored, keep storage clean for the following tests */
+  oc_delete_at_table();
+}
+
+/*
+  a full overwrite of an existing token with a new key frees its cached recipient context (it holds keys of the OLD master secret)
+  - token "tok" (sender id 01) with a recipient context, as built for an inbound request
+  - POST the full token with the same id and a new master secret -> 2.04 (as in the conformance template)
+  - the recipient context for kid 01 is gone (created again from the new key on the next request), the sender
+    context is rebuilt by the re-initialization
+*/
+TEST_F(SecAtPost, FullOverwriteWithNewKeyFreesTheCachedRecipientContext)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  oc_oscore_context_params_t params;
+  memset(&params, 0, sizeof(params));
+  params.auth_at = e;
+  oc_oscore_context_t* recipient = oc_oscore_add_recipient_context(&params);
+  ASSERT_NE(recipient, nullptr);
+  uint8_t kid[] = { 0x01 };
+  ASSERT_EQ(oc_oscore_find_context_by_kid_and_kid_context(kid, sizeof(kid), nullptr, 0), recipient);
+
+  // same full token, new master secret: the 16 ms bytes sit right before cnf:osc:alg (last 2 bytes)
+  std::vector<uint8_t> cbor = make_complete_at_payload(16, false, 1, 10);
+  for (size_t i = cbor.size() - 18; i < cbor.size() - 2; ++i) {
+    cbor[i] = (uint8_t)(cbor[i] + 0x20);
+  }
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()), oc_status_code(OC_STATUS_CHANGED));
+  ASSERT_EQ(oc_byte_string_len(e->osc_ms), 16u);
+  EXPECT_EQ((uint8_t)oc_string(e->osc_ms)[0], 0x21);
+
+  // lookup only (no dereference of the freed context)
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(kid, sizeof(kid), nullptr, 0), nullptr);
+  EXPECT_NE(oc_oscore_find_context_by_access_token(e, true), nullptr);
+
+  // the created entry was also stored, keep storage clean for the following tests
+  oc_delete_at_table();
+}
+
+/*
+  spec 2.6.7.3: 'cnf' is not updatable -> a partial update (not all mandatory elements) that carries cnf is rejected
+  - token "tok" with a recipient context
+  - POST { id, cnf:osc:ms } with a new master secret -> 4.00
+  - the token keeps its old key, the recipient context stays
+*/
+TEST_F(SecAtPost, PartialUpdateWithCnfIsRejected)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  oc_oscore_context_params_t params;
+  memset(&params, 0, sizeof(params));
+  params.auth_at = e;
+  oc_oscore_context_t* recipient = oc_oscore_add_recipient_context(&params);
+  ASSERT_NE(recipient, nullptr);
+
+  // { 0: { 0: "tok", 8: { 4: { 2: h'21..30' } } } }
+  std::vector<uint8_t> cbor = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x08, 0xa1, 0x04, 0xa1,
+    0x02, 0x50
+  };
+  for (uint8_t i = 0; i < 16; ++i) {
+    cbor.push_back((uint8_t)(0x21 + i));
+  }
+  EXPECT_EQ(post_at(cbor.data(), cbor.size()), oc_status_code(OC_STATUS_BAD_REQUEST));
+
+  ASSERT_EQ(oc_core_find_at_entry_by_access_token("tok", 3), e);
+  ASSERT_EQ(oc_byte_string_len(e->osc_ms), 16u);
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ((uint8_t)oc_string(e->osc_ms)[i], (uint8_t)(i + 1));
+  }
+  uint8_t kid[] = { 0x01 };
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(kid, sizeof(kid), nullptr, 0), recipient);
+
+  // the created entry was also stored, keep storage clean for the following tests
+  oc_delete_at_table();
+}
+
+// a scope-only update keeps the cached recipient context (no new key, the scope is read when a request is checked)
+TEST_F(SecAtPost, ScopeOnlyUpdateKeepsTheCachedRecipientContext)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  oc_oscore_context_params_t params;
+  memset(&params, 0, sizeof(params));
+  params.auth_at = e;
+  oc_oscore_context_t* recipient = oc_oscore_add_recipient_context(&params);
+  ASSERT_NE(recipient, nullptr);
+
+  // { 0: { 0: "tok", 9: [2] } }
+  const uint8_t cbor[] = {
+    0xa1, 0x00,
+    0xa2,
+    0x00, 0x63, 't', 'o', 'k',
+    0x09, 0x81, 0x02
+  };
+  EXPECT_EQ(post_at(cbor, sizeof(cbor)), oc_status_code(OC_STATUS_CHANGED));
+
+  uint8_t kid[] = { 0x01 };
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(kid, sizeof(kid), nullptr, 0), recipient);
+
+  // the created entry was also stored, keep storage clean for the following tests
   oc_delete_at_table();
 }
 

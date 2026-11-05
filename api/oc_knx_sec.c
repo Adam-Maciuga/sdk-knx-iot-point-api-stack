@@ -787,6 +787,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       #define AT_PROP_PROFILE (1u << 2)
       #define AT_PROP_OSC_ID  (1u << 3)
       #define AT_PROP_OSC_MS  (1u << 4)
+      #define AT_PROP_CNF     (1u << 5)
       #define MANDATORY_AT_PROPERTIES (AT_PROP_ID | AT_PROP_SCOPE | AT_PROP_PROFILE | AT_PROP_OSC_ID | AT_PROP_OSC_MS)
 
       /*
@@ -963,6 +964,12 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
+          // cnf (8): only allowed in a full token, see the check after the loop
+          if (object->iname == 8)
+          {
+            at_properties_seen |= AT_PROP_CNF;
+          }
+
           // level of cnf:xxx
           cnf_object = object->value.object;
           int cnf_object_nr = object->iname;
@@ -1117,6 +1124,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         b: created +  5 elements             = OK (create)
         c: changed +  id only                = OK (delete)
         d: changed +  1...n elements         = OK (update, a rejected update never deletes the entry)
+        e: changed +  cnf + < min elements   = ERROR (spec 2.6.7.3: 'cnf' is not updatable, the existing token stays as it is)
+                                               - a full token (all mandatory elements) with the same id is 
+                                                 seen as allowed to overwrite, its cnf is accepted (case d)
       */
       if (return_status == OC_STATUS_CHANGED && id_only)
       {
@@ -1126,11 +1136,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED &&
+        if ((return_status == OC_STATUS_CREATED || at_properties_seen & AT_PROP_CNF) &&
             (at_properties_seen & MANDATORY_AT_PROPERTIES) != MANDATORY_AT_PROPERTIES)
         {
-          // a
-          OC_WRN("mandatory items missing, no entry created");
+          // a + e
+          OC_WRN("mandatory items missing, entry not created / cnf not updated");
           oc_free_allocated_at_elements(&tmp, allocator);
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1138,6 +1148,24 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
         // b + d
         OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
+
+        /*
+          new key material for an existing token (ms / id / salt / contextId, or another profile)
+          
+          - ALL its contexts are freed
+          
+          - oc_init_oscore_from_storage() below rebuilds only the sender contexts
+          
+          - a cached recipient context (it also encrypts the response) still holds keys of the OLD master secret, it would
+            keep decrypting requests protected with the old key; it is created again from the new key on the next request
+          
+          - a scope-only update (ga / scope) keeps the contexts, the scope is read when a request is checked
+        */
+        if (return_status == OC_STATUS_CHANGED &&
+            ((allocator & (AT_ALLOC_OSC_ID | AT_ALLOC_OSC_MS | AT_ALLOC_OSC_SALT | AT_ALLOC_OSC_CONTEXTID)) || tmp.profile != at_entry->profile))
+        {
+          oc_oscore_free_contexts_at_id(at_entry);
+        }
 
         // all checks passed: release the replaced values of the live entry, then take over the shadow copy
         oc_free_allocated_at_elements(at_entry, allocator);
