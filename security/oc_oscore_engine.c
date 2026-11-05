@@ -577,7 +577,7 @@ bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
   @note See details in description on top of this file
 
 */
-static int oc_oscore_receive_message(oc_message_t* msg)
+static void oc_oscore_receive_message(oc_message_t* msg)
 {
   OC_DBG("####### OSCORE BEGIN #######");
   OC_DBG_OSCORE("process inbound OSCORE message");
@@ -621,7 +621,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     // ignore 
     OC_DBG("drop loopback message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   // create local CoAP packet
@@ -650,7 +650,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     // (x) + (y)
     OC_DBG("drop OSCORE error message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   // assign first on no error
@@ -672,7 +672,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
     OC_DBG("drop unexpected OSCORE message, counter is %d", msg->ref_count);  
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   OC_DBG("parse OUTER OSCORE message : ok");
@@ -708,7 +708,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     // ignore duplicate request
     oc_message_unref(msg);
     OC_DBG("drop duplicate message, counter is %d", msg->ref_count);
-    return -1;
+    return;
   }
 
   #endif
@@ -754,7 +754,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         }
         OC_DBG("drop no at entry message, counter is %d", msg->ref_count);
         oc_message_unref(msg);
-        return -1;
+        return;
       }
 
       if (!oscore_ctx)
@@ -795,7 +795,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           OC_ERR("could not create oscore recipient context, return unsecured 5.00");
           oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
           oc_message_unref(msg);
-          return -1;
+          return;
         }
       }
 
@@ -828,7 +828,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         OC_ERR("request lacks kid param (8.2 step 2) - piv = 0, return unsecured 4.02");
         oscore_send_error(coap_pkt, BAD_OPTION_4_02, &msg->endpoint, false);
         oc_message_unref(msg);
-        return -1;
+        return;
       }
     }
     else
@@ -836,7 +836,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       OC_ERR("request lacks kid param (8.2 step 2) - kid = 0, return unsecured 4.02");
       oscore_send_error(coap_pkt, BAD_OPTION_4_02, &msg->endpoint, false);
       oc_message_unref(msg);
-      return -1;
+      return;
     }
   }
   else if (is_inbound_response)
@@ -859,7 +859,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
         OC_ERR("could not find an access token (8.4 step 2) for 'kid' from inbound 'unicast echo response' response message, stop processing");
         oc_message_unref(msg);
-        return -1;
+        return;
       }
 
       // defend against replayed s-mode 'unicast echo responses'
@@ -867,7 +867,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       {
         OC_DBG("dropping replayed/unknown 'unicast echo response' (kid/SSN not in white-list or already consumed)");
         oc_message_unref(msg);
-        return -1;
+        return;
       }
 
       /*
@@ -896,7 +896,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         OC_ERR("could not create oscore recipient context, return unsecured 5.00");
         oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
         oc_message_unref(msg);
-        return -1;
+        return;
       }
 
       // received a 'unicast echo response' -> need to send later an s-mode 'unicast echo re-request'
@@ -923,7 +923,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       {
         OC_ERR("response error (8.4 step 2), ignore silently, cannot find a matching oscore Request Sender Context from inbound response");
         oc_message_unref(msg);
-        return -1;
+        return;
       }
 
       // use as kid, a former request context IS EXISTING (by token)
@@ -971,7 +971,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   {
     OC_ERR("message lacks kid parameter (8.4 step 8), ignore silently, was empty ack or reset ");
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   // use recipient key for decryption
@@ -1019,7 +1019,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     // response
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   OC_DBG_OSCORE("decrypting OSCORE payload : success (0)");
@@ -1074,7 +1074,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     // response + request
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   OC_DBG("parsing inner message : ok, payload len  = %" PRIu32, coap_pkt->payload_len);
@@ -1096,11 +1096,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   {
     // error is > 0 ...
     oc_message_unref(msg);
-    return -1;
   }
 
   OC_DBG("####### OSCORE END #######");
-  return 0;
 }
 
 /*
@@ -1146,7 +1144,7 @@ static oc_message_t* oc_oscore_outgoing_message(oc_message_t* msg)
   @note See details in description on top of this file
 
 */
-static int oc_oscore_send_multicast_message(oc_message_t* msg)
+static void oc_oscore_send_multicast_message(oc_message_t* msg)
 {
   OC_DBG_OSCORE("process outbound multicast OSCORE message");
 
@@ -1166,14 +1164,14 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   {
     OC_ERR("outbound multicast OSCORE message is not an s-mode NON request (S_MODE_NON_REQUEST unset), dropping");
     oc_message_unref(msg);
-    return -1;
+    return;
   }
 
   // 'msg' itself or its clone (shared 'msg'), from here on only 'outgoing_msg' is used (echo ring keeps only a group object reference)
   oc_message_t* outgoing_msg = oc_oscore_outgoing_message(msg);
   if (!outgoing_msg)
   {
-    return -1;
+    return;
   }
 
   // create local CoAP packet
@@ -1185,7 +1183,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   {
     OC_ERR("coap parse packet : error (multicast)");
     oc_message_unref(outgoing_msg);
-    return -1;
+    return;
   }
 
   OC_INF("coap parse packet : ok (multicast)");
@@ -1224,7 +1222,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     {
       OC_ERR("OSCORE sender SSN exhausted (GA %04" PRIX32 "), request not sent", group_address);
       oc_message_unref(outgoing_msg);
-      return -1;
+      return;
     }
 
     // debugging
@@ -1280,7 +1278,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     {
       OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
       oc_message_unref(outgoing_msg);
-      return -1;
+      return;
     }
 
     OC_DBG("encrypting OSCORE payload : success (0)");
@@ -1317,7 +1315,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   {
     OC_ERR("found NO group OSCORE context for GA %04" PRIX32, group_address);
     oc_message_unref(outgoing_msg);
-    return -1;
+    return;
   }
 
   // from here on any message is encrypted ...
@@ -1327,8 +1325,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   {
     OC_ERR("could not send message");
   }
-
-  return 0;
 }
 #endif
 
@@ -1341,7 +1337,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   @note See details in description on top of this file
 
 */
-static int oc_oscore_send_unicast_message(oc_message_t* msg)
+static void oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
@@ -1349,7 +1345,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   oc_message_t* outgoing_msg = oc_oscore_outgoing_message(msg);
   if (!outgoing_msg)
   {
-    return -1;
+    return;
   }
 
   // create local CoAP packet
@@ -1362,7 +1358,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     OC_ERR("coap parse packet : error (unicast)");
     oc_message_unref(outgoing_msg);
-    return -1;
+    return;
   }
 
   OC_INF("coap parse packet : ok (unicast)");
@@ -1403,7 +1399,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // e.g. RST or empty ACK with code 0.00: not a valid OSCORE carrier — drop silently
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE unicast message, ignore", coap_pkt->type, coap_pkt->code);
     oc_message_unref(outgoing_msg);
-    return -1;
+    return;
   }
 
   // the token of the message (one union pointer): outbound on a request, inbound on a response (also used below for an 'echo response')
@@ -1426,7 +1422,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     OC_ERR("no OSCORE context found, error");
     oc_message_unref(outgoing_msg);
-    return -1;
+    return;
   }
 
   /*
@@ -1537,7 +1533,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     {
       OC_ERR("OSCORE sender SSN exhausted, request not sent");
       oc_message_unref(outgoing_msg);
-      return -1;
+      return;
     }
 
     outbound_piv = piv;
@@ -1650,7 +1646,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         OC_ERR("could not create oscore sender context, return unsecured 5.00");
         oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, ep, false);
         oc_message_unref(outgoing_msg);
-        return -1;
+        return;
       }
 
       // 8.1 (a) below : update ALL context data for echo responses caused by s-mode multicast requests (was a new context)
@@ -1716,7 +1712,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       {
         OC_ERR("OSCORE sender SSN exhausted, observe notification not sent");
         oc_message_unref(outgoing_msg);
-        return -1;
+        return;
       }
 
       outbound_piv = piv;
@@ -1890,9 +1886,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     oc_oscore_free_context(oscore_ctx);
   }
-
-  // -1: error (message released), 0: encrypted and queued for sending
-  return ret == 0 ? 0 : -1;
 }
 
 OC_PROCESS_THREAD(oc_oscore_handler, ev, data)
