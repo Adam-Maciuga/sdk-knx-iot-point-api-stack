@@ -571,22 +571,6 @@ int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
   return strncmp(cmp1, cmp2, strlen(cmp1));
 }
 
-bool oc_uri_contains_wildcard(const char* uri)
-{
-  if (uri == NULL)
-  {
-    return false;
-  }
-
-  const size_t len = strlen(uri);
-  if (uri[len - 1] == '*')
-  {
-    return true;
-  }
-
-  return false;
-}
-
 int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len, const char* uri_invoked, size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')

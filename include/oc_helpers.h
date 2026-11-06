@@ -390,15 +390,6 @@ size_t oc_char_print_hex(const char* str, size_t str_len);
 size_t oc_char_println_hex(const char* str, size_t str_len);
 
 /**
- * @brief checks if the uri contains a wildcard (e.g. "*")
- *
- * @param uri The URI to be checked.
- * @return true
- * @return false
- */
-bool oc_uri_contains_wildcard(const char* uri);
-
-/**
  * @brief Retrieve the value as integer from an invoked URI with assumed int values in the request,
  *        whereas the corresponding EP MUST be defined with a wildcard value such as fp/g/ *.  
  *

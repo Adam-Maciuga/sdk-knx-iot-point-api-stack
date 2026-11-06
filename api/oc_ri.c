@@ -1158,25 +1158,24 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         break;
       }
 
-      if (oc_uri_contains_wildcard(oc_string(tmp_core_resource->uri)))
-      {
-        /*
-          incoming URL should be equal or larger than the one with the wildcard,
-          comparison should match to what ever is in front of the last char
-          request  : uri_path = 'fp/r/25'  without '/' (uri path len = 7, no string end char)
-          resource : res path = '/fp/r/\*' with '/' (string size = 8, res path len = 7)
-          see core resource definitions!
-        */
-
+      /*
+        wildcard resource ('*' as last char): incoming URL should be equal or larger than the one with the wildcard,
+        comparison should match to what ever is in front of the last char
+        request  : uri_path = 'fp/r/25'  without '/' (uri path len = 7, no string end char)
+        resource : res path = '/fp/r/\*' with '/' (string size = 8, res path len = 7)
+        see core resource definitions!
+        - the cheap length check first: most resources are skipped without reading their uri
+        - the last char is read with the known length (>= 1: every core resource is defined in code with a uri starting with '/')
+      */
+      if (uri_path_len + 1 >= tmp_core_resource_len &&
         // need at least one identifier after, 'fp/r/2' + 1 >= '/fp/r/*' -> 7 >= 7
-        if (uri_path_len + 1 >= tmp_core_resource_len &&
-          // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r/' = 5 (with the '/', 'fp/rx' does not match)
-          strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
-        {
-          // found core resource, update request (with matching resource)
-          new_request.resource = matching_resource = tmp_core_resource;
-          break;
-        }
+        oc_string(tmp_core_resource->uri)[tmp_core_resource_len - 1] == '*' &&
+        // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r/' = 5 (with the '/', 'fp/rx' does not match)
+        strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
+      {
+        // found core resource, update request (with matching resource)
+        new_request.resource = matching_resource = tmp_core_resource;
+        break;
       }
     }
 

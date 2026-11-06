@@ -171,7 +171,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_helpers.cpp — String & Hex Utilities (76 tests)
+### test_oc_helpers.cpp — String & Hex Utilities (73 tests)
 
 **Source:** `api/oc_helpers.c`
 
@@ -181,7 +181,6 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `Uint64ToHex` | 5 | uint64 → hex string (0, small, large, MAX, leading zeros) |
 | `ByteArrayToHex` | 4 | Binary → hex conversion, edge cases |
 | `HexToByteArray` | 5 | Hex → binary, odd length, empty, round-trip |
-| `UriWildcard` | 3 | Detects `*` in URI paths, NULL safety |
 | `UriWildcardInt` | 4 | Extracts integer from wildcard URI |
 | `UriWildcardString` | 2 | Extracts string from wildcard URI |
 | `UriFbValue` | 4 | Extracts FB number/instance from URI |

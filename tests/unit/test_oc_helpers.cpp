@@ -187,25 +187,6 @@ TEST(HexToByteArray, RoundTrip)
   EXPECT_EQ(memcmp(original, decoded, 4), 0);
 }
 
-/* ── oc_uri_contains_wildcard ──────────────────────────────────────────────── */
-
-TEST(UriWildcard, ContainsWildcard)
-{
-  EXPECT_TRUE(oc_uri_contains_wildcard("/fp/g/*"));
-  EXPECT_TRUE(oc_uri_contains_wildcard("*"));
-}
-
-TEST(UriWildcard, NoWildcard)
-{
-  EXPECT_FALSE(oc_uri_contains_wildcard("/fp/g/1"));
-  EXPECT_FALSE(oc_uri_contains_wildcard("/fp/g"));
-}
-
-TEST(UriWildcard, NullUri)
-{
-  EXPECT_FALSE(oc_uri_contains_wildcard(nullptr));
-}
-
 /* ── oc_uri_get_wildcard_int_value_as_int ──────────────────────────────────── */
 
 TEST(UriWildcardInt, SimpleValue)
