@@ -2112,7 +2112,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
   }
 }
 
-bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
+oc_status_t oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
 {
   //  scope of called resource, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;
@@ -2121,7 +2121,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   if (!oc_resource_get_acl_for_method(resource, method, &called_res_scope))
   {
     // resource or handler for method does not exist, no access
-    return false;
+    return OC_STATUS_METHOD_NOT_ALLOWED;
   }
 
   // resource and handler for method exists...
@@ -2130,7 +2130,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   {
     // not a secure resource, access allowed, see table in clause 5.1.3 of specification,
     // all resources with methods that do not have any scope uses in stack 'OC_ACL_NONE'
-    return true;
+    return OC_STATUS_OK;
   }
 
   // debugging
@@ -2141,7 +2141,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
     OC_DBG_OSCORE("access denied for: %s with flags: %d", oc_string_checked(resource->uri), endpoint->flags);
-    return false;
+    return OC_STATUS_UNAUTHORIZED;
   }
 
   /*
@@ -2164,121 +2164,124 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
 
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->access_token.inbound);
 
-  // bitwise 'and' -> at least one scope from access token and resource must match
-  if (caller_acl_scope & called_res_scope)
+  // bitwise 'and' -> at least one scope from access token and resource must match, otherwise 4.03
+  if (!(caller_acl_scope & called_res_scope))
+  {
+    #ifdef OC_DEBUG
+    OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
+
+    oc_print_acl_scopes(caller_acl_scope);
+    oc_print_acl_scopes(called_res_scope);
+
+    #endif
+    return OC_STATUS_FORBIDDEN;
+  }
+
+  /*
+    Here the caller/called scopes are matching
+
+    O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec'
+       -> OK
+
+    O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s'
+       -> OK
+       = all ga's are allowed for 'if.g.s'
+
+    O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>'
+       -> NOT ENOUGH
+       = some ga's are allowed for <ga>
+       - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
+       - no other EP than /k uses '<ga>' as resource scope (see resource definition)
+       - <ga> scope is set only in one place (create access token with non-empty list)
+  */
+
+  if (caller_acl_scope == OC_ACL_GA)
   {
     /*
-      Here the caller/called scopes are matching
-
-      O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec'
-         -> OK
-
-      O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s'
-         -> OK
-         = all ga's are allowed for 'if.g.s'
-
-      O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>'
-         -> NOT ENOUGH
-         = some ga's are allowed for <ga>
-         - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
-         - no other EP than /k uses '<ga>' as resource scope (see resource definition)
-         - <ga> scope is set only in one place (create access token with non-empty list)
+      O2 - a call with <ga> access token
+      Here this is only possible if /k resource was addressed.
+      (caller_acl_scope & called_res_scope ->
+      OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
     */
 
-    if (caller_acl_scope == OC_ACL_GA)
+    const oc_rep_t* rep = value_object;
+    bool group_address_found = false;      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
+    bool s_map_found = false;              // true when the payload carries any object, which is what the /k handler scans for a ga
+    bool sia_found = false;                // true when the payload carries the mandatory 'sia' (4) key
+
+    /*
+      EVERY ga in the payload must be covered by the access token, not just the
+      first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
+      authorizing on the first one let a payload carrying the key twice be
+      checked against one group address and executed with another.
+      
+      - sia only = {4: <ia>} -> no s-map, authorization granted (no r/w action will be performed)
+      - normal   = {6: "w", 7: 2, 1: true} -> s-map 
+      - abnormal = {6: "w", 7: 2, 7: 99, 1: true} -> s-map - parser allows this, 
+                   if the authorization loop only checked the first ga (2, covered by the token) instead
+                   of scanning all occurrences, the request would be authorized against GA 2 but actually
+                   executed against GA 99.
+    */
+    while (rep)
     {
-      /*
-        O2 - a call with <ga> access token
-        Here this is only possible if /k resource was addressed.
-        (caller_acl_scope & called_res_scope ->
-        OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
-      */
-
-      const oc_rep_t* rep = value_object;
-      bool group_address_found = false;      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
-      bool s_map_found = false;              // true when the payload carries any object, which is what the /k handler scans for a ga
-      bool sia_found = false;                // true when the payload carries the mandatory 'sia' (4) key
-
-      /*
-        EVERY ga in the payload must be covered by the access token, not just the
-        first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
-        authorizing on the first one let a payload carrying the key twice be
-        checked against one group address and executed with another.
-        
-        - sia only = {4: <ia>} -> no s-map, authorization granted (no r/w action will be performed)
-        - normal   = {6: "w", 7: 2, 1: true} -> s-map 
-        - abnormal = {6: "w", 7: 2, 7: 99, 1: true} -> s-map - parser allows this, 
-                     if the authorization loop only checked the first ga (2, covered by the token) instead
-                     of scanning all occurrences, the request would be authorized against GA 2 but actually
-                     executed against GA 99.
-      */
-      while (rep)
+      if (rep->type == OC_REP_INT && rep->iname == KNX_SMODE_KEY_SIA)
       {
-        if (rep->type == OC_REP_INT && rep->iname == KNX_SMODE_KEY_SIA)
-        {
-          sia_found = true;
-        }
-
-        /*
-          Any object is scanned, not only the '5' s map: oc_core_knx_k_post_handler takes the ga from
-          every object it walks, so narrowing this scan would let a ga smuggled into another object key
-          reach the handler unauthorized.
-        */
-
-        if (rep->type == OC_REP_OBJECT)
-        {
-          // s map (5) with ia/st/ga/value (if present on w=write/a=update)
-          const oc_rep_t* s_map = rep->value.object;
-
-          s_map_found = true;
-
-          while (s_map)
-          {
-            if (s_map->type == OC_REP_INT && s_map->iname == KNX_SMODE_KEY_GA)
-            {
-              // only GA is of interest
-
-              if (!check_access_token_for_group_address(endpoint->access_token.inbound, (uint32_t)s_map->value.integer))
-              {
-                OC_WRN("ga %d of the request payload is not in the access token", (int)s_map->value.integer);
-                return false;
-              }
-
-              group_address_found = true;
-            }
-
-            s_map = s_map->next;
-          }
-        }
-
-        rep = rep->next;
+        sia_found = true;
       }
 
       /*
-        The payload shape decides which fact authorizes:
-        - an object is present -> every ga it carries must be in the access token. No ga at all in it
-          is a request payload error (no access).
-        - no object at all -> a 'sia' only payload { 4: <ia> }, an OSCORE sequence number
-          synchronization request. There is no group address to authorize against, and a device SHALL
-          accept such a request from every peer whose sender context is in the access control list,
-          which is already proven by the message having been decrypted.
-        Note group_address_found can only be true when s_map_found is, so the two arms are exclusive.
+        Any object is scanned, not only the '5' s map: oc_core_knx_k_post_handler takes the ga from
+        every object it walks, so narrowing this scan would let a ga smuggled into another object key
+        reach the handler unauthorized.
       */
 
-      return s_map_found ? group_address_found : sia_found;
+      if (rep->type == OC_REP_OBJECT)
+      {
+        // s map (5) with ia/st/ga/value (if present on w=write/a=update)
+        const oc_rep_t* s_map = rep->value.object;
+
+        s_map_found = true;
+
+        while (s_map)
+        {
+          if (s_map->type == OC_REP_INT && s_map->iname == KNX_SMODE_KEY_GA)
+          {
+            // only GA is of interest
+
+            if (!check_access_token_for_group_address(endpoint->access_token.inbound, (uint32_t)s_map->value.integer))
+            {
+              OC_WRN("ga %d of the request payload is not in the access token", (int)s_map->value.integer);
+              return OC_STATUS_FORBIDDEN;
+            }
+
+            group_address_found = true;
+          }
+
+          s_map = s_map->next;
+        }
+      }
+
+      rep = rep->next;
     }
 
-    // acl scopes + method OK
-    return true;
+    /*
+      The payload shape decides which fact authorizes:
+      - an object is present -> every ga it carries must be in the access token. No ga at all in it
+        is a request payload error (no access).
+      - no object at all -> a 'sia' only payload { 4: <ia> }, an OSCORE sequence number
+        synchronization request. There is no group address to authorize against, and a device SHALL
+        accept such a request from every peer whose sender context is in the access control list,
+        which is already proven by the message having been decrypted.
+      Note group_address_found can only be true when s_map_found is, so the two arms are exclusive.
+    */
+
+    // an object decides by its ga's, a payload without any object only by 'sia', otherwise the fallback OK below
+    if (s_map_found ? !group_address_found : !sia_found)
+    {
+      return OC_STATUS_FORBIDDEN;
+    }
   }
 
-  #ifdef OC_DEBUG
-  OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
-
-  oc_print_acl_scopes(caller_acl_scope);
-  oc_print_acl_scopes(called_res_scope);
-
-  #endif
-
-  return false;
+  // acl scopes + method OK (O0, O1, O2 with all ga's covered or a 'sia' only payload)
+  return OC_STATUS_OK;
 }

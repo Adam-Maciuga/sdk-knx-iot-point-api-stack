@@ -1434,13 +1434,13 @@ protected:
 
 TEST_F(SecAcl, NullResourceDenied)
 {
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, nullptr, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, nullptr, &ep, nullptr), OC_STATUS_METHOD_NOT_ALLOWED);
 }
 
 TEST_F(SecAcl, UnsupportedMethodDenied)
 {
   /* FETCH resolves to no handler -> must not fall through to "allowed" */
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_FETCH, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_FETCH, &res, &ep, nullptr), OC_STATUS_METHOD_NOT_ALLOWED);
 }
 
 TEST_F(SecAcl, PostUsesPostHandlerScopeNotGetScope)
@@ -1449,7 +1449,7 @@ TEST_F(SecAcl, PostUsesPostHandlerScopeNotGetScope)
   res.post_handler.acl_scope_mask = OC_ACL_SEC;
   ep.flags = (enum transport_flags)0; /* unauthenticated */
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_POST, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 TEST_F(SecAcl, PutUsesPutHandlerScopeNotGetScope)
@@ -1458,7 +1458,7 @@ TEST_F(SecAcl, PutUsesPutHandlerScopeNotGetScope)
   res.put_handler.acl_scope_mask = OC_ACL_SEC;
   ep.flags = (enum transport_flags)0;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_PUT, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_PUT, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 TEST_F(SecAcl, DeleteUsesDeleteHandlerScopeNotGetScope)
@@ -1467,7 +1467,7 @@ TEST_F(SecAcl, DeleteUsesDeleteHandlerScopeNotGetScope)
   res.delete_handler.acl_scope_mask = OC_ACL_SEC;
   ep.flags = (enum transport_flags)0;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_DELETE, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_DELETE, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 /* ──────────────────────────── OSCORE requirement ─────────────────────────── */
@@ -1478,7 +1478,7 @@ TEST_F(SecAcl, UnsecuredResourceAllowedWithoutOscore)
   ep.flags = (enum transport_flags)0;
   ep.access_token.inbound = nullptr;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, SecureResourceWithoutOscoreDenied)
@@ -1487,7 +1487,7 @@ TEST_F(SecAcl, SecureResourceWithoutOscoreDenied)
   token.scope = OC_ACL_SEC;
   ep.flags = (enum transport_flags)0;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 TEST_F(SecAcl, SecureResourceWithOscoreButNotDecryptedDenied)
@@ -1497,7 +1497,7 @@ TEST_F(SecAcl, SecureResourceWithOscoreButNotDecryptedDenied)
   token.scope = OC_ACL_SEC;
   ep.flags = OSCORE;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 TEST_F(SecAcl, SecureResourceWithDecryptedFlagAloneDenied)
@@ -1506,7 +1506,7 @@ TEST_F(SecAcl, SecureResourceWithDecryptedFlagAloneDenied)
   token.scope = OC_ACL_SEC;
   ep.flags = OSCORE_DECRYPTED;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_UNAUTHORIZED);
 }
 
 /* ───────────────────────────── scope matching ────────────────────────────── */
@@ -1516,7 +1516,7 @@ TEST_F(SecAcl, MatchingScopeAllowed)
   res.get_handler.acl_scope_mask = OC_ACL_SEC;
   token.scope = OC_ACL_SEC;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, DisjointScopeDenied)
@@ -1524,7 +1524,7 @@ TEST_F(SecAcl, DisjointScopeDenied)
   res.get_handler.acl_scope_mask = OC_ACL_SEC;
   token.scope = OC_ACL_D;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, PartiallyOverlappingScopeAllowed)
@@ -1532,7 +1532,7 @@ TEST_F(SecAcl, PartiallyOverlappingScopeAllowed)
   res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_SEC | OC_ACL_P);
   token.scope = OC_ACL_P;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, MissingAccessTokenDenied)
@@ -1541,7 +1541,7 @@ TEST_F(SecAcl, MissingAccessTokenDenied)
   res.get_handler.acl_scope_mask = OC_ACL_SEC;
   ep.access_token.inbound = nullptr;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_FORBIDDEN);
 }
 
 /* ─────────────────── <ga> scope: per-group-address authorization ─────────── */
@@ -1552,7 +1552,7 @@ TEST_F(SecAcl, GroupScopeAllowsAnyGroupAddress)
   res.get_handler.acl_scope_mask = (oc_acl_mask_t)(OC_ACL_G | OC_ACL_GA);
   token.scope = OC_ACL_G;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, GaScopeWithMatchingGroupAddressAllowed)
@@ -1567,7 +1567,7 @@ TEST_F(SecAcl, GaScopeWithMatchingGroupAddressAllowed)
   oc_rep_t outer, inner;
   make_ga_payload(&outer, &inner, 5678);
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, GaScopeWithForeignGroupAddressDenied)
@@ -1581,7 +1581,7 @@ TEST_F(SecAcl, GaScopeWithForeignGroupAddressDenied)
   oc_rep_t outer, inner;
   make_ga_payload(&outer, &inner, 9999);
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeWithEmptyGroupAddressListDenied)
@@ -1595,7 +1595,7 @@ TEST_F(SecAcl, GaScopeWithEmptyGroupAddressListDenied)
   oc_rep_t outer, inner;
   make_ga_payload(&outer, &inner, 0);
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeWithNullGroupAddressListDenied)
@@ -1608,7 +1608,7 @@ TEST_F(SecAcl, GaScopeWithNullGroupAddressListDenied)
   oc_rep_t outer, inner;
   make_ga_payload(&outer, &inner, 1234);
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeWithoutPayloadDenied)
@@ -1619,7 +1619,7 @@ TEST_F(SecAcl, GaScopeWithoutPayloadDenied)
   token.ga = ga_list;
   token.ga_len = 1;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, nullptr), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeWithPayloadCarryingNoGroupAddressDenied)
@@ -1642,7 +1642,7 @@ TEST_F(SecAcl, GaScopeWithPayloadCarryingNoGroupAddressDenied)
   outer.type = OC_REP_OBJECT;
   outer.value.object = &inner;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeWithNonObjectPayloadDenied)
@@ -1660,7 +1660,7 @@ TEST_F(SecAcl, GaScopeWithNonObjectPayloadDenied)
   outer.iname = 7;
   outer.value.integer = 1234;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeMatchesFirstAndLastListEntry)
@@ -1677,14 +1677,14 @@ TEST_F(SecAcl, GaScopeMatchesFirstAndLastListEntry)
   oc_rep_t outer, inner;
 
   make_ga_payload(&outer, &inner, 11);
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_OK);
 
   make_ga_payload(&outer, &inner, 44);
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_OK);
 
   /* one past the end must not be read as a match */
   make_ga_payload(&outer, &inner, 55);
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeBroadcastAddressOnlyAllowedWhenInList)
@@ -1697,11 +1697,11 @@ TEST_F(SecAcl, GaScopeBroadcastAddressOnlyAllowedWhenInList)
 
   oc_rep_t outer, inner;
   make_ga_payload(&outer, &inner, 0xFFFFFFFF);
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 
   ga_list[0] = 0xFFFFFFFF;
   make_ga_payload(&outer, &inner, 0xFFFFFFFF);
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, GaScopeRejectsForeignGaAnywhereInOneSMap)
@@ -1734,7 +1734,7 @@ TEST_F(SecAcl, GaScopeRejectsForeignGaAnywhereInOneSMap)
   outer.type = OC_REP_OBJECT;
   outer.value.object = &authorized;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeAllowsSeveralAuthorizedGasInOneSMap)
@@ -1765,7 +1765,7 @@ TEST_F(SecAcl, GaScopeAllowsSeveralAuthorizedGasInOneSMap)
   outer.type = OC_REP_OBJECT;
   outer.value.object = &first;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &outer), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, GaScopeRejectsForeignGaInASecondSMap)
@@ -1782,13 +1782,13 @@ TEST_F(SecAcl, GaScopeRejectsForeignGaInASecondSMap)
   make_ga_payload(&first, &first_inner, 1234);
   make_ga_payload(&second, &second_inner, 9999);
   first.next = &second;
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first), OC_STATUS_FORBIDDEN);
 
   /* and the other way round - order must not decide the verdict */
   make_ga_payload(&first, &first_inner, 9999);
   make_ga_payload(&second, &second_inner, 1234);
   first.next = &second;
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_GET, &res, &ep, &first), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeSiaOnlySyncAllowed)
@@ -1810,7 +1810,7 @@ TEST_F(SecAcl, GaScopeSiaOnlySyncAllowed)
   sia.iname = 4;
   sia.value.integer = 0x1101;
 
-  EXPECT_TRUE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia), OC_STATUS_OK);
 }
 
 TEST_F(SecAcl, GaScopeSiaWithForeignGaStillDenied)
@@ -1831,7 +1831,7 @@ TEST_F(SecAcl, GaScopeSiaWithForeignGaStillDenied)
   sia.value.integer = 0x1101;
   sia.next = &outer;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia), OC_STATUS_FORBIDDEN);
 }
 
 TEST_F(SecAcl, GaScopeSiaWithGaBearingNonSMapObjectDenied)
@@ -1856,6 +1856,6 @@ TEST_F(SecAcl, GaScopeSiaWithGaBearingNonSMapObjectDenied)
   sia.value.integer = 0x1101;
   sia.next = &outer;
 
-  EXPECT_FALSE(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia));
+  EXPECT_EQ(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia), OC_STATUS_FORBIDDEN);
 }
 

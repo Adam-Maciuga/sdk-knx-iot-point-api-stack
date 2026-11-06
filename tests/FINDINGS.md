@@ -5,7 +5,7 @@ Defects in the stack found by its tests that are still open.
 A finding is removed once it is fixed (its test then asserts the corrected
 behaviour) or withdrawn. Numbers are never reused, and tests and comments
 keep citing them: `git log -p -S "F-NNN" -- tests/FINDINGS.md` shows a
-removed entry. The next number is F-068.
+removed entry. The next number is F-069.
 
 ## ~~F-029: `oc_endpoint_print()` frees an uninitialized string for non-IPv6 endpoints~~ - FIXED
 
@@ -378,3 +378,15 @@ removed entry. The next number is F-068.
 - **Evidence:** code reading.
 - **Expected:** the flag is local to `coap_receive()` (callees report "clear the transaction" through the request/response objects or a return value, a notification can not touch it); drop the redundant reset; `coap_receive()` may return `void`.
 - **Fix:** (1) `coap_receive()` returns `void`. (2) the global `coap_status_code` is removed (`coap.c` / `coap.h`); `coap_receive()` keeps the parse result in a local and decides with a local `bool clear_transaction` (set by itself for a repeated multicast block and an ACK / NON response, read at `send_message`). `oc_ri_invoke_coap_entity_handler()` reports it through a new out-parameter `bool* clear_transaction`: set for `OC_IGNORE` and for an accepted separate response. `coap_separate_accept()` no longer writes anything global, so the notification path (observe.c) can not touch the request being handled. (3) a separate response that can not be accepted (no memory for the store, empty ACK not sent) is answered now with 5.03 Service Unavailable instead of no reply at all (the `coap_separate_accept()` doc already promised it). Tests: `test_coap_receive_notify`, `CoapReceiveNotify.PutReplyIsSentWhenTheNotificationStartsASeparateResponse` (fails without the fix: nothing sent), `AcceptedSeparateResponseSendsOnlyTheEmptyAck`, `NotAcceptedSeparateResponseAnswers503` (fails without (3): nothing sent; `--wrap=calloc` fails the store); `test_oc_ri` passes the new argument.
+
+## ~~F-068: oc_ri_invoke_coap_entity_handler() tracks its error responses in five separate bools~~ - FIXED
+
+- **Files:** `api/oc_ri.c`, `oc_ri_invoke_coap_entity_handler()` (declaration of `method_impl`, `bad_request`, `forbidden`, `unauthorized`, `entity_too_large`; the guards `if (!bad_request ...)`; the `if / else if` chain that turns them into a response code).
+- **Severity:** Low - maintainability: no wrong response today, but each new error case needs one more bool, one more guard and one more branch, and a later stage that only checks `bad_request` would still run after another error (e.g. `forbidden`).
+- **Description:**
+  - the request passes stages (payload parse -> resource lookup -> response state allocation -> ACL check -> method handler); an error in one stage stops the later ones, so at most one of the bools is set (`entity_too_large` always comes with `bad_request`, one case: 4.13)
+  - each bool stands for exactly one response code: `bad_request` 4.00, `entity_too_large` 4.13, `forbidden` 4.03, `unauthorized` 4.01, `!method_impl` 4.05, plus `!matching_resource` 4.04
+  - the end of the function maps them in a 7-branch `if / else if` chain with the same two lines (`response_length = 0`, `code = ...`) in each branch
+- **Evidence:** code reading.
+- **Expected:** one `oc_status_t error = OC_STATUS_OK` (first error wins) set at each stage, the guards check `error == OC_STATUS_OK`, the end sets `response_length = 0` and `code = oc_status_code(error)` in one place; `success` is `error == OC_STATUS_OK`; the same codes in the same cases.
+- **Fix:** `oc_ri_invoke_coap_entity_handler()` keeps one `oc_status_t error = OC_STATUS_OK` (first error wins): parse error 4.13 / 4.00, no resource 4.04 (right after the lookup), response state allocation 4.00, access check, no handler for the method 4.05; every later stage runs only while it is `OC_STATUS_OK`, the end sets the code in one place. `oc_knx_sec_check_acl()` (`api/oc_knx_sec.c/.h`) returns the reason as `oc_status_t` instead of `bool`: `OC_STATUS_OK`, `OC_STATUS_UNAUTHORIZED` (secured resource, request not decrypted), `OC_STATUS_FORBIDDEN` (decrypted, scope or `<ga>` not covered), `OC_STATUS_METHOD_NOT_ALLOWED` (no handler slot, e.g. FETCH); oc_ri takes it directly, the duplicated OSCORE flag test is gone. One behaviour change: a FETCH request gets 4.05 instead of 4.01 / 4.03. The request objects of the handler (`response_buffer`, `response_obj`, `new_request`) are defined with designated initializers. Tests: `test_oc_ri`, `RiEntityHandlerPaths.UnknownPathReturnsNotFound`, `ScopedHandlerWithoutOscoreReturnsUnauthorized`, `DecryptedRequestOutsideTheTokenScopeReturnsForbidden` (all six codes pinned), `FetchReturnsMethodNotAllowed` (fails without the fix: 4.01); `test_oc_knx_sec`, the `SecAcl` tests expect the exact status.

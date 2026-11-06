@@ -34,6 +34,7 @@ extern "C" {
 #include "messaging/coap/oc_coap.h"
 #include "messaging/coap/coap.h"
 #include "util/oc_mmem.h"
+#include "api/oc_knx_sec.h"
 
 extern int __real_coap_remove_observer_by_resource(const oc_resource_t* resource);
 extern void __real_oc_etimer_set(struct oc_etimer* et, oc_clock_time_t interval);
@@ -1248,6 +1249,59 @@ TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
                              malformed, sizeof(malformed), APPLICATION_CBOR,
                              &response_code));
   EXPECT_EQ(response_code, REQUEST_ENTITY_TOO_LARGE_4_13);
+}
+
+// no core or application resource for the path: 4.04, the handler is not called
+TEST(RiEntityHandlerPaths, UnknownPathReturnsNotFound)
+{
+  oc_endpoint_t endpoint;
+  memset(&endpoint, 0, sizeof(endpoint));
+  endpoint.flags = IPV6;
+  g_ri_get_calls = 0;
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(nullptr, &endpoint, COAP_GET, nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, NOT_FOUND_4_04);
+  EXPECT_EQ(g_ri_get_calls, 0);
+}
+
+// FETCH has no handler slot in a resource: 4.05 Method Not Allowed (not 4.01 / 4.03), the handler is not called
+TEST(RiEntityHandlerPaths, FetchReturnsMethodNotAllowed)
+{
+  RiEntityResource fixture;
+  g_ri_get_calls = 0;
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_FETCH, nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, METHOD_NOT_ALLOWED_4_05);
+  EXPECT_EQ(g_ri_get_calls, 0);
+}
+
+// a scope protected handler and a request without OSCORE credentials: 4.01, the handler is not called
+TEST(RiEntityHandlerPaths, ScopedHandlerWithoutOscoreReturnsUnauthorized)
+{
+  RiEntityResource fixture;
+  fixture.resource->get_handler.acl_scope_mask = OC_ACL_D;
+  g_ri_get_calls = 0;
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET, nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, UNAUTHORIZED_4_01);
+  EXPECT_EQ(g_ri_get_calls, 0);
+}
+
+// a decrypted OSCORE request whose access token scope does not cover the handler: 4.03, the handler is not called
+TEST(RiEntityHandlerPaths, DecryptedRequestOutsideTheTokenScopeReturnsForbidden)
+{
+  RiEntityResource fixture;
+  fixture.resource->get_handler.acl_scope_mask = OC_ACL_SEC;
+  oc_auth_at_t token;
+  memset(&token, 0, sizeof(token));
+  token.scope = OC_ACL_D;
+  fixture.endpoint.flags = (transport_flags)(OSCORE | OSCORE_DECRYPTED);
+  fixture.endpoint.access_token.inbound = &token;
+  g_ri_get_calls = 0;
+  int response_code = 0;
+  EXPECT_FALSE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET, nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, FORBIDDEN_4_03);
+  EXPECT_EQ(g_ri_get_calls, 0);
 }
 
 

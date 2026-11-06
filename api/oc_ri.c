@@ -1049,75 +1049,64 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       oc_blockwise_state_t** response_state,
                                       uint16_t block2_size, oc_endpoint_t* endpoint, bool* clear_transaction)
 {
-  // flags that capture status along various stages of processing the request.
-  bool method_impl = true, bad_request = false, success = false, forbidden = false, unauthorized = false, entity_too_large = false;
+  /*
+    error response of this request, OC_STATUS_OK = no error so far
+    - stages: payload parse -> resource lookup -> response state allocation -> access check -> method handler
+    - the first error wins, every later stage runs only while it is still OC_STATUS_OK
+    -> set once at the end as the response code (4.00, 4.13, 4.04, 4.03, 4.01, 4.05)
+  */
+  oc_status_t error = OC_STATUS_OK;
 
   // parsed CoAP PDU structure
-  coap_packet_t* const packet = (coap_packet_t*)request;
+  const coap_packet_t* const packet = (coap_packet_t*)request;
 
   // This function is a server-side entry point solely for requests. Hence, "code" contains the CoAP method code.
-  coap_method_t method = (coap_method_t)packet->code;
-
-  // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
-  oc_request_t new_request = {0};               // partiality filled later on, hence init with '0'
-  oc_response_t response_obj;                   // filled completely later on, hence no init with '0'
-  oc_response_buffer_t response_buffer = {0};   // partiality filled later on, hence init with '0'
+  const coap_method_t method = (coap_method_t)packet->code;
 
   #ifndef OC_SERVER
   (void)block2_size;
   #endif
 
-  // postpone allocating response_state right after calling oc_parse_rep() in order to reduce peak memory
-
-  // init response object (sets all data)
-  response_obj.separate_response = NULL;
-  response_obj.response_buffer = &response_buffer;
-
-  // init request with non '0' data, later filled with core/ app. resource
-  new_request.response = &response_obj;
-  new_request.origin = endpoint;
-  new_request.request_method = method;
-
-  // obtain request uri from the CoAP packet
+  // request uri, query (none: NULL/0), Content-Format (default CBOR) and Accept (default none) from the CoAP packet
   const char* uri_path = NULL;
-  size_t uri_path_len = coap_get_header_uri_path(request, &uri_path);
-
-  // obtain query string from CoAP packet, set default 0
-  const char* uri_query = 0;
-  size_t uri_query_len = coap_get_header_uri_query(request, &uri_query);
-
-  // read the Content-Format CoAP option in the request, set default CBOR
+  const size_t uri_path_len = coap_get_header_uri_path(request, &uri_path);
+  
+  const char* uri_query = NULL;
+  const size_t uri_query_len = coap_get_header_uri_query(request, &uri_query);
+  
   oc_content_format_t content_format = APPLICATION_CBOR;
   coap_get_header_content_format(request, &content_format);
-
-  // read the accept CoAP option in the request, set default none
+  
   oc_content_format_t accept = CONTENT_NONE;
   coap_get_header_accept(request, &accept);
 
-  if (uri_query_len)
+  // serialized payload: the (block-wise assembled) request state, none without it
+  const uint8_t* const payload = *request_state ? (*request_state)->buffer : NULL;
+  const uint32_t payload_len = *request_state ? (*request_state)->payload_size : 0;
+
+  /*
+    objects handed to the handler, all members not listed are 0
+    - response_buffer: filled by the handler (code, payload); its buffer is assigned once the response state exists
+    - response_obj   : points to the response buffer, gets the separate response handle if the handler defers
+    - new_request    : the handler's view of the request, the matching resource is set by the lookup below
+    - the response state is allocated only after oc_parse_rep() to keep the peak memory low
+  */
+  oc_response_buffer_t response_buffer = {0};
+  oc_response_t response_obj = {.separate_response = NULL, .response_buffer = &response_buffer};
+  oc_request_t new_request =
   {
-    new_request.query = uri_query;
-    new_request.query_len = uri_query_len;
-  }
-
-  // obtain handle to buffer containing the serialized payload
-  const uint8_t* payload = NULL;
-  uint32_t payload_len = 0;
-
-  if (*request_state)
-  {
-    // not NULL, so set payload + len
-    payload = (*request_state)->buffer;
-    payload_len = (*request_state)->payload_size;
-  }
-
-  // prepare request (except the matching resource pointer)
-  new_request._payload = payload;
-  new_request._payload_len = payload_len;
-  new_request.content_format = content_format;
-  new_request.accept = accept;
-  new_request.uri_path = uri_path;
-  new_request.uri_path_len = uri_path_len;
+    .origin = endpoint,
+    .query = uri_query_len > 0 ? uri_query : NULL,
+    .query_len = uri_query_len,
+    .uri_path = uri_path,
+    .uri_path_len = uri_path_len,
+    ._payload = payload,
+    ._payload_len = payload_len,
+    .content_format = content_format,
+    .accept = accept,
+    .response = &response_obj,
+    .request_method = method
+  };
 
   if (payload_len > 0 && (content_format == APPLICATION_CBOR || content_format == APPLICATION_OSCORE))
   {
@@ -1127,16 +1116,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       payload is viewed as an erroneous request and results in a 4.00 response being sent.
       oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     */
-    int parse_error = oc_parse_rep(payload, (int)payload_len, &new_request.request_payload);
+    const int parse_error = oc_parse_rep(payload, (int)payload_len, &new_request.request_payload);
     if (parse_error != 0)
     {
       OC_WRN("error parsing request payload; tinyCBOR error code:  %d", parse_error);
-      if (parse_error == CborErrorUnexpectedEOF)
-      {
-        entity_too_large = true;
-      }
 
-      bad_request = true;
+      // an unexpected end means the payload was cut (too large, hence incomplete)
+      error = parse_error == CborErrorUnexpectedEOF ? OC_STATUS_REQUEST_ENTITY_TOO_LARGE : OC_STATUS_BAD_REQUEST;
     }
   }
 
@@ -1147,15 +1133,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     If there were no errors thus far, attempt to locate the specific declared core/application resources
     that will handle the request using the request uri.
   */
-  if (!bad_request)
+  if (error == OC_STATUS_OK)
   {
-    const oc_resource_t* tmp_core_resource;
-
     // check all core resources
     for (int i = 0; i < OC_NUM_CORE_RESOURCES; i++)
     {
-      tmp_core_resource = oc_core_get_core_resource_by_index(i);
-      size_t tmp_core_resource_len = oc_string_len(tmp_core_resource->uri);
+      const oc_resource_t* tmp_core_resource = oc_core_get_core_resource_by_index(i);
+      const size_t tmp_core_resource_len = oc_string_len(tmp_core_resource->uri);
 
       /*
         incoming URL fits to a core resource by len and content, such as:
@@ -1164,9 +1148,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         see core resource definitions!
       */
 
-      // need at least one identifier after, 'dev/sn' + 1 >= '/dev/sn' -> 7 >= 7
+      // exact match, same length: 'dev/sn' + 1 == '/dev/sn' -> 7 == 7
       if (uri_path_len + 1 == tmp_core_resource_len &&
-        // start compare from 'dev/sn' (omit '/') with 'dev/sn' by compare len of 'dev/sn' = 7
+        // start compare from 'dev/sn' (omit '/') with 'dev/sn' by compare len of 'dev/sn' = 6
         strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, uri_path_len) == 0)
       {
         // update request (with matching resource)
@@ -1186,7 +1170,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
         // need at least one identifier after, 'fp/r/2' + 1 >= '/fp/r/*' -> 7 >= 7
         if (uri_path_len + 1 >= tmp_core_resource_len &&
-          // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r' = 4
+          // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r/' = 5 (with the '/', 'fp/rx' does not match)
           strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
         {
           // found core resource, update request (with matching resource)
@@ -1203,10 +1187,16 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       new_request.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len);
     }
     #endif
+
+    if (!matching_resource)
+    {
+      OC_WRN("could not find resource in core and application");
+      error = OC_STATUS_NOT_FOUND;
+    }
   }
 
-  // alloc response_state, it also affects response_buffer
-  if (!bad_request && matching_resource)
+  // alloc response_state, it also affects response_buffer (OC_STATUS_OK here: a resource was found)
+  if (error == OC_STATUS_OK)
   {
     // either core/application resource was found
     if (!*response_state)
@@ -1220,7 +1210,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       if (!*response_state)
       {
         OC_ERR("failure to alloc response state");
-        bad_request = true;
+        error = OC_STATUS_BAD_REQUEST;
       }
       else
       {
@@ -1236,7 +1226,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     }
   }
 
-  if (!bad_request && matching_resource)
+  if (error == OC_STATUS_OK)
   {
     // core/application resource found, process request
 
@@ -1248,25 +1238,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     */
     oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
 
-    // check access, use as payload the CBOR data
-    if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, new_request.request_payload))
-    {
-      /* 
-         - access NOT ok, 4.01 unauthorized without valid OSCORE credentials, otherwise 4.03 forbidden
-         - belows test uses the same check as in check acl 
-           (a) -> message was able to decrypt, but scope check failed 
-           (b) -> message was not able to decrypt, hence no valid OSCORE credentials
-      */
-      if ((endpoint->flags & (OSCORE | OSCORE_DECRYPTED)) == (OSCORE | OSCORE_DECRYPTED))
-      { // (a)
-        forbidden = true;
-      }
-      else
-      { // (b) 
-        unauthorized = true;
-      }
-    }
-    else
+    // check access (the CBOR payload is needed for a <ga> scope): 4.01 not decrypted, 4.03 scope not covered, 4.05 no method slot
+    error = oc_knx_sec_check_acl(method, matching_resource, endpoint, new_request.request_payload);
+    if (error == OC_STATUS_OK)
     {
       // check ok, invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 
@@ -1300,7 +1274,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       }
       else
       {
-        method_impl = false;
+        error = OC_STATUS_METHOD_NOT_ALLOWED;
       }
     }
   }
@@ -1319,50 +1293,17 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     oc_free_rep(new_request.request_payload);
   }
 
-  if (forbidden)
+  /*
+    one place for every error response
+    - 4.03 forbidden: the requestor (subject) has no access granted via an access control entry (Table 40, KNX spec)
+    - 4.01, 4.13, 4.00, 4.04, 4.05: see where 'error' is set above
+  */
+  const bool success = error == OC_STATUS_OK;
+  if (!success)
   {
-    /*
-      If the requestor (subject) does not have access granted via an access control entry in the ACL,
-      then it is not authorized to access the resource Table 40, KNX specification.
-    */
-
-    OC_WRN("forbidden request");
+    OC_WRN("request rejected with %d", oc_status_code(error));
     response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_FORBIDDEN);
-  }
-  else if (unauthorized)
-  {
-    OC_WRN("unauthorized request");
-    response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_UNAUTHORIZED);
-  }
-  else if (entity_too_large)
-  {
-    OC_WRN("request payload too large (hence incomplete)");
-    response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_REQUEST_ENTITY_TOO_LARGE);
-  }
-  else if (bad_request)
-  {
-    OC_WRN("bad request");
-    response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_BAD_REQUEST);
-  }
-  else if (!matching_resource)
-  {
-    OC_WRN("could not find resource in core and application");
-    response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_NOT_FOUND);
-  }
-  else if (!method_impl)
-  {
-    OC_WRN("could not find method");
-    response_buffer.response_length = 0;
-    response_buffer.code = oc_status_code(OC_STATUS_METHOD_NOT_ALLOWED);
-  }
-  else
-  {
-    success = true;
+    response_buffer.code = oc_status_code(error);
   }
 
   #ifdef OC_SERVER
