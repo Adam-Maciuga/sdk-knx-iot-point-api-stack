@@ -115,6 +115,7 @@ struct SwuBlockRec {
   size_t binary_size = 0;
   size_t block_offset = 0;
   size_t block_len = 0;
+  uint8_t first_byte = 0;
   // leave sep_response->active = false => fast path
 };
 void recording_swu_cb(oc_separate_response_t *response, size_t binary_size,
@@ -122,12 +123,12 @@ void recording_swu_cb(oc_separate_response_t *response, size_t binary_size,
                       size_t block_len, void *data)
 {
   (void)response;
-  (void)block_data;
   auto *r = static_cast<SwuBlockRec *>(data);
   r->called = true;
   r->binary_size = binary_size;
   r->block_offset = block_offset;
   r->block_len = block_len;
+  r->first_byte = block_len > 0 ? block_data[0] : 0;
 }
 
 /*
@@ -734,7 +735,9 @@ TEST_F(KnxSwuABlock, IntMaxOffsetIsAccepted)
 {
   SwuBlockRec rec;
   oc_set_swu_cb(recording_swu_cb, &rec);
-  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  // a download that already received INT_MAX bytes, so the block continues it
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  oc_swu_set_package_bytes(2147483647);
   RespCtx ctx;
   char q[] = "po=2147483647&ps=10&pkgs=64";
   ctx.request.query = q;
@@ -753,7 +756,8 @@ TEST_F(KnxSwuABlock, LeadingZerosUpToMaxLenAreAccepted)
 {
   SwuBlockRec rec;
   oc_set_swu_cb(recording_swu_cb, &rec);
-  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  oc_swu_set_package_bytes(10);
   RespCtx ctx;
   char q[] = "po=0000000010&ps=0000000010&pkgs=0000000064";
   ctx.request.query = q;
@@ -765,6 +769,8 @@ TEST_F(KnxSwuABlock, LeadingZerosUpToMaxLenAreAccepted)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.block_offset, 10u);
+  // the forwarded offset is the received byte count, a smaller parsed 'po' would only shorten the block
+  EXPECT_EQ(rec.block_len, 8u);
 }
 
 // a leading zero is accepted, the value is decimal coded and not octal
@@ -772,7 +778,8 @@ TEST_F(KnxSwuABlock, LeadingZeroIsAccepted)
 {
   SwuBlockRec rec;
   oc_set_swu_cb(recording_swu_cb, &rec);
-  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  oc_swu_set_package_bytes(10);
   RespCtx ctx;
   char q[] = "po=010&ps=10&pkgs=64";
   ctx.request.query = q;
@@ -784,6 +791,8 @@ TEST_F(KnxSwuABlock, LeadingZeroIsAccepted)
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.block_offset, 10u);
+  // read as octal, 'po' would be 8 and only the last 6 bytes of the block would be new
+  EXPECT_EQ(rec.block_len, 8u);
 }
 
 // the query value is not NUL terminated, the parser must not read beyond value_len
@@ -811,7 +820,7 @@ TEST_F(KnxSwuABlock, CallbackFastPathReturnsChanged)
   oc_set_swu_cb(recording_swu_cb, &rec);
   oc_swu_set_state(OC_SWU_STATE_IDLE);
   RespCtx ctx;
-  char q[] = "po=1&ps=10";
+  char q[] = "po=0&ps=10";
   ctx.request.query = q;
   ctx.request.query_len = strlen(q);
   uint8_t data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -837,12 +846,15 @@ protected:
     oc_set_swu_cb(recording_swu_cb, &rec);
   }
 
-  // one /a/swu PUT carrying 'len' payload bytes, returns the response code
+  // one /a/swu PUT carrying 'len' payload bytes valued 0, 1, 2, ..., returns the response code
   int put_block(const char *query, size_t len)
   {
     RespCtx ctx;
     std::string q(query);
-    uint8_t data[32] = { 0 };
+    uint8_t data[32];
+    for (size_t i = 0; i < sizeof(data); i++) {
+      data[i] = static_cast<uint8_t>(i);
+    }
     ctx.request.query = const_cast<char *>(q.c_str());
     ctx.request.query_len = q.size();
     ctx.request._payload = len > 0 ? data : nullptr;
@@ -935,11 +947,67 @@ TEST_F(KnxSwuABlockStateMachine, NewDownloadResetsReceivedBytes)
 // (B-3) the block is forwarded with the query values of its own request
 TEST_F(KnxSwuABlockStateMachine, BlockIsForwardedWithQueryValues)
 {
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  oc_swu_set_package_bytes(32);
   EXPECT_EQ(put_block("po=32&ps=8&pkgs=64", 8), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.binary_size, 64u);
   EXPECT_EQ(rec.block_offset, 32u);
   EXPECT_EQ(rec.block_len, 8u);
+}
+
+// (A) a download starts at offset 0, a block with another offset cannot be placed.
+TEST_F(KnxSwuABlockStateMachine, ContinuationBlockInIdleIsRejected)
+{
+  EXPECT_EQ(put_block("po=8&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_IDLE));
+}
+
+/*
+  (B-0) a block beyond the received bytes would leave a gap. It is rejected without reaching the
+  application and the download stays open, so the MaC resumes at /swu/pkgbytes
+*/
+TEST_F(KnxSwuABlockStateMachine, BlockBeyondReceivedBytesIsRejected)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  rec.called = false;
+
+  EXPECT_EQ(put_block("po=16&ps=8", 8), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
+  EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
+  EXPECT_EQ(read_pkgbytes(), 8u);
+
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 8u);
+  EXPECT_EQ(read_pkgbytes(), 16u);
+}
+
+// (B-0) a repeated block adds no bytes, it is acknowledged without reaching the application again
+TEST_F(KnxSwuABlockStateMachine, RepeatedBlockIsNotForwarded)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  rec.called = false;
+
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_FALSE(rec.called);
+  EXPECT_EQ(read_pkgbytes(), 16u);
+}
+
+// (B-0) of a block that overlaps the received bytes, only the new bytes reach the application
+TEST_F(KnxSwuABlockStateMachine, OverlappingBlockForwardsOnlyNewBytes)
+{
+  EXPECT_EQ(put_block("po=0&ps=8&pkgs=24", 8), oc_status_code(OC_STATUS_CHANGED));
+
+  EXPECT_EQ(put_block("po=4&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_TRUE(rec.called);
+  EXPECT_EQ(rec.block_offset, 8u);
+  EXPECT_EQ(rec.block_len, 4u);
+  // the payload bytes are 0..7, the first new one is the fifth
+  EXPECT_EQ(rec.first_byte, 4u);
+  EXPECT_EQ(read_pkgbytes(), 12u);
 }
 
 // (A) a block with offset 0 while a download is still running restarts that download
@@ -1304,7 +1372,8 @@ TEST_F(KnxSwuCbReg, SetSwuCbThenTriggered)
 {
   SwuBlockRec rec;
   oc_set_swu_cb(recording_swu_cb, &rec);
-  oc_swu_set_state(OC_SWU_STATE_IDLE);
+  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
+  oc_swu_set_package_bytes(2);
   RespCtx ctx;
   char q[] = "po=2&ps=4";
   ctx.request.query = q;
