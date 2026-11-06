@@ -100,10 +100,17 @@ extern "C" {
    */
   void oc_swu_set_package_name(const char* name);
 
+/**
+ * @brief swu/lastupdate value of a device without a real-time clock after a software update
+ *
+ * GET swu/lastupdate returns it as the out-of-service status { "osv": true }.
+ */
+#define OC_SWU_LAST_UPDATE_OSV "osv:true"
+
   /**
    * @brief set the current last update time
    *
-   * @param time the update time in IETF RFC 3339
+   * @param time the update time in IETF RFC 3339, or OC_SWU_LAST_UPDATE_OSV
    */
   void oc_swu_set_last_update(const char* time);
 

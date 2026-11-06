@@ -272,16 +272,24 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
     KNX Specification
     - initial value -> date of manufacturing
     - if device HAS RTC    : after a software update = shows actual timestamp of last software update (RFC 3339)
-    - if device has NO RTC : after a software update = shows "osv:true" 
+    - if device has NO RTC : after a software update = shows the out-of-service status { "osv": true }
 
    Note, before a software update the date of manufacturing has to be returned, regardless of any clock availability. 
 
-   The KNX IoT stack needs an RTC such as to handle CoAP (CON) timeouts or brute force spake attempts, hence the logic 
-   here is to return always the stored timestamp (it is either date of manufacturing or the last software update time, 
-   set on application init).
+   The stored value is either the date of manufacturing or the last software update time, set on application init.
+   An application without a real-time clock stores OC_SWU_LAST_UPDATE_OSV after a software update instead.
   */
 
-  oc_rep_i_set_text_string(root, 1, oc_string(swu_device.last_update));
+  const char* last_update = oc_string(swu_device.last_update);
+
+  if (last_update != NULL && strcmp(last_update, OC_SWU_LAST_UPDATE_OSV) == 0)
+  {
+    oc_rep_set_boolean(root, osv, true);
+  }
+  else
+  {
+    oc_rep_i_set_text_string(root, 1, last_update);
+  }
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
