@@ -1271,6 +1271,36 @@ TEST_F(SecAtPost, FullOverwriteWithNewKeyFreesTheCachedRecipientContext)
 }
 
 /*
+  a full overwrite with the SAME key keeps the cached recipient context (conformance 5.10.5.2: the token re-POSTed through itself)
+  - token "tok" with a recipient context, the request of the overwrite is protected with it
+  - POST the same full token again -> 2.04
+  - the recipient context is still there, it encrypts the response of this request
+*/
+TEST_F(SecAtPost, FullOverwriteWithTheSameKeyKeepsTheCachedRecipientContext)
+{
+  const std::vector<uint8_t> create = make_complete_at_payload(16, false, 1, 10);
+  ASSERT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CREATED));
+  oc_free_rep(payload);
+  payload = nullptr;
+
+  oc_auth_at_t* e = oc_core_find_at_entry_by_access_token("tok", 3);
+  ASSERT_NE(e, nullptr);
+  oc_oscore_context_params_t params;
+  memset(&params, 0, sizeof(params));
+  params.auth_at = e;
+  oc_oscore_context_t* recipient = oc_oscore_add_recipient_context(&params);
+  ASSERT_NE(recipient, nullptr);
+
+  EXPECT_EQ(post_at(create.data(), create.size()), oc_status_code(OC_STATUS_CHANGED));
+
+  uint8_t kid[] = { 0x01 };
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(kid, sizeof(kid), nullptr, 0), recipient);
+
+  // the created entry was also stored, keep storage clean for the following tests
+  oc_delete_at_table();
+}
+
+/*
   spec 2.6.7.3: 'cnf' is not updatable -> a partial update (not all mandatory elements) that carries cnf is rejected
   - token "tok" with a recipient context
   - POST { id, cnf:osc:ms } with a new master secret -> 4.00

@@ -1510,3 +1510,42 @@ TEST_F(OscoreEngine, OutboundUnicastWithFullQueueReleasesTheMessage)
   EXPECT_EQ(g_network_send_calls, 0);
   EXPECT_EQ(rejected_posts_of(message), 1); /* handed to oc_message_post, rejected and released there */
 }
+
+/*
+  response to a POST /auth/at that rewrites the token protecting the request itself (the handler side is tested in test_oc_knx_sec)
+  - same key   : the handler keeps the token's contexts -> the recipient context of the request encrypts the response, it is sent
+  - new key    : the handler frees ALL contexts of the token, oc_init_oscore_from_storage() rebuilds only a sender context
+                 -> the response looks up a RECIPIENT context by the token's osc:id (uc-a), the rebuilt sender context does not match
+                 -> no context, the response is dropped (RFC 8613: it would have to use the request's, i.e. the old, context anyway)
+*/
+TEST_F(OscoreEngine, ResponseOfASameKeyTokenRewriteIsSent)
+{
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message), OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 1);
+}
+
+TEST_F(OscoreEngine, ResponseOfANewKeyTokenRewriteThroughItselfIsDropped)
+{
+  // what the handler does on a new key: free all contexts of the token, rebuild its sender context (same osc:id 0xBB)
+  oc_oscore_free_contexts_at_id(&at_);
+  const uint8_t sender_id[] = { 0xBB };
+  oc_oscore_context_params_t params = {};
+  params.sender_id = sender_id;
+  params.sender_id_size = sizeof(sender_id);
+  params.auth_at = &at_;
+  params.read_ssn_from_storage = false;
+  ASSERT_NE(oc_oscore_add_context(&params), nullptr);
+
+  oc_message_t* message = make_outbound_response();
+  ASSERT_NE(message, nullptr);
+
+  ASSERT_EQ(oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message), OC_PROCESS_ERR_OK);
+  oc_process_run();
+  oc_process_run();
+  EXPECT_EQ(g_network_send_calls, 0);
+}

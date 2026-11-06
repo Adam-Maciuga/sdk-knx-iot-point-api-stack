@@ -1148,18 +1148,29 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
 
         /*
-          an existing token rewritten with cnf (full token only) or profile, even with the same values
-          
-          1. ALL its contexts are freed
-          2. oc_init_oscore_from_storage() below rebuilds only the sender contexts
-          
-          - a cached recipient context (it also encrypts the response) still holds keys of the OLD master secret, it would
-            keep decrypting requests protected with the old key; it is created again from the new key on the next request
-          
-          - only cnf and profile are part of a context, so only they free the entry 
-            
+          an existing token rewritten (= CHANGED) with a NEW key (cnf values or profile differ from the live entry)
+
+          1. oc_oscore_free_contexts_at_id() below frees ALL its contexts (sender and recipient), only when the key differs
+          2. oc_init_oscore_from_storage() at the end rebuilds only the sender contexts, a recipient context is created again
+             from the new key on the next inbound request
+
+          (a) new = old: the contexts are kept, the recipient context of THIS request encrypts its later outbound 2.04 response
+              -> freed, the response would find no context and be dropped
+          (b) new != old: the contexts are freed, a kept recipient context would still accept the old key and reject the new one
+              -> a request protected with a DIFFERENT token gets its 2.04 (its own context is untouched)
+              -> a request protected with THIS token gets no 2.04, the response has to use the request's (old) context
+                 (RFC 8613 8.3), which is freed
+
+          - only cnf and profile are part of a context, so only they free the contexts (b)
+          - the VALUES are compared, not the elements seen: a full token re-POSTed with the same key (conformance 5.3.8.4,
+            and 5.10.5.2 protected with this token itself) keeps its contexts (a), such a request still gets its response
         */
-        if (return_status == OC_STATUS_CHANGED && at_properties_seen & (AT_PROP_CNF | AT_PROP_PROFILE))
+        if (return_status == OC_STATUS_CHANGED && (tmp.profile != at_entry->profile
+                      || (at_properties_seen & AT_PROP_CNF
+                      && (oc_byte_string_cmp(tmp.osc_id, at_entry->osc_id) != 0
+                          || oc_byte_string_cmp(tmp.osc_ms, at_entry->osc_ms) != 0
+                          || oc_byte_string_cmp(tmp.osc_salt, at_entry->osc_salt) != 0
+                          || oc_byte_string_cmp(tmp.osc_contextid, at_entry->osc_contextid) != 0))))
         {
           oc_oscore_free_contexts_at_id(at_entry);
         }
@@ -1190,7 +1201,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
     - nbf     (5) - not implemented
 
     Use Case
-    - update an access token in place, such as to extend the 'exp' time of an access token without rewriting the key
+    - update ONE or MANY access token in place (as part of one request), such as to extend the 'exp' time of an access token without rewriting the key
       (such as a token for a diagnostic function that publishes a live value to a visualization)
     -> a scope-only update needs no re-initialization, all other cases add the oscore contexts by reinitializing all used oscore keys
   */
