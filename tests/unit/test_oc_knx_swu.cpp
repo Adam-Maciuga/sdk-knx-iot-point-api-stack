@@ -382,9 +382,21 @@ TEST_F(KnxSwuGetString, LastUpdateHappy)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
-  // the stored RFC3339 timestamp is always returned, there is no "osv" status variant
+  // a stored RFC3339 timestamp is returned as is, not as the "osv" status
   EXPECT_TRUE(payload_contains(ctx, "2025-01-01T00:00:00Z"));
   EXPECT_FALSE(payload_contains(ctx, "osv"));
+}
+
+TEST_F(KnxSwuGetString, LastUpdateWithoutClockIsOutOfServiceStatus)
+{
+  // a device without a real-time clock reports { "osv": true } after a software update (3-10-5 §4.2)
+  oc_swu_set_last_update(OC_SWU_LAST_UPDATE_OSV);
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  // text key "osv" (0x63 'o' 's' 'v') with the value true (0xF5)
+  EXPECT_TRUE(payload_contains(ctx, "\x63osv\xf5"));
+  EXPECT_FALSE(payload_contains(ctx, OC_SWU_LAST_UPDATE_OSV));
 }
 
 TEST_F(KnxSwuGetString, LastUpdateWrongAccept)
