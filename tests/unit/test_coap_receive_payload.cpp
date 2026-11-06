@@ -110,10 +110,11 @@ static oc_endpoint_t peer_endpoint(void)
 }
 
 /*
-  a piggybacked ACK 2.05 with 'payload_len' bytes (byte i = i & 0xFF) in ONE message (no Block2); Content-Format
-  application/octet-stream, so the client side hands the raw bytes to the callback without a CBOR parse
+  a piggybacked ACK 2.05 (or with 'type' CON a separate response) with 'payload_len' bytes (byte i = i & 0xFF) in ONE message
+  (no Block2); Content-Format application/octet-stream, so the client side hands the raw bytes to the callback without a CBOR parse
 */
-static oc_message_t* make_response(uint16_t mid, const uint8_t* token, uint8_t token_len, size_t payload_len)
+static oc_message_t* make_response(uint16_t mid, const uint8_t* token, uint8_t token_len, size_t payload_len,
+                                   coap_message_type_t type = COAP_TYPE_ACK)
 {
   oc_message_t* m = oc_allocate_message();
   if (!m)
@@ -124,7 +125,7 @@ static oc_message_t* make_response(uint16_t mid, const uint8_t* token, uint8_t t
   m->endpoint = peer_endpoint();
 
   coap_packet_t pkt[1];
-  coap_udp_init_message(pkt, COAP_TYPE_ACK, CONTENT_2_05, mid);
+  coap_udp_init_message(pkt, type, CONTENT_2_05, mid);
   coap_set_token(pkt, token, token_len);
   coap_set_header_content_format(pkt, APPLICATION_OCTET_STREAM);
 
@@ -323,4 +324,105 @@ TEST_F(CoapReceivePayload, ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCall
   EXPECT_EQ(g_send_calls, 0);
 
   oc_ri_remove_client_cb(cb);
+}
+
+/*
+  client side: a CON separate response the parser rejects (payload of OC_MAX_APP_DATA_SIZE -> 4.13) is answered with an
+  empty RST, not with ACK 4.13 (RFC 7252 4.2)
+  - exactly one message: type RST, code 0.00, the MID of the separate response, no token
+  - the client callback is not called and stays registered
+*/
+TEST_F(CoapReceivePayload, RejectedConSeparateResponseGetsAnEmptyReset)
+{
+  oc_endpoint_t ep = peer_endpoint();
+  oc_client_handler_t handler;
+  memset(&handler, 0, sizeof(handler));
+  handler.response = record_client_response;
+  oc_client_cb_t* cb = oc_ri_alloc_client_cb("/p/1", &ep, COAP_GET, nullptr, handler, HIGH_QOS, nullptr);
+  ASSERT_NE(cb, nullptr);
+
+  // a separate response carries its own MID (the server's), not the one of the request
+  const uint16_t separate_mid = (uint16_t)(cb->mid + 0x100);
+  oc_message_t* m = make_response(separate_mid, cb->token, cb->token_len, oc_get_max_app_data_size(), COAP_TYPE_CON);
+  ASSERT_NE(m, nullptr);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  coap_packet_t pkt[1];
+  ASSERT_TRUE(sent(pkt));
+  EXPECT_EQ(pkt->type, COAP_TYPE_RST);
+  EXPECT_EQ(pkt->code, EMPTY_0_00);
+  EXPECT_EQ(pkt->mid, separate_mid);
+  EXPECT_EQ(pkt->token_len, 0);
+
+  EXPECT_EQ(g_cb_calls, 0);
+  EXPECT_EQ(oc_ri_find_client_cb_by_token(cb->token, cb->token_len), cb);
+
+  oc_ri_remove_client_cb(cb);
+}
+
+/*
+  (a) a rejected RST is silently ignored: a RST whose parse fails (oversized payload -> 4.13) gets no reply (RFC 7252 4.2)
+*/
+TEST_F(CoapReceivePayload, RejectedResetIsIgnored)
+{
+  const uint8_t token[] = { 0x01, 0x02 };
+  oc_message_t* m = make_response(0x2222, token, sizeof(token), oc_get_max_app_data_size(), COAP_TYPE_RST);
+  ASSERT_NE(m, nullptr);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  EXPECT_EQ(g_send_calls, 0);
+}
+
+/*
+  (b) a rejected NON separate response is silently ignored (RFC 7252 4.3, a RST is optional)
+  - payload of OC_MAX_APP_DATA_SIZE -> 4.13, nothing is sent
+  - the client callback is not called and stays registered
+*/
+TEST_F(CoapReceivePayload, RejectedNonSeparateResponseIsIgnored)
+{
+  oc_endpoint_t ep = peer_endpoint();
+  oc_client_handler_t handler;
+  memset(&handler, 0, sizeof(handler));
+  handler.response = record_client_response;
+  oc_client_cb_t* cb = oc_ri_alloc_client_cb("/p/1", &ep, COAP_GET, nullptr, handler, HIGH_QOS, nullptr);
+  ASSERT_NE(cb, nullptr);
+
+  oc_message_t* m = make_response((uint16_t)(cb->mid + 0x100), cb->token, cb->token_len, oc_get_max_app_data_size(), COAP_TYPE_NON);
+  ASSERT_NE(m, nullptr);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  EXPECT_EQ(g_send_calls, 0);
+  EXPECT_EQ(g_cb_calls, 0);
+  EXPECT_EQ(oc_ri_find_client_cb_by_token(cb->token, cb->token_len), cb);
+
+  oc_ri_remove_client_cb(cb);
+}
+
+/*
+  (c) a CON request whose options cannot be parsed gets the error reply: one ACK with the parser's code, same MID
+  - option byte 0xF0: delta nibble 15 without being the payload marker -> BAD_OPTION_4_02 from the parser
+*/
+TEST_F(CoapReceivePayload, MalformedConRequestGetsAckWithTheParserCode)
+{
+  const uint8_t data[] = { 0x40, COAP_GET, 0x33, 0x44, 0xF0 }; // CON GET, MID 0x3344, no token, reserved option nibble
+  oc_message_t* m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  m->endpoint = peer_endpoint();
+  memcpy(m->data, data, sizeof(data));
+  m->length = sizeof(data);
+
+  coap_receive(m);
+  oc_message_unref(m);
+
+  coap_packet_t pkt[1];
+  ASSERT_TRUE(sent(pkt));
+  EXPECT_EQ(pkt->type, COAP_TYPE_ACK);
+  EXPECT_EQ(pkt->code, BAD_OPTION_4_02);
+  EXPECT_EQ(pkt->mid, 0x3344);
 }

@@ -751,7 +751,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_receive_payload.cpp — Request Payload Size Limits (5 tests)
+### test_coap_receive_payload.cpp — Request Payload Size Limits and Reject Replies (9 tests)
 
 **Source:** `messaging/coap/engine.c` (`coap_receive`, called directly with a plain request; network faked with `--wrap` of `oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`)
 
@@ -762,6 +762,10 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `CoapReceivePayload.RequestOfExactlyOneBlockIsNotRejectedForItsSize` | exactly one block: processed further, no RST and no 4.13 |
 | `CoapReceivePayload.ClientResponseAboveOneBlockReachesTheCallbackComplete` | client side: ACK 2.05 without Block2 with 513 and 767 payload bytes reaches the client callback complete (not cut at one block); the one-shot callback is released, nothing is sent |
 | `CoapReceivePayload.ClientResponseOfMaxAppDataSizeIsRejectedBeforeTheCallback` | client side: a response of exactly 768 bytes fails in the parser (4.13), the callback is not called and stays registered; the rejected ACK is not answered (nothing sent) |
+| `CoapReceivePayload.RejectedConSeparateResponseGetsAnEmptyReset` | client side: a CON separate response of 768 bytes (4.13) is answered with exactly one empty RST: code 0.00, the response's MID, no token (RFC 7252 4.2); the callback is not called and stays registered |
+| `CoapReceivePayload.RejectedResetIsIgnored` | a RST whose parse fails (oversized payload, 4.13) gets no reply |
+| `CoapReceivePayload.RejectedNonSeparateResponseIsIgnored` | client side: a NON separate response of 768 bytes (4.13) gets no reply (RFC 7252 4.3), the callback is not called and stays registered |
+| `CoapReceivePayload.MalformedConRequestGetsAckWithTheParserCode` | a CON GET with option byte `0xF0` (reserved delta nibble) gets one ACK with the parser's code 4.02 and the same MID; today's behaviour, RFC 7252 asks for an empty RST for a message format error |
 
 ---
 

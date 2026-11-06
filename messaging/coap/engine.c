@@ -1665,11 +1665,13 @@ int coap_receive(oc_message_t* incoming_message)
 
   /*
     rejecting a message (RFC 7252 4.2, 4.3)
-    - rejected ACK (empty or piggybacked) or RST -> silently ignored (4.2)
-    - rejected NON separate response -> silently ignored, a RST is optional (4.3)
-    - rejected CON (request or separate response) -> MUST be acknowledged or reset (4.2): keeps the error reply below
-    - a message whose header could not be parsed keeps the error reply below as well
+    (a) rejected ACK (empty or piggybacked) or RST -> silently ignored (4.2)
+    (b) rejected NON separate response             -> silently ignored, a RST is optional (4.3)
+    (c) rejected CON or NON request, or a message whose header could not be parsed -> error reply below (ACK for a CON,
+        NON otherwise, carrying the parser's code, e.g. 4.13)
+    (x) rejected CON separate response             -> MUST be acknowledged or reset (4.2): empty RST below, see (x)
   */
+  // (a) + (b)
   if (is_ack || inbound_coap_pkt->type == COAP_TYPE_RST || is_inbound_non_response)
   {
     OC_ERR("invalid CoAP response/ACK/RST dropped without reply");
@@ -1678,6 +1680,31 @@ int coap_receive(oc_message_t* incoming_message)
 
   // coap over UDP : mid/con/ack are relevant, no echo option
   echo_ctx.echo_len = 0;
+
+  /*
+    (x) rejected CON separate response (device in the client role) -> empty RST, not ACK 4.13
+    - the server answers a request of the device in two steps: an empty ACK first, the actual answer later as its own
+      CON message (separate response)
+    - a separate response the parser rejects (e.g. payload >= OC_MAX_APP_DATA_SIZE -> 4.13) would get the generic
+      error reply of (c): an ACK carrying 4.13 (type ACK for a CON)
+    - a response code on an ACK to a RESPONSE has no meaning, the server reads it as 'received' and does not learn that
+      it was rejected
+    - RFC 7252 4.2: a rejected CON message is answered with an empty RST (code 0.00, same MID, no token)
+
+      Server -> CON 2.05 (separate response, too large) -> Device (client), parser: 4.13
+      Server <- ACK 4.13 (same MID)                     <- Device, wrong
+      Server <- RST 0.00 (same MID, empty)              <- Device, RFC 7252 4.2
+
+    - the RST is sent plain: an empty message is not OSCORE-protected (RFC 8613), the OSCORE layer would drop it
+  */
+  // (x), otherwise (c)
+  if (is_inbound_con_response)
+  {
+    echo_ctx.type = COAP_TYPE_RST;
+    echo_ctx.code = EMPTY_0_00;
+    echo_ctx.token_len = 0;
+    UNSET_BIT(echo_ctx.endpoint.flags, OSCORE);
+  }
   coap_send_response_with_empty_application_payload(&echo_ctx);
 
   return coap_status_code;
