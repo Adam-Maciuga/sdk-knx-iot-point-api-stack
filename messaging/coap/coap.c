@@ -21,9 +21,6 @@
 // variables 
 static uint16_t current_mid = 0;
 
-// cant be static, used by several modules
-coap_status_t coap_status_code = COAP_NO_ERROR;
-
 // local helper functions, gets power of value 2, used for blockwise transfer
 static uint16_t coap_log_2(uint16_t value) 
 {

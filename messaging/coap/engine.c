@@ -509,7 +509,28 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
 
 void coap_receive(oc_message_t* incoming_message)
 {
-  coap_status_code = COAP_NO_ERROR;
+  // parse result of THIS message
+  coap_status_t coap_status_code = COAP_NO_ERROR;
+
+  /*
+    Reply suppression for THIS message: true -> at 'send_message' the transaction of this message is cleared, no reply.
+
+    set by this function
+    - repeated multicast block-wise request -> the block is already being served, a second reply would be a duplicate
+    - inbound ACK or NON response           -> a response is never answered, only the client transaction is closed
+
+    set by the entity handler (oc_ri_invoke_coap_entity_handler(), out-parameter)
+    - handler answered OC_IGNORE            -> no reply wanted (e.g. a multicast request, or a multicast error >= 4.00)
+    - separate response accepted            -> the empty ACK is already sent, the real response follows later from the
+                                               application, a piggybacked reply now would answer twice
+    - separate response NOT accepted        -> stays false: the request gets 5.03 Service Unavailable now
+
+    why a local and not a global
+    - a successful PUT/POST notifies the observers synchronously, still inside this call (oc_notify_observers())
+    - a notification may start its own separate response (GET handler of the observed resource)
+    -> with a shared flag the notification would clear the PUT/POST's transaction and its 2.04 would never be sent
+  */
+  bool clear_transaction = false;
 
   OC_DBG("####### COAP BEGIN #######");
 
@@ -1064,7 +1085,7 @@ void coap_receive(oc_message_t* incoming_message)
             if (incoming_message->endpoint.flags & MULTICAST && response_buffer->next_block_offset < response_buffer->payload_size)
             {
               OC_DBG("Dropping duplicate block-wise transfer request due to repeated multicast");
-              coap_status_code = CLEAR_TRANSACTION;
+              clear_transaction = true;
               goto send_message;
             }
             oc_blockwise_free_response_buffer(response_buffer);
@@ -1087,7 +1108,7 @@ void coap_receive(oc_message_t* incoming_message)
         if (oc_ri_invoke_coap_entity_handler(inbound_coap_pkt,
                                              outbound_coap_pkt, &request_buffer,
                                              &response_buffer,
-                                             block2_size, &incoming_message->endpoint))
+                                             block2_size, &incoming_message->endpoint, &clear_transaction))
         {
           uint32_t payload_size = 0;
           const uint8_t* payload = oc_blockwise_dispatch_block(response_buffer, 0, block2_size, &payload_size);
@@ -1412,7 +1433,7 @@ void coap_receive(oc_message_t* incoming_message)
       else if (is_ack || is_inbound_non_response)
       {
         OC_DBG("empty ack + piggybacked ack + non response (non response = the 'wait for possible inbound echo' transaction ...)");
-        coap_status_code = CLEAR_TRANSACTION;
+        clear_transaction = true;
 
         /* 
            s-mode unicast 
@@ -1739,7 +1760,7 @@ init_reset_message:
   }
 
 send_message:
-  if (coap_status_code == CLEAR_TRANSACTION)
+  if (clear_transaction)
   {
     coap_clear_transaction(transaction);
   }

@@ -713,6 +713,9 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, const char**
  * @param response_state blockwise state receiving the response payload, allocated when NULL
  * @param block2_size block size for the response
  * @param endpoint endpoint the request was received from
+ * @param clear_transaction set to true when the transaction of this request has to be cleared without sending a
+ *                          reply (the handler answered OC_IGNORE, or a separate response was started); left
+ *                          unchanged otherwise
  *
  * @return true when the request reached the handler of a matching resource, false when this
  *         function set an error status on the response itself (bad request, forbidden, not
@@ -722,7 +725,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       struct oc_blockwise_state_s** request_state,
                                       struct oc_blockwise_state_s** response_state,
                                       uint16_t block2_size,
-                                      oc_endpoint_t* endpoint);
+                                      oc_endpoint_t* endpoint, bool* clear_transaction);
 
 /**
  * @brief frame the interface mask in the response, as string in the uri

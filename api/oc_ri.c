@@ -1047,7 +1047,7 @@ static void free_all_event_timers(void)
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       oc_blockwise_state_t** request_state,
                                       oc_blockwise_state_t** response_state,
-                                      uint16_t block2_size, oc_endpoint_t* endpoint)
+                                      uint16_t block2_size, oc_endpoint_t* endpoint, bool* clear_transaction)
 {
   // flags that capture status along various stages of processing the request.
   bool method_impl = true, bad_request = false, success = false, forbidden = false, unauthorized = false, entity_too_large = false;
@@ -1479,10 +1479,26 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       out a response with it.
     */
 
+    /*
+      separate response accepted or not
+      - accepted: coap_separate_accept() sent the empty ACK (CON), the response follows later -> the request's own
+        transaction is cleared, no piggybacked reply now
+      - not accepted (no memory for the store, empty ACK not sent): the request is answered now with 5.03 Service
+        Unavailable, the client may retry later (a multicast request with OC_IGNORE stays without reply)
+    */
     // note, observe value may also be 'invalid'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client, block2_size) == 1)
     {
       response_obj.separate_response->active = true;
+      *clear_transaction = true;
+    }
+    else if (response_buffer.code == OC_IGNORE)
+    {
+      *clear_transaction = true;
+    }
+    else
+    {
+      coap_set_status_code(response, oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE));
     }
   }
   else
@@ -1493,7 +1509,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         - freeing the CoAP transaction associated with the request
         - preferred for multicast requests, since it avoids unnecessary CoAP traffic on the network
       */
-      coap_status_code = CLEAR_TRANSACTION;
+      *clear_transaction = true;
     }
     else
     {

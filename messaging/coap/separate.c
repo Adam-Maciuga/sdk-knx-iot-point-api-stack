@@ -28,13 +28,12 @@
  
   @return 1 if the separate response was successfully initiated, 0 otherwise.
   When the server does not have enough resources left to store the information for a separate response or otherwise cannot execute the 
-  resource handler, this function will respond with 5.03 Service Unavailable. The client can then retry later.
+  resource handler, this function returns 0 and the caller (oc_ri) answers the request with 5.03 Service Unavailable. The
+  client can then retry later.
 
 */
 int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc_endpoint_t* endpoint, uint32_t observe, uint16_t block2_size)
 {
-  coap_status_code = CLEAR_TRANSACTION;
-
   if (handle->active == false)
   { // first separate response for this request, initialize the separate response store list
     OC_LIST_STRUCT_INIT(handle, requests);

@@ -210,9 +210,6 @@ typedef struct coap_packet_t
     current_number = number;                                                          \
   }
 
-/** stores error code */
-extern coap_status_t coap_status_code;
-
 void coap_init_connection(void);
 uint16_t coap_get_next_mid(void);
 

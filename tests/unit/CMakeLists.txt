@@ -170,6 +170,14 @@ target_link_options(test_coap_blockwise_server PRIVATE
     -Wl,--wrap=oc_etimer_restart
     -Wl,--wrap=coap_send_message
 )
+# separate responses through coap_receive(): replies go to the recorder __wrap_coap_send_message(), --wrap=calloc fails a store
+kis_add_test(test_coap_receive_notify test_coap_receive_notify.cpp)
+target_link_options(test_coap_receive_notify PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=calloc
+)
 kis_add_test(test_coap_observe       test_coap_observe.cpp)
 target_link_options(test_coap_observe PRIVATE
     -Wl,--wrap=oc_main_initialized

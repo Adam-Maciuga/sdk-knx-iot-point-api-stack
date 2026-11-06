@@ -1028,8 +1028,9 @@ protected:
     coap_udp_init_message(&request, COAP_TYPE_CON, COAP_GET, 0x0001);
     coap_set_header_uri_path(&request, kHref, strlen(kHref));
 
+    bool clear_transaction = false;
     return oc_ri_invoke_coap_entity_handler(&request, &response, request_state,
-                                            response_state, 64, &ep);
+                                            response_state, 64, &ep, &clear_transaction);
   }
 };
 
@@ -1161,8 +1162,9 @@ static bool invoke_entity(oc_resource_t *resource, oc_endpoint_t *endpoint,
     request_state->payload_size = (uint32_t)payload_len;
   }
 
+  bool clear_transaction = false;
   const bool result = oc_ri_invoke_coap_entity_handler(
-    &request, &response, &request_state, &response_state, 64, endpoint);
+    &request, &response, &request_state, &response_state, 64, endpoint, &clear_transaction);
   if (response_code != nullptr)
     *response_code = response.code;
   return result;
@@ -1278,7 +1280,9 @@ TEST(RiEntityHandlerPaths, DeletingPeriodicObservedResourceStopsItsPeriodicCallb
   oc_blockwise_state_t* request_state = nullptr;
   oc_blockwise_state_t* response_state = nullptr;
   g_last_etimer_set = nullptr;
-  ASSERT_TRUE(oc_ri_invoke_coap_entity_handler(&request, &response, &request_state, &response_state, 64, &fixture.endpoint));
+  bool clear_transaction = false;
+  ASSERT_TRUE(oc_ri_invoke_coap_entity_handler(&request, &response, &request_state, &response_state, 64, &fixture.endpoint,
+                                               &clear_transaction));
   ASSERT_EQ(fixture.resource->runtime_data->num_observers, 1);
   struct oc_etimer* const periodic_timer = g_last_etimer_set;
   ASSERT_NE(periodic_timer, nullptr) << "the observe registration did not start the periodic callback";

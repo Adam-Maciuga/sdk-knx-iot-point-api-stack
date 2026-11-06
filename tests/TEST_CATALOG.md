@@ -774,6 +774,18 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
+### test_coap_receive_notify.cpp — Separate Responses and Notifications in coap_receive (3 tests)
+
+**Source:** `messaging/coap/engine.c` (`coap_receive`), `api/oc_ri.c` (separate response branch, `oc_notify_observers()` after a PUT), `messaging/coap/separate.c`; app resource `/p/1` (observable, GET answers with a separate response, PUT answers 2.04); linked with `-Wl,--wrap=oc_main_initialized`, `-Wl,--wrap=oc_etimer_restart`, `-Wl,--wrap=coap_send_message` (records each sent message) and `-Wl,--wrap=calloc` (fails one armed allocation of a separate response store)
+
+| Test | What it verifies |
+|------|-----------------|
+| `CoapReceiveNotify.PutReplyIsSentWhenTheNotificationStartsASeparateResponse` | with one observer, a CON PUT whose synchronous notification runs the separate GET handler still gets its own reply: exactly one ACK 2.04 with the PUT's MID and token (the notification can not clear the PUT's transaction) |
+| `CoapReceiveNotify.AcceptedSeparateResponseSendsOnlyTheEmptyAck` | a CON GET answered with a separate response sends only the empty ACK (0.00, same MID) now; the handle is active and the request is stored |
+| `CoapReceiveNotify.NotAcceptedSeparateResponseAnswers503` | the store allocation fails: the CON GET is answered now with one ACK 5.03 Service Unavailable, same MID and token; the handle stays inactive, no store |
+
+---
+
 ### test_coap_blockwise_server.cpp — Server Side Block-wise Transfer (6 tests)
 
 **Source:** `messaging/coap/engine.c` (`coap_receive()`, Block1/Block2 server path), `api/oc_ri.c` (response buffer); app resource `/p/1` (GET 100 bytes CBOR, POST records the body); linked with `-Wl,--wrap=oc_main_initialized`, `-Wl,--wrap=oc_etimer_restart`, `-Wl,--wrap=coap_send_message`
