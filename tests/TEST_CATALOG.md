@@ -330,9 +330,9 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (97 tests)
+### test_oc_knx_sec.cpp — Security Credentials (99 tests)
 
-**Source:** `api/oc_knx_sec.c`
+**Source:** `api/oc_knx_sec.c`; linked with `-Wl,--wrap=oc_core_get_core_resource_by_index` (counts the lookups of the list GETs, pass through)
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
@@ -342,7 +342,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
 | `AtTable` | 6 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token; deleting a token removes the observers subscribed with it (`DeleteEntryRemovesTheObserversOfThatToken`, token rotation spec 3.5.4.1) |
 | `AtSsnStorage` | 2 | SSN persistence round-trip; entry outside the table is skipped |
-| `SecHandlers` | 21 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: `DELETE /auth/at/{id}` ends the token's `/k` subscriptions (`AtEntryDeleteRemovesTheTokensObservers`); wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00) |
+| `SecHandlers` | 24 | CoAP handlers of `/auth`, `/auth/o`, `/auth/o/osndelay`, `/auth/o/replwdo`, `/auth/at`, `/auth/at/*`: `DELETE /auth/at/{id}` ends the token's `/k` subscriptions (`AtEntryDeleteRemovesTheTokensObservers`); wrong-Accept rejection, invalid paging (`ps=0`, `pn=-1`), CBOR GET payloads, OSN-delay PUT (no payload → 4.00, valid → 4.04 CHANGED), AT-table DELETE, wildcard entry lookup (missing/unknown token → 4.00); the `/auth/o` and `/auth` list GETs (`AuthOListWalksTheCoreChainOnce`, `AuthListWalksTheCoreChainOnce`) answer 2.05 with their first entry and the one after it and walk the core resource chain once (one lookup by index) |
 | `SecAcl` | 29 | `oc_knx_sec_check_acl`, the authorization gate, each case with its exact status (`OC_STATUS_OK`, 4.01 `UNAUTHORIZED` not decrypted, 4.03 `FORBIDDEN` scope / ga not covered, 4.05 `METHOD_NOT_ALLOWED` no handler slot): NULL resource and unsupported method → 4.05; per-method handler scope resolution (GET/POST/PUT/DELETE); OSCORE requirement (`OSCORE` alone and `OSCORE_DECRYPTED` alone both denied); scope matching (disjoint → deny, partial overlap → allow, missing access token → deny); `<ga>` per-group-address authorization incl. empty/NULL ga list, absent ga in payload, non-object payload, first/last list entry, broadcast address, and the F-026 regression (a foreign ga anywhere in the payload denies, in either order) |
 | `SecAtPost` | 20 | `/auth/at` rejects incomplete or malformed credentials: id + one scope, repeated mandatory property, short/all-zero master secret, and sender ID longer than the OSCORE limit; `cnf:osc:alg` 10 creates the token, any other value is rejected and not stored; a rejected scope update (`["if.unknown"]`) leaves an existing `<ga>` token unchanged; a `<ga>`-only update (2.04) keeps the OSCORE contexts (same context, SSN unchanged); an id-only delete in a scope-only request frees the deleted token's context; a profile + scope update re-initializes the contexts; deleting an entry (device reset path) frees its sender and recipient contexts; an update rejected after a valid `<ga>` scope or a valid master secret leaves the token unchanged; a repeated master secret in a full-token overwrite keeps the last one; a repeated scope `<ga>` then string frees both ga arrays (request and live); a full-token overwrite with a new master secret frees the token's cached recipient context, one with the same key keeps it (the response of a request protected with this token still gets encrypted); a partial update carrying `cnf` is rejected with 4.00 (spec 2.6.7.3) and keeps the old key and context; a scope-only update keeps the cached recipient context |
 | `AtTable` access token lookup | 2 | `oc_core_find_at_entry_by_access_token`: match, miss, prefix/longer id; empty or NULL id never matches an unused slot |
@@ -650,9 +650,9 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (49 tests)
+### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (57 tests)
 
-**Source:** `api/oc_knx_dev.c`
+**Source:** `api/oc_knx_dev.c`; linked with `-Wl,--wrap=oc_main_initialized`, `-Wl,--wrap=knx_dns_sd_update_service` and `-Wl,--wrap=oc_core_get_core_resource_by_index` (counts the lookups of the list GETs, pass through)
 
 **Programming mode (`KnxDeviceProgrammingMode`, 6 tests)**
 
@@ -667,12 +667,14 @@ must forward. Verified non-vacuous: transposing one argument in
 
 **Device reset (`KnxDevResetObservers`, 2 tests)** — `oc_knx_device_reset` with erase code 2 (`ResetToDefaultStateRemovesAllObservers`) and 7 (`ResetToDefaultWithoutIaRemovesAllObservers`) removes every observer: subscriptions end with the access tokens they were made with.
 
-**Resource handlers (`KnxDevHandlers`, 41 tests)** — GET/PUT handlers for the
+**Resource handlers (`KnxDevHandlers`, 43 tests)** — GET/PUT handlers for the
 device resources (`/dev/sn`, `/dev/hwv`, `/dev/fwv`, `/dev/hwt`, `/dev/model`,
 `/dev/hostname`, `/dev/iid`, `/dev/pm`, `/dev/sa`, `/dev/da`, `/dev/fid`,
 `/dev/port`, `/dev/mport`, `/dev/ap/pv`, `/dev/mid`, `/dev/ipv6`, dev/ap lists)
 exercised directly at handler level: wrong-Accept → bad request, happy-path
-content, empty-payload PUT → bad request, and array-size validation.
+content, empty-payload PUT → bad request, and array-size validation. The `/dev` and the app list GET
+(`DevListWalksTheCoreChainOnce`, `ApListWalksTheCoreChainOnce`) answer 2.05 with their first entry and the one
+after it and walk the core resource chain once (one lookup by index).
 `/dev/hname`, `/dev/iid` and `/dev/fid` are read-only (PUT is optional in the
 specification; IID and FID are written via `/.well-known/knx/ia`), so only their
 GET handlers are tested plus a check that no PUT handler is registered.
@@ -890,7 +892,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (112 tests)
+### test_oc_ri.cpp — Resource Interface (114 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -919,7 +921,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `RiResourceLookup` | 1 | NULL and empty application-resource paths |
 | `RiClientCb` | 9 | Client-callback find-by-mid/token, list traversal, validity, get-by-uri/endpoint/method |
 | `RiEntityHandlerBlockwiseLifetime` | 2 | `oc_ri_invoke_coap_entity_handler`'s own internal blockwise scrub must not free the current request's buffer before the caller (`coap_receive`) is done with it |
-| `RiEntityHandlerPaths` | 11 | Registered-resource GET, PUT, POST, DELETE, malformed payload, and unsupported-method paths; every error code of the handler: 4.00 invalid CBOR, 4.13 truncated CBOR, 4.04 unknown path, 4.01 scoped handler without OSCORE, 4.03 decrypted request outside the token scope, 4.05 unsupported method and FETCH (the handler is not called on an error); deleting a periodic observed resource stops its periodic callback |
+| `RiEntityHandlerPaths` | 13 | Registered-resource GET, PUT, POST, DELETE, malformed payload, and unsupported-method paths; every error code of the handler: 4.00 invalid CBOR, 4.13 truncated CBOR, 4.04 unknown path, 4.01 scoped handler without OSCORE, 4.03 decrypted request outside the token scope, 4.05 unsupported method and FETCH (the handler is not called on an error); deleting a periodic observed resource stops its periodic callback; the core resource lookup takes one lookup by index and walks the chain (`--wrap=oc_core_get_core_resource_by_index` counts them), the chain has `OC_NUM_CORE_RESOURCES` entries and ends with `/.well-known/core`, next NULL |
 
 ---
 
@@ -1107,9 +1109,9 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (96 tests)
+### test_oc_knx_swu.cpp — Software Update (97 tests)
 
-**Source:** `api/oc_knx_swu.c`; linked with `-Wl,--wrap=malloc` and `-Wl,--wrap=free` (pass through unless armed: capture a setter's string buffer, poison a block on free)
+**Source:** `api/oc_knx_swu.c`; linked with `-Wl,--wrap=malloc` and `-Wl,--wrap=free` (pass through unless armed: capture a setter's string buffer, poison a block on free) and `-Wl,--wrap=oc_core_get_core_resource_by_index` (counts the lookups, pass through)
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
@@ -1119,7 +1121,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
 | `KnxSwuABlock` | 8 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
-| `KnxSwuList` | 3 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched |
+| `KnxSwuList` | 4 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched; a valid list GET answers 2.05 with the swu sub resources and walks the core chain once (one lookup by index) |
 | `KnxSwuABlockStateMachine` | 15 | Download state machine on `/a/swu`: the first block starts a download and clears stale metadata, an empty payload does not; received bytes accumulate and are reported only while downloading; offset 0 or a missing offset restarts an interrupted or finished download; a continuation block outside DOWNLOADING is rejected; the stack never moves to DOWNLOADED itself; restart after a failed update; update refused while updating |
 | `KnxSwuABlockAppCompletion` | 3 | The application completes the download with its own counter; the stack counter matches it; update rejected until the application completes |
 | `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |

@@ -1135,11 +1135,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   */
   if (error == OC_STATUS_OK)
   {
-    // check all core resources
-    for (int i = 0; i < OC_NUM_CORE_RESOURCES; i++)
+    /*
+      check all core resources (from 0...n)
+      - walk the entire chain once from the first one ('next', /.well-known/core is the last, next NULL)
+    */
+    for (const oc_resource_t* tmp_core_res = oc_core_get_core_resource_by_index(0); tmp_core_res; tmp_core_res = tmp_core_res->next)
     {
-      const oc_resource_t* tmp_core_resource = oc_core_get_core_resource_by_index(i);
-      const size_t tmp_core_resource_len = oc_string_len(tmp_core_resource->uri);
+      const size_t tmp_core_res_len = oc_string_len(tmp_core_res->uri);
 
       /*
         incoming URL fits to a core resource by len and content, such as:
@@ -1149,12 +1151,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       */
 
       // exact match, same length: 'dev/sn' + 1 == '/dev/sn' -> 7 == 7
-      if (uri_path_len + 1 == tmp_core_resource_len &&
+      if (uri_path_len + 1 == tmp_core_res_len &&
         // start compare from 'dev/sn' (omit '/') with 'dev/sn' by compare len of 'dev/sn' = 6
-        strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, uri_path_len) == 0)
+        strncmp((const char*)oc_string(tmp_core_res->uri) + 1, uri_path, uri_path_len) == 0)
       {
         // update request (with matching resource)
-        new_request.resource = matching_resource = tmp_core_resource;
+        new_request.resource = matching_resource = tmp_core_res;
         break;
       }
 
@@ -1167,14 +1169,14 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         - the cheap length check first: most resources are skipped without reading their uri
         - the last char is read with the known length (>= 1: every core resource is defined in code with a uri starting with '/')
       */
-      if (uri_path_len + 1 >= tmp_core_resource_len &&
+      if (uri_path_len + 1 >= tmp_core_res_len &&
         // need at least one identifier after, 'fp/r/2' + 1 >= '/fp/r/*' -> 7 >= 7
-        oc_string(tmp_core_resource->uri)[tmp_core_resource_len - 1] == '*' &&
+        oc_string(tmp_core_res->uri)[tmp_core_res_len - 1] == '*' &&
         // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r/' = 5 (with the '/', 'fp/rx' does not match)
-        strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
+        strncmp((const char*)oc_string(tmp_core_res->uri) + 1, uri_path, tmp_core_res_len - 2) == 0)
       {
         // found core resource, update request (with matching resource)
-        new_request.resource = matching_resource = tmp_core_resource;
+        new_request.resource = matching_resource = tmp_core_res;
         break;
       }
     }

@@ -78,6 +78,16 @@ extern const oc_resource_t core_resource_knx_swu; // /swu list
 */
 void* __real_malloc(size_t size);
 void __real_free(void* ptr);
+const oc_resource_t* __real_oc_core_get_core_resource_by_index(int index);
+
+// pass-through counter: each lookup by index walks the core resource chain from the start
+static int g_core_by_index_calls;
+
+const oc_resource_t* __wrap_oc_core_get_core_resource_by_index(int index)
+{
+  g_core_by_index_calls++;
+  return __real_oc_core_get_core_resource_by_index(index);
+}
 
 static bool g_capture_next_malloc = false;
 static void* g_captured_malloc = NULL;
@@ -1365,6 +1375,22 @@ TEST_F(KnxSwuList, InvalidPageSizeBadRequest)
   ctx.request.query_len = strlen(q);
   invoke_get(core_resource_knx_swu, ctx, APPLICATION_LINK_FORMAT);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+/*
+  GET /swu lists the swu sub resources (link format), the core resource chain is walked once
+  - one lookup by index (the first entry), then 'next' for the following entries
+  - a lookup per entry walks the chain from the start every time
+*/
+TEST_F(KnxSwuList, ListWalksTheCoreChainOnce)
+{
+  RespCtx ctx;
+  g_core_by_index_calls = 0;
+  invoke_get(core_resource_knx_swu, ctx, APPLICATION_LINK_FORMAT);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "/swu/protocol"));
+  EXPECT_TRUE(payload_contains(ctx, "/swu/pkgbytes"));
+  EXPECT_EQ(g_core_by_index_calls, 1);
 }
 
 TEST_F(KnxSwuList, InvalidPageNumberBadRequest)

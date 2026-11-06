@@ -35,10 +35,12 @@ extern "C" {
 #include "messaging/coap/coap.h"
 #include "util/oc_mmem.h"
 #include "api/oc_knx_sec.h"
+#include "oc_core_res.h"
 
 extern int __real_coap_remove_observer_by_resource(const oc_resource_t* resource);
 extern void __real_oc_etimer_set(struct oc_etimer* et, oc_clock_time_t interval);
 extern void __real_oc_etimer_stop(struct oc_etimer* et);
+extern const oc_resource_t* __real_oc_core_get_core_resource_by_index(int index);
 }
 
 static int g_removed_observer_resources;
@@ -67,6 +69,15 @@ extern "C" void __wrap_oc_etimer_stop(struct oc_etimer* et)
 {
   g_last_etimer_stopped = et;
   __real_oc_etimer_stop(et);
+}
+
+// pass-through counter: how often a core resource is looked up by its index (each call walks the chain from the start)
+static int g_core_by_index_calls;
+
+extern "C" const oc_resource_t* __wrap_oc_core_get_core_resource_by_index(int index)
+{
+  g_core_by_index_calls++;
+  return __real_oc_core_get_core_resource_by_index(index);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1249,6 +1260,40 @@ TEST(RiEntityHandlerPaths, TruncatedCborReturnsEntityTooLarge)
                              malformed, sizeof(malformed), APPLICATION_CBOR,
                              &response_code));
   EXPECT_EQ(response_code, REQUEST_ENTITY_TOO_LARGE_4_13);
+}
+
+/*
+  the core resource lookup walks the core resource chain once, not once per index
+  - a request to an application resource (/unit) checks every core resource first
+  - only the chain start is looked up by index (index 0); a lookup per index walks the chain from the start each time
+*/
+TEST(RiEntityHandlerPaths, CoreLookupWalksTheChainOnce)
+{
+  RiEntityResource fixture;
+  g_ri_get_calls = 0;
+  g_core_by_index_calls = 0;
+  int response_code = 0;
+  EXPECT_TRUE(invoke_entity(fixture.resource, &fixture.endpoint, COAP_GET, nullptr, 0, CONTENT_NONE, &response_code));
+  EXPECT_EQ(response_code, CONTENT_2_05);
+  EXPECT_EQ(g_ri_get_calls, 1);
+  EXPECT_EQ(g_core_by_index_calls, 1);
+}
+
+// the walk stops at the end of the chain: OC_NUM_CORE_RESOURCES entries, the last is /.well-known/core with next NULL
+TEST(RiEntityHandlerPaths, CoreChainEndsWithWellKnownCore)
+{
+  int count = 0;
+  const oc_resource_t* last = nullptr;
+  for (const oc_resource_t* r = oc_core_get_core_resource_by_index(0); r != nullptr && count <= OC_NUM_CORE_RESOURCES; r = r->next)
+  {
+    last = r;
+    count++;
+  }
+  EXPECT_EQ(count, OC_NUM_CORE_RESOURCES);
+  ASSERT_NE(last, nullptr);
+  EXPECT_STREQ(oc_string(last->uri), "/.well-known/core");
+  EXPECT_EQ(last->next, nullptr);
+  EXPECT_EQ(last, oc_core_get_core_resource_by_index(WELLKNOWNCORE));
 }
 
 // no core or application resource for the path: 4.04, the handler is not called

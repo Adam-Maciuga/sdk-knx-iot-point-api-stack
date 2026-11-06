@@ -109,6 +109,10 @@ target_link_options(test_oc_rep_alloc_fail PRIVATE
 kis_add_test(test_coap              test_coap.cpp)
 kis_add_test(test_oc_oscore_crypto  test_oc_oscore_crypto.cpp)
 kis_add_test(test_oc_knx_sec       test_oc_knx_sec.cpp)
+# --wrap=oc_core_get_core_resource_by_index: counts the lookups of the /auth/o and /auth lists (pass through)
+target_link_options(test_oc_knx_sec PRIVATE
+    -Wl,--wrap=oc_core_get_core_resource_by_index
+)
 kis_add_test(test_oc_replay         test_oc_replay.cpp)
 kis_add_test(test_oc_oscore_echo_tx test_oc_oscore_echo_tx.cpp)
 target_link_options(test_oc_oscore_echo_tx PRIVATE
@@ -124,6 +128,7 @@ target_link_options(test_oc_ri PRIVATE
     -Wl,--wrap=coap_remove_observer_by_resource
     -Wl,--wrap=oc_etimer_set
     -Wl,--wrap=oc_etimer_stop
+    -Wl,--wrap=oc_core_get_core_resource_by_index
 )
 # --wrap=oc_clock_time gives the timed event callback tests a clock they move themselves.
 kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)
@@ -247,14 +252,17 @@ kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)
 target_link_options(test_oc_knx_dev PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=knx_dns_sd_update_service
+    -Wl,--wrap=oc_core_get_core_resource_by_index
 )
 kis_add_test(test_oc_knx_sub         test_oc_knx_sub.cpp)
 kis_add_test(test_oc_knx_p           test_oc_knx_p.cpp)
 kis_add_test(test_oc_knx_swu         test_oc_knx_swu.cpp)
-# --wrap=malloc/free: a string setter called with its own value (capture its buffer, poison it on free)
+# --wrap=malloc/free: a string setter called with its own value (capture its buffer, poison it on free);
+# --wrap=oc_core_get_core_resource_by_index: counts the lookups of the /swu list
 target_link_options(test_oc_knx_swu PRIVATE
     -Wl,--wrap=malloc
     -Wl,--wrap=free
+    -Wl,--wrap=oc_core_get_core_resource_by_index
 )
 kis_add_test(test_oc_blockwise       test_oc_blockwise.cpp)
 kis_add_test(test_oc_test_control    test_oc_test_control.cpp)

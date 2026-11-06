@@ -70,6 +70,15 @@ extern const oc_resource_t core_resource_dev_mport;
 extern const oc_resource_t core_resource_app_pv;
 extern const oc_resource_t core_resource_app;
 extern const oc_resource_t core_resource_dev_mid;
+
+/* pass-through counter: each lookup by index walks the core resource chain from the start */
+const oc_resource_t* __real_oc_core_get_core_resource_by_index(int index);
+static int g_core_by_index_calls;
+const oc_resource_t* __wrap_oc_core_get_core_resource_by_index(int index)
+{
+  g_core_by_index_calls++;
+  return __real_oc_core_get_core_resource_by_index(index);
+}
 }
 
 
@@ -628,4 +637,49 @@ TEST_F(KnxDevResetObservers, ResetToDefaultWithoutIaRemovesAllObservers)
   oc_knx_device_reset(RESET_TO_DEFAULT_WO_IA);
 
   EXPECT_EQ(k_observers(), 0);
+}
+
+
+/* true when 'text' is somewhere in the link format response written into 'buf' */
+static bool list_contains(const uint8_t* buf, size_t size, const char* text)
+{
+  const size_t len = strlen(text);
+  for (size_t i = 0; i + len <= size; i++)
+  {
+    if (memcmp(buf + i, text, len) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+  a list GET walks the core resource chain once: one lookup by index (the first entry), then 'next'
+  - the list holds its first entry and the one after it (the walk follows the chain), 2.05 link format
+*/
+static void expect_list_walks_the_chain_once(oc_request_t& request, oc_response_buffer_t& response_buffer, uint8_t* buf, size_t size,
+                                              const oc_resource_t& list, const oc_resource_t& first)
+{
+  memset(buf, 0, size);
+  oc_rep_new(buf, (int)size);
+  response_buffer.code = 0;
+  request.resource = &list;
+  request.accept = APPLICATION_LINK_FORMAT;
+  g_core_by_index_calls = 0;
+  list.get_handler.cb(&request, OC_IF_LI, nullptr);
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(list_contains(buf, size, oc_string(first.uri))) << oc_string(first.uri);
+  EXPECT_TRUE(list_contains(buf, size, oc_string(first.next->uri))) << oc_string(first.next->uri);
+  EXPECT_EQ(g_core_by_index_calls, 1);
+}
+
+TEST_F(KnxDevHandlers, DevListWalksTheCoreChainOnce)
+{
+  expect_list_walks_the_chain_once(request, response_buffer, buf, sizeof(buf), core_resource_dev, core_resource_dev_sn);
+}
+
+TEST_F(KnxDevHandlers, ApListWalksTheCoreChainOnce)
+{
+  expect_list_walks_the_chain_once(request, response_buffer, buf, sizeof(buf), core_resource_app, core_resource_app_pv);
 }

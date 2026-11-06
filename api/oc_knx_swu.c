@@ -818,9 +818,9 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   int query_pn = KNX_PAGE_NUMBER;
   int query_ps = KNX_PAGE_SIZE;
 
-  int first_entry = OC_KNX_SWU_PROTOCOL; // first entry number of a resource that will be placed on a page
-  int last_entry = OC_KNX_SWU; // last entry number of a resource that will be placed on a page
-  int total = last_entry - first_entry; // total entries of this resource
+  int first_entry = OC_KNX_SWU_PROTOCOL;      // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_SWU;                // last entry number of a resource that will be placed on a page
+  const int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
   OC_DBG("oc_core_swu_get_handler - start");
@@ -860,9 +860,15 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
     more_request_needed = true;
   }
 
-  for (int i = first_entry; i < last_entry; i++)
+  /*
+    walk the chain once from first_entry (consecutive core resources); by index every lookup walks from the start
+    - the page is the index range already, nothing to skip: no_skip (0) < 0 is never true (the 'skipped' counter is for discovery)
+  */
+  int no_skip = 0;
+  const oc_resource_t* resource = oc_core_get_core_resource_by_index(first_entry);
+  for (int i = first_entry; i < last_entry; i++, resource = resource->next)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true, true))
+    if (oc_check_request_from_resource(resource, request, &response_length, &no_skip, 0, true, true))
     {
       query_parameter_kvpair_matches++;
     }

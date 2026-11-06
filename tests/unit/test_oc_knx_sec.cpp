@@ -436,6 +436,29 @@ extern const oc_resource_t core_resource_knx_auth_o_osndelay;
 extern const oc_resource_t core_resource_knx_auth_o_replwdo;
 extern const oc_resource_t core_resource_knx_auth_at;
 extern const oc_resource_t core_resource_knx_auth_at_x;
+
+/* pass-through counter: each lookup by index walks the core resource chain from the start */
+const oc_resource_t* __real_oc_core_get_core_resource_by_index(int index);
+static int g_core_by_index_calls;
+const oc_resource_t* __wrap_oc_core_get_core_resource_by_index(int index)
+{
+  g_core_by_index_calls++;
+  return __real_oc_core_get_core_resource_by_index(index);
+}
+}
+
+/* true when 'text' is somewhere in the link format response written into 'buf' */
+static bool list_contains(const uint8_t* buf, size_t size, const char* text)
+{
+  const size_t len = strlen(text);
+  for (size_t i = 0; i + len <= size; i++)
+  {
+    if (memcmp(buf + i, text, len) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 class SecHandlers : public ::testing::Test {
@@ -1859,3 +1882,25 @@ TEST_F(SecAcl, GaScopeSiaWithGaBearingNonSMapObjectDenied)
   EXPECT_EQ(oc_knx_sec_check_acl(COAP_POST, &res, &ep, &sia), OC_STATUS_FORBIDDEN);
 }
 
+
+/*
+  the /auth/o and /auth list GETs walk the core resource chain once: one lookup by index, then 'next'
+  - each list holds its first entry and the one after it, 2.05 link format
+*/
+TEST_F(SecHandlers, AuthOListWalksTheCoreChainOnce)
+{
+  g_core_by_index_calls = 0;
+  EXPECT_EQ(get(core_resource_knx_auth_o, APPLICATION_LINK_FORMAT), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(list_contains(buf, sizeof(buf), oc_string(core_resource_knx_auth_o_replwdo.uri)));
+  EXPECT_TRUE(list_contains(buf, sizeof(buf), oc_string(core_resource_knx_auth_o_replwdo.next->uri)));
+  EXPECT_EQ(g_core_by_index_calls, 1);
+}
+
+TEST_F(SecHandlers, AuthListWalksTheCoreChainOnce)
+{
+  g_core_by_index_calls = 0;
+  EXPECT_EQ(get(core_resource_knx_auth, APPLICATION_LINK_FORMAT), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(list_contains(buf, sizeof(buf), oc_string(core_resource_knx_auth_o.uri)));
+  EXPECT_TRUE(list_contains(buf, sizeof(buf), oc_string(core_resource_knx_auth_o.next->uri)));
+  EXPECT_EQ(g_core_by_index_calls, 1);
+}
