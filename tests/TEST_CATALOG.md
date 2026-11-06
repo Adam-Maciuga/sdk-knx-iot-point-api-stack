@@ -938,7 +938,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (77 tests)
+### test_oc_knx_swu.cpp — Software Update (98 tests)
 
 **Source:** `api/oc_knx_swu.c`
 
@@ -948,8 +948,10 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `KnxSwuGetString` | 4 | String-valued GETs (hwref, lastupdate) + wrong-Accept |
 | `KnxSwuGetGated` | 10 | Download-gated GETs (pkgv, pkgname, update) returning not-found / bad-request / OK |
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
-| `KnxSwuABlock` | 9 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
+| `KnxSwuABlock` | 8 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |
+| `KnxSwuABlockStateMachine` | 19 | `/a/swu` download state machine: a download starts at `po=0` (other offsets rejected in IDLE), restarts at `po=0`, `pkgbytes` counts contiguous bytes, a gap is rejected and the download stays resumable, repeated blocks are not forwarded, overlapping blocks forward only the new bytes, the stack never completes the download |
+| `KnxSwuABlockAppCompletion` | 3 | The application, not the stack, detects completion and unlocks `PUT /swu/update` |
 | `KnxSwuList` | 3 | List GET wrong-Accept, invalid page size (`ps=0`), invalid page number (`pn=-1`) — all rejected before the core resource table is touched |
 | `KnxSwuSetters` | 7 | Setter values become visible in matching GETs |
 | `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |

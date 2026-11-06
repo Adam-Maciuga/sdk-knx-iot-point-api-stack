@@ -272,6 +272,11 @@ extern "C"
   /**
    * SWU update callback handler, called when a a MaC triggers a 'a/swu' PUT call (PUSH Mode)
    *
+   * Blocks arrive in order and without gaps: a download starts with block_offset 0
+   * and each following block_offset equals the number of bytes passed before.
+   * The stack rejects blocks that would leave a gap and passes only the new bytes
+   * of a repeated or overlapping block.
+   *
    * @param[in] response the instance of an internal struct that is used to track
    *                     the state of the separate response
    * @param[in] binary_size the full size of the binary

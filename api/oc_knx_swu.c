@@ -58,7 +58,8 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
  *
  * 
     (A) State Machine: IDLE -> DOWNLOADING
-        -   triggered on first block with data arrives, stack sets DOWNLOADING
+        -   triggered when the first block with data arrives at offset 0, stack sets DOWNLOADING;
+            a block with another offset is rejected, it cannot be placed
         -   resets byte counter, result, package size
         -   stores the total package size from the 'pkgs' query parameter of this first PUT (KNX spec 4.3.3 = SHALL),
             in subsequent requests 'pkgs' is ignored (SHALL)
@@ -68,10 +69,14 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
             - resets the result to INIT (0), see KNX IoT specification 4.2, Table 56
 
     (B) State Machine: DOWNLOADING -> DOWNLOADING
-        (0) counts received bytes for a GET /swu/pkgbytes
-        (1) prepare separate response as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path)
-        (3) forwards arrived block at /a/swu with query parameters: pkgs (total size), po (offset), ps (size),
-            via swu_cb() callback forward block for application specific handling (e.g., write to flash, file system, or buffer) with,
+        (0) counts the bytes received without a gap from offset 0, for a GET /swu/pkgbytes
+        (1) rejects a block that starts beyond the received bytes, the download stays open so the
+            MaC can resume at /swu/pkgbytes
+        (2) acknowledges a repeated block that carries no new bytes without forwarding it,
+            of a block that overlaps the received bytes only the new part is forwarded
+        (3) prepare separate response as piggybacked ACK 2.04 (fast path) or defer response for async operation (slow path),
+            and forwards the new bytes of the block via swu_cb() for application specific handling
+            (e.g., write to flash, file system, or buffer) with,
             - total package size
             - block offset
             - block data
@@ -613,8 +618,8 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       swu_device.state = OC_SWU_STATE_IDLE;
     }
     
-    // (A) - process only IDLE state (falls also through from above if it was reset to IDLE)
-    if (swu_device.state == OC_SWU_STATE_IDLE)
+    // (A) - process only IDLE state (falls also through from above if it was reset to IDLE), a download starts at offset 0
+    if (swu_device.state == OC_SWU_STATE_IDLE && po_block_offset == 0)
     {
       // (A-1)
       swu_device.state = OC_SWU_STATE_DOWNLOADING;
@@ -628,20 +633,33 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     }
     
     // (B) - process only DOWNLOADING state (incl. coming directly from IDLE), prevent misbehaving application that sets wrong states
-    if (swu_device.state == OC_SWU_STATE_DOWNLOADING)
+    // (B-1) - a block beyond the received bytes would leave a gap, the MaC has to resume at /swu/pkgbytes
+    if (swu_device.state == OC_SWU_STATE_DOWNLOADING && (uint32_t)po_block_offset <= swu_device.received_pkg_bytes)
     {
+      // (B-2) - a repeated block carries no new bytes, acknowledge it without forwarding it again
+      const uint32_t known_bytes = swu_device.received_pkg_bytes - (uint32_t)po_block_offset;
+      if (known_bytes >= (uint32_t)request->_payload_len)
+      {
+        OC_DBG("block at %d already received (%" PRIu32 " bytes)", po_block_offset, swu_device.received_pkg_bytes);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+        return;
+      }
+
       oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
       memset(sep_response, 0, sizeof(oc_separate_response_t));
-      
-      // (B-0), counts only payload len > 0 (ignore misbehaving MaC)
-      swu_device.received_pkg_bytes += request->_payload_len;
+
+      // (B-0), counts the contiguous bytes from offset 0, the part of an overlapping block that was already received is skipped
+      const uint8_t* new_data = request->_payload + known_bytes;
+      const size_t new_len = (size_t)request->_payload_len - known_bytes;
+      const size_t new_offset = swu_device.received_pkg_bytes;
+      swu_device.received_pkg_bytes += (uint32_t)new_len;
       OC_DBG("Received bytes: %" PRIu32 " / %" PRIu32, swu_device.received_pkg_bytes, swu_device.expected_pkg_size);
 
       // guaranteed by oc_main_init() and assert, variable and callback can NEVER BE NULL
       const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
       // (B-3)
-      application_swu_cb->cb(sep_response, pkgs_package_size, po_block_offset, request->_payload, request->_payload_len, application_swu_cb->data);
+      application_swu_cb->cb(sep_response, pkgs_package_size, new_offset, new_data, new_len, application_swu_cb->data);
 
       /*
          Response Handling
@@ -662,10 +680,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   /*
-    the block could not be processed, either because it carries no payload or because the state machine
-    is not in IDLE/DOWNLOADING, so the MaC sent a block that cannot be accepted at this point in time
+    the block could not be processed: it carries no payload, it does not start a download in IDLE,
+    it would leave a gap in DOWNLOADING, or the state machine is in neither state, so the MaC sent
+    a block that cannot be accepted at this point in time
   */
-  OC_ERR("block not processed (payload length %" PRIu32 ", state %d)", (uint32_t)request->_payload_len, swu_device.state);
+  OC_ERR("block not processed (offset %d, payload length %" PRIu32 ", received %" PRIu32 ", state %d)", po_block_offset,
+         (uint32_t)request->_payload_len, swu_device.received_pkg_bytes, swu_device.state);
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 
   OC_DBG("oc_knx_swu_a_put_handler - end");
