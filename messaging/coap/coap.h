@@ -408,7 +408,7 @@ size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer
  * @param incoming_message the message, pushed to queue INBOUND_RI_EVENT since 
  *        the previous oscore decryption was ok, or it was a plain message
  */
-int coap_receive(oc_message_t* incoming_message);
+void coap_receive(oc_message_t* incoming_message);
 
 #ifdef __cplusplus
 }

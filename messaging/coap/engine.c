@@ -507,7 +507,7 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
   	
  */
 
-int coap_receive(oc_message_t* incoming_message)
+void coap_receive(oc_message_t* incoming_message)
 {
   coap_status_code = COAP_NO_ERROR;
 
@@ -530,7 +530,7 @@ int coap_receive(oc_message_t* incoming_message)
   {
     // ignore - caller (process_thread_coap_engine) unrefs incoming_message exactly once regardless of return path
     OC_DBG("drop loopback message, counter is %d", incoming_message->ref_count);
-    return -1;
+    return;
   }
 
   // static declaration reduces stack peaks and program code size, this way the packet can be treated as a pointer as usual
@@ -605,7 +605,7 @@ int coap_receive(oc_message_t* incoming_message)
       {
         // caller (process_thread_coap_engine) unrefs incoming_message exactly once regardless of return path
         OC_DBG("drop duplicate message, counter is %d", incoming_message->ref_count);
-        return -1;
+        return;
       }
     }
 
@@ -740,7 +740,7 @@ int coap_receive(oc_message_t* incoming_message)
 
               // no own transaction is needed, can handle NULL pointer ...
               coap_clear_transaction(transaction);
-              return UNAUTHORIZED_4_01;
+              return;
             }
 
             if (sync_state == REPLAY)
@@ -757,7 +757,7 @@ int coap_receive(oc_message_t* incoming_message)
 
               // no own transaction is needed, can handle NULL pointer ...
               coap_clear_transaction(transaction);
-              return UNAUTHORIZED_4_01;
+              return;
             }
           }
           else
@@ -775,7 +775,7 @@ int coap_receive(oc_message_t* incoming_message)
 
               // no own transaction is needed, can handle NULL pointer ...
               coap_clear_transaction(transaction);
-              return BAD_OPTION_4_02;
+              return;
             }
 
             /*
@@ -805,7 +805,7 @@ int coap_receive(oc_message_t* incoming_message)
 
               // no own transaction is needed, can handle NULL pointer ...
               coap_clear_transaction(transaction);
-              return UNAUTHORIZED_4_01;
+              return;
             }
 
             /*
@@ -935,7 +935,7 @@ int coap_receive(oc_message_t* incoming_message)
             OC_DBG("dropped message because message was already provided for block2");
 
             coap_clear_transaction(transaction);
-            return 0;
+            return;
           }
 
           if (response_buffer)
@@ -1376,7 +1376,7 @@ int coap_receive(oc_message_t* incoming_message)
             }
 
             // stop further processing on 'unicast echo re-request' message
-            return COAP_NO_ERROR;
+            return;
           }
 
           /*
@@ -1723,7 +1723,7 @@ int coap_receive(oc_message_t* incoming_message)
     coap_send_response_with_empty_application_payload(&echo_ctx);
   }
 
-  return coap_status_code;
+  return;
 
 init_reset_message:
 
@@ -1807,7 +1807,6 @@ send_message:
   oc_blockwise_scrub_buffers(false);
 
   OC_DBG("####### COAP END #######");
-  return coap_status_code;
 }
 
 void coap_init_engine(void)
