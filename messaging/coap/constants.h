@@ -132,7 +132,20 @@ typedef enum {
   MEMORY_ALLOCATION_ERROR = 192,
   PACKET_SERIALIZATION_ERROR,
   CLEAR_TRANSACTION,
-  EMPTY_ACK_RESPONSE
+  EMPTY_ACK_RESPONSE,
+  /*
+    message format error (RFC 7252 3, 3.1): the message is rejected, never answered with a response code
+    - returned by the parser for a reserved or truncated option, a payload marker without payload, a token length
+      above 8 or a token beyond the message (the header itself is valid: version 1, type and MID parsed)
+    -> coap_receive(): an empty RST for a CON (RFC 7252 4.2), a NON is dropped (RFC 7252 4.3)
+  */
+  MESSAGE_FORMAT_ERROR,
+  /*
+    message without a usable CoAP header: silently ignored, never answered (not even with a RST)
+    - returned by the parser for an unknown version (RFC 7252 3: MUST be silently ignored) or a message shorter than
+      the fixed header (no MID to reset)
+  */
+  MESSAGE_IGNORE
 } coap_status_t;
 
 /** CoAP header option numbers */

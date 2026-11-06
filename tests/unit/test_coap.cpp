@@ -853,7 +853,7 @@ TEST_F(CoapTest, Parse_WrongVersion)
   wire[0] = (wire[0] & ~COAP_HEADER_VERSION_MASK) | (2 << COAP_HEADER_VERSION_POSITION);
 
   coap_packet_t parsed;
-  EXPECT_NE(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire, len), MESSAGE_IGNORE);
 }
 
 /* ---- Malformed option headers (must be rejected, never read past the buffer) ---- */
@@ -867,7 +867,7 @@ TEST_F(CoapTest, Parse_TruncatedOneByteExtendedDelta)
   uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xD0};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedDelta)
@@ -876,7 +876,7 @@ TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedDelta)
   uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xE0, 0x01};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_TruncatedOneByteExtendedLength)
@@ -885,7 +885,7 @@ TEST_F(CoapTest, Parse_TruncatedOneByteExtendedLength)
   uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x0D};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedLength)
@@ -894,7 +894,7 @@ TEST_F(CoapTest, Parse_TruncatedTwoByteExtendedLength)
   uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0x0E, 0x00};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_ReservedDeltaNibbleIsRejected)
@@ -903,7 +903,7 @@ TEST_F(CoapTest, Parse_ReservedDeltaNibbleIsRejected)
   uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xF0};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_ReservedDeltaNibbleWithDataIsRejected)
@@ -912,7 +912,7 @@ TEST_F(CoapTest, Parse_ReservedDeltaNibbleWithDataIsRejected)
   uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFE, 'x'};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_ReservedLengthNibbleIsRejected)
@@ -921,7 +921,7 @@ TEST_F(CoapTest, Parse_ReservedLengthNibbleIsRejected)
   uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xBF, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o'};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_PayloadMarkerWithoutPayloadIsRejected)
@@ -930,7 +930,7 @@ TEST_F(CoapTest, Parse_PayloadMarkerWithoutPayloadIsRejected)
   uint8_t data[] = {0x40, 0x01, 0x00, 0x01, 0xFF};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 TEST_F(CoapTest, Parse_PayloadMarkerWithPayloadIsAccepted)
@@ -954,7 +954,7 @@ TEST_F(CoapTest, Parse_TruncatedOptionValue)
   uint8_t data[] = {0x40, 0x02, 0x12, 0x34, 0xB5, 'a', 'b'};
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, sizeof(data)), MESSAGE_FORMAT_ERROR);
 }
 
 /* ---- Parse-only critical options (must stay accepted on inbound) ---- */
@@ -987,7 +987,7 @@ TEST_F(CoapTest, Parse_UriHostAndUriPortAreAccepted)
 TEST_F(CoapTest, Parse_NullData)
 {
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, nullptr, 0), BAD_REQUEST_4_00);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, nullptr, 0), MESSAGE_IGNORE);
 }
 
 TEST_F(CoapTest, Parse_TruncatedFixedHeader)
@@ -1001,7 +1001,7 @@ TEST_F(CoapTest, Parse_TruncatedFixedHeader)
   for (size_t len = 0; len < COAP_HEADER_LEN; len++)
   {
     coap_packet_t parsed;
-    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), BAD_REQUEST_4_00) << "data_len " << len;
+    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), MESSAGE_IGNORE) << "data_len " << len;
   }
 }
 
@@ -1025,7 +1025,7 @@ TEST_F(CoapTest, Parse_TokenAnnouncedBeyondMessage)
     const size_t len = (size_t)COAP_HEADER_LEN + token_len - 1;
 
     coap_packet_t parsed;
-    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), BAD_REQUEST_4_00) << "token_len " << (int)token_len;
+    EXPECT_EQ(coap_parse_udp_message(&parsed, data, len), MESSAGE_FORMAT_ERROR) << "token_len " << (int)token_len;
 
     /* the announced token was rejected, so no byte of it may have been copied into the packet */
     uint8_t zero[COAP_TOKEN_LEN] = {0};
@@ -1075,7 +1075,7 @@ TEST_F(CoapTest, Parse_ShortMessageDoesNotLeakBytesBehindTheDatagram)
   data[3] = 0x34;
 
   coap_packet_t parsed;
-  EXPECT_EQ(coap_parse_udp_message(&parsed, data, COAP_HEADER_LEN), BAD_REQUEST_4_00);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, data, COAP_HEADER_LEN), MESSAGE_FORMAT_ERROR);
 
   for (size_t i = 0; i < COAP_TOKEN_LEN; i++)
   {
@@ -1325,7 +1325,7 @@ TEST_F(CoapPayloadLimitTest, EmptyPayloadAfterMarker_Rejected)
   // a payload marker followed by a zero-length payload is a message format error (RFC 7252 clause 3)
   build_post_with_payload(0);
 
-  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), BAD_OPTION_4_02);
+  EXPECT_EQ(coap_parse_udp_message(&parsed, wire.data(), wire_len), MESSAGE_FORMAT_ERROR);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

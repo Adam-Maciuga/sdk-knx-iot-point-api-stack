@@ -405,24 +405,92 @@ TEST_F(CoapReceivePayload, RejectedNonSeparateResponseIsIgnored)
 }
 
 /*
-  (c) a CON request whose options cannot be parsed gets the error reply: one ACK with the parser's code, same MID
-  - option byte 0xF0: delta nibble 15 without being the payload marker -> BAD_OPTION_4_02 from the parser
+  receives raw bytes from the peer (a message the helpers above cannot build, e.g. a malformed one)
 */
-TEST_F(CoapReceivePayload, MalformedConRequestGetsAckWithTheParserCode)
+static void receive_raw(const uint8_t* data, size_t len)
 {
-  const uint8_t data[] = { 0x40, COAP_GET, 0x33, 0x44, 0xF0 }; // CON GET, MID 0x3344, no token, reserved option nibble
   oc_message_t* m = oc_allocate_message();
   ASSERT_NE(m, nullptr);
   m->endpoint = peer_endpoint();
-  memcpy(m->data, data, sizeof(data));
-  m->length = sizeof(data);
+  memcpy(m->data, data, len);
+  m->length = len;
 
   coap_receive(m);
   oc_message_unref(m);
+}
+
+/*
+  (d) a CON request with a message format error is rejected with an empty RST, not answered with a response code
+  - option byte 0xF0: delta nibble 15 without being the payload marker (RFC 7252 3.1)
+  - exactly one message: type RST, code 0.00, same MID, no token (RFC 7252 4.2)
+*/
+TEST_F(CoapReceivePayload, MalformedConRequestGetsAnEmptyReset)
+{
+  const uint8_t data[] = { 0x42, COAP_GET, 0x33, 0x44, 0xAB, 0xCD, 0xF0 }; // CON GET, MID 0x3344, token 2 B, reserved option nibble
+  receive_raw(data, sizeof(data));
+
+  coap_packet_t pkt[1];
+  ASSERT_TRUE(sent(pkt));
+  EXPECT_EQ(pkt->type, COAP_TYPE_RST);
+  EXPECT_EQ(pkt->code, EMPTY_0_00);
+  EXPECT_EQ(pkt->mid, 0x3344);
+  EXPECT_EQ(pkt->token_len, 0);
+}
+
+// (d) a CON request with a token length above 8 (header nibble 9) is a message format error -> empty RST, same MID
+TEST_F(CoapReceivePayload, ConRequestWithTokenLengthAboveEightGetsAnEmptyReset)
+{
+  const uint8_t data[] = { 0x49, COAP_GET, 0x55, 0x66, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  receive_raw(data, sizeof(data));
+
+  coap_packet_t pkt[1];
+  ASSERT_TRUE(sent(pkt));
+  EXPECT_EQ(pkt->type, COAP_TYPE_RST);
+  EXPECT_EQ(pkt->code, EMPTY_0_00);
+  EXPECT_EQ(pkt->mid, 0x5566);
+  EXPECT_EQ(pkt->token_len, 0);
+}
+
+// (d) a NON request with a message format error is silently ignored (RFC 7252 4.3)
+TEST_F(CoapReceivePayload, MalformedNonRequestIsIgnored)
+{
+  const uint8_t data[] = { 0x50, COAP_GET, 0x33, 0x45, 0xF0 }; // NON GET, reserved option nibble
+  receive_raw(data, sizeof(data));
+
+  EXPECT_EQ(g_send_calls, 0);
+}
+
+// (d) a CON message with an unknown version is silently ignored (RFC 7252 3), no RST
+TEST_F(CoapReceivePayload, ConMessageWithUnknownVersionIsIgnored)
+{
+  const uint8_t data[] = { 0x80, COAP_GET, 0x33, 0x46 }; // version 2, CON GET
+  receive_raw(data, sizeof(data));
+
+  EXPECT_EQ(g_send_calls, 0);
+}
+
+// (d) a message shorter than the fixed header has no MID to reset: silently ignored
+TEST_F(CoapReceivePayload, MessageShorterThanTheHeaderIsIgnored)
+{
+  const uint8_t data[] = { 0x40, COAP_GET, 0x33 };
+  receive_raw(data, sizeof(data));
+
+  EXPECT_EQ(g_send_calls, 0);
+}
+
+/*
+  (c) a CON request with an unknown critical option keeps the error reply: ACK 4.02 Bad Option (RFC 7252 5.4.1),
+  the message itself is well formed
+  - option 9 (odd = critical, not defined), length 0
+*/
+TEST_F(CoapReceivePayload, ConRequestWithUnknownCriticalOptionGetsAck402)
+{
+  const uint8_t data[] = { 0x40, COAP_GET, 0x33, 0x47, 0x90 };
+  receive_raw(data, sizeof(data));
 
   coap_packet_t pkt[1];
   ASSERT_TRUE(sent(pkt));
   EXPECT_EQ(pkt->type, COAP_TYPE_ACK);
   EXPECT_EQ(pkt->code, BAD_OPTION_4_02);
-  EXPECT_EQ(pkt->mid, 0x3344);
+  EXPECT_EQ(pkt->mid, 0x3347);
 }

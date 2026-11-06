@@ -276,10 +276,10 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `SetStatusCode` | 2 | Valid codes, overflow protection |
 | `OptionHeader` | 4 | Delta encoding (small, 1-byte ext, 2-byte ext, count-only) |
 | `RoundTrip` | 10 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) + Block1/Block2 parse independence (F-014) |
-| `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
-| `Parse_Truncated*` | 5 | Malformed option headers rejected with 4.02 before any out-of-bounds read: 1-/2-byte extended delta, 1-/2-byte extended length, truncated option value |
-| `Parse_NullData` / `Parse_TruncatedFixedHeader` | 2 | NULL data and `data_len` 0..3 rejected with 4.00 before the fixed CoAP header is read |
-| `Parse_TokenAnnouncedBeyondMessage` | 1 | Token length nibble 1..8 announcing more token bytes than the datagram carries is rejected with 4.00; `packet->token` stays wiped (no stale heap bytes copied) |
+| `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 with `MESSAGE_IGNORE` (silently ignored, RFC 7252 3) |
+| `Parse_Truncated*` | 5 | Malformed option headers rejected with `MESSAGE_FORMAT_ERROR` before any out-of-bounds read: 1-/2-byte extended delta, 1-/2-byte extended length, truncated option value |
+| `Parse_NullData` / `Parse_TruncatedFixedHeader` | 2 | NULL data and `data_len` 0..3 rejected with `MESSAGE_IGNORE` (no usable header) before the fixed CoAP header is read |
+| `Parse_TokenAnnouncedBeyondMessage` | 1 | Token length nibble 1..8 announcing more token bytes than the datagram carries is rejected with `MESSAGE_FORMAT_ERROR`; `packet->token` stays wiped (no stale heap bytes copied) |
 | `Parse_TokenExactlyFitsMessage` | 1 | Positive boundary: datagram ending exactly after the announced token (`data_len == 4 + token_len`) parses and the token matches the wire |
 | `Parse_ShortMessageDoesNotLeakBytesBehindTheDatagram` | 1 | Recycled-buffer regression: bytes past `data_len` pre-filled with a sentinel must never reach `packet->token` |
 | `Parse_*Extended*` | 2 | Well-formed extended encodings decode correctly (delta nibble 13 -> Uri-Query, length nibble 13 -> 13-byte Uri-Path) |
@@ -751,7 +751,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_coap_receive_payload.cpp — Request Payload Size Limits and Reject Replies (9 tests)
+### test_coap_receive_payload.cpp — Request Payload Size Limits and Reject Replies (14 tests)
 
 **Source:** `messaging/coap/engine.c` (`coap_receive`, called directly with a plain request; network faked with `--wrap` of `oc_main_initialized`, `coap_send_message`, `oc_etimer_restart`)
 
@@ -765,7 +765,12 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `CoapReceivePayload.RejectedConSeparateResponseGetsAnEmptyReset` | client side: a CON separate response of 768 bytes (4.13) is answered with exactly one empty RST: code 0.00, the response's MID, no token (RFC 7252 4.2); the callback is not called and stays registered |
 | `CoapReceivePayload.RejectedResetIsIgnored` | a RST whose parse fails (oversized payload, 4.13) gets no reply |
 | `CoapReceivePayload.RejectedNonSeparateResponseIsIgnored` | client side: a NON separate response of 768 bytes (4.13) gets no reply (RFC 7252 4.3), the callback is not called and stays registered |
-| `CoapReceivePayload.MalformedConRequestGetsAckWithTheParserCode` | a CON GET with option byte `0xF0` (reserved delta nibble) gets one ACK with the parser's code 4.02 and the same MID; today's behaviour, RFC 7252 asks for an empty RST for a message format error |
+| `CoapReceivePayload.MalformedConRequestGetsAnEmptyReset` | a CON GET with option byte `0xF0` (reserved delta nibble, message format error) gets exactly one empty RST: code 0.00, same MID, no token (RFC 7252 4.2) |
+| `CoapReceivePayload.ConRequestWithTokenLengthAboveEightGetsAnEmptyReset` | a CON GET with token length nibble 9 (format error) gets one empty RST with the same MID |
+| `CoapReceivePayload.MalformedNonRequestIsIgnored` | a NON GET with a format error gets no reply (RFC 7252 4.3) |
+| `CoapReceivePayload.ConMessageWithUnknownVersionIsIgnored` | a CON with version 2 gets no reply, not even a RST (RFC 7252 3) |
+| `CoapReceivePayload.MessageShorterThanTheHeaderIsIgnored` | a 3-byte datagram gets no reply (no MID to reset) |
+| `CoapReceivePayload.ConRequestWithUnknownCriticalOptionGetsAck402` | a well formed CON GET with an unknown critical option (9) keeps the error reply: ACK 4.02 Bad Option, same MID (RFC 7252 5.4.1) |
 
 ---
 

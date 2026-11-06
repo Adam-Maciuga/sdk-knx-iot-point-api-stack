@@ -614,7 +614,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       if (coap_pkt->payload_len == 0)
       {
         OC_ERR("payload marker without payload");
-        return BAD_OPTION_4_02;
+        return MESSAGE_FORMAT_ERROR;
       }
 
       if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
@@ -646,7 +646,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
     size_t option_length = 0;
     if (!coap_next_option(&current_options, data_end, &option_number, &option_length))
     {
-      return BAD_OPTION_4_02;
+      // reserved nibble or option header / value beyond the message (RFC 7252 3.1)
+      return MESSAGE_FORMAT_ERROR;
     }
 
     // ECHO option is the last option, hence it is not allowed to have any options after it
@@ -1136,13 +1137,12 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
     the fixed CoAP header must be fully present before data[0..3] may be read, otherwise 
     uninitialized heap memory behind the received datagram would be interpreted as a CoAP header
 
-    - init payload after the check, on error the caller will use
-      the wiped packet (from above) to serialize something if needed for a 4.00
+    - init payload after the check, on error the packet stays wiped, the caller drops such a message (MESSAGE_IGNORE)
   */
   if (!data || data_len < COAP_HEADER_LEN)
   {
     OC_ERR("CoAP message is shorter than the fixed CoAP header");
-    return BAD_REQUEST_4_00;
+    return MESSAGE_IGNORE;
   }
 
   // set coap pointer to message data pointer
@@ -1163,21 +1163,21 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   if (coap_pkt->version != COAP_VERSION) 
   {
     OC_ERR("CoAP version must be 1");
-    return BAD_REQUEST_4_00;
+    return MESSAGE_IGNORE;
   }
 
   // token, the 4-bit header field allows up to 15 while packet->token holds only COAP_TOKEN_LEN bytes
   if (coap_pkt->token_len > COAP_TOKEN_LEN) 
   {
     OC_ERR("Token Length must not be more than 8");
-    return BAD_REQUEST_4_00;
+    return MESSAGE_FORMAT_ERROR;
   }
 
   // the token announced in the header must be fully covered by the received message
   if (data_len < (size_t)COAP_HEADER_LEN + coap_pkt->token_len)
   {
     OC_ERR("Token announced in the CoAP header exceeds the received message");
-    return BAD_REQUEST_4_00;
+    return MESSAGE_FORMAT_ERROR;
   }
 
   // (abused) ptr to token 

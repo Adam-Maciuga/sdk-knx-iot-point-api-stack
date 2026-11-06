@@ -569,7 +569,7 @@ int coap_receive(oc_message_t* incoming_message)
      local struct to hold all fields for a (delayed) echo response 
      - pre-fill echo_ctx with all fields known after parse 
      - error-path call sites below reuse this ctx directly and adapt it if needed
-     - token len may be at this stage still > COAP_TOKEN_LEN (and error from udp scan = 4.00),
+     - token len may be at this stage still > COAP_TOKEN_LEN (and error from udp scan = MESSAGE_FORMAT_ERROR),
        MUST be trimmed to max COAP_TOKEN_LEN in the struct
   */
   coap_echo_ctx_t echo_ctx = 
@@ -1665,47 +1665,63 @@ int coap_receive(oc_message_t* incoming_message)
 
   /*
     rejecting a message (RFC 7252 4.2, 4.3)
-    (a) rejected ACK (empty or piggybacked) or RST -> silently ignored (4.2)
-    (b) rejected NON separate response             -> silently ignored, a RST is optional (4.3)
-    (c) rejected CON or NON request, or a message whose header could not be parsed -> error reply below (ACK for a CON,
-        NON otherwise, carrying the parser's code, e.g. 4.13)
-    (x) rejected CON separate response             -> MUST be acknowledged or reset (4.2): empty RST below, see (x)
+    (a) rejected ACK (empty or piggybacked) or RST  -> silently ignored (4.2)
+    (b) rejected NON (separate) response            -> silently ignored, a RST is optional (4.3)
+    (c) rejected CON or NON request                 -> error reply below (ACK for a CON, NON otherwise, carrying the parser's
+                                                       code, e.g. 4.13 too large, 4.02 unknown critical option)
+    (d) message format error (MESSAGE_FORMAT_ERROR) -> never a response code (RFC 7252 3, 3.1), see (d*)
+    (e) no usable header (MESSAGE_IGNORE)           -> silently ignored (RFC 7252 3), see (e*)
+    (x) rejected CON separate response              -> MUST be acknowledged or reset (4.2): empty RST below, see (x*)
+
+    (d*) message format error (MESSAGE_FORMAT_ERROR): reserved or truncated option, payload marker without payload,
+         token length above 8, token beyond the message; the header itself is valid (version 1, type and MID parsed)
+         - CON -> empty RST below, as (x) (RFC 7252 4.2)
+         - NON -> silently ignored, a RST is optional (RFC 7252 4.3)
+
+    (e*) no usable header (MESSAGE_IGNORE): unknown version (RFC 7252 3), shorter than the fixed header (no MID)
+         -> silently ignored, never a RST (type and MID are not valid, a wiped packet would even look like a CON)
   */
-  // (a) + (b)
-  if (is_ack || inbound_coap_pkt->type == COAP_TYPE_RST || is_inbound_non_response)
+  const bool is_rst_type  = inbound_coap_pkt->type == COAP_TYPE_RST;    // (a) any RST, also with a code other than 0.00 (unlike is_reset)
+  const bool format_error = coap_status_code == MESSAGE_FORMAT_ERROR;   // (d)
+  const bool is_ignore    = coap_status_code == MESSAGE_IGNORE;         // (e)
+
+  // (a) + (b) + NON of (d) + (e) without a reply, everything else gets one below
+  const bool drop = is_ack || is_rst_type || is_inbound_non_response || (format_error && !is_con) || is_ignore;
+  if (drop)
   {
-    OC_ERR("invalid CoAP response/ACK/RST dropped without reply");
-    return coap_status_code;
+    OC_ERR("invalid CoAP message dropped without reply");
   }
-
-  // coap over UDP : mid/con/ack are relevant, no echo option
-  echo_ctx.echo_len = 0;
-
-  /*
-    (x) rejected CON separate response (device in the client role) -> empty RST, not ACK 4.13
-    - the server answers a request of the device in two steps: an empty ACK first, the actual answer later as its own
-      CON message (separate response)
-    - a separate response the parser rejects (e.g. payload >= OC_MAX_APP_DATA_SIZE -> 4.13) would get the generic
-      error reply of (c): an ACK carrying 4.13 (type ACK for a CON)
-    - a response code on an ACK to a RESPONSE has no meaning, the server reads it as 'received' and does not learn that
-      it was rejected
-    - RFC 7252 4.2: a rejected CON message is answered with an empty RST (code 0.00, same MID, no token)
-
-      Server -> CON 2.05 (separate response, too large) -> Device (client), parser: 4.13
-      Server <- ACK 4.13 (same MID)                     <- Device, wrong
-      Server <- RST 0.00 (same MID, empty)              <- Device, RFC 7252 4.2
-
-    - the RST is sent plain: an empty message is not OSCORE-protected (RFC 8613), the OSCORE layer would drop it
-  */
-  // (x), otherwise (c)
-  if (is_inbound_con_response)
+  else
   {
-    echo_ctx.type = COAP_TYPE_RST;
-    echo_ctx.code = EMPTY_0_00;
-    echo_ctx.token_len = 0;
-    UNSET_BIT(echo_ctx.endpoint.flags, OSCORE);
+    // coap over UDP : mid/con/ack are relevant, no echo option
+    echo_ctx.echo_len = 0;
+
+    /*
+      (x*) rejected CON separate response (device in the client role) -> empty RST, not ACK 4.13
+      - the server answers a request of the device in two steps: an empty ACK first, the actual answer later as its own
+        CON message (separate response)
+      - a separate response the parser rejects (e.g. payload >= OC_MAX_APP_DATA_SIZE -> 4.13) would get the generic
+        error reply of (c): an ACK carrying 4.13 (type ACK for a CON)
+      - a response code on an ACK to a RESPONSE has no meaning, the server reads it as 'received' and does not learn that
+        it was rejected
+      - RFC 7252 4.2: a rejected CON message is answered with an empty RST (code 0.00, same MID, no token)
+
+        Server -> CON 2.05 (separate response, too large) -> Device (client), parser: 4.13
+        Server <- ACK 4.13 (same MID)                     <- Device, wrong
+        Server <- RST 0.00 (same MID, empty)              <- Device, RFC 7252 4.2
+
+      - the RST is sent plain: an empty message is not OSCORE-protected (RFC 8613), the OSCORE layer would drop it
+    */
+    // (x) + CON of (d), otherwise (c)
+    if (is_inbound_con_response || format_error)
+    {
+      echo_ctx.type = COAP_TYPE_RST;
+      echo_ctx.code = EMPTY_0_00;
+      echo_ctx.token_len = 0;
+      UNSET_BIT(echo_ctx.endpoint.flags, OSCORE);
+    }
+    coap_send_response_with_empty_application_payload(&echo_ctx);
   }
-  coap_send_response_with_empty_application_payload(&echo_ctx);
 
   return coap_status_code;
 
