@@ -254,7 +254,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (95 tests)
+CoAP Parser/Serializer (100 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -268,7 +268,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `ETag` | 2 | Set/get, not-set |
 | `Observe` | 2 | Set/get option 7 |
 | `UriPath` | 3 | Set/get, leading slash strip, not-set |
-| `Block1/Block2` | 7 | Block options: set/get, invalid size/num, not-set |
+| `Block1/Block2` | 13 | Block options: set/get, invalid size/num, not-set; reserved SZX 7 size and non-power-of-two sizes rejected, every valid SZX size accepted (Block1 and Block2) |
 | `Size1/Size2` | 3 | Size options |
 | `Echo` | 2 | Echo option for freshness |
 | `Payload` | 2 | Set/get payload |
@@ -282,24 +282,26 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `Parse_TokenExactlyFitsMessage` | 1 | Positive boundary: datagram ending exactly after the announced token (`data_len == 4 + token_len`) parses and the token matches the wire |
 | `Parse_ShortMessageDoesNotLeakBytesBehindTheDatagram` | 1 | Recycled-buffer regression: bytes past `data_len` pre-filled with a sentinel must never reach `packet->token` |
 | `Parse_*Extended*` | 2 | Well-formed extended encodings decode correctly (delta nibble 13 -> Uri-Query, length nibble 13 -> 13-byte Uri-Path) |
-| `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
+| `Parse_Reserved*` / `Parse_PayloadMarker*` / `Parse_UriHostAndUriPortAreAccepted` | 6 | Reserved delta nibble 15 (with and without data) and reserved length nibble 15 rejected (RFC 7252 3.1); payload marker without payload rejected, with payload accepted; Uri-Host and Uri-Port options accepted |
+| `CoapFloorBlockSize` | 5 | `coap_floor_block_size()`: valid sizes kept, non-power-of-two floored down, large values capped at SZX 6 (1024), small values raised to SZX 0 (16), the result is always accepted by the block setters |
+| `Connection/QueryOptions` | 10 |
 | `CoapPayloadLimitTest` | 6 | Payload vs `OC_MAX_APP_DATA_SIZE`: accepted below/at max-1 (incl. null-terminator), 4.13 at/above max, no silent truncation, empty payload |
 | `CoapFullPduTest` | 1 | Datagram of exactly `OC_PDU_SIZE` with >328 bytes of options: parser null-terminator lands on the extra byte reserved by `oc_allocate_message()` (one-byte heap overflow regression) |
 
 ---
 
-### test_coap_oscore.cpp — OSCORE Option (44 tests)
+OSCORE Option (48 tests)
 
 **Source:** `messaging/coap/oscore.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `PivToSsn` | 5 | Big-endian PIV bytes → uint64 SSN (1/3/5 bytes, zero-length, single zero) |
-| `SsnToPiv` | 6 | uint64 SSN → PIV bytes (zero, small, 3-byte, max-4, wrap, power-of-32) |
+| `SsnToPiv` | 7 | uint64 SSN → PIV bytes (zero, small, 3-byte, max-4, length boundaries, last SSN below exhaustion, never more than 4 bytes) |
 | `PivSsnRoundTrip` | 2 | Conversion integrity (small, large) |
-| `OscoreOption` | 6 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants) |
+| `OscoreOption` | 16 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants); inner parse rejects a PIV longer than 4 bytes or than the option value, a missing kid-context length byte, a kid context or kid too long or past the option value, and accepts each maximum length |
 | `OscoreSerialize` | 2 | Serialization to wire format (PIV-only, full round-trip) |
-| `OscoreIsOscoreMessage` | 11 | Detects OSCORE option presence (true, non-OSCORE option, no options, OSCORE followed by extended-delta option, OSCORE after a full 8-byte token) and rejects malformed input without reading past the buffer: truncated 1-/2-byte extended delta, truncated extended length, truncated option value, `length` 0..3 (fixed header incomplete), token nibble 1..8 announcing more bytes than the datagram carries |
+| `OscoreIsOscoreMessage` | 13 | Detects OSCORE option presence (true, non-OSCORE option, no options, stops at the payload marker, reserved delta nibble 15 rejected,
 | `OscoreSendError` | 3 | `oscore_send_error` builds+sends a CoAP error response (network send faked via `--wrap=coap_send_message`): CON request → ACK with cleared OSCORE flag, NON request with zero-length token → fresh-mid NON, secured=true leaves the OSCORE flag untouched |
 
 ---
@@ -349,7 +351,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_replay.cpp — Replay Protection (12 tests)
+Replay Protection (14 tests)
 
 **Source:** `api/oc_replay.c`
 
@@ -367,11 +369,13 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `EmptyKID_ReturnsEcho` | Empty KID returns echo |
 | `ReAdd_ResetsWindow` | Re-adding client resets window |
 | `FullPool_EvictsOldestRecordOnOverflow` | Filling all 20 record slots then adding one more evicts the oldest record (deterministic: first-added client, ties broken by index) |
+| `SsnWrap_IsEcho_ThenResyncedByAdd` | SSN wrap 2^32 - 1 -> 0 gives ECHO; after `oc_replay_add_client(0)` the record is re-initialised (0 replay, 1 synced) |
+| `SsnMaxValue_IsSyncedFromBelow` | SSN 2^32 - 1 is accepted once from below, then detected as replay |
 
 ---
 
 
-### test_oc_oscore_echo_tx.cpp — OSCORE Engine Security (63 tests)
+OSCORE Engine Security (65 tests)
 
 **Source:** `security/oc_oscore_engine.c` (unified anchor/seen-responder echo ring and inbound OSCORE process path)
 
@@ -391,16 +395,19 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `Attacker_RingExhaustion_AnchorEvicted_ValidResponseRejected` | 2×RING_SIZE forged probes evict the anchor; documents the DoS cost and mitigation note |
 | `OldestEntry_CleanedAfterOverflow` | Ring keeps only the most recent RING_SIZE entries |
 | `Clear_DropsPendingEntries` | `oc_oscore_free_all_echo_records` wipes all pending entries |
-| `Retain_GetByToken_ReturnsSameMessage` | Retained plaintext s-mode message looked up by CoAP token after ring add-ref/unref |
-| `GetByToken_UnknownToken_ReturnsNull` | Lookup by an unrelated token returns null |
-| `Retain_FreeAll_ReleasesRetainedMessage` | `free_all` drops the ring's retained-message reference (no leak) |
+| `SsnWrap_AnchorsAtMaxAndZero_BothAccepted` | Anchors at SSN max and 0 (32-bit wrap) are independent, both accepted once |
+| `SsnWrap_ZeroDoesNotMatchMaxAnchor` | An echo with SSN 0 does not consume the anchor at SSN max |
+| `Anchor_GetByToken_ReturnsSameGroupObject` | `oc_oscore_echo_get_anchor()` by CoAP token returns the anchor's group object and service type |
+| `GetAnchor_UnknownToken_ReturnsFalse` | Lookup by an unrelated token returns false and leaves the anchor untouched |
+| `Anchor_FreeAll_DropsTheGroupObjectReference` | `oc_oscore_free_all_echo_records()` drops the anchors, the lookup then fails |
+| `Anchor_ServiceTypeRoundTripsPerSlot` | Each slot keeps its own group object and service type |
 | `WithinCapacity_AllSendersAndResponsesAccepted` | 32 anchors (half capacity) all store and consume without collision |
 | `OverflowEviction_LateEchoRejected_NewAnchorAccepted` | Evicted anchor rejects a late echo; a fresh higher-SSN anchor still works |
 | `OverflowMixed_EvictedBlSlot_DoesNotFalseReplay` | An evicted seen-responder slot does not cause a false replay reject on reuse |
 | `MultiKid_IndependentSenders_AllAccepted` | Three senders with distinct kids and the same SSN value are fully independent |
 | `MultiKid_WrongKidForAnchor_Rejected_CorrectKidAccepted` | Echo with another sender's kid for a matching SSN rejected; correct kid accepted |
 | `MultiKid_Overflow_EvictedSenderDropped_OthersAccepted` | Ring overflow evicts one sender's anchor while surviving senders remain accepted |
-| `Retain_RingRollOverCleansOldestRetainedMessage` | Ring roll-over past capacity frees the oldest retained message, keeps the newest |
+| `Anchor_RingRollOverDropsOldestAnchor` | Ring roll-over past capacity overwrites the oldest anchor, the newer ones keep their group object |
 | `InvalidOuterVersionIsRejectedAndMessageIsReleased` | Version-0 outer CoAP message is rejected and its event reference released |
 | `OverlongTokenIsRejectedAndMessageIsReleased` | Outer token length beyond COAP_TOKEN_LEN is rejected before copying |
 | `AckWithRequestCodeIsRejectedAndMessageIsReleased` | ACK carrying a request code is not accepted as an OSCORE carrier |
@@ -437,6 +444,8 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `InboundRequestWithFullQueueReleasesTheMessage` | decrypted inbound request, the hand-over to the CoAP engine is rejected (queue full): the message is released |
 | `OutboundMulticastWithFullQueueReleasesTheMessage` | outbound multicast (encrypted in place), the hand-over for sending is rejected: handed to `oc_message_post` and released there (`--wrap=oc_message_post`) |
 | `OutboundUnicastWithFullQueueReleasesTheMessage` | outbound unicast response, the same for the unicast send path |
+| `ResponseOfASameKeyTokenRewriteIsSent` | After an `/auth/at` overwrite with the same key the response of the request is still encrypted and sent |
+| `ResponseOfANewKeyTokenRewriteThroughItselfIsDropped` | After an overwrite with a new key (contexts freed and rebuilt) the response has no context and is dropped |
 
 ---
 
@@ -635,14 +644,14 @@ must forward. Verified non-vacuous: transposing one argument in
 
 ---
 
-### test_oc_core_res.cpp — Core Resources & Device Info (47 tests)
+Core Resources & Device Info (57 tests)
 
 **Source:** `api/oc_core_res.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `DeviceHostname` | 12 | Set stores the label (store first), overwrite; NULL, empty, over-`HNAME_MAX_SIZE` and with-domain (`.`) rejected (previous name kept); load uses the stored name, no or an invalid (old `.local`) stored name gives the default `knx-<serial>` and stores it; `oc_core_reset_device_hostname_to_default` sets and stores the default (returns 0); a failed store returns -1 and RAM still holds the default, at reset and at load without storage |
-| `DeviceInfo` | 19 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation |
+| `DeviceInfo` | 29 | Firmware/hardware/app version (hwv stored by reference), manufacturer/model/manufacturing-date setters, ia/iid/fid set-and-store range validation; set-and-store of ia/iid/fid/fwv/apv writes the value to storage, and a failed store keeps the new value in RAM |
 | `CoreResourceByIndex` | 6 | Resource-by-index bounds (negative, out-of-range, first); every `oc_core_resource_t` value names the resource at that position in the linked list (URI per index, with and without `OC_PUBLISHER_TABLE`), the table covers all `OC_NUM_CORE_RESOURCES`, the list ends after `/.well-known/core` |
 | `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
 | `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |
@@ -1301,7 +1310,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (43 tests)
+DNS-SD Announcements and Query Responder (44 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
@@ -1325,7 +1334,8 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
 | query responder | 11 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type, application-set host name in SRV target and AAAA |
 | AAAA records per interface | 4 | RFC 6762 section 15: an announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on; a query from an interface without an own address gets no answer; an unknown receive interface gets every address |
-| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface; a ULA sender leaves it unknown |
+| send buffer | 1 | `WorstCasePacketFitsTheSendBuffer`: the largest announcement fits the send buffer |
+| receive interface from the sender | 2 |
 
 ---
 
@@ -1346,7 +1356,7 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 ---
 
-### test_smode_loopback_recursion.cpp — S-Mode Write Loopback (2 tests)
+S-Mode Write Loopback (4 tests)
 
 **Source:** `api/oc_knx_client.c` (`oc_send_s_mode_mc_or_uc_message()`); the transmission is neutralised with `--wrap=coap_new_transaction_with_message` (returns NULL, the message is released)
 
@@ -1755,7 +1765,7 @@ Measured link-format sizes at `KNX_PAYLOAD_SIZE` 768 (512-byte blocks):
 |  | `test_at_mandatory_invalid_scope_names_rejected` ×3 |  | POST /auth/at with an invalid scope name -> 4.00, no entry. |
 |  | `test_at_mandatory_mixed_scope_keeps_only_valid_names` ×4 |  | POST /auth/at with a mixed scope -> 2.01, only the valid bits are stored. |
 | **TestWriteAccessTokenRepeatedKey** | `test_repeated_group_scope_last_wins` |  | POST /auth/at with a repeated key in one token (ADDITIONAL, non-EITT): accepted, the last occurrence wins, as on /fp/g, /fp/p and /fp/r. |
-| **TestReadAccessTokenList** | `test_get_auth_at_without_oscore_returns_403` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.03. |
+| `test_get_auth_at_without_oscore_returns_401` | 5.3.9.3a | GET /auth/at without OSCORE must return 4.01. |
 |  | `test_get_auth_at_link_format` | 5.3.9.1 | GET /auth/at → 2.05 with link-format listing. |
 | **TestReadAccessTokenById** | `test_get_at_by_id_without_oscore_returns_401` | 5.3.10.2a | GET /auth/at/{id} without OSCORE → 4.01. |
 |  | `test_get_at_by_id` | 5.3.10.1 | GET /auth/at/RuntimeTest → 2.05 with CBOR AT details. |
