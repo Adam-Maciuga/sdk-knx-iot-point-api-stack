@@ -154,13 +154,14 @@ removed entry. The next number is F-070.
 - **Expected:** keep a flag "temporary context created" and free exactly that context on every exit path.
 - **Fix:** (1) 'receiver' side: the token is taken from the cached context or the AT lookup, and a multicast request whose token has no group addresses is silently discarded together with an unknown kid, before a context is created and before an echo can be sent (spec 2.6.9.1 multicast = s-mode, 2.5.9.6 the token must hold the group address). (2) 'sender' side: the temporary 'Response Sender Context' is always created for a multicast caused echo response (no `ga_len` condition, so the flag `unicast_echo_response_by_mc` always means it replaced `oscore_ctx`); it is freed once after the encrypt `if`/`else`, on success and on an encrypt error. A token that loses its group addresses during the echo delay (POST /auth/at) is accepted: the echo is still encrypted with its own context. Tests: `test_oc_oscore_echo_tx`, `OscoreEngine.MulticastRequestWithTokenWithoutGroupAddressIsSilentlyDropped`, `OscoreEngine.MulticastEchoResponseEncryptFailureFreesTheTemporaryContext` (`-Wl,--wrap=oc_oscore_encrypt`).
 
-## F-044: netlink replies shorter than a header are read past the buffer - OPEN
+## ~~F-044: netlink replies shorter than a header are read past the buffer~~ - FIXED
 
 - **Files:** `port/linux/ipadapter.c`, the two netlink receive loops (interface list and address change).
 - **Severity:** Low - heap over-read of the `malloc(response_len)` buffer; data comes only from the kernel.
 - **Description:** `recv` can return fewer than `sizeof(struct nlmsghdr)` bytes, and `response->nlmsg_type` is read without checking the length (`NLMSG_OK` is not used).
 - **Evidence:** code reading.
 - **Expected:** check `NLMSG_OK(response, len)` before each header access.
+- **Fix:** the loops already used `NLMSG_OK`, only the `NLMSG_ERROR` pre-check before each loop read the header unchecked. Both pre-checks now test `!NLMSG_OK(response, len) || response->nlmsg_type == NLMSG_ERROR`, a reply shorter than a header is handled like `NLMSG_ERROR` (interface list: buffer freed, socket closed, return; address change: error log, return -1). `len` (`int64_t`) is declared before the pre-check so it uses the same sign-safe comparison as the loop. Windows is not affected (no netlink: `SIO_ADDRESS_LIST_CHANGE` + `GetAdaptersAddresses()`).
 
 ## ~~F-045: string setters free their source when called with their own value~~ - FIXED
 
