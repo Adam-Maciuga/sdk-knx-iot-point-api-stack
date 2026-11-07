@@ -1354,6 +1354,8 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 |------|-----------------|
 | `SmodeLoopback.RecursiveWriteFromPutHandlerIsBounded` | A PUT handler that sends an s-mode write on the same GA does not re-enter itself through the internal GO update (regression for an unbounded recursion) |
 | `SmodeLoopback.SingleLevelLoopbackStillUpdatesOtherInputs` | An ordinary write still updates a different writable input on the same GA exactly once |
+| `SmodeLoopback.OversizedValueIsNeitherSentNorLoopedBack` | F-047: a value larger than the buffer (size -1) gives rc -1, no send and no loopback PUT |
+| `SmodeLoopback.EmptyValueIsNeitherSentNorLoopedBack` | F-047: a GET handler that encodes nothing (size 0) gives rc -1, no send and no loopback PUT |
 
 ---
 

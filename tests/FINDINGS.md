@@ -181,13 +181,14 @@ removed entry. The next number is F-070.
 - **Expected:** compare the lengths too (`href_len == oc_string_len(buffer->href)`).
 - **Fix:** `oc_blockwise_find_buffer()` compares the href in length and content (`href_len == oc_string_len(buffer->href) && memcmp(...)`), as the query. Test: `test_oc_blockwise`, `BlockwiseAlloc.FindByHrefPrefixDoesNotMatch` (buffer for `p/1`: `p` and `p/1/x` -> NULL, `p/1` -> the buffer).
 
-## F-047: unicast s-mode loopback parses with a negative size when the value does not fit - OPEN
+## ~~F-047: unicast s-mode loopback parses with a negative size when the value does not fit~~ - FIXED
 
 - **Files:** `api/oc_knx_client.c`, unicast s-mode send: `oc_s_mode_get_resource_value()` then `oc_parse_rep(buffer, resource_value_size, ...)`.
 - **Severity:** Low - undefined behaviour (pointer overflow); the parse then fails and the loopback PUT handler gets `request_payload = NULL`.
 - **Description:** when the application's GET handler encodes more than `max_value_size`, the size is -1; it is passed to `oc_parse_rep()` and on to `cbor_parser_init(size_t)`, where it becomes `SIZE_MAX`.
 - **Evidence:** code reading.
 - **Expected:** skip the parse (and the send) when `resource_value_size <= 0`.
+- **Fix:** every send site in `api/oc_knx_client.c` checks `resource_value_size <= 0`, logs an error, frees the buffer and stops: the write path of `oc_send_s_mode_mc_or_uc_message()` (returns -1; no send, no loopback, no `/p` notification), the send after IPv6 address resolution, and `oc_create_s_mode_payload_for_go()` (returns -1). Spec 2.5.9.2 makes the value (key 1) mandatory for w/a, so a write without a value is not sent. Tests: `test_smode_loopback_recursion`, `SmodeLoopback.OversizedValueIsNeitherSentNorLoopedBack` (size -1) and `SmodeLoopback.EmptyValueIsNeitherSentNorLoopedBack` (size 0): rc -1, no send, no loopback PUT.
 
 ## F-048: `oc_join_string_array()` overflows by one byte when all items are empty - OPEN
 

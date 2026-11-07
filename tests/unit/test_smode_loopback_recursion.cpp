@@ -370,3 +370,113 @@ TEST_F(SmodeLoopback, SingleLevelLoopbackStillUpdatesOtherInputs)
   oc_ri_delete_resource(r2);
   oc_ri_delete_resource(r3);
 }
+
+/* ===========================================================================
+ * F-047: a write whose value cannot be encoded is neither sent nor looped back
+ * =========================================================================== */
+
+/*
+  GET handler that encodes more than the s-mode value buffer (one CoAP block) can hold:
+  oc_rep_get_encoded_payload_size() returns -1 (CborErrorOutOfMemory).
+*/
+extern "C" void
+get_oversized(oc_request_t *request, oc_interface_mask_t iface, void *user_data)
+{
+  (void)iface;
+  (void)user_data;
+  static uint8_t big[2048];
+  oc_rep_begin_root_object();
+  oc_rep_i_set_byte_string(root, 1, big, sizeof(big));
+  oc_rep_end_root_object();
+  oc_prepare_cbor_response(request, OC_STATUS_OK);
+}
+
+// GET handler that encodes nothing: the value size is 0
+extern "C" void
+get_empty(oc_request_t *request, oc_interface_mask_t iface, void *user_data)
+{
+  (void)request;
+  (void)iface;
+  (void)user_data;
+}
+
+/*
+  Spec 2.5.9.2: the "s" object SHALL contain a value for the write service type (CBOR key 1, M).
+  /p/2 is the sent output, /p/3 a second input on the same GA (would be updated by the loopback).
+*/
+static void run_write_without_value(oc_request_callback_t get_handler, int *rc, int *puts, int *sends)
+{
+  static uint32_t ga_p2[1] = { 2 };
+  static uint32_t ga_p3[1] = { 2 };
+  static uint32_t ga_rcp[1] = { 2 };
+
+  const oc_cflag_mask_t rwt = (oc_cflag_mask_t)(OC_CFLAG_READ | OC_CFLAG_WRITE | OC_CFLAG_TRANSMISSION);
+  const oc_cflag_mask_t rw = (oc_cflag_mask_t)(OC_CFLAG_READ | OC_CFLAG_WRITE);
+
+  oc_group_object_table_t *g0 = oc_core_get_group_object_table_entry(0);
+  oc_group_object_table_t *g1 = oc_core_get_group_object_table_entry(1);
+  oc_group_table_t *rcp = oc_core_get_recipient_table_entry(0);
+  ASSERT_TRUE(g0 != nullptr && g1 != nullptr && rcp != nullptr);
+  g0->id = 14;
+  g0->ga = ga_p2;
+  g0->ga_len = 1;
+  g0->cflags = rwt;
+  oc_new_string(&g0->href, "/p/2", 4);
+  g1->id = 15;
+  g1->ga = ga_p3;
+  g1->ga_len = 1;
+  g1->cflags = rw;
+  oc_new_string(&g1->href, "/p/3", 4);
+  rcp->id = 1;
+  rcp->ga = ga_rcp;
+  rcp->ga_len = 1;
+  rcp->grpid = 5;
+  rcp->iid = -1;
+  rcp->ia = -1;
+
+  static char path_p2[] = "/p/2";
+  oc_resource_t *r2 = oc_new_resource(path_p2, 1);
+  ASSERT_NE(r2, nullptr);
+  oc_resource_bind_resource_type(r2, "urn:knx:dpa.417.51");
+  oc_resource_set_request_handler(r2, COAP_GET, get_handler, nullptr, OC_ACL_G, OC_IF_O);
+  oc_add_resource(r2);
+
+  static char path_p3[] = "/p/3";
+  oc_resource_t *r3 = oc_new_resource(path_p3, 1);
+  ASSERT_NE(r3, nullptr);
+  oc_resource_bind_resource_type(r3, "urn:knx:dpa.417.61");
+  oc_resource_set_request_handler(r3, COAP_GET, get_p2, nullptr, OC_ACL_G, OC_IF_I);
+  oc_resource_set_request_handler(r3, COAP_PUT, put_p3, nullptr, OC_ACL_G, OC_IF_I);
+  oc_add_resource(r3);
+
+  *rc = oc_send_s_mode_mc_or_uc_message(2, "/p/2", 'w');
+  *puts = g_put_p3_calls;
+  *sends = g_send_attempts;
+
+  oc_ri_delete_resource(r2);
+  oc_ri_delete_resource(r3);
+}
+
+TEST_F(SmodeLoopback, OversizedValueIsNeitherSentNorLoopedBack)
+{
+  int rc = 0;
+  int puts = -1;
+  int sends = -1;
+  run_write_without_value(get_oversized, &rc, &puts, &sends);
+
+  EXPECT_EQ(rc, -1);
+  EXPECT_EQ(sends, 0) << "a write without its value was sent";
+  EXPECT_EQ(puts, 0) << "the loopback parsed a value with a negative size";
+}
+
+TEST_F(SmodeLoopback, EmptyValueIsNeitherSentNorLoopedBack)
+{
+  int rc = 0;
+  int puts = -1;
+  int sends = -1;
+  run_write_without_value(get_empty, &rc, &puts, &sends);
+
+  EXPECT_EQ(rc, -1);
+  EXPECT_EQ(sends, 0) << "a write without its value was sent";
+  EXPECT_EQ(puts, 0) << "the loopback was called without a value";
+}

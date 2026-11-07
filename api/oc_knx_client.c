@@ -636,6 +636,14 @@ int oc_create_s_mode_payload_for_go(const oc_group_object_table_t* group_object,
     g_iam_regenerating_an_echo_payload = true;
     value_size = oc_s_mode_get_resource_value(resource_path, value_data, max_value_size);
     g_iam_regenerating_an_echo_payload = false;
+
+    // a re-request without its value would be a different message, abandon it
+    if (value_size <= 0)
+    {
+      OC_ERR("echo re-request payload: no resource value (size %d), abandoning the re-request", value_size);
+      free(value_data);
+      return -1;
+    }
   }
 
   // same envelope as the s-mode send path: { 4: <sia>, 5: { 7: <ga>, 6: <st>, 1: <value> } }
@@ -745,6 +753,13 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
       // copy resource value to buffer, return value size  -> buffer must be big enough to carry resource value!
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, max_value_size);
+      // -1: the GET handler encoded more than max_value_size, 0: no value; a write without a value is neither sent nor looped back
+      if (resource_value_size <= 0)
+      {
+        OC_ERR("s-mode write: no resource value for %s (size %d), nothing sent", resource_path, resource_value_size);
+        free(resource_value_buffer);
+        return -1;
+      }
       if (recipient)
       {
         if (recipient->grpid > 0)
@@ -1069,8 +1084,14 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
     // copy resource value to buffer, return value size, -> buffer must be big enough to carry resource value!
     const int resource_value_size = oc_s_mode_get_resource_value(href, resource_value_buffer, max_value_size);
+    if (resource_value_size <= 0)
+    {
+      OC_ERR("s-mode write: no resource value for %s (size %d), nothing sent", href, resource_value_size);
+      free(resource_value_buffer);
+      return;
+    }
 
-    // since the IPV6 resolving is done, this below call does not end in an endless loop
+    // since
     oc_send_s_mode_unicast_message(ga, srv, resource_value_buffer, resource_value_size, recipient, recipient->ipv6_res.group_object);
 
     // release value buffer, free ignores NULL ptr
