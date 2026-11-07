@@ -223,9 +223,10 @@ if(CONFIG_KNXIOT_SHELL)
 endif()
 
 # Network backend selection:
-#   OpenThread   — connectivity_thread.c  +  dns-sd-thread.c   (DNS-SD and OT_SRP)
+#   OpenThread   — connectivity_thread.c  +  port/dns-sd_srp.c  (DNS-SD and OT_SRP)
 #   Wi-Fi/Ether. — connectivity_posix.c   +  port/dns-sd_mdns.c (DNS-SD and mDNS)
-# Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
+# Note: port/dns-sd_srp.c uses the OpenThread SRP client instead of POSIX mDNS sockets,
+#       the same implementation used on the FreeRTOS/ESP-IDF port.
 # Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
 #       provides oc_connectivity_init, oc_send_buffer, etc.
 # Note: connectivity_posix.c provides connectivity over Zephyr's POSIX/BSD socket
@@ -255,7 +256,7 @@ elseif(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
 
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
-        ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
+        ${STACK_ROOT}/port/dns-sd_srp.c
     )
 elseif(CONFIG_KNXIOT_NETWORK_BACKEND_WIFI)
     # The Wi-Fi backend selects CONFIG_WIFI itself, so there is nothing to check.

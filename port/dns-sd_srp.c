@@ -13,6 +13,10 @@
  * @file
  * @brief KNX IoT DNS-SD over Thread, implemented with the OpenThread SRP client.
  *
+ * Shared by the Zephyr and the ESP-IDF port. The platform differences are the OpenThread
+ * instance, the OpenThread API lock and the bound unicast port, see the blocks below the
+ * includes.
+ *
  * On Thread the device does not run an mDNS responder. It registers its
  * service with the Border Router's SRP server (unicast DNS Update) and the
  * Border Router's advertising proxy publishes it as mDNS on the backbone
@@ -45,14 +49,68 @@
 #include "oc_endpoint.h"
 #include "port/dns-sd.h"
 #include "port/oc_log.h"
-#include "port/zephyr/connectivity_thread.h"
 
-#include <openthread.h>
 #include <openthread/dns.h>
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
 
 #include "api/oc_main.h"
+
+#if defined(__ZEPHYR__)
+/* Zephyr: The OpenThread module of Zephyr owns the instance and the API mutex, the bound
+ * port comes from the OpenThread connectivity backend of the Zephyr port. */
+#include <openthread.h>
+#include "port/zephyr/connectivity_thread.h"
+
+static inline otInstance* openthread_instance(void)
+{
+    return openthread_get_default_instance();
+}
+
+static inline void openthread_lock(void)
+{
+    openthread_mutex_lock();
+}
+
+static inline void openthread_unlock(void)
+{
+    openthread_mutex_unlock();
+}
+
+static inline uint16_t knx_unicast_port(void)
+{
+    return oc_connectivity_thread_get_port();
+}
+#elif defined(ESP_PLATFORM)
+/* ESP-IDF: The OpenThread component owns the instance and the API lock, the bound port comes
+ * from the lwIP connectivity backend, which serves the OpenThread esp_netif too. */
+#include "esp_openthread.h"
+#include "esp_openthread_lock.h"
+#include "freertos/FreeRTOS.h"
+#include "port/freertos_esp32/connectivity_lwip.h"
+
+static inline otInstance* openthread_instance(void)
+{
+    return esp_openthread_get_instance();
+}
+
+static inline void openthread_lock(void)
+{
+    (void)esp_openthread_lock_acquire(portMAX_DELAY);
+}
+
+static inline void openthread_unlock(void)
+{
+    esp_openthread_lock_release();
+}
+
+static inline uint16_t knx_unicast_port(void)
+{
+    return knx_connectivity_lwip_get_port();
+}
+#else
+#error "port/dns-sd_srp.c needs an OpenThread platform, Zephyr or ESP-IDF."
+#endif
 
 #define KNX_SRP_SERVICE_NAME "_knx._udp"
 
@@ -126,7 +184,7 @@ static void apply_pending(void)
         entry->mService.mNumTxtEntries = 0;
     }
 
-    entry->mService.mPort = oc_connectivity_thread_get_port();
+    entry->mService.mPort = knx_unicast_port();
     entry->mService.mPriority = 0;
     entry->mService.mWeight = 0;
     entry->mService.mNext = NULL;
@@ -234,7 +292,7 @@ static void srp_client_callback(otError err, const otSrpClientHostInfo *host, co
 {
     (void)services;
     (void)ctx;
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
     if (err != OT_ERROR_NONE)
     {
@@ -287,14 +345,14 @@ static void srp_autostart_callback(const otSockAddr *server, void *ctx)
 
 int knx_dns_sd_update_service(const oc_device_info_t *device)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
    if (!device || !device->serialnumber)
     {
       OC_WRN("DNS-SD: Invalid (NULL) device or serial number provided, cannot update service.");
       return -1;
-    }  
-  
+    }
+
    if (!inst)
     {
         OC_WRN("DNS-SD: OpenThread not initialised yet!");
@@ -314,7 +372,7 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
         return 0;
     }
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     pending.iid = device->iid;
     pending.ia = device->ia;
@@ -340,7 +398,7 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
         entry = otSrpClientBuffersAllocateService(inst);
         if (entry == NULL)
         {
-            openthread_mutex_unlock();
+            openthread_unlock();
             OC_ERR("DNS-SD: no SRP service buffer available!");
             return -1;
         }
@@ -356,15 +414,15 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
 
     publish(inst);
 
-    openthread_mutex_unlock();
+    openthread_unlock();
     return 0;
 }
 
 void knx_dns_sd_set_sleep_period(uint16_t sp)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     pending.sp = sp;
     OC_INF("DNS-SD: sleep period set to %u.", (unsigned)sp);
@@ -375,26 +433,26 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
         publish(inst);
     }
 
-    openthread_mutex_unlock();
+    openthread_unlock();
 }
 
 uint16_t knx_dns_sd_get_used_port(void)
 {
-    return oc_connectivity_thread_get_port();
+    return knx_unicast_port();
 }
 
 void knx_dns_sd_stop(void)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     stopped = true;
     reapply = false;
 
     if ((inst == NULL) || (entry == NULL))
     {
-        openthread_mutex_unlock();
+        openthread_unlock();
         return;
     }
 
@@ -405,5 +463,5 @@ void knx_dns_sd_stop(void)
     {
         OC_WRN("DNS-SD: SRP deregistration failed: %d", err);
     }
-    openthread_mutex_unlock();
+    openthread_unlock();
 }
