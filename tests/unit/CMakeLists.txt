@@ -340,6 +340,8 @@ if(UNIX)
         -Wl,--wrap=get_ip_context_for_device
         -Wl,--wrap=oc_clock_time
         -Wl,--wrap=oc_main_initialized
+        -Wl,--wrap=oc_network_event_handler_mutex_lock
+        -Wl,--wrap=oc_network_event_handler_mutex_unlock
     )
 endif()
 # oc_rep macros use g_err |= cbor_encode_*() which is an invalid

@@ -1305,7 +1305,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 **Source:** `port/dns-sd_mdns.c`
 
-Linker `--wrap` of `sendto`, `recvmsg`, `get_ip_context_for_device`,
+Linker `--wrap` of `oc_network_event_handler_mutex_lock` / `_unlock` (count how deep the calling thread holds the mutex: `get_ip_context_for_device` returns an EMPTY endpoint list to a thread without the mutex, so every test also checks that the endpoint list is only walked under it), `sendto`, `recvmsg`, `get_ip_context_for_device`,
 `oc_clock_time` and `oc_main_initialized`: no packet leaves the host, the
 listener thread receives only the queries the test queues, one fake loopback
 endpoint stands in for the connectivity layer, a test-controlled clock drives

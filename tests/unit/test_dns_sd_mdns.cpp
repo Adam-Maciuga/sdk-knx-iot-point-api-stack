@@ -381,9 +381,39 @@ static const unsigned int NO_ADDRESS_IF = 4243;
 static const uint8_t LOOPBACK_ADDR[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 static const uint8_t OTHER_ADDR[16] = {0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0b};
 
+/*
+  the endpoint list may only be walked while the calling thread holds oc_network_event_handler_mutex (the main
+  thread may rebuild it under that mutex while the mDNS listener thread answers a query)
+  - the mutex wraps count how deep the calling thread holds it (pass through to the real mutex)
+  - a context requested WITHOUT the mutex gets an empty endpoint list (same port): an unlocked walk finds no
+    address, the AAAA records and interface checks of the tests below then fail
+*/
+extern "C" void __real_oc_network_event_handler_mutex_lock(void);
+extern "C" void __real_oc_network_event_handler_mutex_unlock(void);
+static thread_local int g_mutex_depth;
+
+extern "C" void __wrap_oc_network_event_handler_mutex_lock(void)
+{
+  __real_oc_network_event_handler_mutex_lock();
+  g_mutex_depth++;
+}
+
+extern "C" void __wrap_oc_network_event_handler_mutex_unlock(void)
+{
+  g_mutex_depth--;
+  __real_oc_network_event_handler_mutex_unlock();
+}
+
+static ip_context_t g_unlocked_ctx;
+
 extern "C" ip_context_t *__wrap_get_ip_context_for_device(void)
 {
-  return &g_fake_ctx;
+  if (g_mutex_depth > 0)
+  {
+    return &g_fake_ctx;
+  }
+  g_unlocked_ctx.port = g_fake_ctx.port;
+  return &g_unlocked_ctx;
 }
 
 static oc_clock_time_t g_now;
@@ -429,6 +459,8 @@ protected:
     memset(&g_fake_ctx, 0, sizeof(g_fake_ctx));
     OC_LIST_STRUCT_INIT(&g_fake_ctx, eps);
     g_fake_ctx.port = COAP_PORT;
+    memset(&g_unlocked_ctx, 0, sizeof(g_unlocked_ctx));
+    OC_LIST_STRUCT_INIT(&g_unlocked_ctx, eps); // always empty, see __wrap_get_ip_context_for_device()
 
     memset(&g_fake_ep, 0, sizeof(g_fake_ep));
     g_fake_ep.flags = IPV6;

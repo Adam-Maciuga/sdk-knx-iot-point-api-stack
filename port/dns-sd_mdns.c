@@ -50,6 +50,7 @@
 #include "oc_core_res.h" // oc_core_get_device_info(): the device host name
 #include "oc_log.h"
 #include "util/oc_list.h" // oc_list_head() for iterating endpoint list
+#include "port/oc_network_events_mutex.h" // the endpoint list is walked under the network event mutex
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -401,6 +402,8 @@ static const oc_endpoint_t* next_endpoint_on_interface(const oc_endpoint_t* ep, 
 
 /*
   The head of the device's endpoint list, NULL when there is no IP context.
+  - callers walk the list under oc_network_event_handler_mutex: they also run in the mDNS listener thread, while the
+    main thread may rebuild (free) the list under the same mutex
 */
 static const oc_endpoint_t* device_endpoints(void)
 {
@@ -415,6 +418,7 @@ static const oc_endpoint_t* device_endpoints(void)
 static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
 {
   int count = 0;
+  oc_network_event_handler_mutex_lock();
   for (const oc_endpoint_t* ep = next_endpoint_on_interface(device_endpoints(), 0); ep && count < MAX_IF_INDICES;
        ep = next_endpoint_on_interface(ep->next, 0))
   {
@@ -443,6 +447,7 @@ static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
     }
     count += (j == count); // +1 or +0 ...
   }
+  oc_network_event_handler_mutex_unlock();
   return count;
 }
 
@@ -463,6 +468,7 @@ static int collect_if_indices(unsigned int out[MAX_IF_INDICES])
 static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const char *hostname, size_t hostname_len, unsigned int ifindex)
 {
   uint16_t count = 0;
+  oc_network_event_handler_mutex_lock();
   for (const oc_endpoint_t* ep = next_endpoint_on_interface(device_endpoints(), ifindex); ep && count < MAX_AAAA_RECORDS;
        ep = next_endpoint_on_interface(ep->next, ifindex))
   {
@@ -476,6 +482,7 @@ static uint16_t collect_aaaa_records(mdns_record_t out[MAX_AAAA_RECORDS], const 
 
     count++;
   }
+  oc_network_event_handler_mutex_unlock();
   OC_DBG("DNS-SD: %d IPv6 endpoints found for AAAA records", count);
   return count;
 }
@@ -1310,7 +1317,10 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
     - every AAAA record would name an address of another link, a MaC would send to an address it cannot reach (RFC 6762 section 15) 
     - an unknown receive interface (0) is answered with the addresses of every interface
   */
-  if (ifindex != 0 && !next_endpoint_on_interface(device_endpoints(), ifindex))
+  oc_network_event_handler_mutex_lock();
+  const bool own_address = ifindex == 0 || next_endpoint_on_interface(device_endpoints(), ifindex) != NULL;
+  oc_network_event_handler_mutex_unlock();
+  if (!own_address)
   {
     OC_DBG("DNS-SD: Query on interface %u without an own address, not answered.", ifindex);
     return 0;
@@ -1645,7 +1655,14 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
     OC_DBG("DNS-SD: Device data not loaded yet, the service update is postponed.");
     return 0;
   }
-  
+
+  /*
+    rebuild the endpoint list first if an address change or a refresh marked it dirty (Linux/Windows): this runs in the
+    main thread, the only one allowed to rebuild it, and the announcement below reads the list directly
+    - e.g. oc_main_init() calls oc_network_refresh_endpoints() right before this, which only marks the list dirty
+  */
+  (void)oc_connectivity_get_endpoints();
+
   // goodbye for current advertisement (if any, 'goodbye' may be already send out on a previous 'dns stop' call)
   /*
     Only when the content changes. The subtype PTR records (_ia<iid>-<ia>, _pm) carry no cache-flush

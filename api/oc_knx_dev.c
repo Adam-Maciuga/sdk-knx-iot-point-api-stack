@@ -348,8 +348,9 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-  // calculate total properties
-  const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints();
+  // calculate total properties; the head is taken ONCE, a second call may get a rebuilt list (other length than 'total')
+  const oc_endpoint_t* const eps = oc_connectivity_get_endpoints();
+  const oc_endpoint_t* my_ep = eps;
   while (my_ep != NULL) 
   {
     my_ep = my_ep->next;
@@ -381,7 +382,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   // set to first property for the requested page
   // example 1: IPv6 addresses #1...#4, (pn=1,ps=1) , set ptr to IPv6 address #2)
   // example 2: IPv6 addresses #1...#4, (pn=0,ps=1) , set ptr to IPv6 address #1)
-  my_ep = oc_connectivity_get_endpoints();
+  my_ep = eps;
   for (int i = 0; i < first_entry; i++) 
   {
     my_ep = my_ep->next;
