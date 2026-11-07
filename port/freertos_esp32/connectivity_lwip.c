@@ -546,34 +546,71 @@ static void setup_multicast_interface(void)
 
 OC_LIST(oc_network_interface_cb_list);
 
-/* Preferred address check
- * Returns true when address is one of the preferred IPv6 addresses of netif.
+/* Usable addresses
+ * Fills addresses with the usable IPv6 addresses of netif and returns their count.
  *
- * esp_netif posts IP_EVENT_GOT_IP6 for every added address, also for one added as deprecated.
- * The OpenThread interface adds its link-local and mesh-local addresses that way, only the
- * routable address from the prefix of the Border Router is preferred.
+ * Wi-Fi and Ethernet: Every valid address, preferred and deprecated, not tentative. A deprecated
+ * address is still valid and lwIP still uses it as a source address, as in the Linux, Windows and
+ * Zephyr ports.
+ * Thread: Only preferred addresses. esp_netif posts IP_EVENT_GOT_IP6 for every added address,
+ * also for one added as deprecated. The OpenThread interface adds its link-local and mesh-local
+ * addresses that way, only the routable address from the prefix of the Border Router is preferred.
  */
-static bool address_is_preferred(esp_netif_t* netif, const esp_ip6_addr_t* address)
+static int get_usable_addresses(esp_netif_t* netif,
+                                esp_ip6_addr_t addresses[LWIP_IPV6_NUM_ADDRESSES])
 {
-  esp_ip6_addr_t preferred[LWIP_IPV6_NUM_ADDRESSES];
-  const int count = esp_netif_get_all_preferred_ip6(netif, preferred);
+#if defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+  return esp_netif_get_all_preferred_ip6(netif, addresses);
+#else
+  return esp_netif_get_all_ip6(netif, addresses);
+#endif
+}
 
-  for (int i = 0; i < count && i < LWIP_IPV6_NUM_ADDRESSES; i++)
+/* Network state report
+ * Reports the state of the target interface to the shared code, see knx_network_report_state().
+ *
+ * Computed from the addresses of the interface, not from oc_connectivity_get_endpoints(): That
+ * list is one static array the stack and the mDNS listener rebuild as well, a half rebuilt array
+ * could read as "no address". On Thread only "has an address / has none" counts, the hash stays 0:
+ * OpenThread registers changed addresses at the Border Router itself (automatic host address of
+ * the SRP client), an "up" for every address change would only cause SRP updates.
+ */
+static void report_network_state(bool initial)
+{
+  bool up = false;
+  uint32_t addresses_hash = 0;
+  esp_netif_t* netif = select_target_interface();
+
+  if (netif != NULL)
   {
-    if (memcmp(preferred[i].addr, address->addr, sizeof(address->addr)) == 0)
+    esp_ip6_addr_t addresses[LWIP_IPV6_NUM_ADDRESSES];
+    const int count = get_usable_addresses(netif, addresses);
+    for (int i = 0; i < count && i < LWIP_IPV6_NUM_ADDRESSES; i++)
     {
-      return true;
+      up = true;
+#if !defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+      addresses_hash += knx_network_address_hash((const uint8_t*)addresses[i].addr);
+#endif
     }
   }
 
-  return false;
+  if (initial)
+  {
+    knx_network_set_initial_state(up, addresses_hash);
+  }
+  else
+  {
+    (void)knx_network_report_state(up, addresses_hash);
+  }
 }
 
 /* ESP-IDF IP event handler
- * Translates the esp_netif IP events into the stack's network interface events.
+ * Reports the network state of the target interface on the esp_netif IP events.
  *
  * Runs in the ESP-IDF event loop task. Events of other interfaces than the target interface are
- * ignored, so a second interface going down does not stop DNS-SD on the one in use.
+ * ignored, so a second interface going down does not stop DNS-SD on the one in use. A deprecated
+ * address or a further address that keeps the usable addresses changes nothing, the shared code
+ * decides on "up" and "down".
  */
 static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void* data)
 {
@@ -590,19 +627,7 @@ static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void*
       return;
     }
 
-    /* Only a preferred address makes the interface usable for the stack. An UP event for a
-     * deprecated address would register the DNS-SD service again for nothing.
-     */
-    if (!address_is_preferred(event->esp_netif, &event->ip6_info.ip))
-    {
-      OC_DBG("IPv6 address of interface %d added as deprecated, ignored.",
-             esp_netif_get_netif_impl_index(event->esp_netif));
-      return;
-    }
-
-    OC_INF("IPv6 address of interface %d became valid.",
-           esp_netif_get_netif_impl_index(event->esp_netif));
-    oc_network_interface_event(NETWORK_INTERFACE_UP);
+    OC_DBG("IPv6 address of interface %d added.", esp_netif_get_netif_impl_index(event->esp_netif));
   }
   else if (id == IP_EVENT_NETIF_DOWN)
   {
@@ -613,8 +638,13 @@ static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void*
     }
 
     OC_INF("Interface %d went down.", esp_netif_get_netif_impl_index(event->esp_netif));
-    oc_network_interface_event(NETWORK_INTERFACE_DOWN);
   }
+  else
+  {
+    return;
+  }
+
+  report_network_state(false);
 }
 
 static void network_interface_event_handler(oc_interface_event_t event)
@@ -748,6 +778,11 @@ int oc_connectivity_init(void)
   }
 
   oc_add_network_interface_event_callback(network_interface_event_handler);
+
+  /* Start state before the event handlers are registered: An interface that is already up when
+   * the stack starts reports no change, and the first event compares against the real state.
+   */
+  report_network_state(true);
 
   /* Needs the default event loop, which the application creates before the stack starts. */
   esp_err_t err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, ip_event_handler, NULL);
@@ -883,11 +918,12 @@ oc_endpoint_t* oc_connectivity_get_endpoints(void)
     return NULL;
   }
 
-  /* Only preferred addresses, so tentative (duplicate address detection in progress) and
-   * deprecated (about to expire) addresses are left out, as in the Zephyr and Linux ports.
+  /* The usable addresses, see get_usable_addresses(). Tentative addresses (duplicate address
+   * detection in progress) are always left out. Deprecated (about to expire) addresses count on
+   * Wi-Fi and Ethernet, as in the Linux, Windows and Zephyr ports, and are left out on Thread.
    */
   esp_ip6_addr_t addresses[MAX_ENDPOINTS];
-  const int count = esp_netif_get_all_preferred_ip6(netif, addresses);
+  const int count = get_usable_addresses(netif, addresses);
   if (count <= 0)
   {
     return NULL;
