@@ -980,7 +980,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_network_events.cpp — Network Events (5 tests)
+### test_oc_network_events.cpp — Network Events (10 tests)
 
 **Source:** `api/oc_network_events.c`
 
@@ -989,8 +989,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `EventWhenProcessNotRunningUnrefsMessage` | Event with process not running unrefs the message |
 | `EventWhenProcessNotRunningIsRepeatable` | Repeatable without leaking |
 | `RunningProcessDrainsQueuedMessage` | Running process drains and receives queued messages |
-| `InterfaceEventsArePostedAndDispatched` | Interface up/down events are posted and dispatched |
+| `InterfaceEventsArePostedAndDispatched` | Up then down before the loop runs dispatches only the last event (down) |
+| `InterfaceEventBurstEndingWithUpDispatchesUp` | A down/up/down/up burst dispatches only up, never a trailing down |
+| `InterfaceEventsInSeparateRunsAreAllDispatched` | Events in separate loop runs are all dispatched |
 | `UnknownInterfaceEventIsIgnored` | Unknown interface event is ignored |
+| `AddressesHashIgnoresTheListOrder` | Address hash is independent of the list order and equals the sum of the single address hashes, another set gives another hash, no addresses gives 0 |
+| `ReportStateDispatchesOnlyChanges` | Reported state dispatches up for the first or changed addresses, down for the last lost, nothing for the same state |
+| `InitialStateDispatchesNothing` | Initial state is remembered without an event |
 
 ---
 
