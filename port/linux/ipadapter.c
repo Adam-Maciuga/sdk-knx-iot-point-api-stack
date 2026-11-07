@@ -385,15 +385,19 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
     }
 
     response = (struct nlmsghdr *)buffer;
-    if (response->nlmsg_type == NLMSG_ERROR) {
+    /*
+      Signed like the int the netlink macros are written against, 64 bit so the u32 message
+      length compares without a sign change on every target (clang -Wsign-compare).
+    */
+    int64_t len = response_len;
+    
+    // NLMSG_OK first: a reply shorter than a header must not be read
+    if (!NLMSG_OK(response, len) || response->nlmsg_type == NLMSG_ERROR) {
       free(buffer);
       close(nl_sock);
       return;
     }
 
-    // Signed like the int the netlink macros are written against, 64 bit so the u32 message
-    // length compares without a sign change on every target (clang -Wsign-compare).
-    int64_t len = response_len;
     while (NLMSG_OK(response, len)) {
       if (response->nlmsg_type == NLMSG_DONE) {
         done = true;
@@ -698,8 +702,14 @@ int oc_network_refresh_endpoints(void) {
   }
 
   response = (struct nlmsghdr *)buffer;
-  if (response->nlmsg_type == NLMSG_ERROR) {
-    OC_ERR("caught NLMSG_ERROR in payload from netlink interface");
+  /*
+    Signed like the int the netlink macros are written against, 64 bit so the u32 message
+    length compares without a sign change on every target (clang -Wsign-compare).
+  */
+  int64_t len = response_len;
+  // NLMSG_OK first: a reply shorter than a header must not be read (F-044)
+  if (!NLMSG_OK(response, len) || response->nlmsg_type == NLMSG_ERROR) {
+    OC_ERR("short or NLMSG_ERROR payload from netlink interface");
     free(buffer);
     return -1;
   }
@@ -707,9 +717,6 @@ int oc_network_refresh_endpoints(void) {
   bool if_state_changed = false;
   bool if_up = false;
   bool if_down = false;
-  // Signed like the int the netlink macros are written against, 64 bit so the u32 message
-  // length compares without a sign change on every target (clang -Wsign-compare).
-  int64_t len = response_len;
   while (NLMSG_OK(response, len)) {
     if (response->nlmsg_type == RTM_NEWADDR) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
