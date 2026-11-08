@@ -784,6 +784,19 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
+### test_oc_ri_timed_callbacks.cpp - Timed Event Callbacks (4 tests)
+
+**Source:** `api/oc_ri.c` (`oc_ri_add_timed_event_callback_ticks`, `oc_ri_remove_timed_event_callback`, the event loop through `oc_main_poll`), clock under test control (`--wrap=oc_clock_time`)
+
+| Test | What it covers |
+|------|----------------|
+| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsDoneRunsOnce` | A callback that removes its own entry and returns `OC_EVENT_DONE` runs once, its entry is freed once (a double free before the fix) |
+| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsContinueRunsOnce` | The removal wins over `OC_EVENT_CONTINUE`, the timer of the removed entry is not restarted |
+| `RiTimedCallback.CallbackThatArmsItselfAgainRunsAfterTheNewDelay` | A callback that removes itself and arms itself again with 2 s runs again 2 s later, not earlier (the new entry was lost before the fix) |
+| `RiTimedCallback.CallbackThatRemovesAnotherCallbackStopsIt` | A callback that removes another pending callback keeps that one from running |
+
+---
+
 ### test_oc_abort.cpp — Abort / Exit / Assert (6 tests)
 
 **Source:** `port/.../oc_assert.h` (`oc_abort`, `oc_exit`, `OC_ASSERT`) — GoogleTest death tests.
@@ -1128,7 +1141,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (43 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (48 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 

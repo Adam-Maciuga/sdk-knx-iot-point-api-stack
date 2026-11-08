@@ -947,6 +947,9 @@ extern "C"
    * @param[in] cb_data the user defined context pointer that was passed to the
    *                   oc_sed_delayed_callback() function
    * @param[in] callback the delayed callback that is being removed
+   *
+   * @note A callback may remove itself while it runs, to cancel itself or to arm itself again
+   *       with another delay. Its entry is freed after the callback has returned.
    */
   void oc_remove_delayed_callback(void* cb_data, oc_trigger_t callback);
 
