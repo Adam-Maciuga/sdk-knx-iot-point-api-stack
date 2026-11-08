@@ -657,8 +657,14 @@ static void network_interface_event_handler(oc_interface_event_t event)
   }
   else if (event == NETWORK_INTERFACE_DOWN)
   {
+#if defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    /* No DNS-SD stop on Thread: The shared SRP code (port/dns-sd_srp.c) follows the routable
+     * address itself, for the Zephyr and the ESP-IDF port alike. A detach keeps the
+     * registration, and the device is back on the backbone link right after the reconnect. */
+#else
     /* Send the DNS-SD goodbye while the interface is still up, before leaving the groups. */
     knx_dns_sd_stop();
+#endif
     oc_unregister_group_multicasts();
   }
 }
