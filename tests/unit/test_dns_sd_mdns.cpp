@@ -7,8 +7,12 @@
  *                                 repeat on a change within that second
  *                                 (RFC 6762 section 8.4), NULL device or serial
  *                                 number, the record built from the device info,
- *                                 rollback of the record on a send failure,
- *                                 postponed while the stack is not initialized
+ *                                 rollback of the record on a send failure and
+ *                                 its retry 1 s, 2 s ... later (none without an
+ *                                 interface), success on one of two interfaces,
+ *                                 a goodbye only when the IID, the IA or the
+ *                                 programming mode changes, postponed while the
+ *                                 stack is not initialized
  *   oc_core_set_device_hostname - no packet before the stack is initialized,
  *                                 the first announcement uses the latest host
  *                                 name, a change afterwards sends the goodbye
@@ -16,8 +20,10 @@
  *   oc_knx_device_set_programming_mode - the same for the programming mode
  *                                 (the _pm subtype), on and off
  *   knx_dns_sd_set_sleep_period - SP in the TXT record, the TXT goodbye when SP
- *                                 goes back to 0, the same repeat as above
- *   knx_dns_sd_stop             - the goodbye cancels a pending repeat
+ *                                 goes back to 0, the same repeat as above, the
+ *                                 retry of a failed announcement
+ *   knx_dns_sd_stop             - the goodbye cancels a pending repeat and a
+ *                                 pending retry
  *   knx_dns_sd_get_used_port    - the port of the IP context
  *   knx_dns_sd_get_current_record - the snapshot before, after and past a publish
  *   mdns_query_callback (static, through the listener thread) - PTR, subtype
@@ -38,7 +44,8 @@
  *
  * Five symbols are redirected with the GNU linker --wrap facility, see
  * tests/unit/CMakeLists.txt:
- *   sendto                    - records every packet, nothing leaves the host
+ *   sendto                    - records every packet, nothing leaves the host,
+ *                               fails every send or the next ones on request
  *   recvmsg                   - hands the listener thread the queries the test
  *                               queued, as received on loopback (IPV6_PKTINFO)
  *                               or on the interface the test chose, and an empty
@@ -293,6 +300,9 @@ static std::vector<uint8_t> make_query(const char *name, uint16_t qtype)
 
 /* -- linker --wrap stubs -------------------------------------------------- */
 
+/* the number of next sends that fail one by one, the test that sets it uses them up */
+static std::atomic<int> g_sendto_failures_left{0};
+
 extern "C" ssize_t __wrap_sendto(int, const void *buf, size_t len, int,
                                  const struct sockaddr *, socklen_t)
 {
@@ -304,6 +314,11 @@ extern "C" ssize_t __wrap_sendto(int, const void *buf, size_t len, int,
     g_packets.push_back(p);
   }
   if (g_sendto_fails) {
+    errno = ENETUNREACH;
+    return -1;
+  }
+  if (g_sendto_failures_left > 0) {
+    g_sendto_failures_left--;
     errno = ENETUNREACH;
     return -1;
   }
@@ -632,9 +647,39 @@ TEST_F(DnsSd, FailedFirstAnnouncementLeavesNoRecord)
 
   EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
 
+  /* no repeat of a record that never left, the next packet is the retry one second later */
   g_sendto_fails = false;
+  advance_ms(999);
+  EXPECT_EQ(count_announcements(), 1u) << "a packet left before the retry";
+}
+
+TEST_F(DnsSd, FailedAnnouncementIsRetriedWithDoublingDelay)
+{
+  g_sendto_fails = true;
+  EXPECT_EQ(publish(false), -1);
+  advance_ms(0);
+  ASSERT_EQ(count_announcements(), 1u);
+
+  /* the first retry one second later fails again */
+  advance_ms(999);
+  EXPECT_EQ(count_announcements(), 1u) << "the first retry left before one second";
+  advance_ms(1);
+  ASSERT_EQ(count_announcements(), 2u) << "no first retry after one second";
+  EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+
+  /* the second retry two seconds later succeeds */
+  g_sendto_fails = false;
+  advance_ms(1999);
+  EXPECT_EQ(count_announcements(), 2u) << "the second retry left before two seconds";
+  advance_ms(1);
+  ASSERT_EQ(count_announcements(), 3u) << "no second retry after two seconds";
+  EXPECT_TRUE(knx_dns_sd_get_current_record().valid);
+
+  /* the success brings the repeat one second later and ends the retries */
   advance_ms(1000);
-  EXPECT_EQ(count_announcements(), 1u) << "a repeat left after a failed first announcement";
+  EXPECT_EQ(count_announcements(), 4u) << "no repeat after the successful retry";
+  advance_ms(60000);
+  EXPECT_EQ(count_announcements(), 4u) << "a retry left after the successful one";
 }
 
 TEST_F(DnsSd, FailedChangeRestoresThePreviousRecord)
@@ -650,10 +695,35 @@ TEST_F(DnsSd, FailedChangeRestoresThePreviousRecord)
   EXPECT_TRUE(record.valid);
   EXPECT_FALSE(record.knx.pm) << "the failed change stayed in the record";
 
+  /* the retry one second later delivers the change, the goodbye for the old record first */
   g_sendto_fails = false;
   const size_t before = packet_count();
+  advance_ms(999);
+  EXPECT_EQ(packet_count(), before) << "a packet left before the retry";
+
+  advance_ms(1);
+  ASSERT_EQ(packet_count(), before + 2) << "the retry did not deliver the change";
+  EXPECT_EQ(packet_at(before).first_ttl, 0u) << "the retry did not start with the goodbye";
+  EXPECT_FALSE(contains(packet_at(before).bytes, "_pm")) << "the goodbye is not for the old record";
+  EXPECT_NE(packet_at(before + 1).first_ttl, 0u) << "the second packet is no announcement";
+  EXPECT_TRUE(contains(packet_at(before + 1).bytes, "_pm")) << "the announcement lacks the change";
+  EXPECT_TRUE(knx_dns_sd_get_current_record().knx.pm);
+}
+
+TEST_F(DnsSd, FailureOnOneOfTwoInterfacesCountsAsSuccess)
+{
+  /* the announcement leaves on loopback first, that send fails, the second interface works */
+  add_other_interface();
+  g_sendto_failures_left = 1;
+
+  EXPECT_EQ(publish(false), 0) << "one failed interface failed the whole update";
+  advance_ms(0);
+  EXPECT_EQ(count_announcements(), 2u) << "not one announcement per interface";
+  EXPECT_TRUE(knx_dns_sd_get_current_record().valid);
+
+  /* the repeat one second later gives the failed interface its second chance */
   advance_ms(1000);
-  EXPECT_EQ(packet_count(), before) << "a repeat left after a failed change";
+  EXPECT_EQ(count_announcements(), 4u) << "no repeat on both interfaces";
 }
 
 TEST_F(DnsSd, AnnouncementWithoutInterfacesFails)
@@ -665,6 +735,56 @@ TEST_F(DnsSd, AnnouncementWithoutInterfacesFails)
 
   EXPECT_EQ(packet_count(), 0u);
   EXPECT_FALSE(knx_dns_sd_get_current_record().valid);
+
+  /* no retry without an interface, the port runs the update again when an address appears */
+  oc_list_add(g_fake_ctx.eps, &g_fake_ep);
+  advance_ms(60000);
+  EXPECT_EQ(packet_count(), 0u) << "a retry left although there was no interface";
+}
+
+TEST_F(DnsSd, UpdateWithUnchangedContentSendsNoGoodbye)
+{
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(1000);
+  clear_packets();
+
+  /* an update after an address change carries the same IID, IA and programming mode */
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(0);
+
+  EXPECT_EQ(count_goodbyes(), 0u) << "a goodbye for a record that did not change";
+  EXPECT_EQ(count_announcements(), 1u);
+}
+
+TEST_F(DnsSd, FailedSleepPeriodAnnouncementIsRetried)
+{
+  ASSERT_EQ(publish(false), 0);
+  advance_ms(1000);
+  clear_packets();
+
+  g_sendto_fails = true;
+  knx_dns_sd_set_sleep_period(30);
+  advance_ms(0);
+  ASSERT_EQ(count_announcements(), 1u);
+
+  /* the retry one second later announces the record with the new sleep period */
+  g_sendto_fails = false;
+  advance_ms(1000);
+  ASSERT_EQ(count_announcements(), 2u) << "no retry after the failed sleep period announcement";
+  EXPECT_TRUE(contains(packet_at(1).bytes, "SP=30"));
+}
+
+TEST_F(DnsSd, StopCancelsAPendingRetry)
+{
+  g_sendto_fails = true;
+  EXPECT_EQ(publish(false), -1);
+  advance_ms(0);
+
+  knx_dns_sd_stop();
+  g_sendto_fails = false;
+  const size_t before = packet_count();
+  advance_ms(60000);
+  EXPECT_EQ(packet_count(), before) << "a retry left after the stop";
 }
 
 TEST_F(DnsSd, UpdateBeforeTheDeviceDataIsLoadedIsPostponed)

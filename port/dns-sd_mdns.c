@@ -21,7 +21,9 @@
  *   1. Proactive multicast announcements at startup / parameter change.
  *      RFC 6762, section 8.3 asks for at least two of them, one second
  *      apart, and section 8.4 repeats that step on every record change.
- *      The repeat runs as a delayed callback on the RI event loop.
+ *      The repeat runs as a delayed callback on the RI event loop. An
+ *      update that leaves on no interface although there is one is
+ *      retried the same way, 1 s, 2 s, 4 s ... up to 60 s apart.
  *   2. A background listener thread that responds to incoming PTR queries
  *      for _knx._udp.local, ensuring that mDNS browsers (like dns-sd -B)
  *      discover our service at any time.
@@ -615,7 +617,7 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
     return -1;
   }
 
-  int summary = 0;
+  int sent = 0; // interfaces the packet left on
 
   for (int iface_idx = 0; iface_idx < if_count; iface_idx++)
   {
@@ -635,29 +637,49 @@ static int send_announcement(mdns_knx_record_t* record, bool goodbye)
                (const char *)&if_indices[iface_idx], sizeof(if_indices[iface_idx]));
 
     int ret;
-    if (goodbye) 
+    if (goodbye)
     {
       ret = mdns_goodbye_multicast(mdns_sock6, mdns_buf, sizeof(mdns_buf),
                                    answer, NULL, 0,
                                    svc.additional, svc.add_count);
-    } 
-    else 
+    }
+    else
     {
       ret = mdns_announce_multicast(mdns_sock6, mdns_buf, sizeof(mdns_buf),
                                     answer, NULL, 0,
                                     svc.additional, svc.add_count);
     }
 
-    OC_DBG("DNS-SD: mDNS %s %s on interface %u (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)", 
+    if (ret < 0)
+    {
+      // errno of the send, read before the log line below
+      OC_WRN("DNS-SD: mDNS %s failed on interface %u: %d", goodbye ? "goodbye" : "announce",
+             if_indices[iface_idx], errno);
+    }
+    else
+    {
+      sent++;
+    }
+
+    OC_DBG("DNS-SD: mDNS %s %s on interface %u (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)",
            goodbye ? "goodbye" : "announce",
            ret < 0 ? "failed"  : "succeeded",
            if_indices[iface_idx], svc.additional[0].data.srv.port, record->knx.iid, record->knx.ia, (int)record->knx.pm);
 
-    // latch failure, once an interface fails, summary stays -1
-    if (ret < 0) { summary = -1; }
-
   }
-  return summary;
+
+  /*
+    Success on at least one interface counts as success. A failed interface gets its second
+    chance with the repeat one second later (schedule_announcement_repeat()), an interface that
+    stays broken does not hold back the others.
+  */
+  if (sent == 0)
+  {
+    errno = EIO; // the packet left on no interface, the WRN lines above name the reasons
+    return -1;
+  }
+
+  return 0;
 }
 
 /**
@@ -700,6 +722,59 @@ static void schedule_announcement_repeat(void)
 static void cancel_announcement_repeat(void)
 {
   oc_remove_delayed_callback(NULL, repeat_announcement);
+}
+
+// a failed service update is retried after 1 s, the delay doubles up to 60 s
+#define MDNS_UPDATE_RETRY_FIRST_DELAY_S 1
+#define MDNS_UPDATE_RETRY_MAX_DELAY_S 60
+
+// delay of the pending retry in seconds, 0 = no retry pending
+static uint16_t update_retry_delay_s = 0;
+
+/**
+ * @brief Run a failed service update again, with the current device data.
+ *
+ * A failed first announcement leaves the device without a record in every
+ * cache, a failed change leaves the old record there. The retry runs on the RI
+ * event loop like the repeat above. It ends with a successful update, with
+ * knx_dns_sd_stop() or with the next update, which takes over.
+ */
+static oc_event_callback_retval_t retry_update_service(void *data)
+{
+  (void)data;
+  (void)knx_dns_sd_update_service(oc_core_get_device_info());
+  return OC_EVENT_DONE;
+}
+
+/**
+ * @brief Arm the retry of a failed service update, 1 s, 2 s, 4 s ... up to 60 s apart.
+ *
+ * Only for an update that left on no interface although there is one. Without
+ * an interface the network is down for the port, which calls
+ * knx_dns_sd_update_service() again when an address appears.
+ */
+static void schedule_update_retry(void)
+{
+  update_retry_delay_s = (update_retry_delay_s == 0) ? MDNS_UPDATE_RETRY_FIRST_DELAY_S
+                                                     : (uint16_t)(update_retry_delay_s * 2);
+  if (update_retry_delay_s > MDNS_UPDATE_RETRY_MAX_DELAY_S)
+  {
+    update_retry_delay_s = MDNS_UPDATE_RETRY_MAX_DELAY_S;
+  }
+
+  oc_remove_delayed_callback(NULL, retry_update_service);
+  oc_set_delayed_callback(NULL, retry_update_service, update_retry_delay_s);
+  OC_WRN("DNS-SD: Announcement failed on every interface, next attempt in %u s.",
+         (unsigned)update_retry_delay_s);
+}
+
+/**
+ * @brief Drop a pending retry, the next failure starts again at 1 s.
+ */
+static void cancel_update_retry(void)
+{
+  oc_remove_delayed_callback(NULL, retry_update_service);
+  update_retry_delay_s = 0;
 }
 
 
@@ -1572,7 +1647,16 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
   }
   
   // goodbye for current advertisement (if any, 'goodbye' may be already send out on a previous 'dns stop' call)
-  if (current_advertisement.valid) 
+  /*
+    Only when the content changes. The subtype PTR records (_ia<iid>-<ia>, _pm) carry no cache-flush
+    bit, only a goodbye retracts them. The addresses, the SRV port and the TXT record carry the bit
+    (mdns.h), the announcement alone replaces them in every cache. So an update after an address
+    change sends no goodbye and leaves no gap.
+  */
+  const bool content_changed = current_advertisement.knx.iid != device->iid ||
+                               current_advertisement.knx.ia != device->ia ||
+                               current_advertisement.knx.pm != device->pm;
+  if (current_advertisement.valid && content_changed)
   {
     (void)send_announcement(&current_advertisement, true);
   }
@@ -1619,16 +1703,31 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
   */
   if (ret != 0)
   {
+    // Set by send_announcement(), ENETDOWN means no interface. Read before anything can change it.
+    const int send_error = errno;
+
     // restore old state on error
     current_advertisement.knx.iid = prev_iid;
     current_advertisement.knx.ia = prev_ia;
     current_advertisement.knx.pm = prev_pm;
     current_advertisement.valid = prev_valid;
     cancel_announcement_repeat();
+
+    // The retry delivers the new record later. Not without an interface, the port runs the update
+    // again when an address appears.
+    if (send_error == ENETDOWN)
+    {
+      cancel_update_retry();
+    }
+    else
+    {
+      schedule_update_retry();
+    }
   }
   else
   {
     schedule_announcement_repeat();
+    cancel_update_retry();
   }
 
   OC_DBG("DNS-SD: announcement %s", ret == 0 ? "succeeded" : "failed");
@@ -1700,6 +1799,11 @@ void knx_dns_sd_set_sleep_period(uint16_t sp)
     {
       schedule_announcement_repeat();
     }
+    else if (errno != ENETDOWN)
+    {
+      // The retry announces the new sleep period later, see schedule_update_retry().
+      schedule_update_retry();
+    }
   }
 
   OC_INF("DNS-SD: DNS-SD sleep period set to %d.", sp);
@@ -1719,6 +1823,8 @@ void knx_dns_sd_stop(void)
 {
   // a repeat after the goodbye would revive the record in every cache
   cancel_announcement_repeat();
+  // The same for a pending retry of a failed update.
+  cancel_update_retry();
 
   // send goodbye for current advertisement
   if (current_advertisement.valid) 
