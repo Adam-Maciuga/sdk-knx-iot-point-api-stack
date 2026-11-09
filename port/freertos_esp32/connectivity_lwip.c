@@ -6,7 +6,7 @@
  */
 
 /* KNX-IoT connectivity backend for ESP-IDF (FreeRTOS) on the lwIP BSD socket API
- * Serves the Wi-Fi and Ethernet network interfaces managed by esp_netif.
+ * Serves the Ethernet, OpenThread and Wi-Fi network interfaces managed by esp_netif.
  *
  * Implements the oc_connectivity_* and oc_network_event_handler_mutex_* interfaces declared in
  * port/oc_connectivity.h. The design follows port/zephyr/connectivity_posix.c, which in turn
@@ -38,6 +38,16 @@
  *   an IPv6 address became valid (duplicate address detection done), IP_EVENT_NETIF_DOWN when the
  *   interface went down. The application must create the default event loop before
  *   oc_connectivity_init().
+ *
+ * The OpenThread backend uses the same sockets, joins and events: ESP-IDF runs OpenThread as an
+ * lwIP network interface too (CONFIG_OPENTHREAD_PLATFORM_NETIF, esp_netif key OT_DEF). A group
+ * join on that interface reaches OpenThread through the MLD filter hook of the netif, which
+ * registers groups with a scope above realm-local at the Border Router (MLR). lwIP asks
+ * OpenThread for the source address (CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM). The interface
+ * adds its link-local and mesh-local addresses as deprecated and only the routable address from
+ * the prefix of the Border Router as preferred, so the endpoint list holds the routable address
+ * only. DNS-SD runs through the OpenThread SRP client (port/dns-sd_srp.c) instead of the mDNS
+ * responder.
  */
 
 #include <errno.h>
@@ -48,6 +58,9 @@
 #include <sys/select.h>
 #include <sys/time.h>
 
+/* Kconfig symbols (CONFIG_KNXIOT_NETWORK_BACKEND_*) */
+#include "sdkconfig.h"
+
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
@@ -55,6 +68,9 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 #include "sockets_ext.h"
+
+/* Internal interface of this backend, the bound port for port/dns-sd_srp.c */
+#include "connectivity_lwip.h"
 
 #include "oc_buffer.h"
 #include "oc_core_res.h"
@@ -120,8 +136,9 @@ static uint16_t g_bound_unicast_port = 0;
  * Returns the esp_netif the CoAP sockets bind their multicast traffic to, NULL when there is none.
  *
  * When oc_network_get_interface_filter() is set it is honoured exactly (a lwIP netif index, as
- * reported by oc_network_enumerate_interfaces()). Otherwise the default Wi-Fi station interface is
- * used, then the default Ethernet interface, then the first interface that is up.
+ * reported by oc_network_enumerate_interfaces()). Otherwise the OpenThread interface is used on
+ * the Thread backend, then the default Wi-Fi station interface, then the default Ethernet
+ * interface, then the first interface that is up.
  */
 static esp_netif_t* select_target_interface(void)
 {
@@ -140,6 +157,17 @@ static esp_netif_t* select_target_interface(void)
 
     return NULL;
   }
+
+#if defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+  /* The OpenThread esp_netif (CONFIG_OPENTHREAD_PLATFORM_NETIF), created by the application
+   * together with the OpenThread instance (esp_openthread_start()).
+   */
+  netif = esp_netif_get_handle_from_ifkey("OT_DEF");
+  if (netif != NULL)
+  {
+    return netif;
+  }
+#endif
 
   netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
   if (netif != NULL)
@@ -518,11 +546,71 @@ static void setup_multicast_interface(void)
 
 OC_LIST(oc_network_interface_cb_list);
 
+/* Usable addresses
+ * Fills addresses with the usable IPv6 addresses of netif and returns their count.
+ *
+ * Wi-Fi and Ethernet: Every valid address, preferred and deprecated, not tentative. A deprecated
+ * address is still valid and lwIP still uses it as a source address, as in the Linux, Windows and
+ * Zephyr ports.
+ * Thread: Only preferred addresses. esp_netif posts IP_EVENT_GOT_IP6 for every added address,
+ * also for one added as deprecated. The OpenThread interface adds its link-local and mesh-local
+ * addresses that way, only the routable address from the prefix of the Border Router is preferred.
+ */
+static int get_usable_addresses(esp_netif_t* netif,
+                                esp_ip6_addr_t addresses[LWIP_IPV6_NUM_ADDRESSES])
+{
+#if defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+  return esp_netif_get_all_preferred_ip6(netif, addresses);
+#else
+  return esp_netif_get_all_ip6(netif, addresses);
+#endif
+}
+
+/* Network state report
+ * Reports the state of the target interface to the shared code, see knx_network_report_state().
+ *
+ * Computed from the addresses of the interface, not from oc_connectivity_get_endpoints(): That
+ * list is one static array the stack and the mDNS listener rebuild as well, a half rebuilt array
+ * could read as "no address". On Thread only "has an address / has none" counts, the hash stays 0:
+ * OpenThread registers changed addresses at the Border Router itself (automatic host address of
+ * the SRP client), an "up" for every address change would only cause SRP updates.
+ */
+static void report_network_state(bool initial)
+{
+  bool up = false;
+  uint32_t addresses_hash = 0;
+  esp_netif_t* netif = select_target_interface();
+
+  if (netif != NULL)
+  {
+    esp_ip6_addr_t addresses[LWIP_IPV6_NUM_ADDRESSES];
+    const int count = get_usable_addresses(netif, addresses);
+    for (int i = 0; i < count && i < LWIP_IPV6_NUM_ADDRESSES; i++)
+    {
+      up = true;
+#if !defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+      addresses_hash += knx_network_address_hash((const uint8_t*)addresses[i].addr);
+#endif
+    }
+  }
+
+  if (initial)
+  {
+    knx_network_set_initial_state(up, addresses_hash);
+  }
+  else
+  {
+    (void)knx_network_report_state(up, addresses_hash);
+  }
+}
+
 /* ESP-IDF IP event handler
- * Translates the esp_netif IP events into the stack's network interface events.
+ * Reports the network state of the target interface on the esp_netif IP events.
  *
  * Runs in the ESP-IDF event loop task. Events of other interfaces than the target interface are
- * ignored, so a second interface going down does not stop DNS-SD on the one in use.
+ * ignored, so a second interface going down does not stop DNS-SD on the one in use. A deprecated
+ * address or a further address that keeps the usable addresses changes nothing, the shared code
+ * decides on "up" and "down".
  */
 static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void* data)
 {
@@ -539,9 +627,7 @@ static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void*
       return;
     }
 
-    OC_INF("IPv6 address of interface %d became valid.",
-           esp_netif_get_netif_impl_index(event->esp_netif));
-    oc_network_interface_event(NETWORK_INTERFACE_UP);
+    OC_DBG("IPv6 address of interface %d added.", esp_netif_get_netif_impl_index(event->esp_netif));
   }
   else if (id == IP_EVENT_NETIF_DOWN)
   {
@@ -552,8 +638,13 @@ static void ip_event_handler(void* arg, esp_event_base_t base, int32_t id, void*
     }
 
     OC_INF("Interface %d went down.", esp_netif_get_netif_impl_index(event->esp_netif));
-    oc_network_interface_event(NETWORK_INTERFACE_DOWN);
   }
+  else
+  {
+    return;
+  }
+
+  report_network_state(false);
 }
 
 static void network_interface_event_handler(oc_interface_event_t event)
@@ -566,8 +657,14 @@ static void network_interface_event_handler(oc_interface_event_t event)
   }
   else if (event == NETWORK_INTERFACE_DOWN)
   {
+#if defined(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    /* No DNS-SD stop on Thread: The shared SRP code (port/dns-sd_srp.c) follows the routable
+     * address itself, for the Zephyr and the ESP-IDF port alike. A detach keeps the
+     * registration, and the device is back on the backbone link right after the reconnect. */
+#else
     /* Send the DNS-SD goodbye while the interface is still up, before leaving the groups. */
     knx_dns_sd_stop();
+#endif
     oc_unregister_group_multicasts();
   }
 }
@@ -635,6 +732,15 @@ int oc_connectivity_set_port(uint16_t port)
   return 0;
 }
 
+/* Bound unicast port
+ * Returns the port server_sock is bound to, see connectivity_lwip.h. Before
+ * oc_connectivity_init() it is the configured port (0 = ephemeral).
+ */
+uint16_t knx_connectivity_lwip_get_port(void)
+{
+  return (server_sock >= 0) ? g_bound_unicast_port : g_unicast_port;
+}
+
 int oc_connectivity_init(void)
 {
   /* server_sock binds to port 0 by default, so lwIP assigns an ephemeral port. This mirrors the
@@ -691,6 +797,12 @@ int oc_connectivity_init(void)
     OC_ERR("Failed to register the IP event handler (%s), no network up/down events!",
            esp_err_to_name(err));
   }
+
+  /* Start state after the event handlers are registered, so an address event in between is not
+   * lost. An interface that is already up when the stack starts reports no change, and the first
+   * event compares against the real state.
+   */
+  report_network_state(true);
 
   OC_INF("Connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
 
@@ -813,11 +925,12 @@ oc_endpoint_t* oc_connectivity_get_endpoints(void)
     return NULL;
   }
 
-  /* Only preferred addresses, so tentative (duplicate address detection in progress) and
-   * deprecated (about to expire) addresses are left out, as in the Zephyr and Linux ports.
+  /* The usable addresses, see get_usable_addresses(). Tentative addresses (duplicate address
+   * detection in progress) are always left out. Deprecated (about to expire) addresses count on
+   * Wi-Fi and Ethernet, as in the Linux, Windows and Zephyr ports, and are left out on Thread.
    */
   esp_ip6_addr_t addresses[MAX_ENDPOINTS];
-  const int count = esp_netif_get_all_preferred_ip6(netif, addresses);
+  const int count = get_usable_addresses(netif, addresses);
   if (count <= 0)
   {
     return NULL;

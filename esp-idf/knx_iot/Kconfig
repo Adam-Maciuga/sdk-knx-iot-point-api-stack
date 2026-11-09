@@ -103,12 +103,29 @@ choice KNXIOT_NETWORK_BACKEND
 
 config KNXIOT_NETWORK_BACKEND_ETHERNET
     bool "Ethernet"
+    help
+      Use Ethernet as the network backend.
+      Compiles port/freertos_esp32/connectivity_lwip.c with the shared DNS-SD
+      responder (port/dns-sd_mdns.c). Needs the esp_eth component and the
+      Ethernet esp_netif (ETH_DEF) created by the application.
 
 config KNXIOT_NETWORK_BACKEND_THREAD
     bool "OpenThread"
+    select OPENTHREAD_ENABLED
+    help
+      Use OpenThread (IEEE 802.15.4 Thread mesh) as the network backend.
+      Compiles port/freertos_esp32/connectivity_lwip.c over the OpenThread
+      esp_netif (OT_DEF, CONFIG_OPENTHREAD_PLATFORM_NETIF) with the DNS-SD
+      registration through the OpenThread SRP client (port/dns-sd_srp.c,
+      shared with Zephyr). Selects the OpenThread component, the application
+      starts OpenThread and supplies its configuration.
 
 config KNXIOT_NETWORK_BACKEND_WIFI
     bool "Wi-Fi"
+    help
+      Use Wi-Fi as the network backend.
+      Compiles port/freertos_esp32/connectivity_lwip.c with the shared DNS-SD
+      responder (port/dns-sd_mdns.c).
 
 endchoice
 

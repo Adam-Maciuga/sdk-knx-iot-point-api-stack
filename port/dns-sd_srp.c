@@ -13,6 +13,10 @@
  * @file
  * @brief KNX IoT DNS-SD over Thread, implemented with the OpenThread SRP client.
  *
+ * Shared by the Zephyr and the ESP-IDF port. The platform differences are the OpenThread
+ * instance, the OpenThread API lock and the bound unicast port, see the blocks below the
+ * includes.
+ *
  * On Thread the device does not run an mDNS responder. It registers its
  * service with the Border Router's SRP server (unicast DNS Update) and the
  * Border Router's advertising proxy publishes it as mDNS on the backbone
@@ -28,12 +32,23 @@
  *   - knx_dns_sd_set_sleep_period() re-publishes immediately
  *   - knx_dns_sd_stop() deregisters host and service at the server, the SRP
  *     equivalent of the mDNS goodbye; a later update re-registers
+ *   - an update with unchanged values leaves the registration alone, the
+ *     socket port sends no goodbye then either
+ *
+ * The service is registered only while the device has a routable address,
+ * one of the addresses the SRP client registers (preferred, not link-local,
+ * not mesh-local). An address that goes while the device stays attached
+ * withdraws the registration, the server can be reached then. A detach
+ * changes nothing: The SRP client pauses and resumes by itself, and the
+ * server keeps the registration for its lease. The registration follows as
+ * soon as a routable address appears.
  *
  * SRP forbids modifying a service entry while it is in the client's list, so
  * changes are staged in `pending` and applied when the entry is out of the
  * list. All OpenThread API calls from the KNX stack thread run under the
  * OpenThread API mutex; the SRP callback already runs on the OpenThread
- * thread with that mutex held.
+ * thread with that mutex held. The state callback thread_state_changed()
+ * runs there the same way.
  */
 
 #include <stdbool.h>
@@ -45,14 +60,71 @@
 #include "oc_endpoint.h"
 #include "port/dns-sd.h"
 #include "port/oc_log.h"
-#include "port/zephyr/connectivity_thread.h"
 
-#include <openthread.h>
 #include <openthread/dns.h>
+#include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
+#include <openthread/thread.h>
 
 #include "api/oc_main.h"
+
+#if defined(__ZEPHYR__)
+/* Zephyr: The OpenThread module of Zephyr owns the instance and the API mutex, the bound
+ * port comes from the OpenThread connectivity backend of the Zephyr port. */
+#include <openthread.h>
+#include "port/zephyr/connectivity_thread.h"
+
+static inline otInstance* openthread_instance(void)
+{
+    return openthread_get_default_instance();
+}
+
+static inline void openthread_lock(void)
+{
+    openthread_mutex_lock();
+}
+
+static inline void openthread_unlock(void)
+{
+    openthread_mutex_unlock();
+}
+
+static inline uint16_t knx_unicast_port(void)
+{
+    return oc_connectivity_thread_get_port();
+}
+#elif defined(ESP_PLATFORM)
+/* ESP-IDF: The OpenThread component owns the instance and the API lock, the bound port comes
+ * from the lwIP connectivity backend, which serves the OpenThread esp_netif too. */
+#include "esp_openthread.h"
+#include "esp_openthread_lock.h"
+#include "freertos/FreeRTOS.h"
+#include "port/freertos_esp32/connectivity_lwip.h"
+
+static inline otInstance* openthread_instance(void)
+{
+    return esp_openthread_get_instance();
+}
+
+static inline void openthread_lock(void)
+{
+    (void)esp_openthread_lock_acquire(portMAX_DELAY);
+}
+
+static inline void openthread_unlock(void)
+{
+    esp_openthread_lock_release();
+}
+
+static inline uint16_t knx_unicast_port(void)
+{
+    return knx_connectivity_lwip_get_port();
+}
+#else
+#error "port/dns-sd_srp.c needs an OpenThread platform, Zephyr or ESP-IDF."
+#endif
 
 #define KNX_SRP_SERVICE_NAME "_knx._udp"
 
@@ -126,7 +198,7 @@ static void apply_pending(void)
         entry->mService.mNumTxtEntries = 0;
     }
 
-    entry->mService.mPort = oc_connectivity_thread_get_port();
+    entry->mService.mPort = knx_unicast_port();
     entry->mService.mPriority = 0;
     entry->mService.mWeight = 0;
     entry->mService.mNext = NULL;
@@ -180,6 +252,9 @@ static bool ensure_host(otInstance *inst)
     return true;
 }
 
+/** Values the entry carries since its last successful otSrpClientAddService(). */
+static knx_srp_values_t applied;
+
 /** Apply pending values and hand the entry to the SRP client. Entry must be out of the list. */
 static void add_service(otInstance *inst)
 {
@@ -192,8 +267,17 @@ static void add_service(otInstance *inst)
         reapply = true;   /* retry on the next callback or update */
         return;
     }
+    applied = pending;
     OC_INF("DNS-SD: SRP registering %s.%s port %u ia %x pm %d sp %u", entry->mService.mInstanceName,
            KNX_SRP_SERVICE_NAME, entry->mService.mPort, pending.ia, pending.pm, pending.sp);
+}
+
+/** True when the entry carries the pending values and the bound port already. */
+static bool pending_is_applied(void)
+{
+    return (applied.iid == pending.iid) && (applied.ia == pending.ia) &&
+           (applied.pm == pending.pm) && (applied.sp == pending.sp) &&
+           (entry->mService.mPort == knx_unicast_port());
 }
 
 /** Publish `pending`: add the entry if it is free, otherwise start its removal
@@ -213,6 +297,21 @@ static void publish(otInstance *inst)
         return;
     }
 
+    /*
+      Nothing to change while the entry is registered or on its way with the same values. SRP
+      changes an entry only by removing it and adding it again, and the Border Router announces
+      that as a goodbye and a new record on the backbone link. An update with the same values comes
+      with every "up" and twice at boot, the addresses follow by themselves
+      (otSrpClientEnableAutoHostAddress()). A host name change goes through knx_dns_sd_stop()
+      first and does not end here.
+    */
+    if (pending_is_applied() && (entry->mService.mState != OT_SRP_CLIENT_ITEM_STATE_TO_REMOVE) &&
+        (entry->mService.mState != OT_SRP_CLIENT_ITEM_STATE_REMOVING))
+    {
+        reapply = false;
+        return;
+    }
+
     switch (entry->mService.mState)
     {
     case OT_SRP_CLIENT_ITEM_STATE_REGISTERED:
@@ -227,6 +326,45 @@ static void publish(otInstance *inst)
     }
 }
 
+/** The registration waits for a routable address, withdrawn or held back while there is none. */
+static bool waiting_for_address = false;
+
+/** A routable address existed at the last check, see thread_state_changed(). */
+static bool routable = false;
+
+/** True when the Thread interface has an address the SRP client registers and the LAN can reach.
+ *  Such an address is preferred, neither link-local nor mesh-local, the rule of
+ *  otSrpClientEnableAutoHostAddress(). */
+static bool has_routable_address(otInstance *inst)
+{
+    const otMeshLocalPrefix *ml_prefix = otThreadGetMeshLocalPrefix(inst);
+
+    for (const otNetifAddress *a = otIp6GetUnicastAddresses(inst); a != NULL; a = a->mNext)
+    {
+        const uint8_t *bytes = a->mAddress.mFields.m8;
+
+        if (!a->mPreferred || a->mRloc)
+        {
+            continue;
+        }
+
+        /* link-local fe80::/10 */
+        if ((bytes[0] == 0xfe) && ((bytes[1] & 0xc0) == 0x80))
+        {
+            continue;
+        }
+
+        if ((ml_prefix != NULL) && (memcmp(bytes, ml_prefix->m8, OT_MESH_LOCAL_PREFIX_SIZE) == 0))
+        {
+            continue;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 /* -------------------------------------------------------------- callbacks */
 
 static void srp_client_callback(otError err, const otSrpClientHostInfo *host, const otSrpClientService *services,
@@ -234,12 +372,13 @@ static void srp_client_callback(otError err, const otSrpClientHostInfo *host, co
 {
     (void)services;
     (void)ctx;
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
     if (err != OT_ERROR_NONE)
     {
         OC_ERR("DNS-SD: SRP update failed: %d", err);
-        if (reapply && !stopped && entry_in_list(inst) && (entry->mService.mState == OT_SRP_CLIENT_ITEM_STATE_REMOVING))
+        if (reapply && !stopped && !waiting_for_address && entry_in_list(inst) &&
+            (entry->mService.mState == OT_SRP_CLIENT_ITEM_STATE_REMOVING))
         {
             /* the server did not confirm the removal; drop the entry locally and re-add */
             (void)otSrpClientClearService(inst, &entry->mService);
@@ -256,7 +395,8 @@ static void srp_client_callback(otError err, const otSrpClientHostInfo *host, co
         }
     }
 
-    if (stopped)
+    /* nothing to register after a stop by choice or without a routable address */
+    if (stopped || waiting_for_address)
     {
         if (host->mState == OT_SRP_CLIENT_ITEM_STATE_REMOVED)
         {
@@ -283,18 +423,70 @@ static void srp_autostart_callback(const otSockAddr *server, void *ctx)
     OC_INF("DNS-SD: SRP server %s.", server != NULL ? "found" : "lost");
 }
 
+/**
+ * OpenThread state callback, runs on the OpenThread thread with the API mutex held.
+ *
+ * Follows the routable address. It appears: The waiting registration is published. It goes while
+ * the device stays attached: The registration is withdrawn, the server can be reached. It goes
+ * together with a role change (a detach, or an attach that brings the addresses a moment later):
+ * Nothing happens, the SRP client pauses and resumes by itself and the server keeps the
+ * registration for its lease.
+ */
+static void thread_state_changed(otChangedFlags flags, void *ctx)
+{
+    (void)ctx;
+    const otChangedFlags watched = OT_CHANGED_IP6_ADDRESS_ADDED | OT_CHANGED_IP6_ADDRESS_REMOVED |
+                                   OT_CHANGED_THREAD_ROLE;
+
+    if ((flags & watched) == 0)
+    {
+        return;
+    }
+
+    otInstance *inst = openthread_instance();
+    const bool was_routable = routable;
+    routable = has_routable_address(inst);
+
+    if (stopped)
+    {
+        return;   /* nothing to register after a stop by choice */
+    }
+
+    if (routable && waiting_for_address)
+    {
+        OC_INF("DNS-SD: Routable address available, the SRP registration follows.");
+        waiting_for_address = false;
+        publish(inst);
+        return;
+    }
+
+    if (was_routable && !routable && ((flags & OT_CHANGED_THREAD_ROLE) == 0) &&
+        (otThreadGetDeviceRole(inst) >= OT_DEVICE_ROLE_CHILD))
+    {
+        OC_INF("DNS-SD: Routable address gone while attached, the SRP registration is withdrawn.");
+        waiting_for_address = true;
+        reapply = false;
+
+        otError err = otSrpClientRemoveHostAndServices(inst, false, true);
+        if ((err != OT_ERROR_NONE) && (err != OT_ERROR_ALREADY))
+        {
+            OC_WRN("DNS-SD: SRP deregistration failed: %d", err);
+        }
+    }
+}
+
 /* ------------------------------------------------------------- public API */
 
 int knx_dns_sd_update_service(const oc_device_info_t *device)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
    if (!device || !device->serialnumber)
     {
       OC_WRN("DNS-SD: Invalid (NULL) device or serial number provided, cannot update service.");
       return -1;
-    }  
-  
+    }
+
    if (!inst)
     {
         OC_WRN("DNS-SD: OpenThread not initialised yet!");
@@ -314,7 +506,7 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
         return 0;
     }
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     pending.iid = device->iid;
     pending.ia = device->ia;
@@ -334,13 +526,14 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
 
     if (entry == NULL)
     {
-        /* one-time setup: static subtype, SRP entry and callbacks */
+        /* One-time setup: The static subtype, the SRP entry, the SRP callbacks and the state
+         * callback */
         (void)snprintf(subtype_sn, sizeof(subtype_sn), "_%s", device->serialnumber);
 
         entry = otSrpClientBuffersAllocateService(inst);
         if (entry == NULL)
         {
-            openthread_mutex_unlock();
+            openthread_unlock();
             OC_ERR("DNS-SD: no SRP service buffer available!");
             return -1;
         }
@@ -352,49 +545,69 @@ int knx_dns_sd_update_service(const oc_device_info_t *device)
 
         otSrpClientSetCallback(inst, srp_client_callback, NULL);
         otSrpClientEnableAutoStartMode(inst, srp_autostart_callback, NULL);
+
+        if (otSetStateChangedCallback(inst, thread_state_changed, NULL) != OT_ERROR_NONE)
+        {
+            OC_ERR("DNS-SD: OpenThread state callback not registered, the SRP registration does "
+                   "not follow the routable address!");
+        }
     }
 
+    /* Registered only with a routable address, thread_state_changed() publishes once one
+     * appears. */
+    routable = has_routable_address(inst);
+    if (!routable)
+    {
+        OC_INF("DNS-SD: No routable address yet, the SRP registration waits for one.");
+        waiting_for_address = true;
+        openthread_unlock();
+        return 0;
+    }
+
+    waiting_for_address = false;
     publish(inst);
 
-    openthread_mutex_unlock();
+    openthread_unlock();
     return 0;
 }
 
 void knx_dns_sd_set_sleep_period(uint16_t sp)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     pending.sp = sp;
     OC_INF("DNS-SD: sleep period set to %u.", (unsigned)sp);
 
     /* re-publish at once, like the mDNS port re-announces its TXT record */
-    if ((entry != NULL) && !stopped && (inst != NULL))
+    /* Without a routable address the value waits with the registration. */
+    if ((entry != NULL) && !stopped && !waiting_for_address && (inst != NULL))
     {
         publish(inst);
     }
 
-    openthread_mutex_unlock();
+    openthread_unlock();
 }
 
 uint16_t knx_dns_sd_get_used_port(void)
 {
-    return oc_connectivity_thread_get_port();
+    return knx_unicast_port();
 }
 
 void knx_dns_sd_stop(void)
 {
-    otInstance *inst = openthread_get_default_instance();
+    otInstance *inst = openthread_instance();
 
-    openthread_mutex_lock();
+    openthread_lock();
 
     stopped = true;
     reapply = false;
+    waiting_for_address = false;   /* a stop by choice ends the wait for a routable address */
 
     if ((inst == NULL) || (entry == NULL))
     {
-        openthread_mutex_unlock();
+        openthread_unlock();
         return;
     }
 
@@ -405,5 +618,5 @@ void knx_dns_sd_stop(void)
     {
         OC_WRN("DNS-SD: SRP deregistration failed: %d", err);
     }
-    openthread_mutex_unlock();
+    openthread_unlock();
 }

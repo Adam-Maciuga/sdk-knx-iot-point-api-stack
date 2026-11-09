@@ -4,11 +4,12 @@
 # module (zephyr/CMakeLists.txt) for the FreeRTOS/ESP-IDF port.
 #
 # The stack sources live two levels up (this component dir is esp-idf/knx_iot/).
-# The port (port/freertos_esp32) is complete for the Wi-Fi and Ethernet backends:
-# storage.c (NVS), connectivity_lwip.c (lwIP BSD sockets) and ipadapter.c (endpoint
-# accessor for the shared DNS-SD responder). The connectivity backend needs the
-# esp-lwip patch port/freertos_esp32/patches/0001 applied to the ESP-IDF lwIP tree,
-# it refuses to compile without it.
+# The port (port/freertos_esp32): storage.c (NVS), connectivity_lwip.c (lwIP BSD sockets,
+# serves the Ethernet, OpenThread and Wi-Fi backends, see the network backend selection
+# below) and ipadapter.c (endpoint accessor for the shared DNS-SD responder of the Ethernet
+# and Wi-Fi backends). The connectivity backend needs the esp-lwip patch
+# port/freertos_esp32/patches/0001 applied to the ESP-IDF lwIP tree, it refuses to compile
+# without it.
 
 get_filename_component(STACK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
@@ -68,27 +69,51 @@ set(COAP_SOURCES
 )
 
 # Platform port: Common shared files plus the FreeRTOS/ESP-IDF specific files.
-# Network backend: Wi-Fi and Ethernet share the lwIP BSD-socket backend
-# (connectivity_lwip.c) plus the shared DNS-SD responder (port/dns-sd_mdns.c, which
-# reaches the endpoint list through ipadapter.c). The OpenThread backend is a later
-# phase.
-if(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
-    message(FATAL_ERROR
-        "KNX-IoT stack: The Thread network backend is not implemented on ESP-IDF yet. "
-        "Select CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET or CONFIG_KNXIOT_NETWORK_BACKEND_WIFI.")
-endif()
-
 set(PORT_SOURCES
     ${STACK_ROOT}/port/oc_log.c
     ${STACK_ROOT}/port/random_psa.c
-    ${STACK_ROOT}/port/dns-sd_mdns.c
     ${STACK_ROOT}/port/freertos_esp32/abort.c
     ${STACK_ROOT}/port/freertos_esp32/clock.c
     ${STACK_ROOT}/port/freertos_esp32/oc_network_interface.c
     ${STACK_ROOT}/port/freertos_esp32/storage.c
     ${STACK_ROOT}/port/freertos_esp32/connectivity_lwip.c
-    ${STACK_ROOT}/port/freertos_esp32/ipadapter.c
 )
+
+# Network backend selection:
+#   Ether./Wi-Fi - connectivity_lwip.c + port/dns-sd_mdns.c (DNS-SD and mDNS, the same
+#                  implementation used on Linux, Windows and Zephyr) + ipadapter.c (the
+#                  endpoint accessor of the responder)
+#   OpenThread   - connectivity_lwip.c over the OpenThread esp_netif + port/dns-sd_srp.c
+#                  (DNS-SD through the OpenThread SRP client, shared with Zephyr)
+# Note: The socket backend connectivity_lwip.c serves all three backends. ESP-IDF runs
+#       OpenThread as an lwIP network interface (CONFIG_OPENTHREAD_PLATFORM_NETIF), the same
+#       model as the Ethernet and Wi-Fi interfaces, so it needs no OpenThread specific twin.
+# Note: On Thread the service is registered at the border router's SRP server, mDNS does not
+#       cross the Thread mesh.
+# Note: The backend is chosen with CONFIG_KNXIOT_NETWORK_BACKEND_* (esp-idf/knx_iot/Kconfig).
+#       The Thread entry selects CONFIG_OPENTHREAD_ENABLED itself, the lwIP netif glue is a
+#       separate option of the OpenThread component and is checked here.
+if(CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET OR CONFIG_KNXIOT_NETWORK_BACKEND_WIFI)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/dns-sd_mdns.c
+        ${STACK_ROOT}/port/freertos_esp32/ipadapter.c
+    )
+elseif(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    if(NOT CONFIG_OPENTHREAD_PLATFORM_NETIF)
+        message(FATAL_ERROR
+            "KNX-IoT stack: The Thread network backend needs the OpenThread esp_netif. "
+            "Enable CONFIG_OPENTHREAD_PLATFORM_NETIF in the application configuration.")
+    endif()
+
+    list(APPEND PORT_SOURCES ${STACK_ROOT}/port/dns-sd_srp.c)
+elseif(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    # ESP-IDF includes every component CMakeLists once before the configuration is loaded, to
+    # collect the requirements (tools/cmake/scripts/component_get_requirements.cmake). No
+    # CONFIG_ option is set in that pass, so the check belongs to the real pass only.
+    message(FATAL_ERROR
+        "KNX-IoT stack: No network backend selected. "
+        "Set CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET, _THREAD or _WIFI.")
+endif()
 
 # Test-control endpoints (/test/*) for the Python runtime conformance suite.
 if(CONFIG_KNXIOT_TEST_CONTROL)
@@ -126,6 +151,13 @@ idf_component_register(
         lwip esp_netif esp_event esp_wifi esp_timer nvs_flash esp_hw_support pthread
         console
 )
+
+# The OpenThread component is required only by the Thread backend (port/dns-sd_srp.c and the
+# OpenThread netif lookup of connectivity_lwip.c). A requirement cannot depend on a Kconfig
+# option inside idf_component_register(), the optional requirement is added afterwards.
+if(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    idf_component_optional_requires(PRIVATE openthread)
+endif()
 
 # -- Warning policy --
 # Warnings as errors on the stack component. ESP-IDF compiles every component with
