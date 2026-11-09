@@ -186,48 +186,65 @@ bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const c
   Joins all non-empty items of a text string array into one string, separated by a single space.
   - example: slots { "a", "", "bc", "" } -> "a bc"
   - empty slots (unused or cleared) are skipped, so no double or trailing spaces
-  - the caller MUST pass an empty 'ocstring' (it is overwritten, not freed) and frees the result with oc_free_string()
+  - no non-empty item -> "" (1 byte, the NUL)
+  - a previous value of 'ocstring' is freed, the caller frees the result with oc_free_string()
+  - out of memory: 'ocstring' stays empty (ptr NULL, size 0)
 */
 void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring)
 {
-  size_t len = 0;
-  size_t i;
+  if (ocstringarray == NULL || ocstring == NULL)
+  {
+    return;
+  }
 
-  // computes the total string size
+  // computes the total string size, starting with the NUL terminator
+  size_t len = 1;
+  size_t i;
   for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
   {
-    const char* item = (const char*)oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item))
+    const size_t item_len = strlen((const char*)oc_string_array_get_item(*ocstringarray, i));
+    if (item_len)
     {
-      len += strlen(item);
-      len++;
+      if (len > 1)
+      { // a space before every item except the first
+        len++;
+      }
+
+      len += item_len;
     }
   }
 
-  // alloc joiner string 
+  // ensure input is not leaked if not NULL
+  oc_free_string(ocstring);
   oc_alloc_string(ocstring, len);
+
+  if (oc_string(*ocstring) == NULL)
+  { // out of memory: the string stays empty (ptr NULL, size 0, see oc_mmem_alloc)
+    return;
+  }
+
   len = 0;
 
   // copy the items, writing a space before every item except the first
   for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
   {
     const char* item = (const char*)oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item))
+    const size_t item_len = strlen(item);
+    if (item_len)
     {
       if (len > 0)
-      { // copy a space before every item except the first
+      {
         oc_string(*ocstring)[len] = ' ';
         len++;
       }
 
-      // copy string
-      memcpy((char*)oc_string(*ocstring) + len, item, strlen(item));
-      len += strlen(item);
+      memcpy(oc_string(*ocstring) + len, item, item_len);
+      len += item_len;
     }
   }
 
   // end of string gets a NUL terminator, even if the string is empty (len = 0)
-  strcpy((char*)oc_string(*ocstring) + len, "");
+  oc_string(*ocstring)[len] = '\0';
 }
 
 int oc_conv_uint64_to_dec_string(char* str, uint64_t number)

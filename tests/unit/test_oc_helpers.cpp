@@ -606,6 +606,53 @@ TEST_F(OcStringArrayTest, JoinConcatenatesWithSpaces)
   oc_free_string(&joined);
 }
 
+// F-048-1: only empty items -> "" with size 1, the NUL stays inside the block
+TEST_F(OcStringArrayTest, JoinAllEmptyItemsGivesEmptyString)
+{
+  oc_new_string_array(&arr, 3);
+  oc_string_t joined{};
+  oc_join_string_array(&arr, &joined);
+  ASSERT_NE(oc_string(joined), nullptr);
+  EXPECT_STREQ(oc_string(joined), "");
+  EXPECT_EQ(joined.size, 1u);
+  oc_free_string(&joined);
+}
+
+// F-048-1: exact size, empty slots in between add no space
+TEST_F(OcStringArrayTest, JoinSkipsEmptySlotsWithExactSize)
+{
+  oc_new_string_array(&arr, 4);
+  oc_string_array_set_item(arr, "a", 0);
+  oc_string_array_set_item(arr, "bc", 2);
+  oc_string_t joined{};
+  oc_join_string_array(&arr, &joined);
+  EXPECT_STREQ(oc_string(joined), "a bc");
+  EXPECT_EQ(oc_string_len(joined), 4u);
+  oc_free_string(&joined);
+}
+
+// F-048-1: a previous value is freed (LeakSanitizer reports otherwise)
+TEST_F(OcStringArrayTest, JoinFreesPreviousValue)
+{
+  oc_new_string_array(&arr, 2);
+  oc_string_array_add_item(arr, "x");
+  oc_string_t joined{};
+  oc_new_string(&joined, "old", 3);
+  oc_join_string_array(&arr, &joined);
+  EXPECT_STREQ(oc_string(joined), "x");
+  oc_free_string(&joined);
+}
+
+// F-048-1: NULL arguments are ignored
+TEST_F(OcStringArrayTest, JoinNullArgumentsAreIgnored)
+{
+  oc_string_t joined{};
+  oc_join_string_array(nullptr, &joined);
+  EXPECT_EQ(oc_string(joined), nullptr);
+  oc_new_string_array(&arr, 1);
+  oc_join_string_array(&arr, nullptr);
+}
+
 TEST_F(OcStringArrayTest, ByteArrayAddItemStoresLengthPrefixedData)
 {
   oc_new_byte_string_array(&arr, 2);

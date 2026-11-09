@@ -195,36 +195,47 @@ removed entry. The next number is F-070.
 - **Files:** `api/oc_helpers.c`, `include/oc_helpers.h`; callers `api/oc_knx_fp.c` (`oc_belongs_href_to_resource()`), `api/oc_knx_fb.c` (`oc_core_fb_x_get_handler()`).
 - **Severity:** Medium overall (items 2 and 3 are reachable from the network), the rest Low.
 - **Description:** (all functions of `oc_helpers.c/.h` reviewed; the sizing issues of `oc_copy_byte_string_to_array_internal()` and `oc_conv_hex_string_to_oc_string()` stay in F-049)
-  1. `oc_join_string_array()` (no production caller):
-     - only empty items: `len` stays 0, `oc_alloc_string(ocstring, 0)`, the final `strcpy(..., "")` writes the NUL 1 byte past the block (or through NULL if `malloc(0)` returns NULL).
-     - no NULL check after `oc_alloc_string()`: on out of memory the copy loop writes through NULL also for n >= 1.
-     - `*ocstring` is overwritten without `oc_free_string()`: an already allocated output leaks.
-     - `ocstringarray` is not checked for NULL (the text add-item variant does).
+  1. ~~`oc_join_string_array()` (no production caller):~~ - FIXED
+     - i. only empty items: `len` stays 0, `oc_alloc_string(ocstring, 0)`, the final `strcpy(..., "")` writes the NUL 1 byte past the block (or through NULL if `malloc(0)` returns NULL).
+     - ii. no NULL check after `oc_alloc_string()`: on out of memory the copy loop writes through NULL also for n >= 1.
+     - iii. `*ocstring` is overwritten without `oc_free_string()`: an already allocated output leaks.
+     - iv. `ocstringarray` is not checked for NULL (the text add-item variant does).
+     - **Fix:** the size starts at 1 (NUL) and adds a space only between items, so it is exact (`""` -> size 1); NULL arguments return;
+       the old `*ocstring` is freed first; the allocation is checked. Tests: `OcStringArrayTest.JoinAllEmptyItemsGivesEmptyString`,
+       `JoinSkipsEmptySlotsWithExactSize`, `JoinFreesPreviousValue`, `JoinNullArgumentsAreIgnored`.
   2. `oc_url_cmp()` is a prefix match, not an equality: `strncmp(cmp1, cmp2, strlen(cmp1))`.
-     - href `/p/1` matches resource `/p/10`, href `""` matches every resource (n = 0).
-     - the leading `/` is stripped only when `strlen > 1`, so `/` and `""` normalize differently.
-     - `oc_belongs_href_to_resource()` (`/fp/*` href checks) uses it, so a wrong or empty href is accepted as an existing resource.
-     - NULL `oc_string()` (empty handle) goes into `strlen()`.
-  3. `oc_uri_get_fb_string_value_as_int()` uses `strchr(ptr, '_')` on `request->uri_path`, which points into the CoAP packet and is not
-     NUL-terminated: the scan reads past `invoked_len`; an `_` found behind the path end makes `to_be_converted_len` span bytes outside the URI.
-     A bounded search (`oc_strnchr(ptr, '_', remaining_len)`) is needed.
-  4. `oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`: `uri[len - 1]` with
-     `len == 0` reads `uri[SIZE_MAX]`; the invoked URI prefix is never compared with the resource URI, only offsets are used.
-  5. Allocators overwrite the handle without freeing it (same contract as item 1, undocumented in `oc_helpers.h`): `_oc_new_string()`,
-     `_oc_new_byte_string()`, `_oc_alloc_string()`, `oc_concat_strings()`, `_oc_new_array()`, `_oc_alloc_string_array()`. Only the
-     `oc_*_copy*()` functions and `oc_conv_hex_string_to_oc_string()` free the old value first.
-  6. String array setters have no bounds or NULL guard: `oc_copy_string_to_array_internal()` and `oc_copy_byte_string_to_array_internal()` do not
-     check `index < oc_string_array_get_allocated_size()` or an empty handle (`NULL + pos`); `oc_byte_string_array_add_item_internal()` lacks the
-     NULL check of its text counterpart; `_oc_alloc_string_array()` does not check `size * STRING_ARRAY_ITEM_MAX_LEN` for overflow, and its
-     final `size` assignment is redundant (already set by `oc_mmem_alloc`).
-  7. `<ctype.h>` with plain `char`: `isxdigit()` in `oc_string_is_hex_array()`, `tolower()`/`toupper()` in `oc_charstream_convert_to_lower/upper()`
-     are UB for negative values (non-ASCII bytes); cast to `unsigned char`. `oc_string_is_hex_array()` also calls `strlen()` on a possibly NULL
-     `oc_string()` and stores the result in `int`.
-  8. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
-  9. `_oc_free_array()` has no NULL guard (unlike `_oc_free_string()`); `oc_mmem_free()` dereferences the handle.
-  10. Contracts not documented in `oc_helpers.h`: `oc_conv_uint64_to_dec_string()` / `oc_conv_uint64_to_hex_string()` take no buffer size
-      (need 21 / 17 bytes); `oc_charstream_validate_is_lower/upper()` validate lowercase/uppercase HEX (not any lowercase text) and return true
-      for `""`; `oc_conv_hex_string_to_byte_array()` sets `*array_len` and writes partial output before a later digit fails.
+     - i. href `/p/1` matches resource `/p/10`, href `""` matches every resource (n = 0).
+     - ii. the leading `/` is stripped only when `strlen > 1`, so `/` and `""` normalize differently.
+     - iii. `oc_belongs_href_to_resource()` (`/fp/*` href checks) uses it, so a wrong or empty href is accepted as an existing resource.
+     - iv. NULL `oc_string()` (empty handle) goes into `strlen()`.
+  3. `oc_uri_get_fb_string_value_as_int()`:
+     - i. uses `strchr(ptr, '_')` on `request->uri_path`, which points into the CoAP packet and is not NUL-terminated: the scan reads past
+       `invoked_len`; an `_` found behind the path end makes `to_be_converted_len` span bytes outside the URI. A bounded search
+       (`oc_strnchr(ptr, '_', remaining_len)`) is needed.
+  4. `oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`:
+     - i. `uri[len - 1]` with `len == 0` reads `uri[SIZE_MAX]`.
+     - ii. the invoked URI prefix is never compared with the resource URI, only offsets are used.
+  5. Allocators overwrite the handle without freeing it (undocumented in `oc_helpers.h`):
+     - i. `_oc_new_string()`, `_oc_new_byte_string()`, `_oc_alloc_string()`, `oc_concat_strings()`, `_oc_new_array()`, `_oc_alloc_string_array()`.
+       Only the `oc_*_copy*()` functions, `oc_conv_hex_string_to_oc_string()` and (since 1) `oc_join_string_array()` free the old value first.
+  6. String array helpers have no bounds or NULL guard:
+     - i. `oc_copy_string_to_array_internal()` and `oc_copy_byte_string_to_array_internal()` do not check `index < oc_string_array_get_allocated_size()`.
+     - ii. the same setters do not check for an empty handle (`NULL + pos`).
+     - iii. `oc_byte_string_array_add_item_internal()` lacks the NULL check of its text counterpart.
+     - iv. `_oc_alloc_string_array()` does not check `size * STRING_ARRAY_ITEM_MAX_LEN` for overflow.
+     - v. ~~`_oc_alloc_string_array()` final `size` assignment is redundant (already set by `oc_mmem_alloc`)~~ - FIXED (one `memset`, assignment removed).
+  7. `<ctype.h>` with plain `char`:
+     - i. `isxdigit()` in `oc_string_is_hex_array()`, `tolower()`/`toupper()` in `oc_charstream_convert_to_lower/upper()` are UB for negative
+       values (non-ASCII bytes); cast to `unsigned char`.
+     - ii. `oc_string_is_hex_array()` calls `strlen()` on a possibly NULL `oc_string()` and stores the result in `int`.
+  8. Compare on empty handles:
+     - i. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
+  9. Free without guard:
+     - i. `_oc_free_array()` has no NULL guard (unlike `_oc_free_string()`); `oc_mmem_free()` dereferences the handle.
+  10. Contracts not documented in `oc_helpers.h`:
+      - i. `oc_conv_uint64_to_dec_string()` / `oc_conv_uint64_to_hex_string()` take no buffer size (need 21 / 17 bytes).
+      - ii. `oc_charstream_validate_is_lower/upper()` validate lowercase/uppercase HEX (not any lowercase text) and return true for `""`.
+      - iii. `oc_conv_hex_string_to_byte_array()` sets `*array_len` and writes partial output before a later digit fails.
 - **Evidence:** code reading. Tests: join an array of only empty strings under ASan; `oc_url_cmp("/p/1", "/p/10")` and `oc_url_cmp("", "/p/1")`
   return 0; `oc_uri_get_fb_string_value_as_int()` with a non-terminated `uri_path` buffer followed by `_` under ASan.
 - **Expected:**
