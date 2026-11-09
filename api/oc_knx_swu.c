@@ -81,6 +81,7 @@ static oc_device_swu_t swu_device = {.update_method = PUSH};  // fixed, stack do
             - block offset
             - block data
             - block length
+        (4) rejects a block whose new bytes exceed the package size announced with 'pkgs', the download stays open
 
         Application is responsible to detect completion and set state to DOWNLOADED (C) and
         more, see Application Layer (demos).
@@ -618,11 +619,11 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   if (request->_payload_len > 0)
   {
     /*
-      correct an interrupted download before starting a new one
+      correct an interrupted download before starting a new one, IDENTIFIED by offset 0 ONLY (don't care of state)
       - if a MaC user cancels a download and (re)starts it, the state machine is still somewhere (usually DOWNLOADING)
       - identify it by po_block_offset=0 (really 0 or 'po=' is absent)
     */
-    if (po_block_offset == 0 && swu_device.state != OC_SWU_STATE_IDLE)
+    if (po_block_offset == 0)
     {
       OC_WRN("SWU state: %d -> IDLE (interrupted download, starting fresh download)", swu_device.state);
       swu_device.state = OC_SWU_STATE_IDLE;
@@ -646,12 +647,33 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     // (B-1) - a block beyond the received bytes would leave a gap, the MaC has to resume at /swu/pkgbytes
     if (swu_device.state == OC_SWU_STATE_DOWNLOADING && (uint32_t)po_block_offset <= swu_device.received_pkg_bytes)
     {
-      // (B-2) - a repeated block carries no new bytes, acknowledge it without forwarding it again
+      /*
+        (B-2) - a repeated block carries no new bytes, acknowledge it without forwarding it again
+        examples with 64 bytes received:
+        - po=32, 32 bytes: known_bytes=32 >= 32, repeated block, 2.04 without callback
+        - po=48, 32 bytes: known_bytes=16 <  32, overlap, only bytes 64..79 are forwarded
+        - po=64, 32 bytes: known_bytes=0  <  32, next block, all 32 bytes are forwarded
+      */
       const uint32_t known_bytes = swu_device.received_pkg_bytes - (uint32_t)po_block_offset;
       if (known_bytes >= (uint32_t)request->_payload_len)
       {
         OC_DBG("block at %d already received (%" PRIu32 " bytes)", po_block_offset, swu_device.received_pkg_bytes);
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+        return;
+      }
+
+      /*
+        (B-4) - a block that exceeds the package size announced with 'pkgs' is rejected, the download stays open
+        examples with pkgs=100 and 64 bytes received (36 bytes left):
+        - po=64, 36 bytes: 36 new bytes <= 36, accepted, package complete
+        - po=64, 40 bytes: 40 new bytes >  36, 4.00 Bad Request, received bytes stay at 64
+        - po=48, 52 bytes: 36 new bytes <= 36, accepted (the first 16 bytes are already known)
+      */
+      if (swu_device.expected_pkg_size > 0
+          && (uint32_t)request->_payload_len - known_bytes > swu_device.expected_pkg_size - swu_device.received_pkg_bytes)
+      {
+        OC_ERR("block exceeds package size (%" PRIu32 " bytes)", swu_device.expected_pkg_size);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
@@ -669,7 +691,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
       // (B-3)
-      application_swu_cb->cb(sep_response, pkgs_package_size, new_offset, new_data, new_len, application_swu_cb->data);
+      application_swu_cb->cb(sep_response, swu_device.expected_pkg_size, new_offset, new_data, new_len, application_swu_cb->data);
 
       /*
          Response Handling

@@ -1166,9 +1166,10 @@ TEST_F(KnxSwuABlockStateMachine, NewDownloadResetsReceivedBytes)
 // (B-3) the block is forwarded with the query values of its own request
 TEST_F(KnxSwuABlockStateMachine, BlockIsForwardedWithQueryValues)
 {
-  oc_swu_set_state(OC_SWU_STATE_DOWNLOADING);
-  oc_swu_set_package_bytes(32);
-  EXPECT_EQ(put_block("po=32&ps=8&pkgs=64", 8), oc_status_code(OC_STATUS_CHANGED));
+  EXPECT_EQ(put_block("po=0&ps=32&pkgs=64", 32), oc_status_code(OC_STATUS_CHANGED));
+  rec.called = false;
+  // 'pkgs' of a continuation block is ignored, the size announced with the first block is forwarded
+  EXPECT_EQ(put_block("po=32&ps=8&pkgs=99", 8), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_TRUE(rec.called);
   EXPECT_EQ(rec.binary_size, 64u);
   EXPECT_EQ(rec.block_offset, 32u);
@@ -1282,8 +1283,10 @@ TEST_F(KnxSwuABlockStateMachine, StackDoesNotTransitionToDownloaded)
   // a single block already carries the full package
   EXPECT_EQ(put_block("po=0&ps=8&pkgs=8", 8), oc_status_code(OC_STATUS_CHANGED));
   EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
-  // even when more bytes than announced arrive
-  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_CHANGED));
+  // more bytes than announced are rejected, the download stays open
+  rec.called = false;
+  EXPECT_EQ(put_block("po=8&ps=8", 8), oc_status_code(OC_STATUS_BAD_REQUEST));
+  EXPECT_FALSE(rec.called);
   EXPECT_EQ(read_state(), static_cast<uint32_t>(OC_SWU_STATE_DOWNLOADING));
 }
 
