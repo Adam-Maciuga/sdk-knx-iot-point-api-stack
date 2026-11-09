@@ -842,6 +842,18 @@ TEST_F(OcStringTest, IsHexArrayRejectsNonHex)
   EXPECT_EQ(oc_string_is_hex_array(s1), -1);
 }
 
+TEST_F(OcStringTest, CmpEmptyHandlesAreEqual)
+{
+  EXPECT_EQ(oc_string_cmp(s1, s2), 0);
+  EXPECT_EQ(oc_byte_string_cmp(s1, s2), 0);
+}
+
+TEST_F(OcStringTest, CmpEmptyHandleAndEmptyStringAreEqual)
+{
+  oc_new_string(&s1, "", 0);
+  EXPECT_EQ(oc_string_cmp(s1, s2), 0);
+}
+
 TEST_F(OcStringTest, IsHexArrayEmptyHandleIsNotOverread)
 {
   EXPECT_EQ(oc_string_is_hex_array(s1), 0);

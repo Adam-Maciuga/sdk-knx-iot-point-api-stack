@@ -192,7 +192,7 @@ enum StringRepresentation {
  */
 void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 #define oc_string_len(ocstring) ((ocstring).size ? (ocstring).size - 1 : 0) // an empty string "" has internally len 1 but returns len 0 
-#define oc_byte_string_len(ocstring) ((ocstring).size)                      // real byte size w/o NUL terminator 
+#define oc_byte_string_len(ocstring) ((ocstring).size)                      // real byte size, byte string w/o NUL terminator 
 
 // size
 #define oc_int_array_size(ocintarray) ((ocintarray).size)

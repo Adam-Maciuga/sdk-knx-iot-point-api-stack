@@ -245,8 +245,10 @@ removed entry. The next number is F-070.
      - **Fix:** `isxdigit()`, `tolower()`, `toupper()` get a `(unsigned char)` cast; `oc_string_is_hex_array()` loops over
        `oc_string_len()` (`size_t`, 0 for an empty handle) instead of `strlen()`. Tests: `OcStringTest.IsHexArrayEmptyHandleIsNotOverread`,
        `.IsHexArrayRejectsNonAsciiByte`.
-  8. Compare on empty handles:
+  8. ~~Compare on empty handles:~~ - FIXED
      - i. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
+     - **Fix:** both return 0 for equal size 0 before calling `strncmp()` / `memcmp()`. Tests: `OcStringTest.CmpEmptyHandlesAreEqual`,
+       `.CmpEmptyHandleAndEmptyStringAreEqual`.
   9. Free without guard:
      - i. `_oc_free_array()` has no NULL guard (unlike `_oc_free_string()`); `oc_mmem_free()` dereferences the handle.
   10. Contracts not documented in `oc_helpers.h`:

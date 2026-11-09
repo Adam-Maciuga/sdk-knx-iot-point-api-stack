@@ -564,8 +564,14 @@ int oc_string_cmp(oc_string_t string1, oc_string_t string2)
     return -1;
   }
 
-  return strncmp(oc_string(string1), oc_string(string2),
-                 oc_string_len(string1));
+  // size 0 for BOTH (also empty handles with ptr NULL) is equal
+  if (oc_string_len(string1) == 0)
+  {
+    // no compare on 0 size
+    return 0;
+  }
+
+  return strncmp(oc_string(string1), oc_string(string2), oc_string_len(string1));
 }
 
 int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
@@ -575,8 +581,14 @@ int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
     return -1;
   }
 
-  return memcmp(oc_string(string1), oc_string(string2),
-                oc_byte_string_len(string1));
+  // size 0 for BOTH (also empty handles with ptr NULL) is equal
+  if (oc_byte_string_len(string1) == 0)
+  {
+    // no compare on 0 size
+    return 0;
+  }
+
+  return memcmp(oc_string(string1), oc_string(string2), oc_byte_string_len(string1));
 }
 
 int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
