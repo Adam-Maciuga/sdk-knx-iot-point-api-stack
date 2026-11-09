@@ -382,69 +382,55 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
     return -1;
   }
 
-  // calculate needed bytes to store the hex string, odd -> rounding up (8->9/2 = 4, 7->8/2 = 4)
-  size_t a = (hex_str_len + 1) / 2;
+  // needed bytes, odd length rounds up: 8 digits -> (8 + 1) / 2 = 4 bytes, 7 digits -> (7 + 1) / 2 = 4 bytes
+  const size_t needed = (hex_str_len + 1) / 2;
 
-  if (*array_len < a)
+  if (*array_len < needed)
   {
     // not enough space in array
     return -1;
   }
 
   // store the actual number of bytes written to the (inbound) array
-  *array_len = a;
-  
-  // reset
-  a = 0;
+  *array_len = needed;
 
-  size_t start;
-
-  if (hex_str_len % 2 == 0)
-  {
-    // even, loop does it all
-    start = 0;
-  }
-  else
-  {
-    // odd (see examples below) 
-    start = 1;
-
-    // save lone (low) digit
-    const int lo = oc_hex_digit_value(hex_str[0]);
-
-    if (lo < 0)
-    {
-      return -1;
-    }
-
-    // store lone (low) digit as low nibble in case of odd length hex string, the high nibble is assumed to be 0
-    array[a++] = (uint8_t)lo;
-  }
-
-  /* 
+  /*
      sscanf("%x", ...) is not used here
-     - it scans past hex_str_len looking for more hex digits or a NUL terminator 
-     - causing an out-of-bounds read on buffers that are exactly hex_str_len bytes long 
+     - it scans past hex_str_len looking for more hex digits or a NUL terminator
+     - causing an out-of-bounds read on buffers that are exactly hex_str_len bytes long
+
+     each digit is shifted into 'byte' as its low nibble, the byte is stored after its second digit;
+     so (i + odd) & 1 marks the store
 
      examples:
-     1    -> 1 byte   = 01    -> lone digit 1, high nibble is assumed to be 0
-     01   -> 1 byte   = 01
-     122  -> 2 bytes  = 01 22 -> lone digit 1, high nibble is assumed to be 0
-     0122 -> 2 bytes  = 01 22
-
+     1    -> 1 byte  = 01    -> i=0: store 01 (lone digit)
+     01   -> 1 byte  = 01    -> i=0: 0, i=1: store 01
+     122  -> 2 bytes = 01 22 -> i=0: store 01 (lone digit), i=1: 2, i=2: store 22
+     0122 -> 2 bytes = 01 22 -> i=0: 0, i=1: store 01, i=2: 2, i=3: store 22
+     12x  -> error -1        -> 01 is already stored, *array_len is already 2 (partial output)
   */
-  for (size_t i = start; i + 1 < hex_str_len; i += 2)
-  {
-    const int hi = oc_hex_digit_value(hex_str[i]);
-    const int lo = oc_hex_digit_value(hex_str[i + 1]);
+  const size_t odd = hex_str_len & 1;
+  unsigned int byte = 0;
+  size_t a = 0;
 
-    if (hi < 0 || lo < 0)
+  for (size_t i = 0; i < hex_str_len; i++)
+  {
+    const int value = oc_hex_digit_value(hex_str[i]);
+
+    if (value < 0)
     {
       // conversion error
       return -1;
     }
 
-    array[a++] = (uint8_t)((hi << 4) | lo);
+    byte = (byte << 4) | (unsigned int)value;
+
+    if ((i + odd) & 1)
+    {
+      // low nibble done, store the byte
+      array[a++] = (uint8_t)byte;
+      byte = 0;
+    }
   }
 
   return 0;
