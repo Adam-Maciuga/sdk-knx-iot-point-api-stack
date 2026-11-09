@@ -841,3 +841,14 @@ TEST_F(OcStringTest, IsHexArrayRejectsNonHex)
   oc_new_string(&s1, "00xz", 4);
   EXPECT_EQ(oc_string_is_hex_array(s1), -1);
 }
+
+TEST_F(OcStringTest, IsHexArrayEmptyHandleIsNotOverread)
+{
+  EXPECT_EQ(oc_string_is_hex_array(s1), 0);
+}
+
+TEST_F(OcStringTest, IsHexArrayRejectsNonAsciiByte)
+{
+  oc_new_string(&s1, "0\xE4", 2);
+  EXPECT_EQ(oc_string_is_hex_array(s1), -1);
+}

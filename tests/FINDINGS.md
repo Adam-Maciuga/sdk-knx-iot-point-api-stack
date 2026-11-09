@@ -238,10 +238,13 @@ removed entry. The next number is F-070.
             so no call); the setters stay unguarded. iii: both `*_add_item_internal()` reject a NULL array and a NULL string. iv is not fixed
             by design: a too big size ends in out of memory (array stays empty). Tests: `OcStringArrayTest.AddItemNullStringReturnsFalse`,
             `.AddItemOnEmptyArrayReturnsFalse`, `.ByteArrayAddItemInternalNullArrayReturnsFalse`.
-  7. `<ctype.h>` with plain `char`:
+  7. ~~`<ctype.h>` with plain `char`:~~ - FIXED
      - i. `isxdigit()` in `oc_string_is_hex_array()`, `tolower()`/`toupper()` in `oc_charstream_convert_to_lower/upper()` are UB for negative
        values (non-ASCII bytes); cast to `unsigned char`.
      - ii. `oc_string_is_hex_array()` calls `strlen()` on a possibly NULL `oc_string()` and stores the result in `int`.
+     - **Fix:** `isxdigit()`, `tolower()`, `toupper()` get a `(unsigned char)` cast; `oc_string_is_hex_array()` loops over
+       `oc_string_len()` (`size_t`, 0 for an empty handle) instead of `strlen()`. Tests: `OcStringTest.IsHexArrayEmptyHandleIsNotOverread`,
+       `.IsHexArrayRejectsNonAsciiByte`.
   8. Compare on empty handles:
      - i. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
   9. Free without guard:

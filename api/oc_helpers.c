@@ -473,17 +473,16 @@ int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_
 
 int oc_string_is_hex_array(oc_string_t hex_string)
 {
-  const char* array = oc_string(hex_string);
-  const int array_len = strlen(array);
-  for (int i = 0; i < array_len; i++)
+  // empty handle (ptr NULL, size 0) has len 0, no strlen on NULL
+  const size_t len = oc_string_len(hex_string);
+  size_t i = 0;
+  while (i < len && isxdigit((unsigned char)oc_string(hex_string)[i]))
   {
-    if (isxdigit(array[i]) == false)
-    {
-      return -1;
-    }
+    i++;
   }
 
-  return 0;
+  // if it comes to len , all chars were hex digits, otherwise a non-hex char was found
+  return i == len ? 0 : -1;
 }
 
 size_t oc_char_print_hex(const char* str, size_t str_len)
@@ -748,7 +747,7 @@ int oc_charstream_convert_to_lower(char* stream)
   for (; *stream; stream++)
   {
     // loops until *str is 0, e.g.; stream ends with \0
-    *stream = (char)tolower(*stream);
+    *stream = (char)tolower((unsigned char)*stream);
   }
 
   return 0;
@@ -759,7 +758,7 @@ int oc_charstream_convert_to_upper(char* stream)
   for (; *stream; stream++)
   {
     // loops until *str is 0, e.g.; stream ends with \0
-    *stream = (char)toupper(*stream);
+    *stream = (char)toupper((unsigned char)*stream);
   }
 
   return 0;
