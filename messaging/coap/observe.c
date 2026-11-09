@@ -381,6 +381,9 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         const coap_message_type_t msg_type = obs->use_con ? COAP_TYPE_CON : COAP_TYPE_NON;
         const uint16_t mid = coap_get_next_mid();
 
+        // false: this observer is skipped (no transaction), the loop still goes on to the next observer
+        bool send = true;
+
         // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
         coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
 
@@ -416,20 +419,24 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 
           if (!response_state)
           {
-            break;
+            // out of memory, skip only this observer, the remaining observers are still notified
+            OC_WRN("coap_notify_observers: no block-wise buffer, observer skipped");
+            send = false;
           }
-
-          memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
-          response_state->payload_size = (uint32_t)response_buf->response_length;
-          uint32_t payload_size = 0;
-          const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
-          if (payload)
+          else
           {
-            coap_set_payload(notification, payload, payload_size);
-            coap_set_header_block2(notification, 0, 1, obs->block2_size);
-            coap_set_header_size2(notification, response_state->payload_size);
-            oc_blockwise_response_state_t* bwt_res_state = (oc_blockwise_response_state_t*)response_state;
-            coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
+            memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
+            response_state->payload_size = (uint32_t)response_buf->response_length;
+            uint32_t payload_size = 0;
+            const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
+            if (payload)
+            {
+              coap_set_payload(notification, payload, payload_size);
+              coap_set_header_block2(notification, 0, 1, obs->block2_size);
+              coap_set_header_size2(notification, response_state->payload_size);
+              oc_blockwise_response_state_t* bwt_res_state = (oc_blockwise_response_state_t*)response_state;
+              coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
+            }
           }
         }
         else
@@ -462,7 +469,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 
         coap_set_token(notification, obs->token, obs->token_len);
 
-        coap_transaction_t* transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
+        // skip out of memory observers, but don't skip observer past this list entry that already owns memory 
+        coap_transaction_t* transaction = send ? coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint) : NULL;
         if (transaction)
         {
           if (notification->code < BAD_REQUEST_4_00 && obs->resource->runtime_data->num_observers)

@@ -135,6 +135,23 @@ extern "C" void __wrap_coap_send_message(oc_message_t *message)
   oc_message_unref(message);
 }
 
+/*
+  --wrap=calloc (CMakeLists.txt): passes through unless a test arms it; when armed, the next calloc of
+  g_calloc_fail_size bytes (a block-wise response state) fails once, every other call passes through
+*/
+extern "C" void* __real_calloc(size_t nmemb, size_t size);
+static size_t g_calloc_fail_size = 0;
+
+extern "C" void* __wrap_calloc(size_t nmemb, size_t size)
+{
+  if (g_calloc_fail_size != 0 && nmemb == 1 && size == g_calloc_fail_size)
+  {
+    g_calloc_fail_size = 0;
+    return NULL;
+  }
+  return __real_calloc(nmemb, size);
+}
+
 /* ---------------- fixture ------------------------------------------------ */
 
 class CoapObserve : public ::testing::Test {
@@ -909,6 +926,69 @@ TEST_F(CoapObserve, NotifyObserversAboveTheBlockSizeSendsTheFirstBlockAndKeepsTh
 
   /* last block delivered: the response buffer is released */
   EXPECT_EQ(oc_blockwise_find_response_buffer("p/1", 3, &ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER), nullptr);
+
+  coap_free_all_observers();
+  coap_free_all_transactions();
+  oc_blockwise_scrub_buffers(true);
+  oc_coap_clear_request_history();
+}
+
+/*
+  F-051: two observers of one /p resource, both registered with Block2 size 64, a 100 byte value
+  - the block-wise response buffer of the first notified observer cannot be allocated (calloc fails once)
+  - only that observer is skipped: the other one still gets block 0 (64 bytes, M = 1); before, a break left the whole loop
+*/
+TEST_F(CoapObserve, NotifyObserversBlockwiseAllocFailureSkipsOnlyThatObserver)
+{
+  oc_coap_clear_request_history();
+  g_long_get_calls = 0;
+
+  TestResource tr("/p/1");
+  tr.resource.get_handler.cb = long_value_get_handler;
+
+  oc_endpoint_t ep1;
+  memset(&ep1, 0, sizeof(ep1));
+  ep1.flags = IPV6;
+  ep1.addr.ipv6.port = 5683;
+  ep1.addr.ipv6.address[0] = 0xFE;
+  ep1.addr.ipv6.address[1] = 0x80;
+  ep1.addr.ipv6.address[15] = 0x61;
+  oc_endpoint_t ep2 = ep1;
+  ep2.addr.ipv6.port = 5684;
+
+  const uint8_t token1[] = {0x5A, 0x01};
+  const uint8_t token2[] = {0x5A, 0x02};
+  ASSERT_EQ(add_test_observer(&tr.resource, &ep1, token1, 2, "p/1", 3, "lt=86400", 64), 0);
+  ASSERT_EQ(add_test_observer(&tr.resource, &ep2, token2, 2, "p/1", 3, "lt=86400", 64), 0);
+
+  g_calloc_fail_size = sizeof(oc_blockwise_response_state_t);
+  EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 2);
+  EXPECT_EQ(g_calloc_fail_size, 0u);
+
+  // exactly one notification: block 0 to the observer whose buffer could be allocated
+  ASSERT_EQ(g_sent_msgs.size(), 1u);
+  std::vector<uint8_t> msg = g_sent_msgs[0];
+  coap_packet_t ntf[1];
+  ASSERT_EQ(coap_parse_udp_message(ntf, msg.data(), msg.size() - 1), COAP_NO_ERROR);
+  EXPECT_EQ(ntf->code, CONTENT_2_05);
+
+  uint32_t num = 99;
+  uint8_t more = 0;
+  uint16_t size = 0;
+  uint32_t offset = 99;
+  ASSERT_EQ(coap_get_header_block2(ntf, &num, &more, &size, &offset), 1);
+  EXPECT_EQ(num, 0u);
+  EXPECT_EQ(more, 1);
+  EXPECT_EQ(size, 64);
+
+  const uint8_t* payload = nullptr;
+  EXPECT_EQ(coap_get_payload(ntf, &payload), 64u);
+
+  // only the notified observer holds a buffer
+  const oc_endpoint_t* sent_ep = (g_sent_ports[0] == 5683) ? &ep1 : &ep2;
+  const oc_endpoint_t* skipped_ep = (g_sent_ports[0] == 5683) ? &ep2 : &ep1;
+  EXPECT_NE(oc_blockwise_find_response_buffer("p/1", 3, (oc_endpoint_t*)sent_ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER), nullptr);
+  EXPECT_EQ(oc_blockwise_find_response_buffer("p/1", 3, (oc_endpoint_t*)skipped_ep, COAP_GET, nullptr, 0, OC_BLOCKWISE_SERVER), nullptr);
 
   coap_free_all_observers();
   coap_free_all_transactions();

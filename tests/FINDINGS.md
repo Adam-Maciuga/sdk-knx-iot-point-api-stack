@@ -297,13 +297,17 @@ removed entry. The next number is F-070.
 - **Expected:** cap the queue (return ERR_FULL at the cap) and reset `events`/counters in `oc_process_shutdown()`.
 - **Fix:** `oc_process_post()` doubles the queue only up to `OC_PROCESS_MAX_EVENTS` and returns `OC_PROCESS_ERR_FULL` at the maximum, when `realloc` fails (old queue kept) or after shutdown (`events == NULL`), so the callers' unref paths are live. `oc_process_shutdown()` sets `events` to NULL and resets `nevents`, `fevent` and the queue size. Tests: `test_oc_process`, `OcProcess.PostBeyondCapacityGrowsQueueAndPreservesOrder`, `OcProcess.PostAfterShutdownIsRejected`, `OcProcess.PostAtTheMaximumIsRejectedAndTheQueueRecovers`.
 
-## F-051: a failed block-wise buffer allocation stops notifying all remaining observers - OPEN
+## ~~F-051: a failed block-wise buffer allocation stops notifying all remaining observers~~ - FIXED
 
 - **Files:** `messaging/coap/observe.c`, `coap_notify_observers()`, block-wise branch: the `break` taken when `oc_blockwise_alloc_response_buffer()` returns NULL.
 - **Severity:** Low - under heap pressure the observers after the current one silently miss this notification (no error, no retry).
 - **Description:** when a notification is larger than the observer's Block2 size and no response buffer can be allocated, the `break` leaves the whole `while (obs)` loop instead of skipping only this observer. Related: F-032 (the `continue` in the same branch).
 - **Evidence:** code reading. A test: two observers of one resource, Block2 64, a 100 byte value, a failing `malloc` wrap for the first buffer only -> the second observer must still get its first block.
 - **Expected:** skip only the current observer (`obs = obs->next; continue;`).
+- **Fix:** the `break` is replaced by a `send` flag (no `continue`): on allocation failure a warning is logged, `send` is false and no
+  transaction is created for this observer; the loop still reaches `obs = obs->next`. Test: `test_coap_observe`,
+  `CoapObserve.NotifyObserversBlockwiseAllocFailureSkipsOnlyThatObserver` (`--wrap=calloc` fails the first response-state allocation:
+  one block 0 notification goes out, only the notified observer holds a buffer).
 
 ## ~~F-052: one observer's deregister stops the periodic notifications for all observers of the resource~~ - FIXED
 

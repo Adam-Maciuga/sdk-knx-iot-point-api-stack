@@ -188,6 +188,7 @@ target_link_options(test_coap_observe PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=oc_etimer_restart
     -Wl,--wrap=coap_send_message
+    -Wl,--wrap=calloc
 )
 kis_add_test(test_smode_refcount     test_smode_refcount.cpp)
 kis_add_test(test_smode_send_refcount test_smode_send_refcount.cpp)
