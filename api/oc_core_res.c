@@ -212,7 +212,8 @@ int oc_core_reset_device_hostname_to_default(void)
      initializes and the serial number is available */
   if (!oc_device_info.serialnumber)
   {
-    OC_WRN("hostname reset skipped: serial number not set yet (stack not initialized)");
+    OC_WRN("Hostname reset skipped, the serial number is not set yet "
+           "(the stack is not initialized)!");
     return -1;
   }
 

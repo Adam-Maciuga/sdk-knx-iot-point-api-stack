@@ -633,16 +633,19 @@ int oc_connectivity_init(void)
     k_thread_name_set(rx_tid, "coap_rx");
     OC_DBG("CoAP RX thread started.");
 
-    /* The network state the port starts with, remembered without an event
-     * before the address events are registered, the stack start registers the
-     * groups and DNS-SD itself. */
-    report_network_state(true);
-
     net_mgmt_init_event_callback(&ipv6_addr_event_callback, ipv6_addr_event_handler,
                                  NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL |
                                  NET_EVENT_IPV6_DAD_SUCCEED);
     net_mgmt_add_event_callback(&ipv6_addr_event_callback);
     oc_add_network_interface_event_callback(network_interface_event_handler);
+
+    /* The network state the port starts with, remembered without an event,
+     * the stack start registers the groups and DNS-SD itself. Read after the
+     * address events are registered, so an event in between (typically
+     * NET_EVENT_IPV6_DAD_SUCCEED at boot) is not lost. An event handled before
+     * the read posts at most one more "up", its registration is the same the
+     * stack start does. */
+    report_network_state(true);
 
     OC_INF("Connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;
