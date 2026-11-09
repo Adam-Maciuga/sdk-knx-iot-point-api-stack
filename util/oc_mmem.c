@@ -60,8 +60,16 @@ size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
 void oc_mmem_free(struct oc_mmem* m, pool pool_type)
 {
   (void)pool_type;
-  free(m->ptr);
-  m->next = NULL;
+
+  // NULL safe, callers MAY pass NULL handles, an empty ptr is fine for free()
+  if (!m)
+  {
+    return;
+  }
+
+  // free ignores a NULL ptr, but if m is NULL we crash below ...
+  free(m->ptr); 
+  m->next = NULL; 
   m->ptr = NULL;
   m->size = 0;
 }

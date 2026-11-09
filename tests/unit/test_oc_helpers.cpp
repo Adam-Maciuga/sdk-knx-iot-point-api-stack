@@ -787,6 +787,14 @@ TEST(OcArrayPool, NewIntArrayAllocatesUsableStorage)
   oc_free_int_array(&ia);
 }
 
+TEST(OcArrayPool, FreeArrayNullAndEmptyAreIgnored)
+{
+  oc_array_t ia{};
+  _oc_free_array(nullptr, INT_POOL);
+  _oc_free_array(&ia, INT_POOL);
+  EXPECT_EQ(oc_int_array(ia), nullptr);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_print_uint64_t — stdout capture
  * ═══════════════════════════════════════════════════════════════════════════ */

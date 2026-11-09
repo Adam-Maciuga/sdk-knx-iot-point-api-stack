@@ -255,7 +255,7 @@ bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, co
  * @param str terminated string
  * @param str_len size of the string to be copied
  */
-void _oc_new_string(
+void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len);
 
 /**
  * @brief new oc_string byte from string

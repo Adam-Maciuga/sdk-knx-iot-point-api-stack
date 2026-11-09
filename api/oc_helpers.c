@@ -60,11 +60,8 @@ void _oc_alloc_string(oc_string_t* ocstring, size_t size)
 
 void _oc_free_string(oc_string_t* ocstring)
 {
-  // free whenever an allocation exists, not just when size > 0, see detailed notes on oc_free_string() in oc_helpers.h
-  if (ocstring && ocstring->ptr)
-  {
-    oc_mmem_free(ocstring, BYTE_POOL);
-  }
+  // NULL handle and empty string (ptr NULL) are handled by oc_mmem_free(), see notes on oc_free_string() in oc_helpers.h
+  oc_mmem_free(ocstring, BYTE_POOL);
 }
 
 void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)

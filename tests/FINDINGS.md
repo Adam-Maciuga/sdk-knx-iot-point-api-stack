@@ -249,8 +249,11 @@ removed entry. The next number is F-070.
      - i. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
      - **Fix:** both return 0 for equal size 0 before calling `strncmp()` / `memcmp()`. Tests: `OcStringTest.CmpEmptyHandlesAreEqual`,
        `.CmpEmptyHandleAndEmptyStringAreEqual`.
-  9. Free without guard:
+  9. ~~Free without guard:~~ - FIXED
      - i. `_oc_free_array()` has no NULL guard (unlike `_oc_free_string()`); `oc_mmem_free()` dereferences the handle.
+     - **Fix:** `oc_mmem_free()` ignores a NULL handle (an empty ptr is fine for `free()`); the guards in `_oc_free_string()` and
+       `_oc_free_array()` are removed as double checks. Test:
+       `OcArrayPool.FreeArrayNullAndEmptyAreIgnored`.
   10. Contracts not documented in `oc_helpers.h`:
       - i. `oc_conv_uint64_to_dec_string()` / `oc_conv_uint64_to_hex_string()` take no buffer size (need 21 / 17 bytes).
       - ii. `oc_charstream_validate_is_lower/upper()` validate lowercase/uppercase HEX (not any lowercase text) and return true for `""`.
