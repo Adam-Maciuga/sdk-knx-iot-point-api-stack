@@ -818,8 +818,6 @@ bool oc_ri_add_resource(oc_resource_t* resource)
   takes the entry out of the list at once and leaves the free to poll_event_callback_timers(), which
   still uses the entry after the callback has returned.
 */
-static oc_event_callback_t* running_event_cb = NULL;
-static bool running_event_cb_removed = false;
 
 void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
 {

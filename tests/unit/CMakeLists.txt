@@ -130,11 +130,6 @@ target_link_options(test_oc_ri PRIVATE
     -Wl,--wrap=oc_etimer_stop
     -Wl,--wrap=oc_core_get_core_resource_by_index
 )
-# --wrap=oc_clock_time gives the timed event callback tests a clock they move themselves.
-kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)
-target_link_options(test_oc_ri_timed_callbacks PRIVATE
-    -Wl,--wrap=oc_clock_time
-)
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
 # RI timed-event list driven by oc_main_poll(), --wrap=oc_clock_time gives a test-controlled clock
 kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)

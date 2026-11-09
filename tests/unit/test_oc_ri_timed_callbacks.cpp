@@ -95,6 +95,14 @@ static oc_event_callback_retval_t cancels_other(void* data)
   return OC_EVENT_DONE;
 }
 
+/* keeps running until it is removed from outside */
+static oc_event_callback_retval_t keeps_running(void* data)
+{
+  (void)data;
+  g_runs++;
+  return OC_EVENT_CONTINUE;
+}
+
 /* -- fixture ------------------------------------------------------------------ */
 
 class RiTimedCallback : public ::testing::Test {
@@ -106,7 +114,6 @@ protected:
     g_runs = 0;
     g_other_runs = 0;
     g_return_value = OC_EVENT_DONE;
-    oc_mmem_init();
     oc_ri_init();
   }
 
@@ -182,4 +189,18 @@ TEST_F(RiTimedCallback, CallbackThatRemovesAnotherCallbackStopsIt)
   advance_ms(5000);
   EXPECT_EQ(g_runs, 1);
   EXPECT_EQ(g_other_runs, 0);
+}
+
+/* the normal paths stay as they are: CONTINUE repeats, a removal from outside stops it */
+TEST_F(RiTimedCallback, CallbackReturningContinueRepeatsUntilRemovedFromOutside)
+{
+  oc_ri_add_timed_event_callback_ticks(nullptr, keeps_running, OC_CLOCK_SECOND);
+
+  advance_ms(1000);
+  advance_ms(1000);
+  EXPECT_EQ(g_runs, 2);
+
+  oc_ri_remove_timed_event_callback(nullptr, keeps_running);
+  advance_ms(5000);
+  EXPECT_EQ(g_runs, 2);
 }
