@@ -254,10 +254,12 @@ removed entry. The next number is F-070.
      - **Fix:** `oc_mmem_free()` ignores a NULL handle (an empty ptr is fine for `free()`); the guards in `_oc_free_string()` and
        `_oc_free_array()` are removed as double checks. Test:
        `OcArrayPool.FreeArrayNullAndEmptyAreIgnored`.
-  10. Contracts not documented in `oc_helpers.h`:
+  10. ~~Contracts not documented in `oc_helpers.h`:~~ - FIXED
       - i. `oc_conv_uint64_to_dec_string()` / `oc_conv_uint64_to_hex_string()` take no buffer size (need 21 / 17 bytes).
       - ii. `oc_charstream_validate_is_lower/upper()` validate lowercase/uppercase HEX (not any lowercase text) and return true for `""`.
       - iii. `oc_conv_hex_string_to_byte_array()` sets `*array_len` and writes partial output before a later digit fails.
+      - **Fix:** documented in `oc_helpers.h`: buffer sizes 21 / 17 bytes (the dec doc said 22) without a size parameter, HEX-only
+        validation with `""` -> true, and the in/out `*array_len` with partial output on failure. No code change.
 - **Evidence:** code reading. Tests: join an array of only empty strings under ASan; `oc_url_cmp("/p/1", "/p/10")` and `oc_url_cmp("", "/p/1")`
   return 0; `oc_uri_get_fb_string_value_as_int()` with a non-terminated `uri_path` buffer followed by `_` under ASan.
 - **Expected:**

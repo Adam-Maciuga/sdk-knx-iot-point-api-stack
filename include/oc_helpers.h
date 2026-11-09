@@ -338,11 +338,12 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
  * @param[in] hex_str hex string input
  * @param[in] hex_str_len size of the hex string
  * @param array the array of bytes
- * @param array_len length of the byte array
+ * @param array_len in: size of the array, out: number of bytes needed for the hex string
  * @return int 0 success
+ *
+ * @note on an invalid hex digit -1 is returned, but *array_len is already set and the array may hold partial output
  */
-int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
-        uint8_t* array, size_t* array_len);
+int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, uint8_t* array, size_t* array_len);
 
 /**
  * @brief convert hex string to oc_string
@@ -352,8 +353,7 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
  * @param out the allocated oc_string
  * @return int 0 success
  */
-int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
-        oc_string_t* out);
+int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_string_t* out);
 
 /**
  * @brief checks if the input is an array containing hex values
@@ -488,6 +488,7 @@ int oc_charstream_convert_to_upper(char* stream);
  *
  * @param[in] stream the input string that gets validated
  * @return bool true if the string is a valid lowercase hexadecimal string, false otherwise
+ * @note validates lowercase HEX only, not any lowercase text; an empty string "" returns true
  */
 bool oc_charstream_validate_is_lower(const char* stream);
 
@@ -496,6 +497,7 @@ bool oc_charstream_validate_is_lower(const char* stream);
  *
  * @param[in] stream the input string that gets validated
  * @return bool true if the string is a valid uppercase hexadecimal string, false otherwise
+ * @note validates uppercase HEX only, not any uppercase text; an empty string "" returns true
  */
 bool oc_charstream_validate_is_upper(const char* stream);
 
@@ -601,7 +603,7 @@ int oc_print_uint64_t(uint64_t number, enum StringRepresentation rep);
  *
  * @param[in] number number to be converted to string
  * @param[out] str Resulting string after conversion. IMPORTANT: Should have
- * a size of at least 22 bytes (21 + null terminator)
+ * a size of at least 21 bytes (20 digits + null terminator), no buffer size is passed
  * @return int always returns 0
  */
 int oc_conv_uint64_to_dec_string(char* str, uint64_t number);
@@ -611,7 +613,7 @@ int oc_conv_uint64_to_dec_string(char* str, uint64_t number);
  *
  * @param[in] number number to be converted to hexadecimal string
  * @param[out] str Resulting string after conversion. IMPORTANT: Should have
- * a size of at least 17 bytes (16 + null terminator)
+ * a size of at least 17 bytes (16 + null terminator), no buffer size is passed
  * @return int always returns 0
  */
 int oc_conv_uint64_to_hex_string(char* str, uint64_t number);
