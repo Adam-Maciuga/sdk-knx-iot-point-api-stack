@@ -210,13 +210,19 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 
 #define STRING_ARRAY_ITEM_MAX_LEN 32
 
+// the item length of a byte string array slot is stored in its first byte (= len as such + max string len ...)
+#if STRING_ARRAY_ITEM_MAX_LEN > 256
+#error "STRING_ARRAY_ITEM_MAX_LEN must be <= 256, the byte string item length is stored in one byte"
+#endif
+
+// functions
 bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t index);
 bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[]);
 void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring);
 bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index);
 bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len);
 
-/* arrays of text strings */
+// macros 
 #define oc_string_array_add_item(ocstringarray, str) \
         (oc_string_array_add_item_internal(&(ocstringarray), str))
 

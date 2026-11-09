@@ -274,7 +274,7 @@ removed entry. The next number is F-070.
   9. NULL guard.
   10. document buffer sizes and semantics in `oc_helpers.h`.
 
-## F-049: helper conversions with unchecked sizes - OPEN
+## ~~F-049: helper conversions with unchecked sizes~~ - FIXED
 
 - **Files:** `api/oc_helpers.c`, `oc_copy_byte_string_to_array_internal()`, `oc_conv_hex_string_to_oc_string()`.
 - **Severity:** Low - no production caller today.
@@ -283,6 +283,10 @@ removed entry. The next number is F-070.
   - `oc_conv_hex_string_to_oc_string()` allocates `len / 2` bytes, so an odd-length hex string always fails, and the allocation stays in `out` with undefined content.
 - **Evidence:** code reading.
 - **Expected:** bound `str_len` by the slot size; allocate `(len + 1) / 2` and free `out` on failure.
+- **Fix:** `oc_copy_byte_string_to_array_internal()` returns false for `str_len >= STRING_ARRAY_ITEM_MAX_LEN` (length byte + data fit
+  the slot) instead of the `strlen()` assert. `oc_conv_hex_string_to_oc_string()` allocates `(len + 1) / 2` bytes and frees `out` when
+  the conversion fails. Tests: `OcStringArrayTest.ByteArrayAddItemRejectsOverlongData`, `OcStringTest.ConvHexStringToOcStringOddLength`,
+  `.ConvHexStringToOcStringFailureLeavesOutEmpty`.
 
 ## ~~F-050: the process event queue grows without limit and is used after shutdown~~ - FIXED
 

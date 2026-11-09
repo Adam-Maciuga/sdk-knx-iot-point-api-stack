@@ -117,13 +117,16 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size)
 
 bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index)
 {
-  // break if too long 
-  oc_assert(strlen(str) < STRING_ARRAY_ITEM_MAX_LEN);
+  // a slot holds 1 length byte (a) + data (b), so at most STRING_ARRAY_ITEM_MAX_LEN - 1 data bytes (raw bytes, no strlen)
+  if (str_len >= STRING_ARRAY_ITEM_MAX_LEN)
+  {
+    return false;
+  }
 
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
-  oc_string(*ocstringarray)[pos] = (uint8_t)str_len;
+  oc_string(*ocstringarray)[pos] = (uint8_t)str_len; // (a)
   pos++;
-  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*)str, str_len);
+  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*)str, str_len); // (b)
 
   return true;
 }
@@ -439,7 +442,8 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
 int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_string_t* out)
 {
   int return_value = -1;
-  size_t size_bytes = (hex_str_len / 2);
+  // odd length rounds up, as in oc_conv_hex_string_to_byte_array()
+  size_t size_bytes = (hex_str_len + 1) / 2;
 
   oc_free_string(out);
 
@@ -448,6 +452,12 @@ int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_
   if (ptr != NULL)
   {
     return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, (uint8_t*)ptr, &size_bytes);
+  }
+
+  // on failure no partial content stays in out
+  if (return_value != 0)
+  {
+    oc_free_string(out);
   }
 
   OC_INF("oc_conv_hex_string_to_oc_string result=%d", return_value);

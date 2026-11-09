@@ -770,6 +770,18 @@ TEST_F(OcStringArrayTest, ByteArrayAddItemStoresLengthPrefixedData)
   EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 1), 0u);
 }
 
+TEST_F(OcStringArrayTest, ByteArrayAddItemRejectsOverlongData)
+{
+  oc_new_byte_string_array(&arr, 2);
+  char data[STRING_ARRAY_ITEM_MAX_LEN] = { 0 };
+  // no NUL in the data: the old strlen() check did not see the length
+  memset(data, 0x41, sizeof(data));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, data, sizeof(data)));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), 0u);
+  EXPECT_TRUE(oc_byte_string_array_add_item(arr, data, sizeof(data) - 1));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), sizeof(data) - 1);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * NUMERIC ARRAY POOLS — _oc_new_array / _oc_free_array
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -832,6 +844,23 @@ TEST_F(OcStringTest, ConvHexStringToOcString)
   EXPECT_EQ((uint8_t)oc_string(s1)[0], 0x0a);
   EXPECT_EQ((uint8_t)oc_string(s1)[1], 0x1b);
   EXPECT_EQ((uint8_t)oc_string(s1)[2], 0xff);
+}
+
+TEST_F(OcStringTest, ConvHexStringToOcStringOddLength)
+{
+  const char *hex = "122";
+  ASSERT_EQ(oc_conv_hex_string_to_oc_string(hex, strlen(hex), &s1), 0);
+  ASSERT_EQ(oc_byte_string_len(s1), 2u);
+  EXPECT_EQ((uint8_t)oc_string(s1)[0], 0x01);
+  EXPECT_EQ((uint8_t)oc_string(s1)[1], 0x22);
+}
+
+TEST_F(OcStringTest, ConvHexStringToOcStringFailureLeavesOutEmpty)
+{
+  const char *hex = "12x4";
+  EXPECT_EQ(oc_conv_hex_string_to_oc_string(hex, strlen(hex), &s1), -1);
+  EXPECT_EQ(oc_string(s1), nullptr);
+  EXPECT_EQ(oc_string_len(s1), 0u);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
