@@ -190,7 +190,7 @@ removed entry. The next number is F-070.
 - **Expected:** skip the parse (and the send) when `resource_value_size <= 0`.
 - **Fix:** every send site in `api/oc_knx_client.c` checks `resource_value_size <= 0`, logs an error, frees the buffer and stops: the write path of `oc_send_s_mode_mc_or_uc_message()` (returns -1; no send, no loopback, no `/p` notification), the send after IPv6 address resolution, and `oc_create_s_mode_payload_for_go()` (returns -1). Spec 2.5.9.2 makes the value (key 1) mandatory for w/a, so a write without a value is not sent. Tests: `test_smode_loopback_recursion`, `SmodeLoopback.OversizedValueIsNeitherSentNorLoopedBack` (size -1) and `SmodeLoopback.EmptyValueIsNeitherSentNorLoopedBack` (size 0): rc -1, no send, no loopback PUT.
 
-## F-048: `oc_helpers.c/.h` - join overflow, prefix URL match, unbounded URI scan and missing guards - OPEN
+## ~~F-048: `oc_helpers.c/.h` - join overflow, prefix URL match, unbounded URI scan and missing guards~~ - FIXED
 
 - **Files:** `api/oc_helpers.c`, `include/oc_helpers.h`; callers `api/oc_knx_fp.c` (`oc_belongs_href_to_resource()`), `api/oc_knx_fb.c` (`oc_core_fb_x_get_handler()`).
 - **Severity:** Medium overall (items 2 and 3 are reachable from the network), the rest Low.

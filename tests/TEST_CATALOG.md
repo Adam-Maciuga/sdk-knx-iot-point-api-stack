@@ -1,16 +1,15 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1752 unit tests** on `windows-test-gcc` (57 files in `tests/unit/`, counted by CTest on 2026-11-03;
-> `linux-test-asan` adds the `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only, last counted 1787
-> before the 9 new tests, not re-run) and **293 runtime tests** (20 files in `tests/runtime/`, collected
-> on 2026-11-03).
+> **1913 unit tests** on `linux-test-asan` (63 files in `tests/unit/`, counted by CTest on 2026-11-09, including the
+> `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only) and **293 runtime tests** (20 files in `tests/runtime/`, collected
+> on 2026-11-09).
 > The conformance tier is not listed here: the test tool
 > (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
 > one item per template sequence, with this stack's override files in
 > `tests/conformance/`. All three tiers share `tests/common/`; the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-11-03): 1752/1752 passed on `windows-test-gcc`; `linux-test-asan` not run for this change. The `AtSsnStorage.WritesFourByteRecordAtMaxSsn` parallel-storage flake (parallel runs share the storage directory `knx_storage_sec_unit_test`, known since 2026-10-10) did not show.
+> Unit (2026-11-09): 1913/1913 passed on `linux-test-asan` (Docker).
 > Runtime and conformance: see "Last runtime run status" below.
 
 ## Contents
@@ -29,14 +28,14 @@
 
 | | Current run | Previous run | Earlier run |
 |---|---|---|---|
-| Date | 2026-11-03 (payload paths, findings F-030 ... F-034) | 2026-11-03 (4.13 + Size1, s-mode envelope) | 2026-11-03 (observers) |
-| **Unit tests** | **1752/1752** passed (`windows-test-gcc`); `linux-test-asan` not run | **1747/1747** passed (`windows-test-gcc`); `linux-test-asan` not run | **1743/1743** passed (`windows-test-gcc`), **1787/1787** passed (`linux-test-asan`, Docker) |
-| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.64s) | **8 passed, 1 xfailed** (5.10): full run 7 passed + 5.6 failed (late 2.04 to an earlier request, token mismatch, in "Copy of AUTH PREPARATION"); 5.6 alone passed | **8 passed, 1 xfailed** (5.10, 363.60s) |
-| **Runtime tests** | **288 passed, 5 skipped** (293 collected, 810.20s) | **287 passed, 5 skipped** (292 collected, 801.90s, with the Block1 transfer test) | **285 passed, 5 skipped** (290 collected, 801.01s) |
-| Failed / errors | 0 / 0 | full run 2 / 0 (conformance 5.6, passed alone; runtime 766 B test that asserted the old RST behaviour, replaced), after the re-runs 0 / 0 | 0 / 0 |
-| Runner | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`, re-runs `-Tier conformance -Section 5.6` and `-Tier runtime` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` |
-| Covers | client response 513 ... 768 B without Block2; /p notification above the observer's block size (Block2); token updated in place (observers follow the new scope); datagram above OC_PDU_SIZE dropped (`TestDatagramAboveReceiveBuffer`); dead declaration `coap_remove_observers_on_dos_change` removed | request without Block1 above one block -> 4.13 with Size1 = block size (was RST); s-mode envelope limited to one block (`OC_S_MODE_ENVELOPE_BUDGET`); `test_payload_below_max_is_not_rejected_with_413` (766 B) replaced by `test_payload_of_one_block_is_not_rejected_with_413` (512 B); protected 650 B POST /fp/g in two Block1 blocks reassembled (`TestOscoreBlock1Transfer`) | `/k` events only to subscribers whose token covers the GA (spec 3.5.4.1); observers removed on unload, both resets and when their token is deleted (token rotation, slot reuse) |
-| Not in the run | ASan | ASan | - |
+| Date | 2026-11-09 (`oc_helpers` finding F-048) | 2026-11-03 (payload paths, findings F-030 ... F-034) | 2026-11-03 (4.13 + Size1, s-mode envelope) |
+| **Unit tests** | **1913/1913** passed (`linux-test-asan`, Docker) | **1752/1752** passed (`windows-test-gcc`); `linux-test-asan` not run | **1747/1747** passed (`windows-test-gcc`); `linux-test-asan` not run |
+| **Conformance tests** (test tool, KNX template) | **8 passed, 1 xfailed** (5.10, 361.76s) | **8 passed, 1 xfailed** (5.10, 361.64s) | **8 passed, 1 xfailed** (5.10): full run 7 passed + 5.6 failed (late 2.04 to an earlier request, token mismatch, in "Copy of AUTH PREPARATION"); 5.6 alone passed |
+| **Runtime tests** | **288 passed, 5 skipped** (293 collected, 810.45s) | **288 passed, 5 skipped** (293 collected, 810.20s) | **287 passed, 5 skipped** (292 collected, 801.90s, with the Block1 transfer test) |
+| Failed / errors | 0 / 0 | 0 / 0 | full run 2 / 0 (conformance 5.6, passed alone; runtime 766 B test that asserted the old RST behaviour, replaced), after the re-runs 0 / 0 |
+| Runner | Docker `linux-test-asan` (ctest); `run-in-docker.ps1 -Tier conformance` and `-Tier runtime` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted` | Docker `linux-test-gcc`, `run-in-docker.ps1 -Tier all -IncludeUncommitted`, re-runs `-Tier conformance -Section 5.6` and `-Tier runtime` |
+| Covers | F-048: string join size, exact `oc_url_cmp()`, bounded `_` search and prefix check in the URI wildcard helpers, add-item NULL guards, `unsigned char` ctype casts, compare/free of empty handles, `oc_helpers.h` contracts; single-loop `oc_conv_hex_string_to_byte_array()` | client response 513 ... 768 B without Block2; /p notification above the observer's block size (Block2); token updated in place (observers follow the new scope); datagram above OC_PDU_SIZE dropped (`TestDatagramAboveReceiveBuffer`); dead declaration `coap_remove_observers_on_dos_change` removed | request without Block1 above one block -> 4.13 with Size1 = block size (was RST); s-mode envelope limited to one block (`OC_S_MODE_ENVELOPE_BUDGET`); `test_payload_below_max_is_not_rejected_with_413` (766 B) replaced by `test_payload_of_one_block_is_not_rejected_with_413` (512 B); protected 650 B POST /fp/g in two Block1 blocks reassembled (`TestOscoreBlock1Transfer`) |
+| Not in the run | `windows-test-gcc` ctest | ASan | ASan |
 
 No stack C code was changed to make a test pass.
 
@@ -171,7 +170,7 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 
 ---
 
-### test_oc_helpers.cpp — String & Hex Utilities (73 tests)
+### test_oc_helpers.cpp — String & Hex Utilities (96 tests)
 
 **Source:** `api/oc_helpers.c`
 
@@ -181,15 +180,15 @@ Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
 | `Uint64ToHex` | 5 | uint64 → hex string (0, small, large, MAX, leading zeros) |
 | `ByteArrayToHex` | 4 | Binary → hex conversion, edge cases |
 | `HexToByteArray` | 5 | Hex → binary, odd length, empty, round-trip |
-| `UriWildcardInt` | 4 | Extracts integer from wildcard URI |
-| `UriWildcardString` | 2 | Extracts string from wildcard URI |
-| `UriFbValue` | 4 | Extracts FB number/instance from URI |
+| `UriWildcardInt` | 6 | Extracts integer from wildcard URI; prefix mismatch and zero-length resource rejected (F-048-4) |
+| `UriWildcardString` | 4 | Extracts string from wildcard URI; prefix mismatch and zero-length resource rejected (F-048-4) |
+| `UriFbValue` | 8 | Extracts FB number/instance from URI; `_` search bounded by the invoked length (F-048-3), prefix mismatch and zero-length resource rejected (F-048-4) |
 | `Strnchr` | 3 | Character search with length limit |
 | `ToLower` | 4 | String lowercase conversion |
 | `ZeroContent` | 4 | Checks if buffer is all zeros |
-| `OcStringTest` | 24 | String alloc/free/copy/compare/concat/url-compare, hex-string conversion, is-hex-array checks |
-| `OcStringArrayTest` | 6 | String-array alloc, add-item (overflow/NULL), join, byte-array add |
-| `OcArrayPool` | 1 | Int-array allocation yields usable storage |
+| `OcStringTest` | 31 | String alloc/free/copy/compare/concat/url-compare (exact match, empty href/handle, F-048-2), hex-string conversion, is-hex-array checks (empty handle, non-ASCII byte, F-048-7), compare of empty handles (F-048-8) |
+| `OcStringArrayTest` | 13 | String-array alloc, add-item (overflow/NULL string/empty array/NULL byte array, F-048-6), join (empty items, exact size, frees previous value, NULL arguments, F-048-1), byte-array add |
+| `OcArrayPool` | 2 | Int-array allocation yields usable storage; free of NULL and empty handles is ignored (F-048-9) |
 | `PrintUint64` | 3 | uint64 decimal/hex printing |
 
 ---
