@@ -64,7 +64,8 @@ applications built on the stack. Build and run one before writing your own:
   run without a GUI; the `*_virtual_gui` targets show the datapoints and
   device state in a window.
 - Zephyr boards: follow `HOW-TO-BUILD-ZEPHYR.md` for the LSAB, LSSB and EITT
-  apps.
+  apps. An application of your own on Zephyr needs the Zephyr patches in
+  `port/zephyr/patches/`: `README.md` there says which ones a board needs.
 
 Then onboard and configure the device with ETS and switch a datapoint. The
 KNX IoT documentation site has a walkthrough under "Point API Stack →

@@ -207,6 +207,16 @@ void oc_core_load_device_hostname(void)
 
 int oc_core_reset_device_hostname_to_default(void)
 {
+  /* serial number is set during stack init; skip if called before init (e.g. shell factory_reset
+     before OT joins) - oc_core_load_device_hostname() will regenerate the default once the stack
+     initializes and the serial number is available */
+  if (!oc_device_info.serialnumber)
+  {
+    OC_WRN("Hostname reset skipped, the serial number is not set yet "
+           "(the stack is not initialized)!");
+    return -1;
+  }
+
   // default host name label 'knx-{sn}' (spec 2.6.1.2.3), set and stored
   char host_name[HNAME_MAX_SIZE + 1];
   (void)snprintf(host_name, sizeof(host_name), HNAME_LABEL, oc_device_info.serialnumber);

@@ -1,22 +1,22 @@
 # KNX IoT Point API Stack - Test Catalog
 
-> **1748 unit tests** (55 files in `tests/unit/`, counted by CTest on
-> 2026-10-21) and **256 runtime tests** (228 test functions in 20 files in
+> **1763 unit tests** (56 files in `tests/unit/`, counted by CTest on
+> 2026-11-08) and **256 runtime tests** (228 test functions in 20 files in
 > `tests/runtime/`, counted with `pytest tests/runtime --collect-only -q`).
-> The conformance tier is not listed here: the test tool
+> The conformance tier is not listed here: The test tool
 > (`tests/iot-test-tool/`) generates it from KNX's conformance-test template,
 > one item per template sequence, with this stack's override files in
-> `tests/conformance/`. All three tiers share `tests/common/`; the map is
+> `tests/conformance/`. All three tiers share `tests/common/`, the map is
 > [`README.md`](README.md).
 >
-> Unit (2026-10-21): 1747/1748 passed on `linux-test-gcc` (Docker, `ctest -j8`), the 1748 total includes the 43 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The one failure, `AtSsnStorage.WritesFourByteRecordAtMaxSsn`, passed 5 times in a row when the `AtSsnStorage` tests ran serially: parallel runs share the storage directory `knx_storage_sec_unit_test` (known since 2026-10-10).
-> Runtime: see "Last runtime run status" at the end of Part 2.
+> Unit (2026-11-08): 1761/1763 passed on `linux-test-gcc` and 1762/1763 on `linux-test-asan` (local, `ctest -j8`), the 1763 total includes the 49 `test_dns_sd_mdns.cpp` cases registered under `if(UNIX)` only. The three failures (`OcStorage.WriteThenReadBinaryData` and `OcStorage.ReadIsCappedBySizeArgument` on gcc, `AtSsnStorage.DeleteEntryErasesSsnEntryOfItsSlot` on ASan) passed when run alone. Parallel runs share the storage directories `knx_storage_unit_test` and `knx_storage_sec_unit_test` (known since 2026-10-10).
+> Runtime: See "Last runtime run status" at the end of Part 2.
 
 ---
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 55 `.cpp` files in `tests/unit/`.
+Built with GCC, run via CTest. 56 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -784,6 +784,19 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
+### test_oc_ri_timed_callbacks.cpp - Timed Event Callbacks (4 tests)
+
+**Source:** `api/oc_ri.c` (`oc_ri_add_timed_event_callback_ticks`, `oc_ri_remove_timed_event_callback`, the event loop through `oc_main_poll`), clock under test control (`--wrap=oc_clock_time`)
+
+| Test | What it covers |
+|------|----------------|
+| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsDoneRunsOnce` | A callback that removes its own entry and returns `OC_EVENT_DONE` runs once, its entry is freed once (a double free before the fix) |
+| `RiTimedCallback.CallbackThatRemovesItselfAndReturnsContinueRunsOnce` | The removal wins over `OC_EVENT_CONTINUE`, the timer of the removed entry is not restarted |
+| `RiTimedCallback.CallbackThatArmsItselfAgainRunsAfterTheNewDelay` | A callback that removes itself and arms itself again with 2 s runs again 2 s later, not earlier (the new entry was lost before the fix) |
+| `RiTimedCallback.CallbackThatRemovesAnotherCallbackStopsIt` | A callback that removes another pending callback keeps that one from running |
+
+---
+
 ### test_oc_abort.cpp — Abort / Exit / Assert (6 tests)
 
 **Source:** `port/.../oc_assert.h` (`oc_abort`, `oc_exit`, `OC_ASSERT`) — GoogleTest death tests.
@@ -982,7 +995,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_network_events.cpp — Network Events (5 tests)
+### test_oc_network_events.cpp — Network Events (10 tests)
 
 **Source:** `api/oc_network_events.c`
 
@@ -991,8 +1004,13 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `EventWhenProcessNotRunningUnrefsMessage` | Event with process not running unrefs the message |
 | `EventWhenProcessNotRunningIsRepeatable` | Repeatable without leaking |
 | `RunningProcessDrainsQueuedMessage` | Running process drains and receives queued messages |
-| `InterfaceEventsArePostedAndDispatched` | Interface up/down events are posted and dispatched |
+| `InterfaceEventsArePostedAndDispatched` | Up then down before the loop runs dispatches only the last event (down) |
+| `InterfaceEventBurstEndingWithUpDispatchesUp` | A down/up/down/up burst dispatches only up, never a trailing down |
+| `InterfaceEventsInSeparateRunsAreAllDispatched` | Events in separate loop runs are all dispatched |
 | `UnknownInterfaceEventIsIgnored` | Unknown interface event is ignored |
+| `AddressesHashIgnoresTheListOrder` | Address hash is independent of the list order and equals the sum of the single address hashes, another set gives another hash, no addresses gives 0 |
+| `ReportStateDispatchesOnlyChanges` | Reported state dispatches up for the first or changed addresses, down for the last lost, nothing for the same state |
+| `InitialStateDispatchesNothing` | Initial state is remembered without an event |
 
 ---
 
@@ -1125,12 +1143,12 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (43 tests)
+### test_dns_sd_mdns.cpp — DNS-SD Announcements and Query Responder (49 tests)
 
 **Source:** `port/dns-sd_mdns.c`
 
 Linker `--wrap` of `sendto`, `recvmsg`, `get_ip_context_for_device`,
-`oc_clock_time` and `oc_main_initialized`: no packet leaves the host, the
+`oc_clock_time` and `oc_main_initialized`: No packet leaves the host, the
 listener thread receives only the queries the test queues, one fake loopback
 endpoint stands in for the connectivity layer, a test-controlled clock drives
 the RI timed-event list through `oc_main_poll()`, and a test flag stands in for
@@ -1141,15 +1159,16 @@ since the source is POSIX-only and `--wrap` is a GNU ld feature.
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
-| `knx_dns_sd_update_service` | 11 | Record built from the device info: first announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, NULL device, NULL serial, rollback on send failure, no interface, nothing before the stack is initialized |
-| host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the latest host name set before (no goodbye); a change afterwards sends the goodbye with the old name, then announces the new one |
-| programming mode (`oc_knx_device_set_programming_mode`) | 3 | No packet for a change before the stack is initialized; the first announcement after it carries the `_pm` subtype set before (no goodbye); on and off afterwards each send the goodbye for the old record, then announce the new one with or without `_pm` |
-| `knx_dns_sd_set_sleep_period` | 5 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish |
-| `knx_dns_sd_stop` | 2 | Goodbye and cancel of the pending repeat; nothing without a publish |
+| `knx_dns_sd_update_service` | 14 | Record built from the device info: First announcement, RFC 6762 section 8.3 repeat at 1 s and only once, section 8.4 restart on a change, goodbye for the old record, no goodbye for unchanged content, NULL device, NULL serial, rollback on send failure, retry of a failed update after 1 s and 2 s that ends with the success, success on one of two interfaces, no interface (no retry), nothing before the stack is initialized |
+| host name (`oc_core_set_device_hostname`) | 3 | No packet for a change before the stack is initialized, the first announcement after it carries the latest host name set before (no goodbye), a change afterwards sends the goodbye with the old name, then announces the new one |
+| programming mode (`oc_knx_device_set_programming_mode`) | 3 | No packet for a change before the stack is initialized, the first announcement after it carries the `_pm` subtype set before (no goodbye), on and off afterwards each send the goodbye for the old record, then announce the new one with or without `_pm` |
+| `knx_dns_sd_set_sleep_period` | 6 | SP in TXT, repeat after the change, TXT goodbye on clear, no goodbye for an unset SP, nothing before a publish, retry of a failed announcement |
+| `knx_dns_sd_stop` | 3 | Goodbye and cancel of the pending repeat, cancel of a pending retry, nothing without a publish |
 | getters | 2 | `knx_dns_sd_get_used_port`, `knx_dns_sd_get_current_record` before, after and past a publish |
 | query responder | 11 | PTR for service type, serial, IA and `_pm` subtype (programming mode only), ANY, SRV, AAAA, TXT, foreign names, unhandled type, application-set host name in SRV target and AAAA |
-| AAAA records per interface | 4 | RFC 6762 section 15: an announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on; a query from an interface without an own address gets no answer; an unknown receive interface gets every address |
-| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface; a ULA sender leaves it unknown |
+| AAAA records per interface | 4 | RFC 6762 section 15: An announcement and the PTR, SRV and AAAA answers name only the addresses of the interface they leave on, a query from an interface without an own address gets no answer, an unknown receive interface gets every address |
+| receive interface from the sender | 2 | Without `IPV6_PKTINFO` (as on Windows) `mdns_ifindex_from_source()` takes the zone of a link-local sender as the interface, a ULA sender leaves it unknown |
+| worst-case packet size | 1 | The largest record set (a 63 character host name, 4 AAAA records on one interface, `_pm`, the longest `_ia` subtype and SP=65535) is 355 bytes and fits `MDNS_SEND_BUF_SIZE` (512 bytes) |
 
 ---
 

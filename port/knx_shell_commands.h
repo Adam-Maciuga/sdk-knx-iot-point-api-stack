@@ -45,7 +45,7 @@ const knx_shell_command_t* knx_shell_command_get(size_t idx);
 
 /* Run the subcommand named by argv[0] with its arguments.
  * Returns the result of the handler, -EINVAL without a subcommand name, -ENOENT for an
- * unknown one and -EAGAIN for a command that needs the initialized stack while it is not. */
+ * unknown one and -EAGAIN while the stack is not initialized, every command needs it. */
 int knx_shell_command_run(size_t argc, char** argv);
 
 /* Output functions, provided by the platform shell. Each prints one line, the newline is

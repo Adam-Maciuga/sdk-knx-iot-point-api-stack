@@ -805,6 +805,17 @@ bool oc_ri_add_resource(oc_resource_t* resource)
 
 #endif
 
+/*
+  The timed event callback that poll_event_callback_timers() runs at the moment, NULL between runs.
+
+  A callback may remove its own entry while it runs, directly or through a function it calls, to
+  cancel itself or to arm itself again with another delay. oc_ri_remove_timed_event_callback() then
+  takes the entry out of the list at once and leaves the free to poll_event_callback_timers(), which
+  still uses the entry after the callback has returned.
+*/
+static oc_event_callback_t* running_event_cb = NULL;
+static bool running_event_cb_removed = false;
+
 void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
 {
   oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_list_head(timed_callbacks);
@@ -817,6 +828,14 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
       oc_etimer_stop(&event_cb->timer);
       OC_PROCESS_CONTEXT_END(&timed_callback_events);
       oc_list_remove(timed_callbacks, event_cb);
+
+      // the running callback removes itself, poll_event_callback_timers() frees it after its return
+      if (event_cb == running_event_cb)
+      {
+        running_event_cb_removed = true;
+        break;
+      }
+
       free(event_cb);
       break;
     }
@@ -861,7 +880,13 @@ static void poll_event_callback_timers(oc_list_t list)
 
     if (oc_etimer_expired(&event_cb->timer))
     {
-      if (event_cb->callback(event_cb->data) == OC_EVENT_DONE)
+      running_event_cb = event_cb;
+      running_event_cb_removed = false;
+      const oc_event_callback_retval_t result = event_cb->callback(event_cb->data);
+      running_event_cb = NULL;
+
+      // an entry the callback removed is out of the list already, it is freed like a done one
+      if (running_event_cb_removed || result == OC_EVENT_DONE)
       {
         // remove callback
         oc_list_remove(list, event_cb);

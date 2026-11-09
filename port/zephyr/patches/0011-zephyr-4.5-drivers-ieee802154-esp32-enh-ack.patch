@@ -1,4 +1,4 @@
-From 0000000000000000000000000000000000000001 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: KNX IoT Demos <noreply@knx.org>
 Date: Fri, 27 Mar 2026 00:00:00 +0000
 Subject: [PATCH] drivers: ieee802154: esp32: Add Enhanced ACK support
@@ -24,18 +24,18 @@ The implementation:
 
 Signed-off-by: KNX IoT Demos <noreply@knx.org>
 ---
- drivers/ieee802154/ieee802154_esp32.c | 148 +
- drivers/ieee802154/ieee802154_esp32.h | 19 +
- 2 files changed, 166 insertions(+), 1 deletions(-)
+ drivers/ieee802154/ieee802154_esp32.c | 147 ++++++++++++++++++++++++++
+ drivers/ieee802154/ieee802154_esp32.h |  19 ++++
+ 2 files changed, 166 insertions(+)
 
+diff --git a/drivers/ieee802154/ieee802154_esp32.c b/drivers/ieee802154/ieee802154_esp32.c
+index f1043e4ed0..6b001c648c 100644
 --- a/drivers/ieee802154/ieee802154_esp32.c
 +++ b/drivers/ieee802154/ieee802154_esp32.c
-@@ -285,6 +285,88 @@
- void IRAM_ATTR esp_ieee802154_transmit_failed(const uint8_t *frame, esp_ieee802154_tx_error_t error)
- {
- 	k_sem_give(&esp32_data.tx_wait);
-+}
-+
+@@ -467,6 +467,88 @@ void IRAM_ATTR esp_ieee802154_transmit_failed(const uint8_t *frame, esp_ieee8021
+ #endif
+ }
+ 
 +/* override weak function in components/ieee802154/esp_ieee802154.c of ESP-IDF */
 +IRAM_ATTR esp_err_t esp_ieee802154_enh_ack_generator(uint8_t *frame,
 +					     esp_ieee802154_frame_info_t *frame_info,
@@ -116,18 +116,12 @@ Signed-off-by: KNX IoT Demos <noreply@knx.org>
 +	enhack_frame[0] = (pos - 1) + IEEE802154_FRAME_FCS_SIZE;
 +
 +	return ESP_OK;
- }
- 
++}
++
  static int esp32_tx(const struct device *dev, enum ieee802154_tx_mode tx_mode, struct net_pkt *pkt,
-@@ -418,7 +500,6 @@
- 			   const struct ieee802154_config *config)
+ 		    struct net_buf *frag)
  {
- 	ARG_UNUSED(dev);
--	ARG_UNUSED(config);
- 
- 	switch (type) {
- 	/* IEEE802154_CONFIG_ACK_FPB */
-@@ -429,6 +510,71 @@
+@@ -689,6 +771,71 @@ static int esp32_configure(const struct device *dev, enum ieee802154_config_type
  	case IEEE802154_CONFIG_RX_ON_WHEN_IDLE:
  		esp_ieee802154_set_rx_when_idle(config->rx_on_when_idle);
  		break;
@@ -199,6 +193,8 @@ Signed-off-by: KNX IoT Demos <noreply@knx.org>
  	default:
  		return -ENOTSUP;
  	}
+diff --git a/drivers/ieee802154/ieee802154_esp32.h b/drivers/ieee802154/ieee802154_esp32.h
+index 40bca4fd4d..1502bab0e9 100644
 --- a/drivers/ieee802154/ieee802154_esp32.h
 +++ b/drivers/ieee802154/ieee802154_esp32.h
 @@ -8,8 +8,23 @@
@@ -225,10 +221,10 @@ Signed-off-by: KNX IoT Demos <noreply@knx.org>
  
  struct ieee802154_esp32_data {
  	/* Pointer to the network interface. */
-@@ -49,6 +64,10 @@
- 	 * It shall be NULL if energy scan is not in progress.
- 	 */
- 	energy_scan_done_cb_t energy_scan_done;
+@@ -71,6 +86,10 @@ struct ieee802154_esp32_data {
+ 	/* Deferred PM policy update, submitted from the MAC ISR callbacks. */
+ 	struct k_work_delayable pm_work;
+ #endif
 +
 +	/* Enhanced ACK peer IE table and spinlock for ISR-safe access. */
 +	struct ieee802154_esp32_ack_ie ack_ie_table[IEEE802154_ESP32_ENH_ACK_MAX_PEERS];
@@ -236,5 +232,6 @@ Signed-off-by: KNX IoT Demos <noreply@knx.org>
  };
  
  #endif /* ZEPHYR_DRIVERS_IEEE802154_IEEE802154_ESP32_H_ */
---
-2.47.0
+-- 
+2.51.0.windows.1
+

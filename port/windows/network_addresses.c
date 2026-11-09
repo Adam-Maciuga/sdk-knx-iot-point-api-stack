@@ -76,6 +76,13 @@ ifaddr_t * get_network_addresses(void) {
     struct sockaddr_in6 *v6addr = NULL;
     for (address = interface->FirstUnicastAddress; address;
          address = address->Next) {
+      // Only usable addresses: a tentative address cannot be used before the duplicate address
+      // detection is done, a duplicate or invalid one never. Deprecated ones still count.
+      if (address->DadState != IpDadStatePreferred &&
+          address->DadState != IpDadStateDeprecated) {
+        continue;
+      }
+
       if (address->Address.lpSockaddr->sa_family == AF_INET6) {
         struct sockaddr_in6 *addr =
           (struct sockaddr_in6 *)address->Address.lpSockaddr;

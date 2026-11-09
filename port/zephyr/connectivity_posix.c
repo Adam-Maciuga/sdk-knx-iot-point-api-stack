@@ -189,7 +189,7 @@ static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
                        pi->ipi6_addr.s6_addr, 16);
             } else {
                 /* Multicast destination.
-                 * The addr_local field is not meaningful here, so clear it to 
+                 * The addr_local field is not meaningful here, so clear it to
                  * avoid stale data (matches the Linux ipadapter).
                  */
                 memset(message->endpoint.addr_local.ipv6.address, 0, 16);
@@ -372,9 +372,11 @@ static int open_and_bind_socket(uint16_t port, const char *description)
  * Safe to call repeatedly. It is invoked once from oc_connectivity_init (where
  * the interface may have no address yet, e.g. when the stack starts before
  * the link is up, in which case it returns early without joining) and again on
- * every NETWORK_INTERFACE_UP event once the interface is actually up. Each group
- * is dropped before being re-added so a re-join after reconnect does not fail
- * with EADDRINUSE. */
+ * every NETWORK_INTERFACE_UP event once the interface is actually up. No group
+ * is dropped before it is added: net_ipv6_mld_join() answers a group that is
+ * already joined with success and sends nothing, a drop would send an MLD leave
+ * and the add a join on every call. Zephyr joins the groups of an interface again
+ * by itself when the interface comes up. */
 static void setup_multicast_interface(void)
 {
     if (server_sock < 0 || mcast_sock < 0) {
@@ -414,9 +416,6 @@ static void setup_multicast_interface(void)
     int n_joined = 0;
     for (int i = 0; i < 3; i++) {
         memcpy(&mreq_coap.ipv6mr_multiaddr, coap_mcast[i], 16);
-        /* Drop first so a re-join after reconnect does not fail with EADDRINUSE. */
-        zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
-                         &mreq_coap, sizeof(mreq_coap));
         if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                              &mreq_coap, sizeof(mreq_coap)) < 0) {
             OC_ERR("Failed to join all-CoAP-nodes group [%d]: %d", i, errno);
@@ -435,6 +434,59 @@ static void setup_multicast_interface(void)
 OC_LIST(oc_network_interface_cb_list);
 static struct net_mgmt_event_callback ipv6_addr_event_callback;
 
+/* Usable address
+ * An address of the target interface that becomes an endpoint: in use and
+ * preferred or deprecated, not tentative (duplicate-address-detection in
+ * progress). Shared by oc_connectivity_get_endpoints() and the network state
+ * report.
+ *
+ * A deprecated address is still valid, Zephyr still uses it as a source address
+ * (is_proper_ipv6_address() in net_if.c) and so do the Linux and Windows ports.
+ * Leaving it out would change the advertised addresses every time a router
+ * switches a prefix between preferred and deprecated.
+ */
+static bool is_usable_address(const struct net_if_addr *addr)
+{
+    return addr->is_used && (addr->addr_state == NET_ADDR_PREFERRED ||
+                             addr->addr_state == NET_ADDR_DEPRECATED);
+}
+
+/* Network state report
+ * Reports the state of the target interface to the shared code, see
+ * knx_network_report_state().
+ *
+ * Computed from the address table of the interface, not from
+ * oc_connectivity_get_endpoints(): that list is one static array the stack and
+ * the mDNS listener rebuild as well, a half rebuilt array could read as "no
+ * address". The sum of knx_network_address_hash() over the usable addresses
+ * equals knx_network_addresses_hash() of the endpoint list.
+ */
+static void report_network_state(bool initial)
+{
+    bool up = false;
+    uint32_t addresses_hash = 0;
+    struct net_if *iface = select_target_interface();
+    struct net_if_ipv6 *ipv6 = iface ? iface->config.ip.ipv6 : NULL;
+
+    if (ipv6) {
+        for (int i = 0; i < NET_IF_MAX_IPV6_ADDR; i++) {
+            if (!is_usable_address(&ipv6->unicast[i])) {
+                continue;
+            }
+
+            up = true;
+            addresses_hash +=
+                knx_network_address_hash(ipv6->unicast[i].address.in6_addr.s6_addr);
+        }
+    }
+
+    if (initial) {
+        knx_network_set_initial_state(up, addresses_hash);
+    } else {
+        knx_network_report_state(up, addresses_hash);
+    }
+}
+
 static void ipv6_addr_event_handler(struct net_mgmt_event_callback *cb,
                                     uint64_t mgmt_event, struct net_if *iface)
 {
@@ -448,14 +500,13 @@ static void ipv6_addr_event_handler(struct net_mgmt_event_callback *cb,
      * (re)join attempt triggered by ADDR_ADD alone can fail here and never
      * retry, leaving the device permanently unreachable via mDNS.
      * NET_EVENT_IPV6_DAD_SUCCEED fires once the address actually becomes
-     * usable (NET_ADDR_PREFERRED), so re-run the NETWORK_INTERFACE_UP path
-     * then as well. */
-    if (mgmt_event == NET_EVENT_IPV6_ADDR_ADD ||
-        mgmt_event == NET_EVENT_IPV6_DAD_SUCCEED) {
-        oc_network_interface_event(NETWORK_INTERFACE_UP);
-    } else if (mgmt_event == NET_EVENT_IPV6_ADDR_DEL) {
-        oc_network_interface_event(NETWORK_INTERFACE_DOWN);
-    }
+     * usable (NET_ADDR_PREFERRED), so the state is computed again then as
+     * well. Every event computes the state of the target interface, the shared
+     * code decides on "up" and "down". An event of another interface leads to
+     * the same state and fires nothing. */
+    ARG_UNUSED(mgmt_event);
+
+    report_network_state(false);
 }
 
 static void network_interface_event_handler(oc_interface_event_t event)
@@ -587,6 +638,14 @@ int oc_connectivity_init(void)
                                  NET_EVENT_IPV6_DAD_SUCCEED);
     net_mgmt_add_event_callback(&ipv6_addr_event_callback);
     oc_add_network_interface_event_callback(network_interface_event_handler);
+
+    /* The network state the port starts with, remembered without an event,
+     * the stack start registers the groups and DNS-SD itself. Read after the
+     * address events are registered, so an event in between (typically
+     * NET_EVENT_IPV6_DAD_SUCCEED at boot) is not lost. An event handled before
+     * the read posts at most one more "up", its registration is the same the
+     * stack start does. */
+    report_network_state(true);
 
     OC_INF("Connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;
@@ -839,16 +898,14 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
     int n = 0;
 
     for (int i = 0; i < NET_IF_MAX_IPV6_ADDR && n < MAX_ENDPOINTS; i++) {
-        if (!ipv6->unicast[i].is_used) {
+        /* Skip unused and tentative (duplicate-address-detection in progress,
+         * not yet usable) addresses, deprecated ones stay. Mirrors the Linux
+         * ipadapter exclusions in get_interface_addresses(). The same filter
+         * decides the network state, see is_usable_address(). */
+        if (!is_usable_address(&ipv6->unicast[i])) {
             continue;
         }
-        /* Skip tentative (duplicate-address-detection in progress, not yet
-         * usable) and deprecated (about to expire) addresses. Mirrors the
-         * Linux ipadapter IFA_F_TEMPORARY exclusion in get_interface_addresses(). */
-        if (ipv6->unicast[i].addr_state == NET_ADDR_TENTATIVE ||
-            ipv6->unicast[i].addr_state == NET_ADDR_DEPRECATED) {
-            continue;
-        }
+
         local_endpoints[n].flags         = IPV6;
         /* Advertise the real bound unicast port (matches server_sock's source
          * port on replies), not the fixed CoAP port. Mirrors Windows dev->port. */

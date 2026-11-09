@@ -4,6 +4,8 @@
 
 config KNXIOT_LIB
     bool "KNX-IoT Point API Stack"
+    # Since Zephyr v4.5.0 MBEDTLS and the PSA_WANT_* symbols depend on PSA_CRYPTO.
+    select PSA_CRYPTO
     select MBEDTLS
     # PSA crypto requirements for KNX-IoT security (SPAKE2+ and OSCORE).
     # These selects mirror security/knx_psa_crypto_config.h (the Linux/Windows PSA

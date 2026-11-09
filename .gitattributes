@@ -21,6 +21,10 @@
 # shipped into the CI image by tar); a CRLF checkout on Windows would break
 # them with "$'': command not found".
 *.sh text eol=lf
+# Zephyr patches are applied with git am inside Linux containers (the demos'
+# Docker image); a CRLF checkout would put a stray carriage return into every
+# patched line.
+*.patch text eol=lf
 
 # Denote all files that are truly binary and should not be modified.
 *.png binary

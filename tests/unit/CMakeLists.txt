@@ -110,6 +110,11 @@ kis_add_test(test_oc_ri            test_oc_ri.cpp)
 target_link_options(test_oc_ri PRIVATE
     -Wl,--wrap=coap_remove_observer_by_resource
 )
+# --wrap=oc_clock_time gives the timed event callback tests a clock they move themselves.
+kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)
+target_link_options(test_oc_ri_timed_callbacks PRIVATE
+    -Wl,--wrap=oc_clock_time
+)
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
 kis_add_test(test_coap_oscore       test_coap_oscore.cpp)
