@@ -288,6 +288,27 @@ TEST(UriFbValue, NoInstance_ReturnsZero)
   EXPECT_EQ(val, 0);
 }
 
+// F-048-3-i: an '_' behind the path end (e.g. in the query of the packet) is not part of the uri
+TEST(UriFbValue, UnderscoreBehindPathEndIsIgnored)
+{
+  const char *resource = "/f/*";
+  const char packet[] = "f/4?x_9";
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), packet, 3, false), 4);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), packet, 3, true), 0);
+}
+
+// F-048-3-i: a not NUL-terminated uri is not read past its length (ASan reports otherwise)
+TEST(UriFbValue, NotTerminatedUriIsNotOverread)
+{
+  const char *resource = "/f/*";
+  char *invoked = (char *)malloc(3);
+  ASSERT_NE(invoked, nullptr);
+  memcpy(invoked, "f/4", 3);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, 3, false), 4);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, 3, true), 0);
+  free(invoked);
+}
+
 /* ── oc_strnchr ────────────────────────────────────────────────────────────── */
 
 TEST(Strnchr, FindsCharacter)

@@ -643,7 +643,9 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_
 
       const char* ptr_first_to_be_converted_digit = &invoked_uri[resource_len - 2];
       const char* ptr_last_to_be_converted_digit = &invoked_uri[invoked_len];
-      const char* underscore = strchr(ptr_first_to_be_converted_digit, '_');
+
+      // bounded search, the invoked uri points into the CoAP packet and is not NUL-terminated
+      const char* underscore = oc_strnchr(ptr_first_to_be_converted_digit, '_', (int)(ptr_last_to_be_converted_digit - ptr_first_to_be_converted_digit));
 
       if (underscore)
       {

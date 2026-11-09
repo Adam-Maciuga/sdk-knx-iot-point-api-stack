@@ -211,10 +211,12 @@ removed entry. The next number is F-070.
      - **Fix:** exact `strcmp()` after removing one leading `/`; an empty href or an empty handle returns -1, so `""` never matches and `/` matches
        only a resource `/` (ii is moot). iii follows from i. Tests: `OcStringTest.UrlCmp_PrefixDoesNotMatch`, `UrlCmp_EmptyHrefDoesNotMatch`,
        `UrlCmp_EmptyHandleDoesNotMatch`.
-  3. `oc_uri_get_fb_string_value_as_int()`:
+  3. ~~`oc_uri_get_fb_string_value_as_int()`:~~ - FIXED
      - i. uses `strchr(ptr, '_')` on `request->uri_path`, which points into the CoAP packet and is not NUL-terminated: the scan reads past
        `invoked_len`; an `_` found behind the path end makes `to_be_converted_len` span bytes outside the URI. A bounded search
        (`oc_strnchr(ptr, '_', remaining_len)`) is needed.
+     - **Fix:** the `_` search uses `oc_strnchr()` bounded by the rest of the invoked uri (`invoked_len - (resource_len - 2)`). Tests:
+       `UriFbValue.UnderscoreBehindPathEndIsIgnored`, `UriFbValue.NotTerminatedUriIsNotOverread`.
   4. `oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`:
      - i. `uri[len - 1]` with `len == 0` reads `uri[SIZE_MAX]`.
      - ii. the invoked URI prefix is never compared with the resource URI, only offsets are used.
