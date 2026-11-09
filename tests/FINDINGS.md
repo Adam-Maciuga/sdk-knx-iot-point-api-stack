@@ -223,9 +223,11 @@ removed entry. The next number is F-070.
      - **Fix:** shared guard `oc_uri_wildcard_matches()`: NULL pointers, resource length >= 2 with leading `/` and trailing `*`, and a
        `memcmp()` of the invoked URI prefix against the resource URI between `/` and `*`. Tests: `UriWildcardInt/UriWildcardString/UriFbValue`
        `.PrefixMismatch` and `.ZeroLengthResource`.
-  5. Allocators overwrite the handle without freeing it (undocumented in `oc_helpers.h`):
+  5. ~~Allocators overwrite the handle without freeing it (undocumented in `oc_helpers.h`):~~ - FIXED
      - i. `_oc_new_string()`, `_oc_new_byte_string()`, `_oc_alloc_string()`, `oc_concat_strings()`, `_oc_new_array()`, `_oc_alloc_string_array()`.
        Only the `oc_*_copy*()` functions, `oc_conv_hex_string_to_oc_string()` and (since 1) `oc_join_string_array()` free the old value first.
+     - **Fix:** the "handle must be empty" contract is documented for all six allocators in `oc_helpers.h`; no free is added, as callers
+       may pass uninitialized handles (a free would then act on garbage).
   6. String array helpers have no bounds or NULL guard:
      - i. `oc_copy_string_to_array_internal()` and `oc_copy_byte_string_to_array_internal()` do not check `index < oc_string_array_get_allocated_size()`.
      - ii. the same setters do not check for an empty handle (`NULL + pos`).

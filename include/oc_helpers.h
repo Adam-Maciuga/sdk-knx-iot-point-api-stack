@@ -183,9 +183,16 @@ enum StringRepresentation {
 #define oc_double_array_create_const(n, f, ...) \
         oc_mmem_create_const(n, f((const double[n]){ __VA_ARGS__ }))
 
+/**
+ * @brief concatenate two strings into a new oc_string
+ *
+ * @param concat the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
+ * @param str1 first terminated string
+ * @param str2 second terminated string
+ */
 void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 #define oc_string_len(ocstring) ((ocstring).size ? (ocstring).size - 1 : 0) // an empty string "" has internally len 1 but returns len 0 
-#define oc_byte_string_len(ocstring) ((ocstring).size)
+#define oc_byte_string_len(ocstring) ((ocstring).size)                      // real byte size w/o NUL terminator 
 
 // size
 #define oc_int_array_size(ocintarray) ((ocintarray).size)
@@ -244,16 +251,16 @@ bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, co
 /**
  * @brief new oc_string from string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param str terminated string
  * @param str_len size of the string to be copied
  */
-void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len);
+void _oc_new_string(
 
 /**
  * @brief new oc_string byte from string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param str not terminated string
  * @param str_len size of the string to be copied
  */
@@ -262,7 +269,7 @@ void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
 /**
  * @brief allocate oc_string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size size to be allocated
  *
  * @note oc_string ptr gets pointer assigned, oc_string size is also set 
@@ -287,7 +294,7 @@ void _oc_free_array(oc_array_t* ocarray, pool type);
 /**
  * @brief new array
  *
- * @param ocarray the ocarray to be freed
+ * @param ocarray the ocarray to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size the size to be allocated
  * @param type pool type
  */
@@ -296,7 +303,7 @@ void _oc_new_array(oc_array_t* ocarray, size_t size, pool type);
 /**
  * @brief allocate string array
  *
- * @param ocstringarray array to be allocated
+ * @param ocstringarray array to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size the size of the string array
  */
 void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size);
