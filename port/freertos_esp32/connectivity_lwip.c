@@ -785,11 +785,6 @@ int oc_connectivity_init(void)
 
   oc_add_network_interface_event_callback(network_interface_event_handler);
 
-  /* Start state before the event handlers are registered: An interface that is already up when
-   * the stack starts reports no change, and the first event compares against the real state.
-   */
-  report_network_state(true);
-
   /* Needs the default event loop, which the application creates before the stack starts. */
   esp_err_t err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, ip_event_handler, NULL);
   if (err == ESP_OK)
@@ -802,6 +797,12 @@ int oc_connectivity_init(void)
     OC_ERR("Failed to register the IP event handler (%s), no network up/down events!",
            esp_err_to_name(err));
   }
+
+  /* Start state after the event handlers are registered, so an address event in between is not
+   * lost. An interface that is already up when the stack starts reports no change, and the first
+   * event compares against the real state.
+   */
+  report_network_state(true);
 
   OC_INF("Connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
 
