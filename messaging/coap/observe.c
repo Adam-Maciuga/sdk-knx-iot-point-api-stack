@@ -458,7 +458,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         // CONTENT_NONE removes the option from CoAP ...
         coap_set_header_content_format(notification, response_buf->content_format);
 
-        // KNX spec 2.6.10.2: indicate the heartbeat interval via Max-Age so the subscriber can detect stale values
+        // // value 0 means no caching, hence explicit caching for response expected (spec 2.6.10.2), here a subscriber can detect stale values
         if (obs->resource->observe_period_seconds > 0)
         {
           coap_set_header_max_age(notification, obs->resource->observe_period_seconds);

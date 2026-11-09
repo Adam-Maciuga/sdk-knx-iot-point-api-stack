@@ -1829,7 +1829,7 @@ static void oc_oscore_send_unicast_message(oc_message_t* msg)
     {
       coap_pkt->code = is_outbound_request ? COAP_FETCH : (uint8_t)oc_status_code(OC_STATUS_OK);
 
-      // set max age = no caching by client
+      // value 0 means no caching, for response expected 
       coap_set_header_max_age(coap_pkt, 0);
     }
     else

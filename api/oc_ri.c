@@ -1510,6 +1510,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         }
       }
 
+      // value 0 means no caching, hence explicit caching for response expected 
       if (response_buffer.max_age > 0)
       {
         coap_set_header_max_age(response, response_buffer.max_age);

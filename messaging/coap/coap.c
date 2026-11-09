@@ -1319,6 +1319,7 @@ int coap_get_header_max_age(void* packet, uint32_t* age) {
   return 1;
 }
 
+// value 0 means no caching ... 
 int coap_set_header_max_age(void* packet, uint32_t age) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 

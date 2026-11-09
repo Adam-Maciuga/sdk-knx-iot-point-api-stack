@@ -54,7 +54,7 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
       coap_set_token(outgoing_coap_msg, coap_pkt->token, coap_pkt->token_len);
     }
 
-    // no max age = no caching 
+    // value 0 means no caching, for response expected  
     coap_set_header_max_age(outgoing_coap_msg, 0);
 
     // copies coap msg to message
