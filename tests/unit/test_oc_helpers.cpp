@@ -683,6 +683,24 @@ TEST_F(OcStringArrayTest, AddItemInternalNullArrayReturnsFalse)
   EXPECT_FALSE(oc_string_array_add_item_internal(nullptr, "x"));
 }
 
+TEST_F(OcStringArrayTest, AddItemNullStringReturnsFalse)
+{
+  oc_new_string_array(&arr, 1);
+  EXPECT_FALSE(oc_string_array_add_item(arr, nullptr));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, nullptr, 1));
+}
+
+TEST_F(OcStringArrayTest, AddItemOnEmptyArrayReturnsFalse)
+{
+  EXPECT_FALSE(oc_string_array_add_item(arr, "x"));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, "x", 1));
+}
+
+TEST_F(OcStringArrayTest, ByteArrayAddItemInternalNullArrayReturnsFalse)
+{
+  EXPECT_FALSE(oc_byte_string_array_add_item_internal(nullptr, "x", 1));
+}
+
 TEST_F(OcStringArrayTest, JoinConcatenatesWithSpaces)
 {
   oc_new_string_array(&arr, 3);

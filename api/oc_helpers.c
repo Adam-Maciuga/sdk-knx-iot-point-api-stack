@@ -120,7 +120,6 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size)
 
 bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index)
 {
-
   // break if too long 
   oc_assert(strlen(str) < STRING_ARRAY_ITEM_MAX_LEN);
 
@@ -135,6 +134,11 @@ bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, con
 bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len)
 {
   bool success = false;
+  if (!ocstringarray || !str)
+  {
+    return false;
+  }
+
   for (size_t i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray); i++)
   {
     if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0)
@@ -165,7 +169,7 @@ bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const ch
 bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[])
 {
   bool success = false;
-  if (ocstringarray == NULL)
+  if (ocstringarray == NULL || str == NULL)
   {
     return false;
   }

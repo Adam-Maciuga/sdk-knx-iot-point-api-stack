@@ -228,12 +228,16 @@ removed entry. The next number is F-070.
        Only the `oc_*_copy*()` functions, `oc_conv_hex_string_to_oc_string()` and (since 1) `oc_join_string_array()` free the old value first.
      - **Fix:** the "handle must be empty" contract is documented for all six allocators in `oc_helpers.h`; no free is added, as callers
        may pass uninitialized handles (a free would then act on garbage).
-  6. String array helpers have no bounds or NULL guard:
+  6. ~~String array helpers have no bounds or NULL guard:~~ - FIXED
      - i. `oc_copy_string_to_array_internal()` and `oc_copy_byte_string_to_array_internal()` do not check `index < oc_string_array_get_allocated_size()`.
      - ii. the same setters do not check for an empty handle (`NULL + pos`).
      - iii. `oc_byte_string_array_add_item_internal()` lacks the NULL check of its text counterpart.
      - iv. `_oc_alloc_string_array()` does not check `size * STRING_ARRAY_ITEM_MAX_LEN` for overflow.
-     - v. ~~`_oc_alloc_string_array()` final `size` assignment is redundant (already set by `oc_mmem_alloc`)~~ - FIXED (one `memset`, assignment removed).
+     (one `memset`, assignment removed).
+          - **Fix:** i/ii: the only callers, the `*_add_item_internal()` loops, keep `index < allocated size` (an empty handle has size 0,
+            so no call); the setters stay unguarded. iii: both `*_add_item_internal()` reject a NULL array and a NULL string. iv is not fixed
+            by design: a too big size ends in out of memory (array stays empty). Tests: `OcStringArrayTest.AddItemNullStringReturnsFalse`,
+            `.AddItemOnEmptyArrayReturnsFalse`, `.ByteArrayAddItemInternalNullArrayReturnsFalse`.
   7. `<ctype.h>` with plain `char`:
      - i. `isxdigit()` in `oc_string_is_hex_array()`, `tolower()`/`toupper()` in `oc_charstream_convert_to_lower/upper()` are UB for negative
        values (non-ASCII bytes); cast to `unsigned char`.
