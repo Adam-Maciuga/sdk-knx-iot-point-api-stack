@@ -279,17 +279,19 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
     - if device HAS RTC    : after a software update = shows actual timestamp of last software update (RFC 3339)
     - if device has NO RTC : after a software update = shows the out-of-service status { "osv": true }
 
-   Note, before a software update the date of manufacturing has to be returned, regardless of any clock availability. 
-
-   The stored value is either the date of manufacturing or the last software update time, set on application init.
-   An application without a real-time clock stores OC_SWU_LAST_UPDATE_OSV after a software update instead.
+   Note, 
+   - before a software update the date of manufacturing has to be returned, regardless of any RTC availability
+   - the stored value is either the date of manufacturing (real date) or the last software update time (real date or osv), 
+     both initialized on application init from storage
+   - an application without a real-time clock MUST store osv (OC_SWU_LAST_UPDATE_OSV) after a software update
+   - an application with a real-time clock MUST store the actual timestamp of the last software update after a software update
   */
 
   const char* last_update = oc_string(swu_device.last_update);
 
-  if (last_update != NULL && strcmp(last_update, OC_SWU_LAST_UPDATE_OSV) == 0)
+  if (last_update && strcmp(last_update, OC_SWU_LAST_UPDATE_OSV) == 0)
   {
-    oc_rep_set_boolean(root, osv, true);
+    oc_rep_set_boolean(root, osv, true); // here the reals {"osv" : true} will be set
   }
   else
   {
@@ -963,7 +965,7 @@ void oc_swu_read_last_update(void)
     oc_new_string(&swu_device.last_update, device->mfg_date, strlen(device->mfg_date));
   }
 
-  OC_DBG("Using %s date for last_update : %s", ret > 0 ? "manufacturing" : "storage", oc_string(swu_device.last_update));
+  OC_DBG("Using %s date for last_update : %s", ret > 0 ? "storage date" : "manufacturing date", oc_string(swu_device.last_update));
 }
 
 void oc_swu_set_hwref(const char* hwref)

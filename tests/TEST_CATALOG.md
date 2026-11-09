@@ -1117,15 +1117,16 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_knx_swu.cpp — Software Update (97 tests)
+### test_oc_knx_swu.cpp — Software Update (105 tests)
 
 **Source:** `api/oc_knx_swu.c`; linked with `-Wl,--wrap=malloc` and `-Wl,--wrap=free` (pass through unless armed: capture a setter's string buffer, poison a block on free) and `-Wl,--wrap=oc_core_get_core_resource_by_index` (counts the lookups, pass through)
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `KnxSwuGetInt` | 10 | Integer-valued `/swu` resource GETs (protocol, method, result, state, bytes) + wrong-Accept |
-| `KnxSwuGetString` | 4 | String-valued GETs (hwref, lastupdate) + wrong-Accept |
-| `KnxSwuGetGated` | 10 | Download-gated GETs (pkgv, pkgname, update) returning not-found / bad-request / OK |
+| `KnxSwuGetString` | 5 | String-valued GETs (hwref, lastupdate, lastupdate as `{ "osv": true }` without a real-time clock) + wrong-Accept |
+| `KnxSwuLastUpdateStorage` | 7 | `oc_swu_set_last_update()` stores the timestamp / the no-RTC marker; `oc_swu_read_last_update()` loads the stored value over the manufacturing date, keeps `{ "osv": true }` across a restart, reads a 63 character value, and falls back to the manufacturing date with nothing stored or no storage |
+| `KnxSwuGetGated` | 10 |
 | `KnxSwuPut` | 11 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
 | `KnxSwuABlock` | 8 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) + `po=0` accepted, leading zero is decimal not octal, value is not read beyond its length |
 | `KnxSwuABlockInvalidQuery` | 21 | Parameterised `po`/`ps`/`pkgs` rejection: non-numeric, trailing garbage, negative, zero (ps/pkgs), above INT_MAX, too many digits, empty → all 4.00 with the callback never invoked |

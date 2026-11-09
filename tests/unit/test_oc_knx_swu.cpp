@@ -49,12 +49,14 @@
 
 extern "C" {
 #include "oc_api.h"
+#include "oc_core_res.h"
 #include "oc_knx_swu.h"
 #include "oc_ri.h"
 #include "oc_rep.h"
 #include "oc_helpers.h"
 #include "messaging/coap/oc_coap.h"
 #include "util/oc_mmem.h"
+#include "port/oc_storage.h"
 #include <string.h>
 
 // static handlers are reached through their owning resource structs
@@ -446,6 +448,112 @@ TEST_F(KnxSwuGetString, LastUpdateWrongAccept)
   RespCtx ctx;
   invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_JSON);
   EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_BAD_REQUEST));
+}
+
+// ===========================================================================
+// last update persistence: oc_swu_set_last_update() stores, oc_swu_read_last_update() loads or falls back to mfg date
+// ===========================================================================
+class KnxSwuLastUpdateStorage : public KnxSwuBase {
+protected:
+  void SetUp() override
+  {
+    // one directory per test, since ctest runs every TEST_F as its own process and 'ctest -j' would race on a shared file
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[96];
+    (void)snprintf(dir, sizeof(dir), "lu_%s", info->name());
+    oc_storage_config(dir);
+    KnxSwuBase::SetUp();
+    (void)oc_storage_erase(KNX_STORAGE_KEY_SWU_LAST_UPDATE);
+    ASSERT_EQ(oc_core_set_device_mfd("2020-04-12T23:20:50.52Z"), 0);
+  }
+  void TearDown() override
+  {
+    (void)oc_storage_erase(KNX_STORAGE_KEY_SWU_LAST_UPDATE);
+    KnxSwuBase::TearDown();
+  }
+
+  static std::string stored_last_update(void)
+  {
+    char buf[64] = { 0 };
+    (void)oc_storage_read(KNX_STORAGE_KEY_SWU_LAST_UPDATE, (uint8_t *)buf, sizeof(buf) - 1);
+    return buf;
+  }
+};
+
+TEST_F(KnxSwuLastUpdateStorage, SetStoresTimestamp)
+{
+  oc_swu_set_last_update("2025-01-01T00:00:00Z");
+  EXPECT_EQ(stored_last_update(), "2025-01-01T00:00:00Z");
+}
+
+TEST_F(KnxSwuLastUpdateStorage, SetStoresOsvMarker)
+{
+  // the marker is persisted, a changed literal would not match values stored by earlier firmware
+  EXPECT_STREQ(OC_SWU_LAST_UPDATE_OSV, "osv-true");
+  oc_swu_set_last_update(OC_SWU_LAST_UPDATE_OSV);
+  EXPECT_EQ(stored_last_update(), "osv-true");
+}
+
+TEST_F(KnxSwuLastUpdateStorage, ReadWithoutStoredUsesManufacturingDate)
+{
+  // no software update performed yet -> date of manufacturing
+  oc_swu_read_last_update();
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "2020-04-12T23:20:50.52Z"));
+  EXPECT_FALSE(payload_contains(ctx, "osv"));
+}
+
+TEST_F(KnxSwuLastUpdateStorage, ReadUsesStoredTimestampNotManufacturingDate)
+{
+  oc_swu_set_last_update("2025-01-01T00:00:00Z");
+  ASSERT_EQ(oc_core_set_device_mfd("2024-01-31T10:00:00Z"), 0);
+
+  // simulated reboot
+  oc_swu_read_last_update();
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "2025-01-01T00:00:00Z"));
+  EXPECT_FALSE(payload_contains(ctx, "2024-01-31T10:00:00Z"));
+}
+
+TEST_F(KnxSwuLastUpdateStorage, OsvSurvivesReboot)
+{
+  // a device without a real-time clock keeps reporting { "osv": true } after a restart
+  oc_swu_set_last_update(OC_SWU_LAST_UPDATE_OSV);
+  oc_swu_read_last_update();
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "\x63osv\xf5"));
+  EXPECT_FALSE(payload_contains(ctx, "2020-04-12T23:20:50.52Z"));
+}
+
+TEST_F(KnxSwuLastUpdateStorage, ReadStoredValueOfMaxBufferLength)
+{
+  // oc_swu_read_last_update() reads into a 64 byte buffer, 63 characters plus terminator
+  const std::string max_value(63, 'a');
+  oc_swu_set_last_update(max_value.c_str());
+  oc_swu_read_last_update();
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, max_value.c_str()));
+}
+
+TEST_F(KnxSwuLastUpdateStorage, ReadWithoutStorageUsesManufacturingDate)
+{
+  oc_swu_set_last_update("2025-01-01T00:00:00Z");
+
+  // the parent directory does not exist, so nothing can be read
+  oc_storage_config("lu_missing_parent/lu_read");
+  oc_swu_read_last_update();
+  RespCtx ctx;
+  invoke_get(core_resource_knx_swu_lastupdate, ctx, APPLICATION_CBOR);
+  EXPECT_EQ(ctx.code(), oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(payload_contains(ctx, "2020-04-12T23:20:50.52Z"));
 }
 
 // ===========================================================================

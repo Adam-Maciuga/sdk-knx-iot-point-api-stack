@@ -77,7 +77,7 @@ extern "C" {
     uint16_t current_defer;       // timePeriodSec seconds, a software update will be deferred by MaC after package was download (seconds)
     uint8_t update_method;        // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
-    oc_string_t last_update;
+    oc_string_t last_update;      // date of manufacturing or last software update time (RFC 3339) or OC_SWU_LAST_UPDATE_OSV
     uint32_t received_pkg_bytes;  // non-negative, :dpt.value4uCount
     uint32_t expected_pkg_size;   // expected total package size (set from first block's pkgs parameter)
     oc_knx_version_info_t pkg_version;
@@ -103,14 +103,21 @@ extern "C" {
 /**
  * @brief swu/lastupdate value of a device without a real-time clock after a software update
  *
- * GET swu/lastupdate returns it as the out-of-service status { "osv": true }.
+ * GET swu/lastupdate returns it as the out-of-service status { "osv": true }. It serves only as an alias for osv, 
+ * it is NOT the reals encoded CBOR string
  */
-#define OC_SWU_LAST_UPDATE_OSV "osv:true"
+#define OC_SWU_LAST_UPDATE_OSV "osv-true"
 
   /**
    * @brief set the current last update time
    *
    * @param time the update time in IETF RFC 3339, or OC_SWU_LAST_UPDATE_OSV
+   * - if device HAS RTC : set actual timestamp of last software update (RFC 3339) and store it in persistent storage
+   * - if device HAS NO RTC : set 'out-of-service' status with OC_SWU_LAST_UPDATE_OSV and store it in persistent storage
+   *
+   * @note Without any performed software update (FWU); /swu/lastupdate returns the manufacturing date, 
+   *       regardless of any RTC availability.
+   * 
    */
   void oc_swu_set_last_update(const char* time);
 
