@@ -4,6 +4,9 @@
  * Copyright (c) 2024-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include "oc_helpers.h"
@@ -66,7 +69,8 @@ void _oc_free_string(oc_string_t* ocstring)
 
 void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)
 {
-  size_t len1 = strlen(str1), len2 = strlen(str2);
+  const size_t len1 = strlen(str1);
+  const size_t len2 = strlen(str2);
   oc_alloc_string(concat, len1 + len2 + 1);
 
   // out of memory: the string stays empty (ptr NULL, size 0, see oc_mmem_alloc)
@@ -110,13 +114,8 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size)
     return;
   }
 
-  for (size_t i = 0; i < size; i++)
-  {
-    const size_t pos = i * STRING_ARRAY_ITEM_MAX_LEN;
-    memcpy((char*)oc_string(*ocstringarray) + pos, (const char*)"", 1);
-  }
-
-  ocstringarray->size = size * STRING_ARRAY_ITEM_MAX_LEN;
+  // all slots empty: byte 0 of a slot is the NUL of a text item or the length of a byte item
+  memset(oc_string(*ocstringarray), 0, size * STRING_ARRAY_ITEM_MAX_LEN);
 }
 
 bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index)
@@ -155,8 +154,8 @@ bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const ch
     return false;
   }
 
-  size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
-  size_t len = strlen(str);
+  const size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
+  const size_t len = strlen(str);
   memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*)str, len);
   memcpy(oc_string(*ocstringarray) + pos + len, (const uint8_t*)"", 1);
 
@@ -183,14 +182,21 @@ bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const c
   return success;
 }
 
+/*
+  Joins all non-empty items of a text string array into one string, separated by a single space.
+  - example: slots { "a", "", "bc", "" } -> "a bc"
+  - empty slots (unused or cleared) are skipped, so no double or trailing spaces
+  - the caller MUST pass an empty 'ocstring' (it is overwritten, not freed) and frees the result with oc_free_string()
+*/
 void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring)
 {
   size_t len = 0;
   size_t i;
+
+  // computes the total string size
   for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
   {
-    const char* item =
-      (const char*)oc_string_array_get_item(*ocstringarray, i);
+    const char* item = (const char*)oc_string_array_get_item(*ocstringarray, i);
     if (strlen(item))
     {
       len += strlen(item);
@@ -198,25 +204,29 @@ void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstrin
     }
   }
 
+  // alloc joiner string 
   oc_alloc_string(ocstring, len);
   len = 0;
+
+  // copy the items, writing a space before every item except the first
   for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
   {
-    const char* item =
-      (const char*)oc_string_array_get_item(*ocstringarray, i);
+    const char* item = (const char*)oc_string_array_get_item(*ocstringarray, i);
     if (strlen(item))
     {
       if (len > 0)
-      {
+      { // copy a space before every item except the first
         oc_string(*ocstring)[len] = ' ';
         len++;
       }
 
+      // copy string
       memcpy((char*)oc_string(*ocstring) + len, item, strlen(item));
       len += strlen(item);
     }
   }
 
+  // end of string gets a NUL terminator, even if the string is empty (len = 0)
   strcpy((char*)oc_string(*ocstring) + len, "");
 }
 
@@ -703,7 +713,7 @@ const char* oc_strnchr(const char* string, char p, int size)
   {
     if (string[i] == p)
     {
-      return (char*)&string[i];
+      return (const char*)&string[i];
     }
   }
 

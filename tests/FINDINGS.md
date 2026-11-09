@@ -190,13 +190,54 @@ removed entry. The next number is F-070.
 - **Expected:** skip the parse (and the send) when `resource_value_size <= 0`.
 - **Fix:** every send site in `api/oc_knx_client.c` checks `resource_value_size <= 0`, logs an error, frees the buffer and stops: the write path of `oc_send_s_mode_mc_or_uc_message()` (returns -1; no send, no loopback, no `/p` notification), the send after IPv6 address resolution, and `oc_create_s_mode_payload_for_go()` (returns -1). Spec 2.5.9.2 makes the value (key 1) mandatory for w/a, so a write without a value is not sent. Tests: `test_smode_loopback_recursion`, `SmodeLoopback.OversizedValueIsNeitherSentNorLoopedBack` (size -1) and `SmodeLoopback.EmptyValueIsNeitherSentNorLoopedBack` (size 0): rc -1, no send, no loopback PUT.
 
-## F-048: `oc_join_string_array()` overflows by one byte when all items are empty - OPEN
+## F-048: `oc_helpers.c/.h` - join overflow, prefix URL match, unbounded URI scan and missing guards - OPEN
 
-- **Files:** `api/oc_helpers.c`, `oc_join_string_array()`.
-- **Severity:** Low - 1-byte heap overflow (or a NULL write if `malloc(0)` returns NULL); no production caller.
-- **Description:** with only empty items `len` stays 0, `oc_alloc_string(ocstring, 0)` is called, and the final `strcpy(..., "")` writes the terminating NUL past the block.
-- **Evidence:** code reading. A test: join an array of empty strings under ASan.
-- **Expected:** allocate `len + 1` (or handle `len == 0` as an empty string).
+- **Files:** `api/oc_helpers.c`, `include/oc_helpers.h`; callers `api/oc_knx_fp.c` (`oc_belongs_href_to_resource()`), `api/oc_knx_fb.c` (`oc_core_fb_x_get_handler()`).
+- **Severity:** Medium overall (items 2 and 3 are reachable from the network), the rest Low.
+- **Description:** (all functions of `oc_helpers.c/.h` reviewed; the sizing issues of `oc_copy_byte_string_to_array_internal()` and `oc_conv_hex_string_to_oc_string()` stay in F-049)
+  1. `oc_join_string_array()` (no production caller):
+     - only empty items: `len` stays 0, `oc_alloc_string(ocstring, 0)`, the final `strcpy(..., "")` writes the NUL 1 byte past the block (or through NULL if `malloc(0)` returns NULL).
+     - no NULL check after `oc_alloc_string()`: on out of memory the copy loop writes through NULL also for n >= 1.
+     - `*ocstring` is overwritten without `oc_free_string()`: an already allocated output leaks.
+     - `ocstringarray` is not checked for NULL (the text add-item variant does).
+  2. `oc_url_cmp()` is a prefix match, not an equality: `strncmp(cmp1, cmp2, strlen(cmp1))`.
+     - href `/p/1` matches resource `/p/10`, href `""` matches every resource (n = 0).
+     - the leading `/` is stripped only when `strlen > 1`, so `/` and `""` normalize differently.
+     - `oc_belongs_href_to_resource()` (`/fp/*` href checks) uses it, so a wrong or empty href is accepted as an existing resource.
+     - NULL `oc_string()` (empty handle) goes into `strlen()`.
+  3. `oc_uri_get_fb_string_value_as_int()` uses `strchr(ptr, '_')` on `request->uri_path`, which points into the CoAP packet and is not
+     NUL-terminated: the scan reads past `invoked_len`; an `_` found behind the path end makes `to_be_converted_len` span bytes outside the URI.
+     A bounded search (`oc_strnchr(ptr, '_', remaining_len)`) is needed.
+  4. `oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`: `uri[len - 1]` with
+     `len == 0` reads `uri[SIZE_MAX]`; the invoked URI prefix is never compared with the resource URI, only offsets are used.
+  5. Allocators overwrite the handle without freeing it (same contract as item 1, undocumented in `oc_helpers.h`): `_oc_new_string()`,
+     `_oc_new_byte_string()`, `_oc_alloc_string()`, `oc_concat_strings()`, `_oc_new_array()`, `_oc_alloc_string_array()`. Only the
+     `oc_*_copy*()` functions and `oc_conv_hex_string_to_oc_string()` free the old value first.
+  6. String array setters have no bounds or NULL guard: `oc_copy_string_to_array_internal()` and `oc_copy_byte_string_to_array_internal()` do not
+     check `index < oc_string_array_get_allocated_size()` or an empty handle (`NULL + pos`); `oc_byte_string_array_add_item_internal()` lacks the
+     NULL check of its text counterpart; `_oc_alloc_string_array()` does not check `size * STRING_ARRAY_ITEM_MAX_LEN` for overflow, and its
+     final `size` assignment is redundant (already set by `oc_mmem_alloc`).
+  7. `<ctype.h>` with plain `char`: `isxdigit()` in `oc_string_is_hex_array()`, `tolower()`/`toupper()` in `oc_charstream_convert_to_lower/upper()`
+     are UB for negative values (non-ASCII bytes); cast to `unsigned char`. `oc_string_is_hex_array()` also calls `strlen()` on a possibly NULL
+     `oc_string()` and stores the result in `int`.
+  8. `oc_string_cmp()` / `oc_byte_string_cmp()` pass NULL to `strncmp()` / `memcmp()` when both handles are empty (UB even with n = 0).
+  9. `_oc_free_array()` has no NULL guard (unlike `_oc_free_string()`); `oc_mmem_free()` dereferences the handle.
+  10. Contracts not documented in `oc_helpers.h`: `oc_conv_uint64_to_dec_string()` / `oc_conv_uint64_to_hex_string()` take no buffer size
+      (need 21 / 17 bytes); `oc_charstream_validate_is_lower/upper()` validate lowercase/uppercase HEX (not any lowercase text) and return true
+      for `""`; `oc_conv_hex_string_to_byte_array()` sets `*array_len` and writes partial output before a later digit fails.
+- **Evidence:** code reading. Tests: join an array of only empty strings under ASan; `oc_url_cmp("/p/1", "/p/10")` and `oc_url_cmp("", "/p/1")`
+  return 0; `oc_uri_get_fb_string_value_as_int()` with a non-terminated `uri_path` buffer followed by `_` under ASan.
+- **Expected:**
+  1. allocate `len + 1`, check the allocation, free `*ocstring` first, guard NULL input.
+  2. compare normalized lengths first, then `memcmp`/`strcmp` (exact match); reject empty href.
+  3. bound the `_` search by `invoked_len`.
+  4. reject `len == 0`.
+  5. document the "output must be empty" contract or free first.
+  6. add index/NULL/overflow guards.
+  7. cast to `unsigned char`, NULL guard.
+  8. skip the compare on size 0.
+  9. NULL guard.
+  10. document buffer sizes and semantics in `oc_helpers.h`.
 
 ## F-049: helper conversions with unchecked sizes - OPEN
 

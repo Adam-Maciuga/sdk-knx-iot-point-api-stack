@@ -49,8 +49,7 @@ enum StringRepresentation {
  *        with a pointer to a string "NULL"
  *
  */
-#define oc_string_checked(ocstring) \
-        (oc_cast(ocstring, char) ? oc_cast(ocstring, char) : "NULL")
+#define oc_string_checked(ocstring) (oc_cast(ocstring, char) ? oc_cast(ocstring, char) : "NULL")
 
 
 
@@ -66,16 +65,14 @@ enum StringRepresentation {
  *	      with an internal string size of '1' (use oc string len to determine the actual string len) 
  *
  */
-#define oc_new_string(ocstring, str, str_len) \
-        _oc_new_string(ocstring, str, str_len)
+#define oc_new_string(ocstring, str, str_len) _oc_new_string(ocstring, str, str_len)
 
 /**
  * @brief creates a new (byte) string from string (not null terminated) by allocating the needed memory 
  *        and copying the content
  *
  */
-#define oc_new_byte_string(ocstring, str, str_len) \
-        _oc_new_byte_string(ocstring, str, str_len)
+#define oc_new_byte_string(ocstring, str, str_len) _oc_new_byte_string(ocstring, str, str_len)
 
 /**
  * @brief frees an 'ocstring'
@@ -190,11 +187,14 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 #define oc_string_len(ocstring) ((ocstring).size ? (ocstring).size - 1 : 0) // an empty string "" has internally len 1 but returns len 0 
 #define oc_byte_string_len(ocstring) ((ocstring).size)
 
+// size
 #define oc_int_array_size(ocintarray) ((ocintarray).size)
 #define oc_bool_array_size(ocboolarray) ((ocboolarray).size)
 #define oc_float_array_size(ocfloatarray) ((ocfloatarray).size)
 #define oc_double_array_size(ocdoublearray) ((ocdoublearray).size)
 #define oc_string_array_size(ocstringarray) ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
+
+// ptr cast
 #define oc_int_array(ocintarray) (oc_cast(ocintarray, int64_t))
 #define oc_bool_array(ocboolarray) (oc_cast(ocboolarray, bool))
 #define oc_float_array(ocfloatarray) (oc_cast(ocfloatarray, float))
@@ -264,6 +264,8 @@ void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
  *
  * @param ocstring the ocstring to be allocated
  * @param size size to be allocated
+ *
+ * @note oc_string ptr gets pointer assigned, oc_string size is also set 
  */
 void _oc_alloc_string(oc_string_t* ocstring, size_t size);
 
