@@ -1,14 +1,10 @@
 /*
- * Unit tests for the RI timed-event list (api/oc_ri.c: oc_ri_add_timed_event_callback_*, oc_ri_remove_timed_event_callback,
- * poll_event_callback_timers) through the public API oc_set_delayed_callback / oc_remove_delayed_callback.
+ * Copyright (c) 2026 Alexander Burker
+ * Copyright (c) 2026 KNX Association
  *
- * Requirements:
- *   oc_ri_init() - the timed-event list and its process; oc_main_poll() drives it.
- *   oc_clock_time - wrapped (-Wl,--wrap=oc_clock_time), a test-controlled clock so the one second delay needs no sleep.
+ * SPDX-License-Identifier: Apache-2.0
  *
- * Focus: a callback that removes itself. The poll loop used to free the entry a second time (OC_EVENT_DONE) or to
- * restart the timer of the freed entry (OC_EVENT_CONTINUE); both show up under the ASan preset, the counts below
- * show the visible effect (the callback runs once and is gone).
+ * This file was created with the assistance of AI tools.
  */
 
 /*
@@ -34,9 +30,10 @@
 #include <gtest/gtest.h>
 
 extern "C" {
-#include "oc_api.h"
+#include "oc_api.h"        /* oc_main_poll */
 #include "oc_ri.h"
-#include "port/oc_clock.h"
+#include "port/oc_clock.h" /* OC_CLOCK_SECOND */
+#include "util/oc_mmem.h"
 }
 
 /* -- test clock --------------------------------------------------------------- */
@@ -48,20 +45,30 @@ extern "C" oc_clock_time_t __wrap_oc_clock_time(void)
   return g_now;
 }
 
-static int g_calls;
-static oc_event_callback_retval_t g_retval;
-static int g_marker; /* cb_data, identifies the entry for oc_remove_delayed_callback */
+/* -- callbacks under test ----------------------------------------------------- */
 
-/* removes its own entry, then returns g_retval */
-static oc_event_callback_retval_t self_removing_cb(void* data)
+/* runs of the callback under test */
+static int g_runs;
+
+/* runs of other_callback() */
+static int g_other_runs;
+
+/* the value cancels_itself() returns after it removed its entry */
+static oc_event_callback_retval_t g_return_value;
+
+/* removes its own entry while it runs, like a cancel in a function the callback calls */
+static oc_event_callback_retval_t cancels_itself(void* data)
 {
-  g_calls++;
-  oc_remove_delayed_callback(data, self_removing_cb);
-  return g_retval;
+  g_runs++;
+  oc_ri_remove_timed_event_callback(data, cancels_itself);
+  return g_return_value;
 }
 
-/* keeps running until removed from outside */
-static oc_event_callback_retval_t continue_cb(void* data)
+/*
+ * removes its own entry on its first run and arms itself again with 2 s, like a retry with a
+ * growing delay
+ */
+static oc_event_callback_retval_t arms_itself_again(void* data)
 {
   g_runs++;
   if (g_runs == 1) {
@@ -76,21 +83,37 @@ static oc_event_callback_retval_t continue_cb(void* data)
 static oc_event_callback_retval_t other_callback(void* data)
 {
   (void)data;
-  g_calls++;
-  return OC_EVENT_CONTINUE;
+  g_other_runs++;
+  return OC_EVENT_DONE;
 }
 
-class TimedCallbacks : public ::testing::Test {
+/* removes another pending entry while it runs */
+static oc_event_callback_retval_t cancels_other(void* data)
+{
+  g_runs++;
+  oc_ri_remove_timed_event_callback(data, other_callback);
+  return OC_EVENT_DONE;
+}
+
+/* -- fixture ------------------------------------------------------------------ */
+
+class RiTimedCallback : public ::testing::Test {
 protected:
   void SetUp() override
   {
     /* start away from 0, so an expired timer never looks like an unset one */
     g_now = 100 * OC_CLOCK_SECOND;
-    g_calls = 0;
+    g_runs = 0;
+    g_other_runs = 0;
+    g_return_value = OC_EVENT_DONE;
+    oc_mmem_init();
     oc_ri_init();
   }
 
-  void TearDown() override { oc_ri_shutdown(); }
+  void TearDown() override
+  {
+    oc_ri_shutdown();
+  }
 
   /* move the clock and let the RI event loop run every due callback */
   static void advance_ms(unsigned ms)
@@ -101,42 +124,62 @@ protected:
   }
 };
 
-TEST_F(TimedCallbacks, SelfRemovingCallbackReturningDoneRunsOnce)
+/* -- tests -------------------------------------------------------------------- */
+
+TEST_F(RiTimedCallback, CallbackThatRemovesItselfAndReturnsDoneRunsOnce)
 {
-  g_retval = OC_EVENT_DONE;
-  oc_set_delayed_callback(&g_marker, self_removing_cb, 1);
+  oc_ri_add_timed_event_callback_ticks(nullptr, cancels_itself, OC_CLOCK_SECOND);
 
-  advance_ms(1100);
-  EXPECT_EQ(g_calls, 1);
+  advance_ms(1000);
+  EXPECT_EQ(g_runs, 1);
 
-  advance_ms(3000);
-  EXPECT_EQ(g_calls, 1);
+  /* the entry is gone, nothing runs any more */
+  advance_ms(5000);
+  EXPECT_EQ(g_runs, 1);
 }
 
-TEST_F(TimedCallbacks, SelfRemovingCallbackReturningContinueRunsOnce)
+TEST_F(RiTimedCallback, CallbackThatRemovesItselfAndReturnsContinueRunsOnce)
 {
-  g_retval = OC_EVENT_CONTINUE;
-  oc_set_delayed_callback(&g_marker, self_removing_cb, 1);
+  /* the removal wins over OC_EVENT_CONTINUE, the timer of the removed entry is not restarted */
+  g_return_value = OC_EVENT_CONTINUE;
+  oc_ri_add_timed_event_callback_ticks(nullptr, cancels_itself, OC_CLOCK_SECOND);
 
-  advance_ms(1100);
-  EXPECT_EQ(g_calls, 1);
+  advance_ms(1000);
+  EXPECT_EQ(g_runs, 1);
 
-  /* the removed entry must not be restarted, so it never fires again */
-  advance_ms(1100);
-  advance_ms(1100);
-  EXPECT_EQ(g_calls, 1);
+  advance_ms(5000);
+  EXPECT_EQ(g_runs, 1);
 }
 
-/* the normal paths stay as they are: CONTINUE repeats, a removal from outside stops it */
-TEST_F(TimedCallbacks, ContinueRepeatsUntilRemovedFromOutside)
+TEST_F(RiTimedCallback, CallbackThatArmsItselfAgainRunsAfterTheNewDelay)
 {
-  oc_set_delayed_callback(&g_marker, continue_cb, 1);
+  oc_ri_add_timed_event_callback_ticks(nullptr, arms_itself_again, OC_CLOCK_SECOND);
 
-  advance_ms(1100);
-  advance_ms(1100);
-  EXPECT_EQ(g_calls, 2);
+  advance_ms(1000);
+  EXPECT_EQ(g_runs, 1);
 
-  oc_remove_delayed_callback(&g_marker, continue_cb);
-  advance_ms(1100);
-  EXPECT_EQ(g_calls, 2);
+  /* the new entry is due 2 s after the first run, not earlier */
+  advance_ms(1999);
+  EXPECT_EQ(g_runs, 1);
+
+  advance_ms(1);
+  EXPECT_EQ(g_runs, 2);
+
+  /* the second run returned OC_EVENT_DONE, nothing is left */
+  advance_ms(5000);
+  EXPECT_EQ(g_runs, 2);
+}
+
+TEST_F(RiTimedCallback, CallbackThatRemovesAnotherCallbackStopsIt)
+{
+  oc_ri_add_timed_event_callback_ticks(nullptr, cancels_other, OC_CLOCK_SECOND);
+  oc_ri_add_timed_event_callback_ticks(nullptr, other_callback,
+                                       (oc_clock_time_t)2 * OC_CLOCK_SECOND);
+
+  advance_ms(1000);
+  EXPECT_EQ(g_runs, 1);
+
+  advance_ms(5000);
+  EXPECT_EQ(g_runs, 1);
+  EXPECT_EQ(g_other_runs, 0);
 }
