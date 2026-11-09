@@ -250,6 +250,45 @@ TEST(UriWildcardString, NoWildcard)
   EXPECT_EQ(len, -1);
 }
 
+TEST(UriWildcardString, PrefixMismatch)
+{
+  const char *resource = "/aut/at/*";
+  const char *invoked = "xyz/zz/abba";
+  const char *value = nullptr;
+  EXPECT_EQ(oc_uri_get_wildcard_value_as_string(resource, strlen(resource), invoked, strlen(invoked), &value), -1);
+  EXPECT_EQ(value, nullptr);
+}
+
+TEST(UriWildcardString, ZeroLengthResource)
+{
+  const char *value = nullptr;
+  EXPECT_EQ(oc_uri_get_wildcard_value_as_string("", 0, "a", 1, &value), -1);
+}
+
+TEST(UriWildcardInt, PrefixMismatch)
+{
+  const char *resource = "/fp/g/*";
+  const char *invoked = "fp/x/4";
+  EXPECT_EQ(oc_uri_get_wildcard_int_value_as_int(resource, strlen(resource), invoked, strlen(invoked)), -1);
+}
+
+TEST(UriWildcardInt, ZeroLengthResource)
+{
+  EXPECT_EQ(oc_uri_get_wildcard_int_value_as_int("", 0, "4", 1), -1);
+}
+
+TEST(UriFbValue, PrefixMismatch)
+{
+  const char *resource = "/f/*";
+  const char *invoked = "x/4";
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, strlen(invoked), false), -1);
+}
+
+TEST(UriFbValue, ZeroLengthResource)
+{
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int("", 0, "4", 1, false), -1);
+}
+
 /* ── oc_uri_get_fb_string_value_as_int ─────────────────────────────────────── */
 
 TEST(UriFbValue, FbNumber)

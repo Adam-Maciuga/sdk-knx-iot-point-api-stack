@@ -595,48 +595,55 @@ int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
   return strcmp(cmp1, cmp2);
 }
 
+/*
+  Checks a wildcard resource uri such as '/fp/g/ *' against an invoked uri such as 'fp/g/4' (CoAP uri path, no leading '/').
+  (a) resource uri: starts with '/', ends with '*', so at least 2 chars (no 'uri[len - 1]' with len 0)
+  (b) invoked uri: starts with the resource uri part between '/' and '*' (e.g. 'fp/g/') and has at least 1 char after it
+*/
+static bool oc_uri_wildcard_matches(const char* resource_uri, size_t resource_len, const char* invoked_uri, size_t invoked_len)
+{
+  return resource_uri  && invoked_uri 
+         && resource_len >= 2 && resource_uri[0] == '/' && resource_uri[resource_len - 1] == '*'        // (a)
+         && invoked_len + 1 >= resource_len                                                             // (b)
+         && memcmp(invoked_uri, resource_uri + 1, resource_len - 2) == 0;
+}
+
 int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len, const char* uri_invoked, size_t invoked_len)
 {
-  if (uri_resource[uri_len - 1] == '*')
+  // EP must be defined with a '*' at the end of e.g.; /fp/g/*
+  if (oc_uri_wildcard_matches(uri_resource, uri_len, uri_invoked, invoked_len))
   {
-    // EP must be defined with a '*' at the end of e.g.; /fp/g/* 
+    // - invoked uri has no heading '/', need at least one digit from invoked uri,
+    // - 'fp/g/4' versus '/fp/g/*', set pointer - 2 = heading '/' and trailing '*' from '/fp/g/*'
 
-    if (invoked_len + 1 >= uri_len)
+    /*
+      convert from pointer after 'f/', note that
+      - fp/g/004 or f/4 results both in 4
+      - fp/g/004_abc, f/4abc, f/abc results in string errors '-1'
+    */
+
+    const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
+    const int to_be_converted_len = (int)invoked_len - (int)(uri_len - 2);
+
+    // accept only entire numbers, no trailing characters and no conversion errors
+    int converted_value = -1;
+    if (!oc_parse_sint32_from_base10_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
     {
-      // - invoked uri has no heading '/', need at least one digit from invoked uri, 
-      // - 'fp/g/4' versus '/fp/g/*', set pointer - 2 = heading '/' and trailing '*' from '/fp/g/*'
-
-      /*
-        convert from pointer after 'f/', note that
-        - fp/g/004 or f/4 results both in 4
-        - fp/g/004_abc, f/4abc, f/abc results in string errors '-1'
-      */
-
-      const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
-      const int to_be_converted_len = (int)invoked_len - (int)(uri_len - 2);
-
-      // accept only entire numbers, no trailing characters and no conversion errors
-      int converted_value = -1;
-      if (!oc_parse_sint32_from_base10_string(ptr_first_to_be_converted_digit, to_be_converted_len, &converted_value))
-      {
-        return -1;
-      }
-
-      return converted_value;
+      return -1;
     }
+
+    return converted_value;
   }
 
-  // error no resource with xx/*
+  // error no resource with xx/* or invoked uri does not match it
   return -1;
 }
 
 int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_len, const char* invoked_uri, size_t invoked_len, bool instance_number)
 {
-  if (resource_uri[resource_len - 1] == '*')
+  // EP must be defined with a '*' at the end of e.g.; /f/*
+  if (oc_uri_wildcard_matches(resource_uri, resource_len, invoked_uri, invoked_len))
   {
-    // EP must be defined with a '*' at the end of e.g.; /f/*
-
-    if (invoked_len + 1 >= resource_len)
     {
       // - invoked uri 'f/4' has no heading '/', + 1 -> need at least one digit from invoked uri 
       // - cut from resource uri '/f/*' - 2  -> get first number position 
@@ -703,21 +710,17 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_
 
 int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resource_len, const char* uri_invoked, size_t invoked_len, const char** value)
 {
-  // resource URI contains '*', -1 since array counts from 0...n
-  if (uri_resource[resource_len - 1] == '*')
+  // resource URI ends with '*' and invoked URI starts with the resource URI part before it
+  if (value && oc_uri_wildcard_matches(uri_resource, resource_len, uri_invoked, invoked_len))
   {
-    // invoked URI must be larger than resource URI;
-    // +1 since '/' is not included in invoked URI
-    if (invoked_len + 1 >= resource_len)
-    {
-      // pointer to wildcard part of invoked URI,
-      // e.g; to 'abba' from invoked URI aut/at/abba
-      // -2 since '/' is not included in invoked URI and array counts from 0...n
-      *value = &uri_invoked[resource_len - 2];
+    /*
+      pointer to wildcard part of invoked URI, e.g; to 'abba' from invoked URI aut/at/abba
+      -2 since '/' is not included in invoked URI and array counts from 0...n
+    */
+    *value = &uri_invoked[resource_len - 2];
 
-      // len of wildcard part such as 4 for 'abba'
-      return (int)(invoked_len - resource_len + 2);
-    }
+    // len of wildcard part such as 4 for 'abba'
+    return (int)(invoked_len - resource_len + 2);
   }
 
   return -1;

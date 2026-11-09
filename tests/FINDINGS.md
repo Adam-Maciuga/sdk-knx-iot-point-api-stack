@@ -217,9 +217,12 @@ removed entry. The next number is F-070.
        (`oc_strnchr(ptr, '_', remaining_len)`) is needed.
      - **Fix:** the `_` search uses `oc_strnchr()` bounded by the rest of the invoked uri (`invoked_len - (resource_len - 2)`). Tests:
        `UriFbValue.UnderscoreBehindPathEndIsIgnored`, `UriFbValue.NotTerminatedUriIsNotOverread`.
-  4. `oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`:
+  4. ~~`oc_uri_get_wildcard_int_value_as_int()`, `oc_uri_get_fb_string_value_as_int()`, `oc_uri_get_wildcard_value_as_string()`:~~ - FIXED
      - i. `uri[len - 1]` with `len == 0` reads `uri[SIZE_MAX]`.
      - ii. the invoked URI prefix is never compared with the resource URI, only offsets are used.
+     - **Fix:** shared guard `oc_uri_wildcard_matches()`: NULL pointers, resource length >= 2 with leading `/` and trailing `*`, and a
+       `memcmp()` of the invoked URI prefix against the resource URI between `/` and `*`. Tests: `UriWildcardInt/UriWildcardString/UriFbValue`
+       `.PrefixMismatch` and `.ZeroLengthResource`.
   5. Allocators overwrite the handle without freeing it (undocumented in `oc_helpers.h`):
      - i. `_oc_new_string()`, `_oc_new_byte_string()`, `_oc_alloc_string()`, `oc_concat_strings()`, `_oc_new_array()`, `_oc_alloc_string_array()`.
        Only the `oc_*_copy*()` functions, `oc_conv_hex_string_to_oc_string()` and (since 1) `oc_join_string_array()` free the old value first.
