@@ -292,7 +292,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       - set only data that are not zero, C99 ensures the rest is '0'/'NULL'
   */
 
-  oc_response_buffer_t response_buffer = {.buffer_size = OC_MAX_OBSERVE_SIZE};
+  oc_response_buffer_t response_buffer = {.buffer_size = OC_MAX_OBSERVE_SIZE, .content_format = CONTENT_NONE};
   oc_response_t response_obj = {.response_buffer = &response_buffer};
   oc_request_t request =
   {
@@ -455,11 +455,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         // final code from GET handler, may be changed by separate response handler if separate_response is set above
         coap_set_status_code(notification, response_buf->code);
 
-        // set only if a valid value is present, otherwise leave it out when '0' e.g; not initialized in GET handler 
-        if (response_buf->content_format > 0)
-        {
-          coap_set_header_content_format(notification, response_buf->content_format);
-        }
+        // CONTENT_NONE removes the option from CoAP ...
+        coap_set_header_content_format(notification, response_buf->content_format);
 
         // KNX spec 2.6.10.2: indicate the heartbeat interval via Max-Age so the subscriber can detect stale values
         if (obs->resource->observe_period_seconds > 0)
