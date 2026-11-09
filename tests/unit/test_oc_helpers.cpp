@@ -533,6 +533,34 @@ TEST_F(OcStringTest, UrlCmp_Different)
   EXPECT_NE(oc_url_cmp(s1, s2), 0);
 }
 
+// F-048-2-i: no prefix match
+TEST_F(OcStringTest, UrlCmp_PrefixDoesNotMatch)
+{
+  oc_new_string(&s1, "/p/1", 4);
+  oc_new_string(&s2, "/p/10", 5);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  EXPECT_NE(oc_url_cmp(s2, s1), 0);
+}
+
+// F-048-2-i/ii: an empty href or "/" does not match a resource
+TEST_F(OcStringTest, UrlCmp_EmptyHrefDoesNotMatch)
+{
+  oc_new_string(&s1, "", 0);
+  oc_new_string(&s2, "/p/1", 4);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  oc_free_string(&s1);
+  oc_new_string(&s1, "/", 1);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+}
+
+// F-048-2-iv: empty handles do not crash and do not match
+TEST_F(OcStringTest, UrlCmp_EmptyHandleDoesNotMatch)
+{
+  oc_new_string(&s2, "/p/1", 4);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  EXPECT_NE(oc_url_cmp(s2, s1), 0);
+}
+
 /* ── _oc_free_string edge cases ────────────────────────────────────────────── */
 
 TEST_F(OcStringTest, FreeNull_NoOp)

@@ -203,11 +203,14 @@ removed entry. The next number is F-070.
      - **Fix:** the size starts at 1 (NUL) and adds a space only between items, so it is exact (`""` -> size 1); NULL arguments return;
        the old `*ocstring` is freed first; the allocation is checked. Tests: `OcStringArrayTest.JoinAllEmptyItemsGivesEmptyString`,
        `JoinSkipsEmptySlotsWithExactSize`, `JoinFreesPreviousValue`, `JoinNullArgumentsAreIgnored`.
-  2. `oc_url_cmp()` is a prefix match, not an equality: `strncmp(cmp1, cmp2, strlen(cmp1))`.
+  2. ~~`oc_url_cmp()` is a prefix match, not an equality: `strncmp(cmp1, cmp2, strlen(cmp1))`.~~ - FIXED
      - i. href `/p/1` matches resource `/p/10`, href `""` matches every resource (n = 0).
      - ii. the leading `/` is stripped only when `strlen > 1`, so `/` and `""` normalize differently.
      - iii. `oc_belongs_href_to_resource()` (`/fp/*` href checks) uses it, so a wrong or empty href is accepted as an existing resource.
      - iv. NULL `oc_string()` (empty handle) goes into `strlen()`.
+     - **Fix:** exact `strcmp()` after removing one leading `/`; an empty href or an empty handle returns -1, so `""` never matches and `/` matches
+       only a resource `/` (ii is moot). iii follows from i. Tests: `OcStringTest.UrlCmp_PrefixDoesNotMatch`, `UrlCmp_EmptyHrefDoesNotMatch`,
+       `UrlCmp_EmptyHandleDoesNotMatch`.
   3. `oc_uri_get_fb_string_value_as_int()`:
      - i. uses `strchr(ptr, '_')` on `request->uri_path`, which points into the CoAP packet and is not NUL-terminated: the scan reads past
        `invoked_len`; an `_` found behind the path end makes `to_be_converted_len` span bytes outside the URI. A bounded search

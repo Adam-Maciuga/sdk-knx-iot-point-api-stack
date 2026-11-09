@@ -578,24 +578,21 @@ int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
 
 int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
 {
-  char* str1 = oc_string(href_string); // input is href from request payload 
-  char* str2 = oc_string(resource_string); // input is application resource URL 
-  const char* cmp1 = str1;
-  const char* cmp2 = str2;
+  const char* str1 = oc_string(href_string);     // input is href from request payload
+  const char* str2 = oc_string(resource_string); // input is application resource URL
 
-  if (strlen(str1) > 1 && str1[0] == '/')
+  // empty handle or empty href never matches a resource
+  if (str1 == NULL || str2 == NULL || str1[0] == '\0')
   {
-    // remove a leading '/', to normalize the path as a string 
-    cmp1 = &str1[1];
+    return -1;
   }
 
-  if (strlen(str2) > 1 && str2[0] == '/')
-  {
-    // remove a leading '/', to normalize the path as a string 
-    cmp2 = &str2[1];
-  }
+  // remove a leading '/', to normalize the path as a string
+  const char* cmp1 = strlen(str1) > 1 && str1[0] == '/' ? &str1[1] : str1;
+  const char* cmp2 = strlen(str2) > 1 && str2[0] == '/' ? &str2[1] : str2;
 
-  return strncmp(cmp1, cmp2, strlen(cmp1));
+  // exact match, not a prefix match: '/p/1' must not match '/p/10'
+  return strcmp(cmp1, cmp2);
 }
 
 int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len, const char* uri_invoked, size_t invoked_len)

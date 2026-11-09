@@ -569,9 +569,10 @@ int oc_string_cmp(oc_string_t string1, oc_string_t string2);
 int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2);
 
 /**
- * @brief url compare - same as string compare - but ignores a possible leading '/'
+ * @brief url compare - exact string compare - but ignores a possible leading '/'
  *
  * @note '/' is ignored only if url len is > 1
+ * @note an empty href or an empty handle never matches (returns -1)
  *
  * @param href_string url to be compared (usually the href from a request payload)
  * @param resource_string url to be compared (usually the url from a resource)
