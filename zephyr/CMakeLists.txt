@@ -136,26 +136,9 @@ endif()
 
 # mDNS header-only library
 # Note:
-# Always required by port/dns-sd_mdns.c.
-# This fetch only provides the mdns.h header used by dns-sd_mdns.c, which is
-# the stack provided DNS-SD responder based on mDNS (Wi-Fi/Ethernet).
-FetchContent_Declare(
-    mdns
-    GIT_REPOSITORY https://github.com/mjansson/mdns.git
-    GIT_TAG main
-    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${STACK_ROOT}/port/mdns.patch
-                  -P "${STACK_ROOT}/cmake/patch.cmake"
-)
-# Note:
-# Use FetchContent_Populate (not MakeAvailable) to download only — the mdns
-# library's own CMakeLists.txt builds POSIX example programs that do not
-# compile under the Zephyr cross-toolchain.
-# We only need the mdns.h header.
-FetchContent_GetProperties(mdns)
-if(NOT mdns_POPULATED)
-    FetchContent_Populate(mdns)
-endif()
-zephyr_include_directories(${mdns_SOURCE_DIR})
+# Required by port/dns-sd_mdns.c, the DNS-SD responder of the socket backends
+# (Ethernet, Wi-Fi). Vendored and maintained in port/mdns, see its README.md.
+zephyr_include_directories(${STACK_ROOT}/port/mdns)
 
 # ── Source files ───────────────────────────────────────────────────────────────
 
@@ -175,7 +158,6 @@ set(API_SOURCES
     ${STACK_ROOT}/api/oc_replay.c
     ${STACK_ROOT}/api/oc_ri.c
     ${STACK_ROOT}/api/oc_server_api.c
-    ${STACK_ROOT}/api/oc_session_events.c
     ${STACK_ROOT}/api/oc_uuid.c
     ${STACK_ROOT}/api/oc_knx.c
     ${STACK_ROOT}/api/oc_knx_client.c
@@ -204,13 +186,11 @@ set(CORE_SOURCES
     ${STACK_ROOT}/security/oc_oscore_context.c
     ${STACK_ROOT}/security/oc_oscore_crypto.c
     ${STACK_ROOT}/security/oc_oscore_engine.c
-    ${STACK_ROOT}/security/oc_tls.c
     ${STACK_ROOT}/security/spake2plus.c
 )
 
 set(COAP_SOURCES
     ${STACK_ROOT}/messaging/coap/coap.c
-    ${STACK_ROOT}/messaging/coap/coap_signal.c
     ${STACK_ROOT}/messaging/coap/engine.c
     ${STACK_ROOT}/messaging/coap/observe.c
     ${STACK_ROOT}/messaging/coap/oscore.c
@@ -229,37 +209,65 @@ list(APPEND PORT_SOURCES
     ${STACK_ROOT}/port/zephyr/clock.c
     ${STACK_ROOT}/port/zephyr/random.c
     ${STACK_ROOT}/port/zephyr/storage.c
+    ${STACK_ROOT}/port/zephyr/oc_network_interface.c
 )
 
 # Platform port - Zephyr-specific - Optional
-# TODO FIXME add Kconfig switch
-list(APPEND PORT_SOURCES
-    ${STACK_ROOT}/port/zephyr/knx_shell.c
-)
+# KNX IoT shell command: The shared command handlers (port/knx_shell_commands.c) plus the
+# Zephyr shell binding, compiled with the KNXIOT_SHELL option.
+if(CONFIG_KNXIOT_SHELL)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/knx_shell_commands.c
+        ${STACK_ROOT}/port/zephyr/knx_shell.c
+    )
+endif()
 
 # Network backend selection:
-#   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (DNS-SD and OT_SRP)
-#   Wi-Fi       — connectivity_wifi.c    +  port/dns-sd_mdns.c    (DNS-SD and mDNS)
-# Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
+#   OpenThread   — connectivity_thread.c  +  port/dns-sd_srp.c  (DNS-SD and OT_SRP)
+#   Wi-Fi/Ether. — connectivity_posix.c   +  port/dns-sd_mdns.c (DNS-SD and mDNS)
+# Note: port/dns-sd_srp.c uses the OpenThread SRP client instead of POSIX mDNS sockets,
+#       the same implementation used on the FreeRTOS/ESP-IDF port.
 # Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
 #       provides oc_connectivity_init, oc_send_buffer, etc.
-# Note: connectivity_wifi.c provides Wi-Fi connectivity (Zephyr BSD sockets).
+# Note: connectivity_posix.c provides connectivity over Zephyr's POSIX/BSD socket
+#       API (zsock_*), used for both Wi-Fi and Ethernet L2 backends.
 #       The shared port/dns-sd_mdns.c provides DNS-SD and mDNS, the same implementation
 #       used on Linux and Windows.
-if(CONFIG_NET_L2_OPENTHREAD)
+# Note: The backend is chosen with CONFIG_KNXIOT_NETWORK_BACKEND_* (zephyr/Kconfig),
+#       not inferred from the Zephyr L2 symbols.
+if(CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET)
+    if(NOT CONFIG_NET_L2_ETHERNET)
+        message(FATAL_ERROR
+            "KNX-IoT stack: The Ethernet network backend needs the Zephyr Ethernet L2. "
+            "Enable CONFIG_NET_L2_ETHERNET in the application configuration.")
+    endif()
+
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/zephyr/connectivity_posix.c
+        ${STACK_ROOT}/port/dns-sd_mdns.c
+    )
+elseif(CONFIG_KNXIOT_NETWORK_BACKEND_THREAD)
+    # OpenThread is needed with or without the Zephyr OpenThread L2 (native OpenThread).
+    if(NOT CONFIG_OPENTHREAD)
+        message(FATAL_ERROR
+            "KNX-IoT stack: The Thread network backend needs OpenThread. "
+            "Enable CONFIG_OPENTHREAD in the application configuration.")
+    endif()
+
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
-        ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
+        ${STACK_ROOT}/port/dns-sd_srp.c
     )
-elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
+elseif(CONFIG_KNXIOT_NETWORK_BACKEND_WIFI)
+    # The Wi-Fi backend selects CONFIG_WIFI itself, so there is nothing to check.
     list(APPEND PORT_SOURCES
-        ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
+        ${STACK_ROOT}/port/zephyr/connectivity_posix.c
         ${STACK_ROOT}/port/dns-sd_mdns.c
     )
 else()
     message(FATAL_ERROR
-        "KNX-IoT stack: No supported network backend selected. "
-        "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
+        "KNX-IoT stack: No network backend selected. "
+        "Set CONFIG_KNXIOT_NETWORK_BACKEND_ETHERNET, _THREAD or _WIFI.")
 endif()
 
 # Test-control endpoints (/test/*) for the Python runtime conformance suite.
@@ -275,6 +283,25 @@ zephyr_library_sources(
     ${CORE_SOURCES}
     ${COAP_SOURCES}
     ${PORT_SOURCES}
+)
+
+# ── Warning policy ─────────────────────────────────────────────────────────────
+# Warnings as errors on the stack library only, not CONFIG_COMPILER_WARNINGS_AS_ERRORS,
+# which hits the whole Zephyr tree. Zephyr passes -Wno-pointer-sign build-wide and a
+# later -Wall does not re-enable an explicitly disabled warning, so -Wpointer-sign is
+# spelled out.
+zephyr_library_compile_options(
+    -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wstrict-prototypes -Wundef -Wvla
+    -Wdouble-promotion -Wnull-dereference -Wpointer-arith -Wpointer-sign
+)
+
+# The Zephyr headers are not clean under this policy (-Wundef on absent CONFIG_ symbols,
+# -Wstrict-prototypes and -Wvla in the cbprintf and logging headers). The Zephyr include
+# directories become system include directories for the stack library, so the compiler
+# leaves them alone, macros defined there included, and the policy applies to the stack
+# sources only.
+target_include_directories(knx_iot_stack SYSTEM PRIVATE
+    $<TARGET_PROPERTY:zephyr_interface,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 # ── Include directories ────────────────────────────────────────────────────────
@@ -320,12 +347,12 @@ zephyr_compile_definitions(
 # KNX_PAYLOAD_SIZE is hardcoded here to mirror the FORCE behaviour
 # in the root CMakeLists.txt. It is intentionally not exposed via Kconfig.
 zephyr_compile_definitions(
-    GOT_MAX_ENTRIES=${CONFIG_KNXIOT_GOT_MAX_ENTRIES}
-    GPT_MAX_ENTRIES=${CONFIG_KNXIOT_GPT_MAX_ENTRIES}
-    GRT_MAX_ENTRIES=${CONFIG_KNXIOT_GRT_MAX_ENTRIES}
-    G_AT_MAX_ENTRIES=${CONFIG_KNXIOT_SEC_MAX_ENTRIES}
-    PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
-    KNX_PAYLOAD_SIZE=1024
+    KNX_GOT_MAX_ENTRIES=${CONFIG_KNXIOT_GOT_MAX_ENTRIES}
+    KNX_GPT_MAX_ENTRIES=${CONFIG_KNXIOT_GPT_MAX_ENTRIES}
+    KNX_GRT_MAX_ENTRIES=${CONFIG_KNXIOT_GRT_MAX_ENTRIES}
+    KNX_ATT_MAX_ENTRIES=${CONFIG_KNXIOT_ATT_MAX_ENTRIES}
+    KNX_PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
+    KNX_PAYLOAD_SIZE=768
 )
 
 ## Network
@@ -338,7 +365,7 @@ zephyr_compile_definitions(
 
 ## Security
 zephyr_compile_definitions(
-    $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
+    KNX_ECHO_RING_SIZE=${CONFIG_KNXIOT_ECHO_RING_SIZE}
 )
 
 ## Logging
@@ -356,5 +383,7 @@ zephyr_library_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_DEBUG_OSCORE}>:OC_DEBUG_OSCORE>
     $<$<BOOL:${CONFIG_KNXIOT_LOG_CAST_64_BIT_INTS}>:KNX_LOG_CAST_64_BIT_INTS>
 )
+
+zephyr_library_compile_definitions(KNX_LOG_MODULE_INTERNAL)
 
 endif() # CONFIG_KNXIOT_LIB
