@@ -26,6 +26,9 @@
  *
  * No full stack init is required: oc_core_get_device_info() returns a pointer to
  * the static device struct, and oc_rep_new() sets up a standalone CBOR encoder.
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 
@@ -35,10 +38,17 @@ extern "C" {
 #include "oc_core_res.h"  /* oc_core_get_device_info, oc_device_info_t */
 #include "oc_knx_dev.h"   /* function under test */
 #include "oc_ri.h"        /* oc_request_t / oc_resource_t / oc_status_code */
+#include "messaging/coap/observe.h"
+#include "messaging/coap/coap.h"
+#include "port/oc_network_events_mutex.h"
+#include "util/oc_mmem.h"
+
+extern const oc_resource_t core_resource_knx_k;
 #include "oc_rep.h"       /* oc_rep_new */
 #include "oc_helpers.h"   /* oc_new_string / oc_free_string */
 #include "messaging/coap/oc_coap.h" /* full def of oc_response_buffer_s */
 #include "util/oc_mmem.h"
+#include "port/oc_storage.h" /* oc_storage_config for the '/ap/pv' PUT */
 #include <string.h>
 
 /* static handlers reached through these public const resource structs */
@@ -46,7 +56,7 @@ extern const oc_resource_t core_resource_dev_sn;
 extern const oc_resource_t core_resource_dev_hwv;
 extern const oc_resource_t core_resource_dev_fwv;
 extern const oc_resource_t core_resource_dev_hwt;
-extern const oc_resource_t core_resource_dev_model;
+extern const oc_resource_t core_resource_dev_order_number;
 extern const oc_resource_t core_resource_dev_hostname;
 extern const oc_resource_t core_resource_dev_iid;
 extern const oc_resource_t core_resource_dev_ipv6;
@@ -60,6 +70,15 @@ extern const oc_resource_t core_resource_dev_mport;
 extern const oc_resource_t core_resource_app_pv;
 extern const oc_resource_t core_resource_app;
 extern const oc_resource_t core_resource_dev_mid;
+
+/* pass-through counter: each lookup by index walks the core resource chain from the start */
+const oc_resource_t* __real_oc_core_get_core_resource_by_index(int index);
+static int g_core_by_index_calls;
+const oc_resource_t* __wrap_oc_core_get_core_resource_by_index(int index)
+{
+  g_core_by_index_calls++;
+  return __real_oc_core_get_core_resource_by_index(index);
+}
 }
 
 
@@ -78,7 +97,7 @@ extern "C" bool __wrap_oc_main_initialized(void)
   __wrap_knx_dns_sd_update_service: no-op stand-in; the real function requires
   an initialised mDNS/DNS-SD backend which is not available in unit tests.
 */
-extern "C" int __wrap_knx_dns_sd_update_service(char *, uint64_t, uint16_t, bool)
+extern "C" int __wrap_knx_dns_sd_update_service(const oc_device_info_t *)
 {
   return 0;
 }
@@ -89,7 +108,6 @@ class KnxDeviceProgrammingMode : public ::testing::Test {
 protected:
   void SetUp() override
   {
-    oc_mmem_init();
     /* start from a deterministic, known state */
     oc_knx_device_set_programming_mode(false);
   }
@@ -158,15 +176,19 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
 
     /* The string-valued device fields are serialised verbatim by the GET
      * handlers, so give them values with static lifetime. */
     oc_device_info_t *dev = oc_core_get_device_info();
     dev->serialnumber = "000000000000";
-    dev->hwt = "myhwt";
-    dev->iot_model = "mymodel";
+    dev->hwt = "0012AB34CD56";
+    dev->order_number = "myordernumber";
     init_string(&dev->iot_hostname, "knxhost");
+
+    /* hwv is stored by reference (application-owned), so it needs static
+     * lifetime as well; it is NULL until the application sets it. */
+    static const oc_knx_version_info_t hwv = {1, 2, 3};
+    dev->hwv = &hwv;
 
     memset(&request, 0, sizeof(request));
     memset(&response, 0, sizeof(response));
@@ -267,11 +289,11 @@ TEST_F(KnxDevHandlers, HwtGetOk)
 
 TEST_F(KnxDevHandlers, ModelGetWrongAccept)
 {
-  expect_get_wrong_accept(core_resource_dev_model.get_handler.cb);
+  expect_get_wrong_accept(core_resource_dev_order_number.get_handler.cb);
 }
 TEST_F(KnxDevHandlers, ModelGetOk)
 {
-  expect_get_cbor_ok(core_resource_dev_model.get_handler.cb);
+  expect_get_cbor_ok(core_resource_dev_order_number.get_handler.cb);
 }
 
 TEST_F(KnxDevHandlers, HostnameGetWrongAccept)
@@ -400,31 +422,22 @@ TEST_F(KnxDevHandlers, ApListGetWrongAccept)
 
 /* ── PUT handlers: wrong-accept gate + empty/invalid payload -> 4.00 ──────── */
 
-TEST_F(KnxDevHandlers, HostnamePutWrongAccept)
+/* PUT on '/dev/hname' is optional in the specification and not supported, the resource is read-only */
+TEST_F(KnxDevHandlers, HostnamePutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_hostname.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, HostnamePutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_hostname.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_hostname.put_handler.cb, nullptr);
 }
 
-TEST_F(KnxDevHandlers, IidPutWrongAccept)
+/* PUT on '/dev/iid' is optional in the specification and not supported, the IID is written via '/.well-known/knx/ia' */
+TEST_F(KnxDevHandlers, IidPutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_iid.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, IidPutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_iid.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_iid.put_handler.cb, nullptr);
 }
 
-TEST_F(KnxDevHandlers, FidPutWrongAccept)
+/* PUT on '/dev/fid' is optional in the specification and not supported, the FID is written via '/.well-known/knx/ia' */
+TEST_F(KnxDevHandlers, FidPutNotSupported)
 {
-  expect_put_wrong_accept(core_resource_dev_fid.put_handler.cb);
-}
-TEST_F(KnxDevHandlers, FidPutEmptyBadRequest)
-{
-  expect_put_empty_bad_request(core_resource_dev_fid.put_handler.cb);
+  EXPECT_EQ(core_resource_dev_fid.put_handler.cb, nullptr);
 }
 
 TEST_F(KnxDevHandlers, PmPutWrongAccept)
@@ -465,3 +478,208 @@ TEST_F(KnxDevHandlers, ApPvPutWrongArraySizeBadRequest)
   oc_free_int_array(&rep.value.array);
 }
 
+/* PUT '/ap/pv' with [major, minor, patch] (U16U16U8) on its own storage directory, returns the response code */
+class KnxDevApPvPut : public KnxDevHandlers {
+protected:
+  void SetUp() override
+  {
+    KnxDevHandlers::SetUp();
+
+    /* one directory per test, since ctest runs every TEST_F as its own process */
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "pv_%s", info->name());
+    oc_storage_config(dir);
+
+    /* known apv before each PUT, stored like the stack does */
+    oc_knx_version_info_t initial = { 1, 1, 1 };
+    ASSERT_EQ(oc_core_set_and_store_device_application_version(&initial), 0);
+  }
+
+  int put_ap_pv(int64_t major, int64_t minor, int64_t patch)
+  {
+    const int64_t vals[3] = { major, minor, patch };
+    oc_rep_t rep;
+    memset(&rep, 0, sizeof(rep));
+    rep.iname = 1;
+    rep.type = OC_REP_INT_ARRAY;
+    oc_new_int_array(&rep.value.array, 3);
+    memcpy(oc_int_array(rep.value.array), vals, sizeof(vals));
+
+    response_buffer.code = 0;
+    request.accept = APPLICATION_CBOR;
+    request.request_payload = &rep;
+    core_resource_app_pv.put_handler.cb(&request, OC_IF_P, nullptr);
+
+    oc_free_int_array(&rep.value.array);
+    return response_buffer.code;
+  }
+
+  static void expect_apv(uint16_t major, uint16_t minor, uint16_t patch)
+  {
+    const oc_device_info_t *d = oc_core_get_device_info();
+    EXPECT_EQ(d->apv.major, major);
+    EXPECT_EQ(d->apv.minor, minor);
+    EXPECT_EQ(d->apv.patch, patch);
+  }
+};
+
+TEST_F(KnxDevApPvPut, MaxValuesChanged)
+{
+  EXPECT_EQ(put_ap_pv(0xFFFF, 0xFFFF, 0xFF), oc_status_code(OC_STATUS_CHANGED));
+  expect_apv(0xFFFF, 0xFFFF, 0xFF);
+}
+
+TEST_F(KnxDevApPvPut, MajorAbove16BitBadRequest)
+{
+  /* would be truncated to 1 by the cast to the 16-bit field */
+  EXPECT_EQ(put_ap_pv(0x10001, 2, 3), oc_status_code(OC_STATUS_BAD_REQUEST));
+  expect_apv(1, 1, 1);
+}
+
+TEST_F(KnxDevApPvPut, MinorAbove16BitBadRequest)
+{
+  EXPECT_EQ(put_ap_pv(2, 0x10000, 3), oc_status_code(OC_STATUS_BAD_REQUEST));
+  expect_apv(1, 1, 1);
+}
+
+TEST_F(KnxDevApPvPut, NegativeBadRequest)
+{
+  EXPECT_EQ(put_ap_pv(-1, 2, 3), oc_status_code(OC_STATUS_BAD_REQUEST));
+  expect_apv(1, 1, 1);
+}
+
+TEST_F(KnxDevApPvPut, PatchAbove8BitBadRequest)
+{
+  EXPECT_EQ(put_ap_pv(2, 2, 0x100), oc_status_code(OC_STATUS_BAD_REQUEST));
+  expect_apv(1, 1, 1);
+}
+
+TEST_F(KnxDevApPvPut, StoreFailsInternalServerError)
+{
+  /* the parent directory does not exist, so the storage write fails */
+  oc_storage_config("pv_missing_parent/pv_put");
+  EXPECT_EQ(put_ap_pv(2, 2, 2), oc_status_code(OC_STATUS_INTERNAL_SERVER_ERROR));
+  expect_apv(1, 1, 1);
+}
+
+/* --- device reset: subscriptions end with the access tokens --- */
+
+/*
+  register one observer on /k through the real observe handler (lt is mandatory), the way a subscriber does
+*/
+static int add_k_observer(uint16_t port)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = port;
+  ep.addr.ipv6.address[15] = 1;
+
+  static const char query[] = "lt=86400";
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.code = COAP_GET;
+  req.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&req, COAP_OPTION_OBSERVE);
+  req.token[0] = (uint8_t)port;
+  req.token_len = 1;
+  req.uri_path = "k";
+  req.uri_path_len = 1;
+  req.uri_query = query;
+  req.uri_query_len = (uint32_t)strlen(query);
+  SET_OPTION(&req, COAP_OPTION_URI_QUERY);
+
+  coap_packet_t res;
+  memset(&res, 0, sizeof(res));
+  res.code = CONTENT_2_05;
+
+  return coap_observe_handler(&req, &res, &core_resource_knx_k, 0, &ep);
+}
+
+static int k_observers(void)
+{
+  return core_resource_knx_k.runtime_data->num_observers;
+}
+
+class KnxDevResetObservers : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    oc_network_event_handler_mutex_init();
+  }
+  void TearDown() override
+  {
+    coap_free_all_observers();
+    oc_network_event_handler_mutex_destroy();
+  }
+};
+
+/*
+  A reset deletes the access tokens; every subscription made with them ends as well (no observer keeps a pointer
+  to an emptied or reused token slot)
+*/
+TEST_F(KnxDevResetObservers, ResetToDefaultStateRemovesAllObservers)
+{
+  ASSERT_EQ(add_k_observer(5101), 0);
+  ASSERT_EQ(k_observers(), 1);
+
+  oc_knx_device_reset(RESET_TO_DEFAULT_STATE);
+
+  EXPECT_EQ(k_observers(), 0);
+}
+
+TEST_F(KnxDevResetObservers, ResetToDefaultWithoutIaRemovesAllObservers)
+{
+  ASSERT_EQ(add_k_observer(5102), 0);
+  ASSERT_EQ(k_observers(), 1);
+
+  oc_knx_device_reset(RESET_TO_DEFAULT_WO_IA);
+
+  EXPECT_EQ(k_observers(), 0);
+}
+
+
+/* true when 'text' is somewhere in the link format response written into 'buf' */
+static bool list_contains(const uint8_t* buf, size_t size, const char* text)
+{
+  const size_t len = strlen(text);
+  for (size_t i = 0; i + len <= size; i++)
+  {
+    if (memcmp(buf + i, text, len) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+  a list GET walks the core resource chain once: one lookup by index (the first entry), then 'next'
+  - the list holds its first entry and the one after it (the walk follows the chain), 2.05 link format
+*/
+static void expect_list_walks_the_chain_once(oc_request_t& request, oc_response_buffer_t& response_buffer, uint8_t* buf, size_t size,
+                                              const oc_resource_t& list, const oc_resource_t& first)
+{
+  memset(buf, 0, size);
+  oc_rep_new(buf, (int)size);
+  response_buffer.code = 0;
+  request.resource = &list;
+  request.accept = APPLICATION_LINK_FORMAT;
+  g_core_by_index_calls = 0;
+  list.get_handler.cb(&request, OC_IF_LI, nullptr);
+  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
+  EXPECT_TRUE(list_contains(buf, size, oc_string(first.uri))) << oc_string(first.uri);
+  EXPECT_TRUE(list_contains(buf, size, oc_string(first.next->uri))) << oc_string(first.next->uri);
+  EXPECT_EQ(g_core_by_index_calls, 1);
+}
+
+TEST_F(KnxDevHandlers, DevListWalksTheCoreChainOnce)
+{
+  expect_list_walks_the_chain_once(request, response_buffer, buf, sizeof(buf), core_resource_dev, core_resource_dev_sn);
+}
+
+TEST_F(KnxDevHandlers, ApListWalksTheCoreChainOnce)
+{
+  expect_list_walks_the_chain_once(request, response_buffer, buf, sizeof(buf), core_resource_app, core_resource_app_pv);
+}

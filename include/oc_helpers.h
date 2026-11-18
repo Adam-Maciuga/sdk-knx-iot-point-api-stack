@@ -2,16 +2,15 @@
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2021 Cascoda Ltd.
  * Copyright (c) 2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
- */   
+ */
 
 /**
   @brief generic helpers
   @file
 */
-#ifndef OC_HELPERS_H
-#define OC_HELPERS_H
+#pragma once
 
 #include "util/oc_list.h"
 #include "util/oc_mmem.h"
@@ -50,8 +49,7 @@ enum StringRepresentation {
  *        with a pointer to a string "NULL"
  *
  */
-#define oc_string_checked(ocstring) \
-        (oc_cast(ocstring, char) ? oc_cast(ocstring, char) : "NULL")
+#define oc_string_checked(ocstring) (oc_cast(ocstring, char) ? oc_cast(ocstring, char) : "NULL")
 
 
 
@@ -67,16 +65,14 @@ enum StringRepresentation {
  *	      with an internal string size of '1' (use oc string len to determine the actual string len) 
  *
  */
-#define oc_new_string(ocstring, str, str_len) \
-        _oc_new_string(ocstring, str, str_len)
+#define oc_new_string(ocstring, str, str_len) _oc_new_string(ocstring, str, str_len)
 
 /**
  * @brief creates a new (byte) string from string (not null terminated) by allocating the needed memory 
  *        and copying the content
  *
  */
-#define oc_new_byte_string(ocstring, str, str_len) \
-        _oc_new_byte_string(ocstring, str, str_len)
+#define oc_new_byte_string(ocstring, str, str_len) _oc_new_byte_string(ocstring, str, str_len)
 
 /**
  * @brief frees an 'ocstring'
@@ -187,15 +183,25 @@ enum StringRepresentation {
 #define oc_double_array_create_const(n, f, ...) \
         oc_mmem_create_const(n, f((const double[n]){ __VA_ARGS__ }))
 
+/**
+ * @brief concatenate two strings into a new oc_string
+ *
+ * @param concat the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
+ * @param str1 first terminated string
+ * @param str2 second terminated string
+ */
 void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 #define oc_string_len(ocstring) ((ocstring).size ? (ocstring).size - 1 : 0) // an empty string "" has internally len 1 but returns len 0 
-#define oc_byte_string_len(ocstring) ((ocstring).size)
+#define oc_byte_string_len(ocstring) ((ocstring).size)                      // real byte size, byte string w/o NUL terminator 
 
+// size
 #define oc_int_array_size(ocintarray) ((ocintarray).size)
 #define oc_bool_array_size(ocboolarray) ((ocboolarray).size)
 #define oc_float_array_size(ocfloatarray) ((ocfloatarray).size)
 #define oc_double_array_size(ocdoublearray) ((ocdoublearray).size)
 #define oc_string_array_size(ocstringarray) ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
+
+// ptr cast
 #define oc_int_array(ocintarray) (oc_cast(ocintarray, int64_t))
 #define oc_bool_array(ocboolarray) (oc_cast(ocboolarray, bool))
 #define oc_float_array(ocfloatarray) (oc_cast(ocfloatarray, float))
@@ -204,13 +210,19 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 
 #define STRING_ARRAY_ITEM_MAX_LEN 32
 
+// the item length of a byte string array slot is stored in its first byte (= len as such + max string len ...)
+#if STRING_ARRAY_ITEM_MAX_LEN > 256
+#error "STRING_ARRAY_ITEM_MAX_LEN must be <= 256, the byte string item length is stored in one byte"
+#endif
+
+// functions
 bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t index);
 bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[]);
 void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring);
 bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index);
 bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len);
 
-/* arrays of text strings */
+// macros 
 #define oc_string_array_add_item(ocstringarray, str) \
         (oc_string_array_add_item_internal(&(ocstringarray), str))
 
@@ -245,7 +257,7 @@ bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, co
 /**
  * @brief new oc_string from string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param str terminated string
  * @param str_len size of the string to be copied
  */
@@ -254,7 +266,7 @@ void _oc_new_string(oc_string_t* ocstring, const char* str, size_t str_len);
 /**
  * @brief new oc_string byte from string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param str not terminated string
  * @param str_len size of the string to be copied
  */
@@ -263,8 +275,10 @@ void _oc_new_byte_string(oc_string_t* ocstring, const char* str, size_t str_len)
 /**
  * @brief allocate oc_string
  *
- * @param ocstring the ocstring to be allocated
+ * @param ocstring the ocstring to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size size to be allocated
+ *
+ * @note oc_string ptr gets pointer assigned, oc_string size is also set 
  */
 void _oc_alloc_string(oc_string_t* ocstring, size_t size);
 
@@ -286,7 +300,7 @@ void _oc_free_array(oc_array_t* ocarray, pool type);
 /**
  * @brief new array
  *
- * @param ocarray the ocarray to be freed
+ * @param ocarray the ocarray to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size the size to be allocated
  * @param type pool type
  */
@@ -295,12 +309,20 @@ void _oc_new_array(oc_array_t* ocarray, size_t size, pool type);
 /**
  * @brief allocate string array
  *
- * @param ocstringarray array to be allocated
+ * @param ocstringarray array to be allocated, must be empty (not allocated), an old value is overwritten without free
  * @param size the size of the string array
  */
 void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size);
 
 /** Conversions between hex encoded strings and byte arrays */
+
+/**
+ * @brief value of a single hex digit character
+ *
+ * @param[in] c the character
+ * @return int 0..15 on success, -1 if `c` is not a hex digit
+ */
+int oc_hex_digit_value(char c);
 
 /**
  * @brief convert array to hex
@@ -310,7 +332,7 @@ void _oc_alloc_string_array(oc_string_array_t* ocstringarray, size_t size);
  * @param[in] array the array of bytes
  * @param[in] array_len length of the array
  * @param hex_str data as hex
- * @param hex_str_len length of the hex string
+ * @param hex_str_len length of the hex string (including the terminator)
  * @return int 0 success
  */
 int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
@@ -322,11 +344,12 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
  * @param[in] hex_str hex string input
  * @param[in] hex_str_len size of the hex string
  * @param array the array of bytes
- * @param array_len length of the byte array
+ * @param array_len in: size of the array, out: number of bytes needed for the hex string
  * @return int 0 success
+ *
+ * @note on an invalid hex digit -1 is returned, but *array_len is already set and the array may hold partial output
  */
-int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
-        uint8_t* array, size_t* array_len);
+int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, uint8_t* array, size_t* array_len);
 
 /**
  * @brief convert hex string to oc_string
@@ -336,8 +359,7 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
  * @param out the allocated oc_string
  * @return int 0 success
  */
-int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
-        oc_string_t* out);
+int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len, oc_string_t* out);
 
 /**
  * @brief checks if the input is an array containing hex values
@@ -381,15 +403,6 @@ size_t oc_char_print_hex(const char* str, size_t str_len);
  * @return int printed amount of %x
  */
 size_t oc_char_println_hex(const char* str, size_t str_len);
-
-/**
- * @brief checks if the uri contains a wildcard (e.g. "*")
- *
- * @param uri The URI to be checked.
- * @return true
- * @return false
- */
-bool oc_uri_contains_wildcard(const char* uri);
 
 /**
  * @brief Retrieve the value as integer from an invoked URI with assumed int values in the request,
@@ -458,15 +471,41 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource,
  * @param size the max size of the string to be searched in (MUST not exceed string total size)
  * @return NULL = not found, otherwise position in string
  */
-char* oc_strnchr(char* string, char p, int size);
+const char* oc_strnchr(const char* string, char p, int size);
 
 /**
- * @brief converts the input string to lower case
+ * @brief converts the NUL terminated input string to lower case
  *
  * @param[in] stream the input string that gets converted
  * @return int 0 success
  */
 int oc_charstream_convert_to_lower(char* stream);
+
+/**
+ * @brief converts the NUL terminated input string to upper case
+ *
+ * @param[in] stream the input string that gets converted
+ * @return int 0 success
+ */
+int oc_charstream_convert_to_upper(char* stream);
+
+/**
+ * @brief validates that the input string contains only lowercase hexadecimal characters ('0'...'9', 'a'...'f')
+ *
+ * @param[in] stream the input string that gets validated
+ * @return bool true if the string is a valid lowercase hexadecimal string, false otherwise
+ * @note validates lowercase HEX only, not any lowercase text; an empty string "" returns true
+ */
+bool oc_charstream_validate_is_lower(const char* stream);
+
+/**
+ * @brief validates that the input string contains only uppercase hexadecimal characters ('0'...'9', 'A'...'F')
+ *
+ * @param[in] stream the input string that gets validated
+ * @return bool true if the string is a valid uppercase hexadecimal string, false otherwise
+ * @note validates uppercase HEX only, not any uppercase text; an empty string "" returns true
+ */
+bool oc_charstream_validate_is_upper(const char* stream);
 
 /**
  * @brief helper function to check if a byte string contains only of zero values (0)
@@ -545,9 +584,10 @@ int oc_string_cmp(oc_string_t string1, oc_string_t string2);
 int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2);
 
 /**
- * @brief url compare - same as string compare - but ignores a possible leading '/'
+ * @brief url compare - exact string compare - but ignores a possible leading '/'
  *
  * @note '/' is ignored only if url len is > 1
+ * @note an empty href or an empty handle never matches (returns -1)
  *
  * @param href_string url to be compared (usually the href from a request payload)
  * @param resource_string url to be compared (usually the url from a resource)
@@ -569,7 +609,7 @@ int oc_print_uint64_t(uint64_t number, enum StringRepresentation rep);
  *
  * @param[in] number number to be converted to string
  * @param[out] str Resulting string after conversion. IMPORTANT: Should have
- * a size of at least 22 bytes (21 + null terminator)
+ * a size of at least 21 bytes (20 digits + null terminator), no buffer size is passed
  * @return int always returns 0
  */
 int oc_conv_uint64_to_dec_string(char* str, uint64_t number);
@@ -579,7 +619,7 @@ int oc_conv_uint64_to_dec_string(char* str, uint64_t number);
  *
  * @param[in] number number to be converted to hexadecimal string
  * @param[out] str Resulting string after conversion. IMPORTANT: Should have
- * a size of at least 17 bytes (16 + null terminator)
+ * a size of at least 17 bytes (16 + null terminator), no buffer size is passed
  * @return int always returns 0
  */
 int oc_conv_uint64_to_hex_string(char* str, uint64_t number);
@@ -587,5 +627,3 @@ int oc_conv_uint64_to_hex_string(char* str, uint64_t number);
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

@@ -5,7 +5,7 @@
   replaying the individual add_ref / unref / clear primitives by hand.
   This file instead calls the REAL coap_send_transaction() so the production
   branch logic (transactions.c) is exercised 1:1 - from message birth inside
-  coap_new_transaction_with_data() all the way to release.
+  the transaction's birth (new_transaction_with_copy below) all the way to release.
 
   Two blockers normally prevent coap_send_transaction() from running in a
   unit test:
@@ -143,6 +143,22 @@ static oc_message_t *make_smode_msg(const oc_endpoint_t *ep, uint8_t type_byte)
   return m;
 }
 
+/*
+  new_transaction_with_copy: a transaction that holds its OWN copy of 'src' (data + endpoint), the source stays with the
+  caller. This is the layout of the 'echo re-request' of a unicast original; the copy is done here in the test (the stack
+  serializes the re-request into a plain coap_new_transaction() message instead of copying)
+*/
+static coap_transaction_t *new_transaction_with_copy(uint16_t mid, const uint8_t *token, uint8_t token_len, const oc_message_t *src)
+{
+  coap_transaction_t *t = coap_new_transaction(mid, token, token_len, (oc_endpoint_t *)&src->endpoint);
+  if (t)
+  {
+    t->message->length = src->length;
+    memcpy(t->message->data, src->data, src->length);
+  }
+  return t;
+}
+
 /* -- fixture -------------------------------------------------------------- */
 
 class SModeRefCountViaSend : public ::testing::Test {
@@ -163,7 +179,7 @@ protected:
 
 /*
   Production branch: transactions.c else-branch (lines 297-317).
-    coap_new_transaction_with_data    m2 ref = 1  (BIRTH)
+    new_transaction_with_copy         m2 ref = 1  (BIRTH)
     coap_send_transaction {
       oc_message_add_ref(m2)          m2 ref = 2
       coap_send_message(m2)  [wrap]   m2 ref = 1  (send-ref released)
@@ -179,7 +195,7 @@ TEST_F(SModeRefCountViaSend, Via_McNon_FullLifecycle)
   EXPECT_EQ(m1->ref_count, 1);
 
   uint8_t token[] = {0xA0, 0xB0, 0xC0, 0xD0, 0xE0, 0xF0, 0x01, 0x02};
-  coap_transaction_t *t = coap_new_transaction_with_data(0xCC01, token, sizeof(token), m1);
+  coap_transaction_t *t = new_transaction_with_copy(0xCC01, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
   oc_message_t *m2 = t->message;
@@ -199,15 +215,15 @@ TEST_F(SModeRefCountViaSend, Via_McNon_FullLifecycle)
 
 /*
   Production branch: transactions.c smode_non_uc branch (lines 242-295).
-    coap_new_transaction_with_data    m2 ref = 1  (BIRTH)
+    new_transaction_with_copy         m2 ref = 1  (BIRTH)
     coap_send_transaction (retransmit_counter == 0) {
-      oc_message_add_ref(m2)          m2 ref = 2
-      coap_send_message(m2)  [wrap]   m2 ref = 1
-      - transaction kept, timer armed -
+      header-only message h            h ref = 1  (endpoint only, data == NULL)
+      coap_send_message(m2)  [wrap]   m2 ref = 0  (FREED, PDU handed over to the sender)
+      - transaction kept with h, timer armed -
     }
     [coap_check_transactions bumps retransmit_counter to 1 on timer expiry]
     coap_send_transaction (retransmit_counter == 1, timeout) {
-      coap_clear_transaction(t)       m2 ref = 0  (FREED)
+      coap_clear_transaction(t)       h ref = 0   (FREED)
     }
 
   coap_send_transaction does NOT advance retransmit_counter itself; the bump
@@ -221,7 +237,7 @@ TEST_F(SModeRefCountViaSend, Via_UcNon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xA1, 0xB1, 0xC1, 0xD1, 0xE1, 0xF1, 0x03, 0x04};
-  coap_transaction_t *t = coap_new_transaction_with_data(0xCC02, token, sizeof(token), m1);
+  coap_transaction_t *t = new_transaction_with_copy(0xCC02, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
   oc_message_t *m2 = t->message;
@@ -229,9 +245,15 @@ TEST_F(SModeRefCountViaSend, Via_UcNon_FullLifecycle)
   EXPECT_EQ(m2->ref_count, 1); /* BIRTH */
   EXPECT_EQ(t->retransmit_counter, 0);
 
-  /* first call: send-ref added then released by the wrap; transaction kept */
+  /*
+    first call: m2 (the PDU) is handed over to the sender and freed there, the transaction keeps a
+    header-only message (endpoint only, no data); m2 must not be accessed any more
+  */
   coap_send_transaction(t);
-  EXPECT_EQ(m2->ref_count, 1);          /* transaction still owns M2 */
+  ASSERT_NE(t->message, nullptr);
+  EXPECT_NE(t->message, m2);            /* header-only message swapped in */
+  EXPECT_EQ(t->message->data, nullptr); /* no PDU retained */
+  EXPECT_EQ(t->message->ref_count, 1);  /* transaction owns the header-only message */
   EXPECT_EQ(t->retransmit_counter, 0);  /* send does not advance the counter */
 
   /* simulate coap_check_transactions (transactions.c:397) on timer expiry */
@@ -239,7 +261,7 @@ TEST_F(SModeRefCountViaSend, Via_UcNon_FullLifecycle)
 
   /* second call: retransmit_counter >= 1 -> timeout branch clears the tx */
   coap_send_transaction(t);
-  /* m2 freed inside coap_clear_transaction */
+  /* header-only message freed inside coap_clear_transaction */
 
   oc_message_unref(m1);
 }
@@ -248,7 +270,7 @@ TEST_F(SModeRefCountViaSend, Via_UcNon_FullLifecycle)
 
 /*
   Production branch: transactions.c con_type branch (lines 165-240).
-    coap_new_transaction_with_data    m2 ref = 1  (BIRTH)
+    new_transaction_with_copy         m2 ref = 1  (BIRTH)
     coap_send_transaction (retransmit_counter == 0) {
       oc_message_add_ref(m2)          m2 ref = 2
       coap_send_message(m2)  [wrap]   m2 ref = 1
@@ -263,7 +285,7 @@ TEST_F(SModeRefCountViaSend, Via_UcCon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xA2, 0xB2, 0xC2, 0xD2, 0xE2, 0xF2, 0x05, 0x06};
-  coap_transaction_t *t = coap_new_transaction_with_data(0xCC03, token, sizeof(token), m1);
+  coap_transaction_t *t = new_transaction_with_copy(0xCC03, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
   oc_message_t *m2 = t->message;
@@ -302,7 +324,7 @@ TEST_F(SModeRefCountViaSend, Via_UcCon_RetransmitCycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xA3, 0xB3};
-  coap_transaction_t *t = coap_new_transaction_with_data(0xCC04, token, sizeof(token), m1);
+  coap_transaction_t *t = new_transaction_with_copy(0xCC04, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
   oc_message_t *m2 = t->message;
@@ -331,4 +353,79 @@ TEST_F(SModeRefCountViaSend, Via_UcCon_RetransmitCycle)
   /* m2 freed (ref -> 0) */
 
   oc_message_unref(m1);
+}
+
+/* -- hand-over: the transaction adopts the s-mode message (no copy) -------- */
+
+/*
+  coap_new_transaction_with_message (used by oc_issue_s_mode_message):
+    m1 birth                                 m1 ref = 1
+    coap_new_transaction_with_message        t->message == m1, ref = 1 (adopted, no second buffer)
+    coap_send_transaction (mc-NON) {
+      oc_message_add_ref(m1)                 m1 ref = 2
+      coap_send_message(m1)  [wrap]          m1 ref = 1
+      coap_clear_transaction(t)              m1 ref = 0  (FREED)
+    }
+  The caller must not release m1 any more (ASan/LSan: no double free, no leak).
+*/
+TEST_F(SModeRefCountViaSend, HandOver_McNon_TransactionAdoptsMessage)
+{
+  oc_endpoint_t ep = make_mc_ep();
+  oc_message_t *m1 = make_smode_msg(&ep, 0x50); /* NON */
+  ASSERT_NE(m1, nullptr);
+
+  uint8_t token[] = {0xA4, 0xB4, 0xC4, 0xD4};
+  coap_transaction_t *t = coap_new_transaction_with_message(0xCC05, token, sizeof(token), m1);
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(t->message, m1);
+  EXPECT_EQ(m1->ref_count, 1);
+  EXPECT_EQ(t->mid, 0xCC05);
+  EXPECT_EQ(t->token_len, sizeof(token));
+  EXPECT_EQ(0, memcmp(t->token, token, sizeof(token)));
+
+  coap_send_transaction(t);
+  /* m1 freed with the transaction */
+}
+
+/*
+  uc-CON hand-over: the adopted message is the transaction's retransmit copy, kept at ref 1 until the ACK
+*/
+TEST_F(SModeRefCountViaSend, HandOver_UcCon_TransactionKeepsAdoptedMessage)
+{
+  oc_endpoint_t ep = make_uc_con_ep();
+  oc_message_t *m1 = make_smode_msg(&ep, 0x40); /* CON */
+  ASSERT_NE(m1, nullptr);
+
+  uint8_t token[] = {0xA5, 0xB5};
+  coap_transaction_t *t = coap_new_transaction_with_message(0xCC06, token, sizeof(token), m1);
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(t->message, m1);
+
+  coap_send_transaction(t);
+  EXPECT_EQ(m1->ref_count, 1); /* transaction holds it for retransmits */
+  EXPECT_EQ(m1->data[0], 0x40); /* still the plaintext CON request */
+
+  coap_clear_transaction(t);
+  /* m1 freed */
+}
+
+/* -- guards: no transaction / no message ---------------------------------- */
+
+/*
+  coap_send_transaction must return on a NULL transaction or a transaction without a message instead of
+  dereferencing it (the checks were debug-only logs, the type was read from t->message->data right after)
+*/
+TEST_F(SModeRefCountViaSend, NullTransactionIsIgnored)
+{
+  coap_send_transaction(nullptr);
+  SUCCEED();
+}
+
+TEST_F(SModeRefCountViaSend, TransactionWithoutMessageIsIgnored)
+{
+  coap_transaction_t t;
+  memset(&t, 0, sizeof(t));
+
+  coap_send_transaction(&t);
+  SUCCEED();
 }

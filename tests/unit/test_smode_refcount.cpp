@@ -6,16 +6,18 @@
   leaks or double-frees. The three messages verified match the analysis in
   security/oc_oscore_engine.c:
 
-    M1  udp_message_update  - plaintext original allocated by the caller
-        (oc_client_api.c); coap_new_transaction_with_data only memcpy's its
-        data, so M1's ref_count is NEVER touched by the transaction layer.
+    M1  caller's message   - plaintext original allocated by the caller
+        (a copying caller, e.g. the 'echo re-request' of a unicast original); the
+        transaction only gets a copy of its data (new_transaction_with_copy below),
+        so M1's ref_count is NEVER touched by the transaction layer.
         The caller owns it start-to-finish and unref's it unconditionally.
 
     M2  t->message          - transaction-owned copy; separate lifecycle per
         path:
           mc-NON  : add_ref (cover deferred send) -> clear_transaction drops
-                    to 1 -> ring put_retain adds its own ref (-> 2) -> caller
-                    unref's the send-ref (-> 1) -> ring release drops to 0.
+                    to 1 -> caller unref's the send-ref (-> 0, freed). The
+                    echo ring stores only a group object REFERENCE and never
+                    takes a reference on the message.
           uc-CON  : add_ref (cover deferred send) -> oc_message_unref at
                     OSCORE send entry (-> 1, transaction still owns it) ->
                     clear_transaction (ACK/response) drops to 0.
@@ -26,23 +28,56 @@
         message_buffer_handler after oc_send_buffer. Requires a live process
         scheduler and is exercised by the runtime conformance suite, not here.
 
-  Requirements:
-    oc_network_event_handler_mutex_init() - used by oc_allocate_message.
-    Echo ring cleared in TearDown so retain tests are independent.
-*/
+      Requirements:
+        oc_network_event_handler_mutex_init() - used by oc_allocate_message.
+        Echo ring cleared in TearDown so anchor tests are independent.
+  */
 
-#include <gtest/gtest.h>
-#include <cstring>
+  #include <gtest/gtest.h>
+  #include <cstring>
 
-extern "C" {
-#include "oc_buffer.h"
-#include "messaging/coap/transactions.h"
-#include "messaging/coap/oscore.h"
-#include "port/oc_network_events_mutex.h"
-#include "include/oc_endpoint.h"
-}
+  extern "C" {
+  #include "oc_buffer.h"
+  #include "messaging/coap/transactions.h"
+  #include "messaging/coap/oscore.h"
+  #include "api/oc_knx_fp.h"
+  #include "port/oc_network_events_mutex.h"
+  #include "include/oc_endpoint.h"
+  #include "security/oc_oscore_context.h"
+  }
+
+  /* stand-in group object table entries; only their address has to survive the ring */
+  static oc_group_object_table_t g_go_ref;
+  static oc_group_object_table_t g_go_filler;
 
 /* -- helpers -------------------------------------------------------------- */
+
+/*
+  Helper: write a send-anchor from the three objects the production signature takes.
+  Only the fields the ring reads are populated: ctx->sender_id, pkt->token and the
+  endpoint's s-mode group object plus service type.
+*/
+static void append_anchor(uint32_t ssn, const uint8_t* kid, uint8_t kid_len,
+                          const uint8_t* token, uint8_t token_len,
+                          const oc_group_object_table_t* go, char service_type)
+{
+  oc_oscore_context_t ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  memcpy(ctx.sender_id, kid, kid_len);
+  ctx.sender_id_len = kid_len;
+
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  memcpy(pkt.token, token, token_len);
+  pkt.token_len = token_len;
+
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.s_mode_group_object = go;
+  ep.s_mode_service_type = service_type;
+
+  oc_oscore_echo_whitelist_append(ssn, &ctx, &pkt, &ep);
+}
 
 static oc_endpoint_t make_mc_ep(void)
 {
@@ -105,10 +140,26 @@ protected:
   }
 };
 
-/* -- M1: udp_message_update lifetime -------------------------------------- */
+/*
+  new_transaction_with_copy: a transaction that holds its OWN copy of 'src' (data + endpoint), the source stays with the
+  caller. This is the layout of the 'echo re-request' of a unicast original; the copy is done here in the test (the stack
+  serializes the re-request into a plain coap_new_transaction() message instead of copying)
+*/
+static coap_transaction_t *new_transaction_with_copy(uint16_t mid, const uint8_t *token, uint8_t token_len, const oc_message_t *src)
+{
+  coap_transaction_t *t = coap_new_transaction(mid, token, token_len, (oc_endpoint_t *)&src->endpoint);
+  if (t)
+  {
+    t->message->length = src->length;
+    memcpy(t->message->data, src->data, src->length);
+  }
+  return t;
+}
+
+/* -- M1: caller's message lifetime -------------------------------------- */
 
 /*
-  coap_new_transaction_with_data only memcpy's M1's data into a freshly
+  new_transaction_with_copy only memcpy's M1's data into a freshly
   allocated t->message. M1's ref_count MUST be unchanged (stays 1) so that
   the unconditional oc_message_unref(M1) at oc_client_api.c:86 is the sole
   and final release regardless of whether the transaction allocation succeeded.
@@ -121,7 +172,7 @@ TEST_F(SModeRefCount, M1_TransactionWithDataDoesNotTouchM1RefCount)
   EXPECT_EQ(m1->ref_count, 1); /* BIRTH */
 
   uint8_t token[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB01, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -138,7 +189,7 @@ TEST_F(SModeRefCount, M1_TransactionWithDataDoesNotTouchM1RefCount)
 TEST_F(SModeRefCount, M1_RefCountUnchangedEvenIfTransactionFails)
 {
   /*
-    Even when coap_new_transaction_with_data returns NULL (e.g. OOM),
+    Even when new_transaction_with_copy returns NULL (e.g. OOM),
     the caller at oc_client_api.c:86 still unref's M1.
     Simulate this by checking the invariant directly: M1 stays at 1
     after a successful transaction creation, and unref drops to 0.
@@ -160,9 +211,8 @@ TEST_F(SModeRefCount, M1_RefCountUnchangedEvenIfTransactionFails)
     oc_allocate_message inside coap_new_transaction   ref = 1  (BIRTH)
     oc_message_add_ref  (cover deferred async send)   ref = 2
     coap_clear_transaction (immediate, transaction)   ref = 1  (via unref)
-    oc_oscore_echo_whitelist_append  (ring)     ref = 2  (ring add_ref)
-    oc_message_unref    (send-fn drops its send-ref)  ref = 1
-    whitelist slot release / free_all                 ref = 0  FREED
+    oc_oscore_echo_whitelist_append  (ring)     ref = 1  (GO ref only, no add_ref)
+    oc_message_unref    (send-fn drops its send-ref)  ref = 0  FREED
 */
 TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
 {
@@ -171,7 +221,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB02, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -187,39 +237,36 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
   coap_clear_transaction(t); /* oc_message_unref(m2) inside */
   EXPECT_EQ(m2->ref_count, 1); /* transaction's ref gone; send-ref survives */
 
-  /* step: ring puts its own reference (oc_oscore_engine.c) */
+  /* step: ring stores a group object reference only - the message is NOT referenced */
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_whitelist_append(42, kid, sizeof(kid),
-                                         token, sizeof(token), m2);
-  EXPECT_EQ(m2->ref_count, 2); /* ring owns one, send path owns one */
+  append_anchor(42, kid, sizeof(kid), token, sizeof(token), &g_go_ref, 'w');
+  EXPECT_EQ(m2->ref_count, 1); /* unchanged: the ring holds no message reference */
 
-  /* step: send-fn drops its (now spent) send-ref (oc_oscore_engine.c:1247) */
+  /* step: send-fn drops its (now spent) send-ref (oc_oscore_engine.c) */
   oc_message_unref(m2);
-  EXPECT_EQ(m2->ref_count, 1); /* ring is now the sole owner */
-
-  /* step: ring release (echo_tx_entry_release via free_all) */
-  oc_oscore_free_all_echo_records(); /* oc_message_unref(m2) inside */
   /* m2 freed - ref_count reached 0; confirmed by absence of crash/sanitiser hit */
+
+  oc_oscore_free_all_echo_records();
 
   /* caller's M1 cleanup (oc_client_api.c:86) */
   oc_message_unref(m1);
 }
 
 /*
-  Variant: ring releases M2 through slot roll-over rather than free_all.
-  Filling the ring past capacity causes the oldest slot (slot 0) to be
-  cleaned, which drops M2's ring-ref to 0.
+  Variant: the anchor is dropped through slot roll-over rather than free_all.
+  Filling the ring past capacity overwrites the oldest slot (slot 0), which
+  makes its token unfindable. No message reference is involved any more.
 */
 TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
 {
-  static const int RING = 64; /* OC_ECHO_RING_SIZE */
+  static const int RING = KNX_ECHO_RING_SIZE;
 
   oc_endpoint_t ep = make_mc_ep();
   oc_message_t *m1 = make_plaintext_smode_msg(&ep);
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB03, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -230,42 +277,34 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
   oc_message_add_ref(m2);                                        /* 1 -> 2 */
   coap_clear_transaction(t);                                     /* 2 -> 1 */
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_whitelist_append(100, kid, sizeof(kid),
-                                           token, sizeof(token), m2); /* -> 2 */
-  oc_message_unref(m2);                                          /* 2 -> 1 */
-  EXPECT_EQ(m2->ref_count, 1); /* ring is sole owner */
+  append_anchor(100, kid, sizeof(kid), token, sizeof(token), &g_go_ref, 'w');
+  EXPECT_EQ(m2->ref_count, 1); /* the ring took no reference */
+  oc_message_unref(m2);                                          /* 1 -> 0 FREED */
 
   /* Fill remaining RING-1 slots with distinct tokens to push slot 0 out. */
   for (int i = 1; i < RING; i++)
   {
     uint8_t tok[4] = { (uint8_t)i, 0xCC, 0xDD, 0xEE };
-    oc_message_t *filler = oc_allocate_message();
-    ASSERT_NE(filler, nullptr);
     static const uint8_t fk[] = {0x01};
-    oc_oscore_echo_whitelist_append((uint64_t)(200 + i), fk, sizeof(fk),
-                                            tok, sizeof(tok), filler);
-    oc_message_unref(filler); /* drop our ref; ring owns it now */
+    append_anchor((uint32_t)(200 + i), fk, sizeof(fk), tok, sizeof(tok), &g_go_filler, 'w');
   }
 
-  /* One more retain wraps to slot 0 and cleans M2 (ref -> 0, freed). */
+  /* One more append wraps to slot 0 and overwrites the first anchor. */
   uint8_t extra_tok[] = {0xDE, 0xAD, 0xBE, 0xEF};
-  oc_message_t *extra = oc_allocate_message();
-  ASSERT_NE(extra, nullptr);
   static const uint8_t ek[] = {0x01};
-  oc_oscore_echo_whitelist_append(999, ek, sizeof(ek),
-                                           extra_tok, sizeof(extra_tok), extra);
-  oc_message_unref(extra);
+  append_anchor(999, ek, sizeof(ek), extra_tok, sizeof(extra_tok), &g_go_filler, 'w');
 
   /*
-    M2 was at slot 0 and has been cleaned by roll-over. Confirm it is gone
-    from the ring (its token is no longer findable).
+    The first anchor was at slot 0 and has been overwritten by roll-over.
+    Confirm it is gone from the ring (its token is no longer findable).
   */
   coap_packet_t tok_pkt;
   memset(&tok_pkt, 0, sizeof(tok_pkt));
   memcpy(tok_pkt.token, token, sizeof(token));
   tok_pkt.token_len = sizeof(token);
-  EXPECT_EQ(oc_oscore_echo_get_retained_plaintext(&tok_pkt),
-            nullptr);
+
+  oc_echo_anchor_t anchor = {};
+  EXPECT_FALSE(oc_oscore_echo_get_anchor(&tok_pkt, &anchor));
 
   /* M1 cleanup */
   oc_message_unref(m1);
@@ -288,7 +327,7 @@ TEST_F(SModeRefCount, M2_UnicastCon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB04, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -326,7 +365,7 @@ TEST_F(SModeRefCount, M2_UnicastCon_RetransmitCycleStaysAtOne)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xAA, 0xBB};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB05, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -362,7 +401,7 @@ TEST_F(SModeRefCount, M2_UnicastNon_FullLifecycle)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xCA, 0xFE, 0xBA, 0xBE, 0x01, 0x02, 0x03, 0x04};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB06, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -400,7 +439,7 @@ TEST_F(SModeRefCount, M1AndM2_IndependentLifetimes)
   ASSERT_NE(m1, nullptr);
 
   uint8_t token[] = {0xDE, 0xAD};
-  coap_transaction_t *t = coap_new_transaction_with_data(
+  coap_transaction_t *t = new_transaction_with_copy(
     0xAB07, token, sizeof(token), m1);
   ASSERT_NE(t, nullptr);
 
@@ -421,10 +460,8 @@ TEST_F(SModeRefCount, M1AndM2_IndependentLifetimes)
   EXPECT_EQ(m2->ref_count, 1);
 
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_whitelist_append(77, kid, sizeof(kid),
-                                           token, sizeof(token), m2); /* -> 2 */
-  EXPECT_EQ(m2->ref_count, 2);
-  oc_message_unref(m2);         /* send-ref gone: 2 -> 1 */
+  append_anchor(77, kid, sizeof(kid), token, sizeof(token), &g_go_ref, 'w'); /* GO ref only */
   EXPECT_EQ(m2->ref_count, 1);
-  oc_oscore_free_all_echo_records(); /* ring frees M2: 1 -> 0 */
+  oc_message_unref(m2);         /* send-ref gone: 1 -> 0 FREED */
+  oc_oscore_free_all_echo_records();
 }

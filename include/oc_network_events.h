@@ -1,25 +1,14 @@
 /*
-// Copyright (c) 2016-2018 Intel Corporation
-// Copyright (c) 2022 Cascoda Ltd.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2016-2018 Intel Corporation
+ * Copyright (c) 2022 Cascoda Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 /**
   @brief network events (network interfaces going up/down)
   @file
 */
-#ifndef OC_NETWORK_EVENTS_H
-#define OC_NETWORK_EVENTS_H
+#pragma once
 
 #include "port/oc_network_events_mutex.h"
 #include "util/oc_process.h"
@@ -74,8 +63,14 @@ void oc_network_event(oc_message_t *message);
  */
 void oc_network_interface_event(oc_interface_event_t event);
 
+/**
+ * @brief the endpoint list changed (address change, new port), callable from any thread
+ *
+ * The poll handler of oc_network_events (main thread) calls oc_connectivity_get_endpoints(), which rebuilds the list,
+ * before the queued INTERFACE_UP/DOWN events run their callbacks (e.g. the mDNS re-announcement).
+ */
+void oc_network_endpoints_changed(void);
+
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_NETWORK_EVENTS_H */

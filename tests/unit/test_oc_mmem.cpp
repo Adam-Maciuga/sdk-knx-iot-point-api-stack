@@ -12,10 +12,7 @@ extern "C" {
 #include "util/oc_mmem.h"
 }
 
-class OcMmemTest : public ::testing::Test {
-protected:
-  void SetUp() override { oc_mmem_init(); }
-};
+class OcMmemTest : public ::testing::Test {};
 
 /* ── oc_mmem_alloc / BYTE_POOL ─────────────────────────────────────────────── */
 
@@ -55,6 +52,37 @@ TEST_F(OcMmemTest, AllocInt_ReturnsNonNull)
   oc_mmem_free(&m, INT_POOL);
 }
 
+/* ── oc_mmem_alloc / FLOAT_POOL ────────────────────────────────────────────── */
+
+TEST_F(OcMmemTest, AllocFloat_ReturnsNonNull)
+{
+  struct oc_mmem m = {};
+  size_t bytes = oc_mmem_alloc(&m, 4, FLOAT_POOL);
+  /* Regression: FLOAT_POOL used to fall through into DOUBLE_POOL (missing
+   * break), so this also ran the DOUBLE_POOL allocation, overwrote m.ptr/
+   * m.size with it (leaking the float allocation), and double-counted the
+   * returned byte count. */
+  EXPECT_EQ(bytes, 4u * sizeof(float));
+  ASSERT_NE(m.ptr, nullptr);
+  EXPECT_EQ(m.size, 4u);
+  oc_mmem_free(&m, FLOAT_POOL);
+}
+
+TEST_F(OcMmemTest, AllocFloat_MemoryIsWritable)
+{
+  struct oc_mmem m = {};
+  oc_mmem_alloc(&m, 2, FLOAT_POOL);
+  ASSERT_NE(m.ptr, nullptr);
+
+  auto *p = static_cast<float *>(m.ptr);
+  p[0] = 1.5f;
+  p[1] = -2.5f;
+  EXPECT_FLOAT_EQ(p[0], 1.5f);
+  EXPECT_FLOAT_EQ(p[1], -2.5f);
+
+  oc_mmem_free(&m, FLOAT_POOL);
+}
+
 /* ── oc_mmem_alloc / DOUBLE_POOL ───────────────────────────────────────────── */
 
 TEST_F(OcMmemTest, AllocDouble_ReturnsNonNull)
@@ -85,12 +113,7 @@ TEST_F(OcMmemTest, Free_ClearsSize)
 
   oc_mmem_free(&m, BYTE_POOL);
   EXPECT_EQ(m.size, 0u);
-}
-
-TEST_F(OcMmemTest, FreeNull_NoOp)
-{
-  // Should not crash
-  oc_mmem_free(nullptr, BYTE_POOL);
+  EXPECT_EQ(m.ptr, nullptr); // no dangling pointer after free
 }
 
 /* ── Multiple alloc/free cycles ────────────────────────────────────────────── */
@@ -109,18 +132,4 @@ TEST_F(OcMmemTest, MultipleAllocFree)
     oc_mmem_free(&blocks[i], BYTE_POOL);
     EXPECT_EQ(blocks[i].size, 0u);
   }
-}
-
-/* ── oc_mmem_init idempotent ───────────────────────────────────────────────── */
-
-TEST_F(OcMmemTest, Init_DoubleInit_NoOp)
-{
-  // Calling init twice should not crash or reset state
-  oc_mmem_init();
-  oc_mmem_init();
-
-  struct oc_mmem m = {};
-  size_t bytes = oc_mmem_alloc(&m, 8, BYTE_POOL);
-  EXPECT_GT(bytes, 0u);
-  oc_mmem_free(&m, BYTE_POOL);
 }

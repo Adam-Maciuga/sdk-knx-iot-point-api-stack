@@ -5,6 +5,9 @@
  * Tests pure functions that need no stack initialization.
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include <gtest/gtest.h>
@@ -19,13 +22,17 @@ extern "C" {
 #include "oc_rep.h"
 #include "messaging/coap/oc_coap.h"
 #include "util/oc_mmem.h"
+#include "api/oc_knx_dev.h" /* KNX_STORAGE_KEY_FINGERPRINT */
+#include "port/oc_storage.h"
+#include "messaging/coap/observe.h"
+#include "messaging/coap/coap.h"
+#include "port/oc_network_events_mutex.h"
 
 /* static handlers are reachable via these non-static const resource literals */
 extern const oc_resource_t core_resource_knx;
 extern const oc_resource_t core_resource_a_lsm;
+extern const oc_resource_t core_resource_knx_k;
 extern const oc_resource_t core_resource_knx_fingerprint;
-extern const oc_resource_t core_resource_knx_ldevid;
-extern const oc_resource_t core_resource_knx_idevid;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -223,7 +230,6 @@ protected:
 
   void SetUp() override
   {
-    oc_mmem_init();
     oc_device_info_t *d = oc_core_get_device_info();
     saved_lsm = d->lsm_s;
     saved_iid = d->iid;
@@ -269,6 +275,43 @@ TEST_F(KnxHandlers, KnxGetUnsupportedAcceptIsBadRequest)
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
 }
 
+/*
+  register one observer on /k through the real observe handler (lt is mandatory), the way a subscriber does
+*/
+static int add_k_observer(uint16_t port)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV6;
+  ep.addr.ipv6.port = port;
+  ep.addr.ipv6.address[15] = 1;
+
+  static const char query[] = "lt=86400";
+  coap_packet_t req;
+  memset(&req, 0, sizeof(req));
+  req.code = COAP_GET;
+  req.observe = OC_OBSERVE_REGISTER;
+  SET_OPTION(&req, COAP_OPTION_OBSERVE);
+  req.token[0] = (uint8_t)port;
+  req.token_len = 1;
+  req.uri_path = "k";
+  req.uri_path_len = 1;
+  req.uri_query = query;
+  req.uri_query_len = (uint32_t)strlen(query);
+  SET_OPTION(&req, COAP_OPTION_URI_QUERY);
+
+  coap_packet_t res;
+  memset(&res, 0, sizeof(res));
+  res.code = CONTENT_2_05;
+
+  return coap_observe_handler(&req, &res, &core_resource_knx_k, 0, &ep);
+}
+
+static int k_observers(void)
+{
+  return core_resource_knx_k.runtime_data->num_observers;
+}
+
 /* --- /a/lsm GET --- */
 
 TEST_F(KnxHandlers, ALsmGetReturnsCurrentState)
@@ -310,45 +353,150 @@ TEST_F(KnxHandlers, FingerprintGetOkWhenRuntime)
   EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
 }
 
-/* --- /.well-known/knx/ldevid GET (raw cert bytes) --- */
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_knx_load_fingerprint / oc_knx_increase_fingerprint - 4-byte storage
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
-TEST_F(KnxHandlers, LdevidGetReturnsRawBytes)
+class KnxFingerprintStorage : public ::testing::Test {
+protected:
+  void SetUp() override
+  {
+    /*
+      one directory per test, since ctest runs every TEST_F as its own process and `ctest -j` would otherwise race on
+      a shared file
+    */
+    const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info();
+    char dir[64];
+    (void)snprintf(dir, sizeof(dir), "fgp_%s", info->name());
+    oc_storage_config(dir);
+    (void)oc_storage_erase(KNX_STORAGE_KEY_FINGERPRINT);
+  }
+
+  void TearDown() override { (void)oc_storage_erase(KNX_STORAGE_KEY_FINGERPRINT); }
+
+  /*
+    the fingerprint itself is static, the stored record shows its value and size; the buffer is larger than the
+    record, so the read length is the stored size
+  */
+  static long read_stored(uint64_t *value)
+  {
+    *value = 0;
+    return oc_storage_read(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)value, sizeof(*value));
+  }
+};
+
+TEST_F(KnxFingerprintStorage, AbsentKeyIncreaseStoresFourBytes)
 {
-  const char *cert = "LDEVIDBYTES";
-  oc_knx_set_ldevid((char *)cert, (int)strlen(cert));
-  request.accept = APPLICATION_PKCS7_CMC_REQUEST;
-  core_resource_knx_ldevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_EQ(response_buffer.content_format, APPLICATION_PKCS7_CMC_RESPONSE);
-  ASSERT_EQ(response_buffer.response_length, strlen(cert));
-  EXPECT_EQ(0, memcmp(buf, cert, strlen(cert)));
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  EXPECT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 1u);
 }
 
-TEST_F(KnxHandlers, LdevidGetWrongAcceptIsBadRequest)
+TEST_F(KnxFingerprintStorage, LoadContinuesFromStoredValue)
 {
+  uint32_t value = 41;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&value, sizeof(value)), 4);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  ASSERT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 42u);
+}
+
+TEST_F(KnxFingerprintStorage, OldEightByteRecordKeepsLowHalf)
+{
+  /* a record of a firmware with a 64-bit fingerprint, the file storage reads its low 4 bytes (little endian) */
+  uint64_t old_value = 0x0000000100000005ULL;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&old_value, sizeof(old_value)), 8);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  EXPECT_EQ(read_stored(&stored), 4) << "the next increase replaces the 8-byte record by a 4-byte one";
+  EXPECT_EQ(stored, 6u);
+}
+
+TEST_F(KnxFingerprintStorage, IncreaseWrapsAtFourBytes)
+{
+  uint32_t value = UINT32_MAX;
+  ASSERT_EQ(oc_storage_write(KNX_STORAGE_KEY_FINGERPRINT, (uint8_t *)&value, sizeof(value)), 4);
+
+  oc_knx_load_fingerprint();
+  oc_knx_increase_fingerprint();
+
+  uint64_t stored;
+  ASSERT_EQ(read_stored(&stored), 4);
+  EXPECT_EQ(stored, 0u);
+}
+
+/* --- /a/lsm POST unload: subscriptions end with the configuration --- */
+
+/*
+  Unloading drops every observer (spec 2.5.8.1: no runtime communication outside "loaded"). Without it a /k
+  subscription survives into the next "loaded" and keeps the pointer to its access token slot, which may hold
+  another token by then.
+*/
+TEST_F(KnxHandlers, ALsmUnloadRemovesAllObservers)
+{
+  oc_network_event_handler_mutex_init();
+  ASSERT_EQ(add_k_observer(5001), 0);
+  ASSERT_EQ(add_k_observer(5002), 0);
+  ASSERT_EQ(k_observers(), 2);
+
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  oc_rep_t event;
+  memset(&event, 0, sizeof(event));
+  event.type = OC_REP_INT;
+  event.iname = 2;
+  event.value.integer = LSM_E_UNLOAD;
+  request.request_payload = &event;
   request.accept = APPLICATION_CBOR;
-  core_resource_knx_ldevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
+
+  core_resource_a_lsm.post_handler.cb(&request, OC_IF_NONE, nullptr);
+
+  EXPECT_EQ(oc_core_get_device_info()->lsm_s, LSM_S_UNLOADED);
+  EXPECT_EQ(k_observers(), 0);
+
+  coap_free_all_observers();
+  oc_network_event_handler_mutex_destroy();
 }
 
-/* --- /.well-known/knx/idevid GET (raw cert bytes) --- */
+/* --- /a/lsm POST start loading: unicast IPv6 resolvers end with the configuration --- */
 
-TEST_F(KnxHandlers, IdevidGetReturnsRawBytes)
+/*
+  A resolver keeps a pointer to the sending group object until its discovery response arrives. In LOADING the
+  group object may be deleted (ga = NULL) or rewritten; a late response then read ga[0] from NULL. The load state
+  transition drops every resolver before the tables may change.
+*/
+TEST_F(KnxHandlers, ALsmStartLoadingResetsPendingUnicastResolvers)
 {
-  const char *cert = "IDEVID0123";
-  oc_knx_set_idevid(cert, (int)strlen(cert));
-  request.accept = APPLICATION_PKCS7_CMC_REQUEST;
-  core_resource_knx_idevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_OK));
-  EXPECT_EQ(response_buffer.content_format, APPLICATION_PKCS7_CMC_RESPONSE);
-  ASSERT_EQ(response_buffer.response_length, strlen(cert));
-  EXPECT_EQ(0, memcmp(buf, cert, strlen(cert)));
-}
+  oc_group_table_t* recipient = oc_core_get_recipient_table_entry(0);
+  ASSERT_NE(recipient, nullptr);
+  recipient->ipv6_res.group_object = oc_core_get_group_object_table_entry(0);
+  recipient->ipv6_res.service_type = 'w';
+  recipient->ipv6_res.attempts = 3;
+  recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
 
-TEST_F(KnxHandlers, IdevidGetWrongAcceptIsBadRequest)
-{
+  oc_core_get_device_info()->lsm_s = LSM_S_LOADED;
+  oc_rep_t event;
+  memset(&event, 0, sizeof(event));
+  event.type = OC_REP_INT;
+  event.iname = 2;
+  event.value.integer = LSM_E_STARTLOADING;
+  request.request_payload = &event;
   request.accept = APPLICATION_CBOR;
-  core_resource_knx_idevid.get_handler.cb(&request, OC_IF_NONE, nullptr);
-  EXPECT_EQ(response_buffer.code, oc_status_code(OC_STATUS_BAD_REQUEST));
-}
 
+  core_resource_a_lsm.post_handler.cb(&request, OC_IF_NONE, nullptr);
+
+  EXPECT_EQ(oc_core_get_device_info()->lsm_s, LSM_S_LOADING);
+  EXPECT_EQ(recipient->ipv6_res.group_object, nullptr);
+  EXPECT_EQ(recipient->ipv6_res.callback, nullptr);
+  EXPECT_EQ(recipient->ipv6_res.attempts, 0);
+  EXPECT_EQ(recipient->ipv6_res.resolve_status, OC_IP_STATUS_UNRESOLVED);
+}

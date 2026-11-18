@@ -2,12 +2,11 @@
  * Copyright (c) 2020 Intel Corporation
  * Copyright (c) 2022-2023 Cascoda Ltd.
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef OC_OSCORE_CONTEXT_H
-#define OC_OSCORE_CONTEXT_H
+#pragma once
 
 #include "messaging/coap/oscore_constants.h"
 #include "api/oc_knx_sec.h"
@@ -26,10 +25,12 @@ extern "C" {
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any */
-  const oc_auth_at_t* auth_at;                      /**< pointer to the access token entry from AT table, that was used to decrypt a received message */
+  struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any (must be first, OC_LIST) */
+  oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
+  const oc_auth_at_t* auth_at;                      /**< access token entry of the AT table this context was created from (sender: uc/mc sending, recipient: decrypting) */
+  uint32_t ssn;                                     /**< sender sequence number (32-bit, KNX IoT) */
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
-  
+
   uint8_t sender_id[OSCORE_SENDER_ID_LEN];          /**< 'Sender ID' (in OSCORE) */
   uint8_t sender_id_len;                            /**< 'Sender ID' (in OSCORE) length */
 
@@ -38,9 +39,6 @@ typedef struct oc_oscore_context_t
 
   uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        /**< 'ID Context' (in OSCORE) */
   uint8_t id_context_len;                           /**< 'ID Context' (in OSCORE) length */
-
-  uint64_t ssn;                                     /**< sender sequence number */
-  oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
 
   // derived parameters
   uint8_t sender_key[OSCORE_KEY_LEN];               /**< 128-bit sender key */
@@ -90,6 +88,8 @@ void oc_oscore_free_all_contexts(void);
  *
  * @note releases any context if it is not used as any "Recipient Context"
  *
+ * @note recipient contexts are kept: they still hold the keys they were created with; a key update of an
+ *       access token (POST /auth/at) therefore frees all contexts of that token itself (oc_oscore_free_contexts_at_id)
  */
 void oc_oscore_free_sender_contexts(void);
 
@@ -111,9 +111,9 @@ void oc_oscore_free_contexts_at_id(const oc_auth_at_t* auth_at_entry);
 typedef struct oc_oscore_context_params_t {
   const uint8_t* sender_id;     /**< Sender ID (NULL for a recipient-only context) */
   const uint8_t* recipient_id;  /**< Recipient ID (NULL for a sender-only context) */
-  uint64_t ssn;                 /**< Sender sequence number */
   const uint8_t* id_context;    /**< ID Context */
   const oc_auth_at_t* auth_at;  /**< Pointer to the access token entry in the AT table */
+  uint32_t ssn;                 /**< Sender sequence number (32-bit, KNX IoT) */
   uint8_t id_context_size;      /**< Length of ID Context */
   uint8_t sender_id_size;       /**< Length of sender_id */
   uint8_t recipient_id_size;    /**< Length of recipient_id */
@@ -122,6 +122,13 @@ typedef struct oc_oscore_context_params_t {
 
 /**
  * @brief creates an OSCORE context (e.g. the internal structure for encoding/decoding)
+ *
+ * A context has ONE id: a sender context (sender_id) or a recipient context (recipient_id), set by
+ * oc_oscore_add_sender_context / oc_oscore_add_recipient_context; the other id stays empty (len 0).
+ * BOTH keys (sender_key, recipient_key) and the common IV are always derived, a missing id as an empty id:
+ * - a recipient context decrypts a request with its recipient_key and encrypts the response to it with its
+ *   sender_key (the engine answers with the context found for the request)
+ * - all key material comes from the master secret / salt of the access token at creation time
  *
  * @param params pointer to the context parameters struct
  * @return != NULL context can be used for encryption/decryption, else not
@@ -148,16 +155,45 @@ oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* pa
  */
 void oc_oscore_free_lru_recipient_context(void);
 
-oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
+/**
+ * @brief find the sender context for a multicast message: the first token holding the group address
+ *        that is not the 'at' of a unicast recipient table entry (spec 6.3.2.1)
+ *
+ * @param group_address the sending group address
+ * @return the sender context, NULL if none is found
+ */
+oc_oscore_context_t* oc_oscore_find_multicast_context_by_group_address(uint32_t group_address);
+
+/**
+ * @brief find the first context of an access token, e.g. the 'at' of a recipient table entry
+ *
+ * @param auth_at the access token entry
+ * @param sender_only true: only a sender context (sender id populated), recipient contexts are never used for sending
+ * @return the context, NULL if auth_at is NULL or no (sender) context exists for it
+ */
+oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at, bool sender_only);
+
+/**
+ * @brief checks that a sender context can still use its SSN as Partial IV and increments the SSN
+ *
+ * - ssn++ and save to storage each OSCORE_SSN_WRITE_FREQ_K (32) values
+ * - increment = false : CON retransmission, the SSN is used again and not incremented
+ * - returns false if the SSN space is exhausted (ssn == OSCORE_SSN_MAX, that value is never used as Partial IV),
+ *   nothing is incremented and the caller must refuse to send. The SSN never wraps, so an AEAD nonce is never
+ *   reused (RFC 8613, 7.2.1); a new sender context (re-keying) is needed to send again.
+ *
+ * @param ctx the sender context
+ * @param increment true to increment the SSN, false to only check
+ * @return true if the SSN may be used, false if exhausted
+ */
+bool check_and_increment_ssn_in_context(oc_oscore_context_t* ctx, bool increment);
 
 // inputs are checked against the own Recipient Contexts (RID)
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
 // searches a context by token/ mid of inbound response, from a former (OBSERVE) request by a client (inputs are checked against the contexts INBOUND access token)
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp);
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

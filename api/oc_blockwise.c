@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
-#ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
 #include "oc_endpoint.h"
 #include "port/oc_log.h"
@@ -24,31 +23,22 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(size_t size, const char* h
   if (href_len == 0)
     return NULL;
 
+  // calloc zeroes: next, payload_size, next_block_offset, uri_query, return_content_type, token, token_len, mid, client_cb
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)calloc(1, size);
   if (buffer)
   {
-    if (!buffer->buffer)
-    {
-      buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
-    }
+    buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     if (!buffer->buffer)
     {
       free(buffer);
       return NULL;
     }
-    buffer->next_block_offset = 0;
-    buffer->payload_size = 0;
     buffer->ref_count = 1;
     buffer->method = method;
     buffer->role = role;
     memcpy(&buffer->endpoint, endpoint, sizeof(oc_endpoint_t));
     buffer->endpoint.next = NULL;
     oc_new_string(&buffer->href, href, href_len);
-    buffer->next = NULL;
-  #ifdef OC_CLIENT
-    buffer->mid = 0;
-    buffer->client_cb = NULL;
-  #endif /* OC_CLIENT */
     return buffer;
   }
   OC_WRN("block-wise buffers exhausted");
@@ -100,7 +90,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_request_buffer(const char* href, size_t
 }
 
 oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_t href_len, oc_endpoint_t* endpoint, coap_method_t method,
-                                                         oc_blockwise_role_t role)
+                                                         oc_blockwise_role_t role, oc_content_format_t content_format)
 {
   oc_blockwise_response_state_t* buffer =
     (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_response_state_t), href, href_len, endpoint, method, role);
@@ -110,6 +100,9 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
     // copy 8 bytes of etag on outbound messages 
     const uint32_t a = oc_random_value(); memcpy(buffer->etag + 0, &a, sizeof(a));
     const uint32_t b = oc_random_value(); memcpy(buffer->etag + 4, &b, sizeof(b));
+
+    // RFC 7959 2.4: the follow-up blocks (served from this buffer) carry the same Content-Format as the first one
+    buffer->base.return_content_type = content_format;
 
     #ifdef OC_CLIENT
     buffer->observe_seq = OC_OBSERVE_NOT_INITIALIZED;
@@ -259,8 +252,14 @@ static oc_blockwise_state_t* oc_blockwise_find_buffer(oc_list_t list, const char
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_list_head(list);
   while (buffer)
   {
-    if (strncmp(href, oc_string(buffer->href), href_len) == 0 && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 && buffer->method == method &&
-        buffer->role == role && query_len == oc_string_len(buffer->uri_query) && memcmp(query, oc_string(buffer->uri_query), query_len) == 0)
+    // href and query -> same length AND same content, a shorter href ("p") must not match a longer stored one ("p/1")
+    if (href_len == oc_string_len(buffer->href) 
+        && memcmp(href, oc_string(buffer->href), href_len) == 0 
+        && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 
+        && buffer->method == method 
+        && buffer->role == role 
+        && query_len == oc_string_len(buffer->uri_query) 
+        && (query_len == 0 || memcmp(query, oc_string(buffer->uri_query), query_len) == 0))
     {
       break;
     }
@@ -335,4 +334,3 @@ bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_b
   return true;
 }
 
-#endif

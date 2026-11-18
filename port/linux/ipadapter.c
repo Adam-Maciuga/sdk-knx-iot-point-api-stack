@@ -3,6 +3,9 @@
  * Copyright (c) 2024-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #define _GNU_SOURCE
@@ -28,9 +31,6 @@
 #include "ipadapter.h"
 #include "ipcontext.h"
 #include "oc_config.h"
-#ifdef OC_TCP
-#include "tcpadapter.h"
-#endif
 #include "oc_buffer.h"
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
@@ -160,21 +160,6 @@ static void remove_all_network_interface_cbs(void) {
   }
 }
 
-#ifdef OC_SESSION_EVENTS
-OC_LIST(oc_session_event_cb_list);
-
-static void remove_all_session_event_cbs(void) {
-  oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list),
-                        *next;
-  while (cb_item != NULL) {
-    next = cb_item->next;
-    oc_list_remove(oc_session_event_cb_list, cb_item);
-    free(cb_item);
-    cb_item = next;
-  }
-}
-#endif
-
 void oc_network_event_handler_mutex_init(void) {
   if (pthread_mutex_init(&mutex, NULL) != 0) {
     oc_abort("error initializing network event handler mutex");
@@ -194,9 +179,6 @@ void oc_network_event_handler_mutex_destroy(void) {
   close(ifchange_sock);
   remove_all_ip_interface();
   remove_all_network_interface_cbs();
-#ifdef OC_SESSION_EVENTS
-  remove_all_session_event_cbs();
-#endif
   pthread_mutex_destroy(&mutex);
 }
 
@@ -344,8 +326,8 @@ static int configure_mcast_socket(int mcast_sock, int sa_family) {
   return ret;
 }
 
-static void get_interface_addresses(ip_context_t *dev, unsigned char family, 
-        uint16_t port, bool secure, bool tcp) {
+static void get_interface_addresses(ip_context_t *dev, unsigned char family,
+        uint16_t port) {
   struct {
     struct nlmsghdr nlhdr;
     struct ifaddrmsg addrmsg;
@@ -381,31 +363,42 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
   int prev_interface_index = -1;
   bool done = false;
   while (!done) {
-    int guess = 512, response_len;
-    do {
-      guess <<= 1;
-      uint8_t dummy[guess];
-      response_len = recv(nl_sock, dummy, guess, MSG_PEEK);
-      if (response_len < 0) {
-        close(nl_sock);
-        return;
-      }
-    } while (response_len == guess);
+    // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
+    uint8_t probe;
+    ssize_t response_len = recv(nl_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+    if (response_len <= 0) {
+      close(nl_sock);
+      return;
+    }
 
-    uint8_t buffer[response_len];
+    uint8_t *buffer = malloc(response_len);
+    if (!buffer) {
+      close(nl_sock);
+      return;
+    }
+
     response_len = recv(nl_sock, buffer, response_len, 0);
     if (response_len < 0) {
+      free(buffer);
       close(nl_sock);
       return;
     }
 
     response = (struct nlmsghdr *)buffer;
-    if (response->nlmsg_type == NLMSG_ERROR) {
+    /*
+      Signed like the int the netlink macros are written against, 64 bit so the u32 message
+      length compares without a sign change on every target (clang -Wsign-compare).
+    */
+    int64_t len = response_len;
+    
+    // NLMSG_OK first: a reply shorter than a header must not be read
+    if (!NLMSG_OK(response, len) || response->nlmsg_type == NLMSG_ERROR) {
+      free(buffer);
       close(nl_sock);
       return;
     }
 
-    while (NLMSG_OK(response, response_len)) {
+    while (NLMSG_OK(response, len)) {
       if (response->nlmsg_type == NLMSG_DONE) {
         done = true;
         break;
@@ -451,23 +444,13 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
           ep.addr.ipv6.scope = addrmsg->ifa_index;
         }
 
-        if (secure) {
-          ep.flags |= SECURED;
-        }
-
         if (family == AF_INET6) {
           ep.addr.ipv6.port = port;
         }
 
-#ifdef OC_TCP
-        if (tcp) {
-          ep.flags |= TCP;
-        }
-#else
-        (void)tcp;
-#endif
         oc_endpoint_t *new_ep = calloc(1, sizeof(oc_endpoint_t));
         if (!new_ep) {
+          free(buffer);
           close(nl_sock);
           return;
         }
@@ -477,8 +460,10 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
       }
 
     next_ifaddr:
-      response = NLMSG_NEXT(response, response_len);
+      response = NLMSG_NEXT(response, len);
     }
+
+    free(buffer);
   }
 
   close(nl_sock);
@@ -496,30 +481,40 @@ static void free_endpoints_list(ip_context_t *dev) {
 static void refresh_endpoints_list(ip_context_t *dev) {
   free_endpoints_list(dev);
 
-  get_interface_addresses(dev, AF_INET6, dev->port, false, false);	// TBD FIXME shouldn't this also be an option and called always?
-#ifdef KNX_UDP_DTLS
-  get_interface_addresses(dev, AF_INET6, dev->dtls_port, true, false);
-#endif
-#ifdef OC_TCP
-  get_interface_addresses(dev, AF_INET6, dev->tcp.port, false, true);
-#ifdef KNX_TCP_TLS
-  get_interface_addresses(dev, AF_INET6, dev->tcp.tls_port, true, true);
-#endif
-#endif
+  get_interface_addresses(dev, AF_INET6, dev->port);	// TBD FIXME shouldn't this also be an option and called always?
 }
 
-oc_endpoint_t * oc_connectivity_get_endpoints() {
+/*
+  The endpoint list is rebuilt (its nodes freed) ONLY in the main thread, in oc_connectivity_get_endpoints().
+  - the main thread walks the list without the mutex (loopback check, /dev/ipv6, ...): it never sees a node freed
+    by another thread
+  - the network thread (address change), a new port and a manual refresh only mark the list dirty, the next
+    oc_connectivity_get_endpoints() of the main thread rebuilds it
+  - the mDNS listener thread walks the list under oc_network_event_handler_mutex, the rebuild runs under it too
+*/
+static bool endpoints_dirty;
+
+static void mark_endpoints_dirty(void) {
+  oc_network_event_handler_mutex_lock();
+  endpoints_dirty = true;
+  oc_network_event_handler_mutex_unlock();
+  // rebuild promptly in the main thread, not only at the next getter call
+  oc_network_endpoints_changed();
+}
+
+oc_endpoint_t * oc_connectivity_get_endpoints(void) {
   ip_context_t *dev = get_ip_context_for_device();
 
   if (!dev) {
     return NULL;
   }
 
-  if (oc_list_length(dev->eps) == 0) {
-    oc_network_event_handler_mutex_lock();
+  oc_network_event_handler_mutex_lock();
+  if (endpoints_dirty || oc_list_length(dev->eps) == 0) {
     refresh_endpoints_list(dev);
-    oc_network_event_handler_mutex_unlock();
+    endpoints_dirty = false;
   }
+  oc_network_event_handler_mutex_unlock();
 
   return oc_list_head(dev->eps);
 }
@@ -531,8 +526,8 @@ oc_endpoint_t * oc_connectivity_get_endpoints() {
 #define OPEN_SOCK_OPT_V6ONLY    (1u << 1) /* set IPV6_V6ONLY (unicast socket only) */
 
 /* Open a UDP socket and bind it to the given port on any IPv6 address.
- * Pass port=0 to let the OS assign an ephemeral port (used for server_sock and
- * secure_sock).  Pass port=COAP_PORT_UNSECURED for mcast_sock.
+ * Pass port=0 to let the OS assign an ephemeral port (used for server_sock).
+ * Pass port=COAP_PORT_UNSECURED for mcast_sock.
  * opts is a bitmask of OPEN_SOCK_OPT_* flags selecting optional socket options.
  * description is a human-readable label used in log messages, e.g. "unicast".
  * Returns the file descriptor on success, or -1 on failure (fd is closed).
@@ -649,10 +644,8 @@ int oc_connectivity_get_new_port(void) {
     OC_ERR("waking network thread %d", errno);
   }
 
-  /* Rebuild the endpoint list with the new port. */
-  oc_network_event_handler_mutex_lock();
-  refresh_endpoints_list(dev);
-  oc_network_event_handler_mutex_unlock();
+  /* The endpoint list carries the new port after its rebuild in the main thread. */
+  mark_endpoints_dirty();
 
   OC_INF("New CoAP port: %u", dev->port);
   return 0;
@@ -663,7 +656,7 @@ int oc_connectivity_get_new_port(void) {
  * all logical devices.
  */
 int oc_network_refresh_endpoints(void) {
-  int ret = 0, i;
+  int ret = 0;
   struct nlmsghdr *response = NULL;
 
   // Check if there's data available on the netlink socket (non-blocking).
@@ -674,15 +667,9 @@ int oc_network_refresh_endpoints(void) {
   
   int select_ret = select(ifchange_sock + 1, &readfds, NULL, NULL, &tv);
   
-  // If no data available (manual call), just rebuild endpoint list.
+  // If no data available (manual call), the endpoint list is rebuilt in the main thread.
   if (select_ret == 0) {
-    ip_context_t *dev = get_ip_context_for_device();
-    if (dev) {
-      oc_network_event_handler_mutex_lock();
-      refresh_endpoints_list(dev);
-      oc_network_event_handler_mutex_unlock();
-    }
-
+    mark_endpoints_dirty();
     return 0;
   }
   
@@ -693,37 +680,49 @@ int oc_network_refresh_endpoints(void) {
   }
 
   // Data is available, process the netlink event.
-  int guess = 512, response_len;
-  do {
-    guess <<= 1;
-    uint8_t dummy[guess];
-    response_len = recv(ifchange_sock, dummy, guess, MSG_PEEK);
-    if (response_len < 0) {
-      OC_ERR("reading payload size from netlink interface");
-      return -1;
-    }
-  } while (response_len == guess);
+  // MSG_TRUNC with MSG_PEEK returns the real size of the queued netlink datagram.
+  uint8_t probe;
+  ssize_t response_len = recv(ifchange_sock, &probe, sizeof(probe), MSG_PEEK | MSG_TRUNC);
+  if (response_len <= 0) {
+    OC_ERR("reading payload size from netlink interface");
+    return -1;
+  }
 
-  uint8_t buffer[response_len];
+  uint8_t *buffer = malloc(response_len);
+  if (!buffer) {
+    OC_ERR("Failed to allocate the netlink message buffer!");
+    return -1;
+  }
+
   response_len = recv(ifchange_sock, buffer, response_len, 0);
   if (response_len < 0) {
     OC_ERR("reading payload from netlink interface");
+    free(buffer);
     return -1;
   }
 
   response = (struct nlmsghdr *)buffer;
-  if (response->nlmsg_type == NLMSG_ERROR) {
-    OC_ERR("caught NLMSG_ERROR in payload from netlink interface");
+  /*
+    Signed like the int the netlink macros are written against, 64 bit so the u32 message
+    length compares without a sign change on every target (clang -Wsign-compare).
+  */
+  int64_t len = response_len;
+  // NLMSG_OK first: a reply shorter than a header must not be read (F-044)
+  if (!NLMSG_OK(response, len) || response->nlmsg_type == NLMSG_ERROR) {
+    OC_ERR("short or NLMSG_ERROR payload from netlink interface");
+    free(buffer);
     return -1;
   }
 
   bool if_state_changed = false;
-  while (NLMSG_OK(response, response_len)) {
+  bool if_up = false;
+  bool if_down = false;
+  while (NLMSG_OK(response, len)) {
     if (response->nlmsg_type == RTM_NEWADDR) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
       if (ifa) {
         if (add_ip_interface(ifa->ifa_index)) {
-          oc_network_interface_event(NETWORK_INTERFACE_UP);
+          if_up = true;
         }
         struct rtattr *attr = (struct rtattr *)IFA_RTA(ifa);
         int att_len = IFA_PAYLOAD(response);
@@ -744,21 +743,28 @@ int oc_network_refresh_endpoints(void) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
       if (ifa) {
         if (remove_ip_interface(ifa->ifa_index)) {
-          oc_network_interface_event(NETWORK_INTERFACE_DOWN);
+          if_down = true;
         }
       }
 
       if_state_changed = true;
     }
 
-    response = NLMSG_NEXT(response, response_len);
+    response = NLMSG_NEXT(response, len);
   }
 
+  free(buffer);
+
   if (if_state_changed) {
-    ip_context_t *dev = get_ip_context_for_device();
-    oc_network_event_handler_mutex_lock();
-    refresh_endpoints_list(dev);
-    oc_network_event_handler_mutex_unlock();
+    // network thread: never rebuild (free) the list here, the main thread may walk it
+    mark_endpoints_dirty();
+  }
+  // posted after the list is marked dirty: the main thread rebuilds it before the interface callbacks (mDNS) run
+  if (if_up) {
+    oc_network_interface_event(NETWORK_INTERFACE_UP);
+  }
+  if (if_down) {
+    oc_network_interface_event(NETWORK_INTERFACE_DOWN);
   }
 
   return ret;
@@ -830,16 +836,16 @@ static int recv_msg(int sock, uint8_t *recv_buf, int recv_buf_size,
 static void oc_udp_add_socks_to_fd_set(ip_context_t *dev) {
   FD_SET(dev->server_sock, &dev->rfds);
   FD_SET(dev->mcast_sock, &dev->rfds);
-#ifdef KNX_UDP_DTLS
-  FD_SET(dev->secure_sock, &dev->rfds);
-#endif
 }
 
 static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev, 
         fd_set *fds, oc_message_t *message) {
+  // destination address of a datagram (IPV6_PKTINFO), only used to decide on the MULTICAST flag
+  oc_ipv6_addr_t mcast_dest = { 0 };
+
   if (FD_ISSET(dev->server_sock, fds)) {
     int count = recv_msg(dev->server_sock, message->data, OC_PDU_SIZE,
-            &message->endpoint, false, &message->mcast_dest);
+            &message->endpoint, false, &mcast_dest);
     if (count < 0) {
       return ADAPTER_STATUS_ERROR;
     }
@@ -853,7 +859,7 @@ static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev,
 
   if (FD_ISSET(dev->mcast_sock, fds)) {
     int count = recv_msg(dev->mcast_sock, message->data, OC_PDU_SIZE,
-            &message->endpoint, true, &message->mcast_dest);
+            &message->endpoint, true, &mcast_dest);
     if (count < 0) {
       return ADAPTER_STATUS_ERROR;
     }
@@ -863,7 +869,7 @@ static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev,
     // multicast destination.  On Linux the mcast_sock may also receive
     // unicast traffic (e.g. from ::1 loopback); tagging those as MULTICAST
     // causes the OSCORE engine to choose the wrong encryption path.
-    if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)message->mcast_dest.address)) {
+    if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)mcast_dest.address)) {
       message->endpoint.flags = IPV6 | MULTICAST;
     } else {
       message->endpoint.flags = IPV6;
@@ -872,23 +878,6 @@ static adapter_receive_state_t oc_udp_receive_message(ip_context_t *dev,
 
     return ADAPTER_STATUS_RECEIVE;
   }
-
-#ifdef KNX_UDP_DTLS
-  if (FD_ISSET(dev->secure_sock, fds)) {
-    int count = recv_msg(dev->secure_sock, message->data, OC_PDU_SIZE,
-            &message->endpoint, false, &message->mcast_dest);
-    if (count < 0) {
-      return ADAPTER_STATUS_ERROR;
-    }
-
-    message->length = (size_t)count;
-    message->endpoint.flags = IPV6 | SECURED;
-    message->encrypted = 1;
-    FD_CLR(dev->secure_sock, fds);
-
-    return ADAPTER_STATUS_RECEIVE;
-  }
-#endif
 
   return ADAPTER_STATUS_NONE;
 }
@@ -903,9 +892,6 @@ static void * network_event_thread(void *data) {
   FD_SET(dev->shutdown_pipe[0], &dev->rfds);
 
   oc_udp_add_socks_to_fd_set(dev);
-#ifdef OC_TCP
-  oc_tcp_add_socks_to_fd_set(dev);
-#endif
 
   int i, n;
   while (dev->terminate != 1) {
@@ -944,12 +930,6 @@ static void * network_event_thread(void *data) {
           ADAPTER_STATUS_RECEIVE) {
         goto common;
       }
-#ifdef OC_TCP
-      if (oc_tcp_receive_message(dev, &setfds, message) ==
-          ADAPTER_STATUS_RECEIVE) {
-        goto common;
-      }
-#endif
 
       oc_message_unref(message);
       continue;
@@ -1137,37 +1117,13 @@ int oc_send_buffer(oc_message_t *message) {
     return -1;
   }
 
-#ifdef OC_TCP
-  if (message->endpoint.flags & TCP) {
-    return oc_tcp_send_buffer(dev, message, &receiver);
-  }
-#endif
-
-#if 1 // TODO FIXME is it planned to use the secure_sock for anything in the future?
   // Note:
-  // OSCORE always uses server_sock (not secure_sock) to maintain consistent source port.
-  // The secure_sock is only for DTLS which is not used with OSCORE.
-  // IPv6
+  // OSCORE always uses server_sock to maintain a consistent source port.
   // Use server_sock for both OSCORE and unsecured messages.
   send_sock = dev->server_sock;
-#else
-  if (message->endpoint.flags & SECURED) {
-    // IPv6 and SECURE
-    send_sock = dev->secure_sock;
-  } else {
-    // IPv6
-    send_sock = dev->server_sock;
-  }
-#endif
 
-  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x",
-          (int)send_sock, (int)dev->server_sock, 
-          #ifdef KNX_UDP_DTLS          
-          (int)dev->secure_sock,
-          #else
-          -1,
-          #endif
-          (unsigned int)message->endpoint.flags);
+  OC_INF("send_sock=%d server_sock=%d flags=0x%x", (int)send_sock,
+          (int)dev->server_sock, (unsigned int)message->endpoint.flags);
 
   // For multicast destinations not coming from oc_send_discovery_request
   // (e.g. OSCORE multicast from oc_buffer.c), configure the outgoing interface.
@@ -1344,66 +1300,10 @@ void handle_network_interface_event_callback(oc_interface_event_t event) {
   }
 }
 
-#ifdef OC_SESSION_EVENTS
-int oc_add_session_event_callback(session_event_handler_t cb) {
-  if (!cb) {
-    return -1;
-  }
-
-  oc_session_event_cb_t *cb_item = calloc(1, sizeof(oc_session_event_cb_t));
-  if (!cb_item) {
-    OC_ERR("session event callback item alloc failed");
-    return -1;
-  }
-
-  cb_item->handler = cb;
-  oc_list_add(oc_session_event_cb_list, cb_item);
-
-  return 0;
-}
-
-int oc_remove_session_event_callback(session_event_handler_t cb) {
-  if (!cb) {
-    return -1;
-  }
-
-  oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list);
-  while (cb_item != NULL && cb_item->handler != cb) {
-    cb_item = cb_item->next;
-  }
-
-  if (!cb_item) {
-    return -1;
-  }
-
-  oc_list_remove(oc_session_event_cb_list, cb_item);
-  free(cb_item);
-
-  return 0;
-}
-
-void handle_session_event_callback(const oc_endpoint_t *endpoint,
-        oc_session_state_t state) {
-  if (oc_list_length(oc_session_event_cb_list) > 0) {
-    oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list);
-    while (cb_item) {
-      cb_item->handler(endpoint, state);
-      cb_item = cb_item->next;
-    }
-  }
-}
-#endif /* OC_SESSION_EVENTS */
-
 static void network_interface_event_handler(oc_interface_event_t event) {
   if (event == NETWORK_INTERFACE_UP) {
     oc_register_group_multicasts();
-    oc_device_info_t *device = oc_core_get_device_info();
-    if (device) {
-      knx_dns_sd_update_service(device->serialnumber,
-                                device->iid,
-                                device->ia,
-                                device->pm);
-    }
+    knx_dns_sd_update_service(oc_core_get_device_info());
   } else if (event == NETWORK_INTERFACE_DOWN) {
     /* Send the DNS-SD goodbye while the interface is still up, before
      * leaving the multicast groups. */
@@ -1432,7 +1332,7 @@ int oc_connectivity_init(void) {
   OC_LIST_STRUCT_INIT(dev, eps);
 
   if (pthread_mutex_init(&dev->rfds_mutex, NULL) != 0) {
-    oc_abort("Error initializing TCP adapter mutex!");
+    oc_abort("Error initializing rfds mutex!");
   }
 
   if (pipe(dev->shutdown_pipe) < 0) {
@@ -1476,17 +1376,6 @@ int oc_connectivity_init(void) {
     return -1;
   }
 
-#ifdef KNX_UDP_DTLS
-  /* secure_sock: Bound to port 0 for DTLS-protected (KNX_UDP_DTLS) traffic.
-   * Uses an ephemeral port like server_sock.
-   */
-  dev->secure_sock = open_and_bind_socket(0, 0, "secure (DTLS)");
-  if (dev->secure_sock < 0) {
-    OC_ERR("Failed to create secure (DTLS) CoAP socket: %d", errno);
-    return -1;
-  }
-#endif /* KNX_UDP_DTLS */
-
   if (configure_mcast_socket(dev->mcast_sock, AF_INET6) < 0) {
     return -1;
   }
@@ -1500,27 +1389,8 @@ int oc_connectivity_init(void) {
   }
   dev->port = ntohs(((struct sockaddr_in6 *)&dev->server)->sin6_port);
 
-#ifdef KNX_UDP_DTLS
-  socklen = sizeof(dev->secure);
-  if (getsockname(dev->secure_sock, (struct sockaddr *)&dev->secure,
-          &socklen) == -1) {
-    OC_ERR("Failed to read assigned port from secure (DTLS) socket: %d", errno);
-    return -1;
-  }
-  dev->dtls_port = ntohs(((struct sockaddr_in6 *)&dev->secure)->sin6_port);
-#endif /* KNX_UDP_DTLS */
-
   OC_INF("### IP port info ###");
   OC_INF("IPv6 port: %u", dev->port);
-#ifdef KNX_UDP_DTLS
-  OC_INF("IPv6 secure port: %u", dev->dtls_port);
-#endif
-
-#ifdef OC_TCP
-  if (oc_tcp_connectivity_init(dev) != 0) {
-    OC_ERR("Could not initialize TCP adapter!");
-  }
-#endif
 
   // Netlink socket to listen for network interface changes.
   // Only initialized once, and change events are captured by only
@@ -1564,7 +1434,7 @@ int oc_connectivity_init(void) {
   return 0;
 }
 
-void oc_connectivity_shutdown() {
+void oc_connectivity_shutdown(void) {
   ip_context_t *dev = get_ip_context_for_device();
   dev->terminate = 1;
   if (write(dev->shutdown_pipe[1], "", 1) < 0) {
@@ -1575,13 +1445,6 @@ void oc_connectivity_shutdown() {
 
   close(dev->server_sock);
   close(dev->mcast_sock);
-#ifdef KNX_UDP_DTLS
-  close(dev->secure_sock);
-#endif
-
-#ifdef OC_TCP
-  oc_tcp_connectivity_shutdown(dev);
-#endif
 
   close(dev->shutdown_pipe[1]);
   close(dev->shutdown_pipe[0]);
@@ -1595,17 +1458,6 @@ void oc_connectivity_shutdown() {
 
   OC_DBG("oc_connectivity_shutdown");
 }
-
-#ifdef OC_TCP
-void oc_connectivity_end_session(oc_endpoint_t *endpoint) {
-  if (endpoint->flags & TCP) {
-    ip_context_t *dev = get_ip_context_for_device();
-    if (dev) {
-      oc_tcp_end_session(dev, endpoint);
-    }
-  }
-}
-#endif
 
 #ifdef OC_DNS_LOOKUP
 #ifdef OC_DNS_CACHE
@@ -1675,7 +1527,7 @@ int oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags fl
     struct addrinfo hints, *result = NULL;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = (flags & IPV6) ? AF_INET6 : AF_INET;
-    hints.ai_socktype = (flags & TCP) ? SOCK_STREAM : SOCK_DGRAM;
+    hints.ai_socktype = SOCK_DGRAM;
     ret = getaddrinfo(domain, NULL, &hints, &result);
 
     if (ret == 0) {
@@ -1762,7 +1614,6 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address) {
   }
 
   // For every interface...
-  int ret = 0;
   struct ifaddrs *ifs = NULL, *interface = NULL;
   if (getifaddrs(&ifs) < 0) {
     return;
@@ -1825,7 +1676,6 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address) {
   }
 
   // For every interface...
-  int ret = 0;
   struct ifaddrs *ifs = NULL, *interface = NULL;
   if (getifaddrs(&ifs) < 0) {
     return;

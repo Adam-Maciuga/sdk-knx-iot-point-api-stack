@@ -122,7 +122,7 @@ TEST_F(CoapTransactions, GetByTokenFindsTransaction)
 
   coap_packet_t pkt = make_pkt(token, sizeof(token));
   coap_transaction_t *found =
-      coap_get_transaction_by_token(&pkt);
+      coap_get_transaction_by_token(&pkt, true);
   EXPECT_EQ(found, t);
 }
 
@@ -130,7 +130,7 @@ TEST_F(CoapTransactions, GetByTokenReturnsNullWhenNotFound)
 {
   uint8_t token[] = {0xFF};
   coap_packet_t pkt = make_pkt(token, sizeof(token));
-  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
 }
 
 TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
@@ -144,7 +144,8 @@ TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
   ASSERT_NE(t, nullptr);
 
   coap_packet_t pkt = make_pkt(token, sizeof(token));
-  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, false), t);
 }
 
 TEST_F(CoapTransactions, GetAnyByMidFindsSModeNon)
@@ -195,6 +196,16 @@ TEST_F(CoapTransactions, ClearNullIsSafe)
 {
   coap_clear_transaction(NULL);
   /* Should not crash */
+}
+
+TEST_F(CoapTransactions, ZeroLengthNullTokenIsSafe)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  coap_transaction_t *transaction =
+    coap_new_transaction(501, nullptr, 0, &ep);
+
+  ASSERT_NE(transaction, nullptr);
+  EXPECT_EQ(transaction->token_len, 0);
 }
 
 TEST_F(CoapTransactions, FreeAllClearsEverything)
@@ -255,7 +266,7 @@ TEST_F(CoapTransactions, MultipleTransactionsCoexist)
   EXPECT_EQ(coap_get_transaction_by_mid(1102), c);
 }
 
-TEST_F(CoapTransactions, ZeroLengthTokenMatch)
+TEST_F(CoapTransactions, ZeroLengthTokenNeverMatches)
 {
   oc_endpoint_t ep = make_endpoint(5683);
   uint8_t empty_token[] = {0};
@@ -264,56 +275,46 @@ TEST_F(CoapTransactions, ZeroLengthTokenMatch)
       coap_new_transaction(1200, empty_token, 0, &ep);
   ASSERT_NE(t, nullptr);
 
-  /* Zero-length token match: both have token_len==0 */
+  /* a tokenless packet must not match a tokenless transaction (zero length memcmp guard) */
   coap_packet_t pkt = make_pkt(empty_token, 0);
-  coap_transaction_t *found =
-      coap_get_transaction_by_token(&pkt);
-  EXPECT_EQ(found, t);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, true), nullptr);
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt, false), nullptr);
 }
 
-/* ---------------- coap_new_transaction_with_data ------------------------- */
+/* ---------------- coap_new_transaction_with_message ---------------------- */
 
-TEST_F(CoapTransactions, NewTransactionWithDataCopiesPayload)
+TEST_F(CoapTransactions, NewTransactionWithMessageAdoptsTheMessage)
 {
   oc_endpoint_t ep = make_endpoint(5683);
   uint8_t token[] = {0x77};
 
-  /* Build a source s-mode message carrying a small payload. */
-  oc_message_t src{};
-  uint8_t payload[] = {0xDE, 0xAD, 0xBE, 0xEF};
-  uint8_t backing[16] = {};
-  memcpy(backing, payload, sizeof(payload));
-  src.data = backing;
-  src.length = sizeof(payload);
-  src.endpoint = ep;
+  oc_message_t *m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  m->endpoint = ep;
+  m->length = 4;
 
-  coap_transaction_t *t =
-      coap_new_transaction_with_data(1300, token, sizeof(token), &src);
+  coap_transaction_t *t = coap_new_transaction_with_message(1300, token, sizeof(token), m);
 
   ASSERT_NE(t, nullptr);
   EXPECT_EQ(t->mid, 1300);
   EXPECT_EQ(t->token_len, 1);
   EXPECT_EQ(t->token[0], 0x77);
-  ASSERT_NE(t->message, nullptr);
-  EXPECT_EQ(t->message->length, sizeof(payload));
-  EXPECT_EQ(memcmp(t->message->data, payload, sizeof(payload)), 0);
-  /* endpoint copied from the source message */
+  /* the caller's message itself, no copy, its reference is taken over */
+  EXPECT_EQ(t->message, m);
+  EXPECT_EQ(m->ref_count, 1);
   EXPECT_EQ(t->message->endpoint.addr.ipv6.port, ep.addr.ipv6.port);
 }
 
-TEST_F(CoapTransactions, NewTransactionWithDataRegistersInList)
+TEST_F(CoapTransactions, NewTransactionWithMessageRegistersInList)
 {
   oc_endpoint_t ep = make_endpoint(5683);
   uint8_t token[] = {0x01, 0x02};
 
-  oc_message_t src{};
-  uint8_t backing[8] = {1, 2, 3};
-  src.data = backing;
-  src.length = 3;
-  src.endpoint = ep;
+  oc_message_t *m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  m->endpoint = ep;
 
-  coap_transaction_t *t =
-      coap_new_transaction_with_data(1301, token, sizeof(token), &src);
+  coap_transaction_t *t = coap_new_transaction_with_message(1301, token, sizeof(token), m);
   ASSERT_NE(t, nullptr);
 
   /* The transaction is discoverable by its MID. */

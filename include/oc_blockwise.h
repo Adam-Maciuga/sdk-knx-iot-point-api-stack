@@ -1,24 +1,14 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 /**
   @brief CoAP block wise transfer implementation
   @file
 */
-#ifndef OC_BLOCKWISE_H
-#define OC_BLOCKWISE_H
+#pragma once
 
 #include "messaging/coap/coap.h"
 #include "messaging/coap/transactions.h"
@@ -34,8 +24,9 @@ extern "C" {
  *
  */
 typedef enum {
-  OC_BLOCKWISE_CLIENT = 0, /**< client */
-  OC_BLOCKWISE_SERVER      /**< server */
+  OC_BLOCKWISE_CLIENT = 0,     /**< client */
+  OC_BLOCKWISE_SERVER,         /**< server */
+  OC_BLOCKWISE_SEPARATE_BUILD  /**< build buffer of a separate response (the application writes the body into it), never found by a lookup */
 } oc_blockwise_role_t;
 
 typedef struct oc_blockwise_state_s
@@ -196,11 +187,13 @@ oc_blockwise_state_t *oc_blockwise_alloc_request_buffer(
  * @param endpoint the endpoint
  * @param method the CoAP method
  * @param role the role (client or server)
+ * @param content_format Content-Format of the response body, used for every block served from the buffer
+ *                       (RFC 7959 2.4); CONTENT_NONE for a buffer that is not served (client side, separate response build buffer)
  * @return oc_blockwise_state_t*
  */
 oc_blockwise_state_t *oc_blockwise_alloc_response_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  coap_method_t method, oc_blockwise_role_t role);
+  coap_method_t method, oc_blockwise_role_t role, oc_content_format_t content_format);
 
 /**
  * @brief free the request buffer
@@ -262,5 +255,3 @@ void oc_blockwise_scrub_buffers_for_client_cb(void *cb);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_BLOCKWISE_H */

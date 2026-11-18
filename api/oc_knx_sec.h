@@ -3,10 +3,12 @@
  * Copyright (c) 2024-2026 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
-#ifndef OC_KNX_SEC_INTERNAL_H
-#define OC_KNX_SEC_INTERNAL_H
+#pragma once
 
 #include "oc_ri.h"
 #include "coap.h"
@@ -16,6 +18,14 @@ extern "C" {
 #endif
 
   #define DEFAULT_OSN_DELAY (1000)	// default (ms) defined by iot specification -> able to be modified by PUT
+
+  // AT and SSN storage keys, max 15 characters (ESP-IDF NVS limit, NVS_KEY_NAME_MAX_SIZE 16
+  // including NUL). The SSN entry of an AT entry uses the same AT table index, '_99999' is the
+  // index budget.
+  #define KNX_STORAGE_KEY_ATT_ENTRY "att_e"
+  #define KNX_STORAGE_KEY_ATT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_ATT_ENTRY) + 6)
+  #define KNX_STORAGE_KEY_SSNT_ENTRY "ssnt_e"
+  #define KNX_STORAGE_KEY_SSNT_ENTRY_SIZE (sizeof(KNX_STORAGE_KEY_SSNT_ENTRY) + 6)
 
 	/**
 	 * @brief The token profiles
@@ -94,13 +104,14 @@ extern "C" {
 	 * | id        | 0          | string      | full ctx identifier                | -                         |
 	 * | ms        | 8:4:2      | byte string | Master Secret value (shall be PSK) | -                         |
 	 * | version   | 8:4:1      | uint        | OSCORE Version                     | 1                         |
-	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HKDF SHA-256 (-10)        |
+	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HMAC 256/256 (5)          |
 	 * | alg       | 8:4:4      | integer     | AEAD Algorithm                     | AES-CCM-16-64-128 (10)    |
 	 * | salt      | 8:4:5      | byte string | Master Salt                        | Default empty byte string |
 	 * | contextId | 8:4:6      | byte string | OSCORE ID Context value            | omit                      |
 	 * | osc_id    | 8:4:0      | byte string | OSCORE SID                         | -                         |
 	 *
-	 * HKDF SHA-256, AES-CCM-16-64-128 -> https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+	 * AES-CCM-16-64-128 -> https://www.iana.org/assignments/cose#header-algorithm-parameters
+	 * HMAC 256/256      -> https://www.rfc-editor.org/info/rfc9053/#section-3.1.1
 	 *
 	 * Example payload:
 	 * ```
@@ -121,15 +132,19 @@ extern "C" {
 		oc_at_profile_t profile;		// (38) "coap_oscore", ... (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
     
 	  oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
-	  oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (defined, but not used)  
+	                            	// (8:4:1) OSCORE cnf:osc:version (not used)  
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
-		int8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value -10 (defined, but not used) 
-    int8_t osc_alg;							// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (defined, but not used) 
+		                        		// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value 5 (not used) 
+                    						// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (not used) 
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid -> 'kid_context' (in msg) / 'ID Context'  (OSC) / osc:contextid (OSC Profile) - max 16 byte string 
 		
 		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 
+
+		                            // sub     (2) - not implemented 
+                                // exp     (4) - not implemented
+                                // nbf     (5) - not implemented
 
 	} oc_auth_at_t;
 
@@ -212,11 +227,21 @@ extern "C" {
 	 * @brief deletes an AT table entry
 	 * - from RAM
 	 * - from storage (file system)
+	 * - its /k observers and ALL its OSCORE contexts (sender and recipient), callers need no own context handling
 	 *
 	 * @param entry pointer to the AT table entry to be deleted
    * @return 0 == success, - 1 == entry not found
 	 */
   int oc_delete_at_table_entry(oc_auth_at_t* entry);
+
+ 	/**
+   * @brief frees the RAM-only allocations of every AT table entry, without
+   * touching persistent storage (SPAKE2+/PASE shared secret, kid, kid-context, ga array)
+   *
+   * @note oc_delete_at_table_entry() must not be used there since it also erases the 
+   *       provisioned credential from storage
+   */
+  void oc_free_at_table_ram(void);
 
 	/**
 	 * @brief Creation of the KNX security resources.
@@ -227,8 +252,6 @@ extern "C" {
 	 * - /auth/o/rplwdo
 	 * - /auth/o/osndelay
 	 * - /auth
-	 * optional:
-	 * - a/sen
 	 *
 	 */
 	void oc_create_knx_sec_resources(void);
@@ -258,10 +281,14 @@ extern "C" {
 	 *
 	 * @note unsecured resources are always allowed
 	 *
-	 * @return true has access (the resource is unsecured/public or the ACL has a match)
-	 * @return false does not have access
+	 * @return OC_STATUS_OK has access (the resource is unsecured/public or the ACL has a match)
+	 * @return OC_STATUS_METHOD_NOT_ALLOWED the resource has no handler slot for the method (e.g. FETCH) -> 4.05
+	 * @return OC_STATUS_UNAUTHORIZED a secured resource, but the request was not decrypted with OSCORE (no valid
+	 *         credentials) -> 4.01
+	 * @return OC_STATUS_FORBIDDEN decrypted, but the access token scope (or its group addresses) does not cover the
+	 *         resource -> 4.03
 	 */
-  bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object);
+  oc_status_t oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object);
 
 	/**
 	 * @brief returns AT entry with OSCORE ID
@@ -274,18 +301,24 @@ extern "C" {
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 
 	/**
-   * @brief get OSCORE Replay Window Size
-   *
-   * @return window size
-   */
-	uint32_t get_oscore_replay_window_size(void);
+	 * @brief returns AT entry with access token id (e.g. the 'at' of a recipient table entry)
+	 *
+	 * @param id access token id string
+	 * @param id_len length of the access token id
+	 *
+	 * @return NULL : AT entry not found (or id_len = 0)
+	 * @return pointer to AT entry : AT entry found
+	 */
+oc_auth_at_t* oc_core_find_at_entry_by_access_token(const char* id, size_t id_len);
 
 	/**
-   * @brief get OSCORE OSN Delay Time
-   *
-   * @return delay time (ms)
-   */
-  uint16_t get_oscore_osn_delay_ms(void);
+	 * @brief true if the group address is in the <ga> list of the access token (scope OC_ACL_GA)
+	 *        - the scope itself is not checked here, an if.g.s token (OC_ACL_G, all group addresses) is checked by the caller
+	 *
+	 * @param at_entry access token, NULL -> false
+	 * @param group_address the group address
+	 */
+bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address);
 
   /**
    * @brief get the access token table index from an entry
@@ -296,16 +329,16 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
    * @return index -1 (entry is not part of the table or entry is NULL)
    */
   int32_t get_at_index(const oc_auth_at_t* entry);
-  
+
 	/**
-   * @brief set OSCORE OSN Delay Time
+   * @brief sets the OSCORE OSN Delay Time and store it
    *
-   * @param milliseconds time
+   * @note stored first, RAM is set only if the write succeeds (NVM + RAM stay unchanged otherwise)
    *
-   * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible)
-   *
+   * @param milliseconds time (dpt.TimePeriodMsec, U16)
+   * @return int 0 = OK, -EINVAL = out of U16 range, -EIO = not stored (nothing changed in both cases)
    */
-  void set_oscore_osn_delay_ms(uint16_t milliseconds);
+  int set_and_store_oscore_osn_delay_ms(int64_t milliseconds);
 
 	/**
    * @brief write SSN to storage
@@ -314,10 +347,8 @@ const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
    * @param ssn the sender sequence number to be stored
    *
    */
-  void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn);
+  void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint32_t ssn);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif 

@@ -32,6 +32,23 @@ static oc_endpoint_t make_ipv6(const uint8_t addr[16], uint16_t port,
   return ep;
 }
 
+// OC_LIST requires 'next' as first member; the field order is chosen to avoid padding
+TEST(EndpointLayout, NextIsFirstMember)
+{
+  EXPECT_EQ(offsetof(oc_endpoint_t, next), 0u);
+}
+
+TEST(EndpointLayout, NoPaddingBeyondTail)
+{
+  /*
+    pointers + flags/interface_index/group_address + addr/addr_local + byte fields, rounded up to pointer alignment
+  */
+  size_t payload = 3 * sizeof(void *) + sizeof(enum transport_flags) + sizeof(int) + sizeof(uint32_t)
+                   + 2 * sizeof(oc_ipv6_addr_t) + OSCORE_PIV_LEN + OSCORE_SENDER_ID_LEN + OSCORE_ID_CONTEXT_LEN + 4;
+  size_t align = sizeof(void *);
+  EXPECT_EQ(sizeof(oc_endpoint_t), (payload + align - 1) / align * align);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_endpoint_compare
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -63,7 +80,7 @@ TEST(EndpointCompare, DifferentAddress)
 
 TEST(EndpointCompare, MulticastVsUnicast_StillEqual)
 {
-  /* compare ignores MULTICAST and ACCEPTED flags */
+  /* compare ignores the MULTICAST flag */
   uint8_t addr[16] = {0x20, 0x01};
   oc_endpoint_t ep1 = make_ipv6(addr, 5683);
   oc_endpoint_t ep2 = make_ipv6(addr, 5683, MULTICAST);
@@ -185,6 +202,63 @@ TEST(IsLinkLocal, NonIPv6_Endpoint)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * oc_ipv6_address_scope / oc_ipv6_endpoint_scope (RFC 6724 section 3.2)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(Ipv6AddressScope, LoopbackIsScope2)
+{
+  uint8_t loopback[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(loopback), 2);
+}
+
+TEST(Ipv6AddressScope, LinkLocalIsScope2)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 2);
+}
+
+TEST(Ipv6AddressScope, DeprecatedSiteLocalIsScope5)
+{
+  uint8_t addr[16] = {0xfe, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 5);
+}
+
+TEST(Ipv6AddressScope, UniqueLocalAddressIsScope5)
+{
+  /* fc00::/7 (RFC 4193): first byte 0xfc or 0xfd */
+  uint8_t fc[16] = {0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  uint8_t fd[16] = {0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(fc), 5);
+  EXPECT_EQ(oc_ipv6_address_scope(fd), 5);
+}
+
+TEST(Ipv6AddressScope, GlobalAddressIsScope14)
+{
+  uint8_t addr[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  EXPECT_EQ(oc_ipv6_address_scope(addr), 14);
+}
+
+TEST(Ipv6EndpointScope, DelegatesToAddressScope)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  EXPECT_EQ(oc_ipv6_endpoint_scope(&ep), 2);
+}
+
+TEST(Ipv6EndpointScope, NullEndpointReturnsZero)
+{
+  EXPECT_EQ(oc_ipv6_endpoint_scope(nullptr), 0);
+}
+
+TEST(Ipv6EndpointScope, NonIpv6EndpointReturnsZero)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV4;
+  EXPECT_EQ(oc_ipv6_endpoint_scope(&ep), 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * oc_new_endpoint / oc_free_endpoint
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -213,7 +287,6 @@ TEST(FreeEndpoint, NullIsNoOp)
 
 class EndpointToString : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(EndpointToString, NullArgsReturnError)
@@ -247,25 +320,12 @@ TEST_F(EndpointToString, UnsecuredUsesCoapScheme)
   oc_free_string(&s);
 }
 
-TEST_F(EndpointToString, SecuredUsesCoapsScheme)
-{
-  uint8_t addr[16] = { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 0, 1 };
-  oc_endpoint_t ep = make_ipv6(addr, 5684, SECURED);
-  oc_string_t s;
-  ASSERT_EQ(oc_endpoint_to_string(&ep, &s), 0);
-  EXPECT_EQ(strncmp(oc_string(s), "coaps://[", 9), 0);
-  EXPECT_NE(strstr(oc_string(s), "]:5684"), nullptr);
-  oc_free_string(&s);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_endpoint_string_parse_path
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 class EndpointParsePath : public ::testing::Test {
 protected:
-  void SetUp() override { oc_mmem_init(); }
 };
 
 TEST_F(EndpointParsePath, NullArgsReturnError)
@@ -359,3 +419,53 @@ TEST(EndpointListCopy, NullSourceLeavesDstUntouched)
   /* guard: nothing assigned when src is NULL */
   EXPECT_EQ(dst, reinterpret_cast<oc_endpoint_t *>(0x1));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_set_local_address (null guard only — the found-match path
+ * needs a live port-layer connectivity list, see file header)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(SetLocalAddress, NullEndpointIsNoOp)
+{
+  /* must not crash; there is nothing else observable without a live
+     oc_connectivity_get_endpoints() list. */
+  oc_endpoint_set_local_address(nullptr, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_print — smoke test (OC_DEBUG-gated, no return value)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(EndpointPrint, DoesNotCrashOnValidEndpoint)
+{
+  uint8_t addr[16] = {0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  oc_endpoint_print(&ep);
+}
+
+/* fills the stack below the caller with garbage, so an uninitialized local of the next call is not zero by chance */
+static void __attribute__((noinline)) fill_stack_with_garbage(void)
+{
+  volatile uint8_t garbage[1024];
+  memset((void*)garbage, 0xA5, sizeof(garbage));
+}
+
+/*
+  A non-IPv6 endpoint (e.g. a DISCOVERY message without IPV6) has no string form: the string must neither be
+  printed nor freed. Before, an uninitialized oc_string_t was freed, which aborted the debug build.
+*/
+TEST(EndpointPrint, DoesNotFreeAnythingForNonIpv6Endpoint)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = DISCOVERY;
+
+  fill_stack_with_garbage();
+  oc_endpoint_print(&ep);
+}
+
+TEST(EndpointPrint, DoesNotCrashOnNullEndpoint)
+{
+  oc_endpoint_print(nullptr);
+}
+

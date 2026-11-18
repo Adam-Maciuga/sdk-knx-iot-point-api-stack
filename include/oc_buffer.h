@@ -1,25 +1,14 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-// Copyright (c) 2024-2026 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 /**
   @brief CoAP message buffer implementation, e.g. for the payloads being transferred
   @file
 */
-#ifndef OC_BUFFER_H
-#define OC_BUFFER_H
+#pragma once
 
 #include "port/oc_connectivity.h"
 #include "util/oc_process.h"
@@ -54,6 +43,20 @@ void oc_message_add_ref(oc_message_t *message);
 void oc_message_unref(oc_message_t *message);
 
 /**
+ * @brief post a message to a process, the reference of the caller goes to the queue
+ *
+ * One place for the release of a message that cannot be queued: on OC_PROCESS_ERR_FULL
+ * (queue full or after shutdown) nobody else takes the reference, it is released here.
+ * The caller must not use the message after the call, whatever the result.
+ *
+ * @param p the receiving process
+ * @param ev the event
+ * @param message the message (its reference of the caller is handed over)
+ * @return OC_PROCESS_ERR_OK (queued) or OC_PROCESS_ERR_FULL (released)
+ */
+int oc_message_post(struct oc_process *p, oc_process_event_t ev, oc_message_t *message);
+
+/**
  * @brief receive (CoAP) message
  *
  * @param message the received message
@@ -69,14 +72,6 @@ void oc_receive_message(oc_message_t *message);
  */
 void oc_send_message(oc_message_t *message);
 
-/**
- * @brief close all tls sessions
- *
- */
-void oc_close_all_tls_sessions(void);
-
 #ifdef __cplusplus
 }
-#endif
-
 #endif

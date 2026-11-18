@@ -1,10 +1,10 @@
 /*
-  Copyright (c) 2020 Intel Corporation
-  Copyright (c) 2022-2023 Cascoda Ltd.
-  Copyright (c) 2024-2026 KNX Association
-
-  SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2022-2023 Cascoda Ltd.
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -13,11 +13,14 @@
 #include "oc_client_state.h"
 #include "oc_oscore_crypto.h"
 #include "api/oc_knx_sec.h"
+#include "api/oc_knx_fp.h"
 #include "port/oc_log.h"
 
 OC_LIST(contexts);
 
+#ifdef OC_DEBUG
 static void oc_context_print_all(void);
+#endif
 
 void oc_oscore_free_lru_recipient_context(void) 
 {
@@ -89,21 +92,25 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   return NULL;
 }
 
-static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at)
+/*
+  first context of an access token
+  - sender_only = true -> only a sender context (sender id populated), recipient contexts are never used for sending
+*/
+oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at, bool sender_only)
 {
-
   if (!auth_at)
   {
-    OC_ERR("***could not find matching OSCORE context: access token is NULL ***");
     return NULL;
   }
 
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+
   while (ctx)
   {
-    if (ctx->auth_at == auth_at)
+    // sender only = true turns into false, hence the sender id len > 0 must be 'true' 
+    if (ctx->auth_at == auth_at && (!sender_only || ctx->sender_id_len > 0))
     {
-      OC_DBG("found context by_token/mid");
+      // refresh time of last use
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -111,23 +118,16 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth
     ctx = ctx->next;
   }
 
-  OC_DBG("found NO context by_token/mid");
   return NULL;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp)
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len)
 {
-  // search for a transaction by token
-  coap_transaction_t* t = coap_get_transaction_by_token(pkt);
-
+  // search for a transaction by token (including unicast s-mode NON transactions), if not found by mid (CON only)
+  coap_transaction_t* t = coap_get_transaction_by_token(pkt, false);
   if (!t)
   {
-    if (!tcp)
-    {
-      // on no TCP search by mid (TCP : mid NOT relevant)
-      t = coap_get_transaction_by_mid(pkt->mid);
-    }
-
+    t = coap_get_transaction_by_mid(pkt->mid);
     if (!t)
     {
       // nothing found by token or mid
@@ -141,42 +141,75 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pk
     *request_piv_len = t->message->endpoint.piv_len;
   }
 
-  return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg);
+  /*
+    (a) own unicast s-mode CON request: protected with the context of the recipient's 'at' (uc-b), the PIV used for
+        sending is recorded on the transaction endpoint, a response without a recorded PIV is refused
+        (also after the PIV was consumed by an outbound 'echo re-request')
+
+    (b) own unicast s-mode NON request (header-only transaction): as (a), matched by token only, a NON response carries
+        a mid of the peer that may collide with a pending CON transaction
+
+    (c) any other transaction (no s-mode flag), e.g. an outbound message to an inbound request or an 'echo re-request'
+        (its s-mode flags are cleared) -> the first context of its access token
+
+    Note, own multicast s-mode NON pops up not here, its transaction is cleared right after sending (coap_send_transaction)
+
+    |case |transaction                         | access_token          | s-mode flag        | context lookup
+    |-----+------------------------------------+-----------------------+--------------------+-------------------------------
+    |(a)  |own unicast s-mode CON              | outbound: recipient's | S_MODE_CON_REQUEST | sender context of the token
+    |(b)  |own unicast s-mode NON (header-only)| outbound: recipient's | S_MODE_NON_REQUEST | sender context of the token
+    |(c)  |any other                           | inbound or outbound   | none               | first context of the token
+  */
+  if (t->message->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST))
+  { // (a) && (b)
+    if (t->message->endpoint.piv_len == 0)
+    {
+      return NULL;
+    }
+
+    return oc_oscore_find_context_by_access_token(t->message->endpoint.access_token.outbound, true);
+  }
+
+  // (c)
+  return oc_oscore_find_context_by_access_token(t->message->endpoint.access_token.inbound, false);
 }
 
-// scans all contexts auth at token if the ga is in the ga list of the AT token
-oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
+/*
+  first sender context whose access token holds the ga and is not the 'at' of a unicast recipient (multicast, spec 6.3.2.1)
+  - unicast never looks up by ga, it uses the recipient's 'at' (oc_oscore_find_context_by_access_token, sender_only)
+  - check order, cheapest first, the scan of the recipient table runs only for a real candidate (usually one context):
+    1. ctx->auth_at           -> pointer check
+    2. sender_id_len > 0      -> recipient contexts (empty sender id) are never used for sending
+    3. token holds the ga     -> scan of the token's ga list (short)
+    4. not a unicast token    -> scan of the whole recipient table with string compare (expensive)
+*/
+oc_oscore_context_t* oc_oscore_find_multicast_context_by_group_address(uint32_t group_address)
 {
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  while (ctx) 
+  while (ctx)
   {
-    // find AT for context that MAY host the GA
-    if (ctx->auth_at) 
+    // 1. + 2.
+    if (ctx->auth_at && ctx->sender_id_len > 0)
     {
-      // debugging 
-      oc_print_auth_at_entry(ctx->auth_at);
-
-      // for a context without GA's (such as SPAKE2+ handshake context) the loop is skipped
-      for (int i = 0; i < ctx->auth_at->ga_len; i++) 
+      // 3. a token without GA's (such as the SPAKE2+ handshake token) never matches
+      for (int i = 0; i < ctx->auth_at->ga_len; i++)
       {
-        // scan all GA's
-        const uint32_t group_value = ctx->auth_at->ga[i];
-        
-        if (group_address == group_value) 
+        if (ctx->auth_at->ga[i] == group_address)
         {
-          // Ensure we return a sender context (with sender_id populated) for sending messages
-          // Recipient contexts have empty sender_id and should not be used for sending
-          if (ctx->sender_id_len > 0) 
+          // 4.
+          if (!oc_is_unicast_recipient_access_token(oc_string(ctx->auth_at->id), oc_string_len(ctx->auth_at->id)))
           {
-            OC_DBG("found access token for given GA %04X", group_address); 
+            OC_DBG("found access token for given GA %04" PRIX32, group_address);
 
             // refresh time of last use
             ctx->last_used = oc_clock_time();
             return ctx;
-          } 
-          OC_DBG("found GA %04X but context has empty sender_id (recipient context), continuing search", group_address);
+          }
+
+          // the token holds the ga but is the 'at' of a unicast recipient, next context
+          break;
         }
       }
     }
@@ -264,7 +297,8 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   }
 }
 
-void oc_context_print_all(void)
+#ifdef OC_DEBUG
+static void oc_context_print_all(void)
 {
   // get list start
   const oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
@@ -292,16 +326,17 @@ void oc_context_print_all(void)
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    OC_INF("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",  
+    OC_INF("%-9.02" PRId32 " | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %" PRIx32,  
             get_at_index(ctx->auth_at), 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
-            (uint32_t)ctx->ssn);
+            ctx->ssn);
 
     ctx = ctx->next;
   }
 }
+#endif
 
 oc_oscore_context_t* oc_oscore_add_recipient_context(oc_oscore_context_params_t* params)
 {
@@ -360,7 +395,7 @@ oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* pa
 oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* params)
 {
 
-  //get a free sender context
+  // allocate a context (sender OR recipient, see the header: one id, both keys)
   oc_oscore_context_t* ctx = calloc(1, sizeof(oc_oscore_context_t));
 
   if (!ctx)
@@ -415,10 +450,20 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
       storage (RFC 8613 - Appendix B 1.1)
     - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot
       (RFC 8613 - Appendix B 1.1)
+    - the addition saturates at OSCORE_SSN_MAX (KNX IoT 32-bit SSN space): a wrap would restart at a low, already used
+      SSN and reuse AEAD nonce, the context is then exhausted instead, see check_and_increment_ssn_in_context (oc_oscore_context.c)
   */
   if (params->read_ssn_from_storage)
   {
-    ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
+    if (ctx->ssn > OSCORE_SSN_MAX - (OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F))
+    {
+      ctx->ssn = OSCORE_SSN_MAX;
+    }
+    else
+    {
+      ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
+    }
+
     oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
   }
 
@@ -447,6 +492,11 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
     ctx->recipient_id_len = params->recipient_id_size;
   }
 
+  /*
+    both keys are derived for every context, a missing id (len 0) as an empty id
+    - sender_key: requests of a sender context, responses of a recipient context
+    - recipient_key: requests to a recipient context, responses to a sender context
+  */
   if (oc_oscore_context_derive_param(ctx->sender_id, ctx->sender_id_len,
                                      ctx->id_context, ctx->id_context_len, "Key", mastersecret,
                                      mastersecret_size, salt, salt_size,
@@ -480,7 +530,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   OC_DBG("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes(ctx->id_context, ctx->id_context_len);
   OC_DBG("### Master Secret : (%2d)\t= ", mastersecret_size);  oc_char_println_hex((const char*)mastersecret, mastersecret_size);
   OC_DBG("### Salt          : (%2d)\t= ", salt_size);  oc_char_println_hex((const char*)salt, salt_size);
-  OC_DBG("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
+  OC_DBG("### SSN           : (%2d)\t= %" PRIu32, (int)sizeof(ctx->ssn), ctx->ssn);
 
   OC_DBG(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));
   OC_DBG(PRINT16BYTEHEX("### derived Response Key : ", ctx->recipient_key));
@@ -507,6 +557,8 @@ int oc_oscore_context_derive_param(
   uint8_t info[OSCORE_INFO_MAX_LEN];
   CborEncoder e, a;
   CborError err = CborNoError;
+  // stand-in so the encoder never sees a NULL pointer for a zero-length id
+  const uint8_t empty_id = 0;
 
   // From RFC 8613: Section 3.2.1:
   // info = [
@@ -520,7 +572,7 @@ int oc_oscore_context_derive_param(
   // Array of 5 elements
   err |= cbor_encoder_create_array(&e, &a, 5);
   // Sender ID, Recipient ID or empty string for Common IV
-  err |= cbor_encode_byte_string(&a, id, id_len);
+  err |= cbor_encode_byte_string(&a, id_len > 0 ? id : &empty_id, id_len);
   // id_context or null if not provided
   if (id_ctx_len > 0)
   {
@@ -545,4 +597,38 @@ int oc_oscore_context_derive_param(
   }
 
   return HKDF_SHA256(salt, salt_len, secret, secret_len, info, cbor_encoder_get_buffer_size(&e, info), param, param_len);
+}
+
+/*
+  - ssn++ and save to storage each 32 - value (lays within replay window ...)
+
+  - increment = false : CON retransmission, the SSN is used again and not incremented
+
+  - returns false if the SSN space is exhausted (ssn == OSCORE_SSN_MAX, that value is never used as Partial IV),
+    nothing is incremented and the caller must refuse to send
+    - the SSN never wraps, so an AEAD nonce is never reused (RFC 8613, 7.2.1)
+    - a new sender context (re-keying) is needed to send again (== recommissioning by MaC)
+*/
+bool check_and_increment_ssn_in_context(oc_oscore_context_t* ctx, bool increment)
+{
+  if (ctx->ssn >= OSCORE_SSN_MAX)
+  {
+    return false;
+  }
+
+  if (increment)
+  {
+    ctx->ssn++;
+
+    if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
+    { // save ssn to storage every K times
+
+      // TODO 19 Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
+
+      // uses the 'Sender ID' and 'ID Context' from access token 
+      oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
+    }
+  }
+
+  return true;
 }

@@ -187,25 +187,6 @@ TEST(HexToByteArray, RoundTrip)
   EXPECT_EQ(memcmp(original, decoded, 4), 0);
 }
 
-/* ── oc_uri_contains_wildcard ──────────────────────────────────────────────── */
-
-TEST(UriWildcard, ContainsWildcard)
-{
-  EXPECT_TRUE(oc_uri_contains_wildcard("/fp/g/*"));
-  EXPECT_TRUE(oc_uri_contains_wildcard("*"));
-}
-
-TEST(UriWildcard, NoWildcard)
-{
-  EXPECT_FALSE(oc_uri_contains_wildcard("/fp/g/1"));
-  EXPECT_FALSE(oc_uri_contains_wildcard("/fp/g"));
-}
-
-TEST(UriWildcard, NullUri)
-{
-  EXPECT_FALSE(oc_uri_contains_wildcard(nullptr));
-}
-
 /* ── oc_uri_get_wildcard_int_value_as_int ──────────────────────────────────── */
 
 TEST(UriWildcardInt, SimpleValue)
@@ -269,6 +250,45 @@ TEST(UriWildcardString, NoWildcard)
   EXPECT_EQ(len, -1);
 }
 
+TEST(UriWildcardString, PrefixMismatch)
+{
+  const char *resource = "/aut/at/*";
+  const char *invoked = "xyz/zz/abba";
+  const char *value = nullptr;
+  EXPECT_EQ(oc_uri_get_wildcard_value_as_string(resource, strlen(resource), invoked, strlen(invoked), &value), -1);
+  EXPECT_EQ(value, nullptr);
+}
+
+TEST(UriWildcardString, ZeroLengthResource)
+{
+  const char *value = nullptr;
+  EXPECT_EQ(oc_uri_get_wildcard_value_as_string("", 0, "a", 1, &value), -1);
+}
+
+TEST(UriWildcardInt, PrefixMismatch)
+{
+  const char *resource = "/fp/g/*";
+  const char *invoked = "fp/x/4";
+  EXPECT_EQ(oc_uri_get_wildcard_int_value_as_int(resource, strlen(resource), invoked, strlen(invoked)), -1);
+}
+
+TEST(UriWildcardInt, ZeroLengthResource)
+{
+  EXPECT_EQ(oc_uri_get_wildcard_int_value_as_int("", 0, "4", 1), -1);
+}
+
+TEST(UriFbValue, PrefixMismatch)
+{
+  const char *resource = "/f/*";
+  const char *invoked = "x/4";
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, strlen(invoked), false), -1);
+}
+
+TEST(UriFbValue, ZeroLengthResource)
+{
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int("", 0, "4", 1, false), -1);
+}
+
 /* ── oc_uri_get_fb_string_value_as_int ─────────────────────────────────────── */
 
 TEST(UriFbValue, FbNumber)
@@ -307,12 +327,33 @@ TEST(UriFbValue, NoInstance_ReturnsZero)
   EXPECT_EQ(val, 0);
 }
 
+// F-048-3-i: an '_' behind the path end (e.g. in the query of the packet) is not part of the uri
+TEST(UriFbValue, UnderscoreBehindPathEndIsIgnored)
+{
+  const char *resource = "/f/*";
+  const char packet[] = "f/4?x_9";
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), packet, 3, false), 4);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), packet, 3, true), 0);
+}
+
+// F-048-3-i: a not NUL-terminated uri is not read past its length (ASan reports otherwise)
+TEST(UriFbValue, NotTerminatedUriIsNotOverread)
+{
+  const char *resource = "/f/*";
+  char *invoked = (char *)malloc(3);
+  ASSERT_NE(invoked, nullptr);
+  memcpy(invoked, "f/4", 3);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, 3, false), 4);
+  EXPECT_EQ(oc_uri_get_fb_string_value_as_int(resource, strlen(resource), invoked, 3, true), 0);
+  free(invoked);
+}
+
 /* ── oc_strnchr ────────────────────────────────────────────────────────────── */
 
 TEST(Strnchr, FindsCharacter)
 {
   char str[] = "hello/world";
-  char *p = oc_strnchr(str, '/', sizeof(str));
+  const char *p = oc_strnchr(str, '/', sizeof(str));
   ASSERT_NE(p, nullptr);
   EXPECT_EQ(p - str, 5);
 }
@@ -320,7 +361,7 @@ TEST(Strnchr, FindsCharacter)
 TEST(Strnchr, NotFound)
 {
   char str[] = "hello";
-  char *p = oc_strnchr(str, '/', sizeof(str));
+  const char *p = oc_strnchr(str, '/', sizeof(str));
   EXPECT_EQ(p, nullptr);
 }
 
@@ -328,7 +369,7 @@ TEST(Strnchr, LimitedSearch)
 {
   char str[] = "hello/world";
   // Search only in "hello" (5 chars) — should not find '/'
-  char *p = oc_strnchr(str, '/', 5);
+  const char *p = oc_strnchr(str, '/', 5);
   EXPECT_EQ(p, nullptr);
 }
 
@@ -552,6 +593,34 @@ TEST_F(OcStringTest, UrlCmp_Different)
   EXPECT_NE(oc_url_cmp(s1, s2), 0);
 }
 
+// F-048-2-i: no prefix match
+TEST_F(OcStringTest, UrlCmp_PrefixDoesNotMatch)
+{
+  oc_new_string(&s1, "/p/1", 4);
+  oc_new_string(&s2, "/p/10", 5);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  EXPECT_NE(oc_url_cmp(s2, s1), 0);
+}
+
+// F-048-2-i/ii: an empty href or "/" does not match a resource
+TEST_F(OcStringTest, UrlCmp_EmptyHrefDoesNotMatch)
+{
+  oc_new_string(&s1, "", 0);
+  oc_new_string(&s2, "/p/1", 4);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  oc_free_string(&s1);
+  oc_new_string(&s1, "/", 1);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+}
+
+// F-048-2-iv: empty handles do not crash and do not match
+TEST_F(OcStringTest, UrlCmp_EmptyHandleDoesNotMatch)
+{
+  oc_new_string(&s2, "/p/1", 4);
+  EXPECT_NE(oc_url_cmp(s1, s2), 0);
+  EXPECT_NE(oc_url_cmp(s2, s1), 0);
+}
+
 /* ── _oc_free_string edge cases ────────────────────────────────────────────── */
 
 TEST_F(OcStringTest, FreeNull_NoOp)
@@ -614,6 +683,24 @@ TEST_F(OcStringArrayTest, AddItemInternalNullArrayReturnsFalse)
   EXPECT_FALSE(oc_string_array_add_item_internal(nullptr, "x"));
 }
 
+TEST_F(OcStringArrayTest, AddItemNullStringReturnsFalse)
+{
+  oc_new_string_array(&arr, 1);
+  EXPECT_FALSE(oc_string_array_add_item(arr, nullptr));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, nullptr, 1));
+}
+
+TEST_F(OcStringArrayTest, AddItemOnEmptyArrayReturnsFalse)
+{
+  EXPECT_FALSE(oc_string_array_add_item(arr, "x"));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, "x", 1));
+}
+
+TEST_F(OcStringArrayTest, ByteArrayAddItemInternalNullArrayReturnsFalse)
+{
+  EXPECT_FALSE(oc_byte_string_array_add_item_internal(nullptr, "x", 1));
+}
+
 TEST_F(OcStringArrayTest, JoinConcatenatesWithSpaces)
 {
   oc_new_string_array(&arr, 3);
@@ -625,6 +712,53 @@ TEST_F(OcStringArrayTest, JoinConcatenatesWithSpaces)
   oc_free_string(&joined);
 }
 
+// F-048-1: only empty items -> "" with size 1, the NUL stays inside the block
+TEST_F(OcStringArrayTest, JoinAllEmptyItemsGivesEmptyString)
+{
+  oc_new_string_array(&arr, 3);
+  oc_string_t joined{};
+  oc_join_string_array(&arr, &joined);
+  ASSERT_NE(oc_string(joined), nullptr);
+  EXPECT_STREQ(oc_string(joined), "");
+  EXPECT_EQ(joined.size, 1u);
+  oc_free_string(&joined);
+}
+
+// F-048-1: exact size, empty slots in between add no space
+TEST_F(OcStringArrayTest, JoinSkipsEmptySlotsWithExactSize)
+{
+  oc_new_string_array(&arr, 4);
+  oc_string_array_set_item(arr, "a", 0);
+  oc_string_array_set_item(arr, "bc", 2);
+  oc_string_t joined{};
+  oc_join_string_array(&arr, &joined);
+  EXPECT_STREQ(oc_string(joined), "a bc");
+  EXPECT_EQ(oc_string_len(joined), 4u);
+  oc_free_string(&joined);
+}
+
+// F-048-1: a previous value is freed (LeakSanitizer reports otherwise)
+TEST_F(OcStringArrayTest, JoinFreesPreviousValue)
+{
+  oc_new_string_array(&arr, 2);
+  oc_string_array_add_item(arr, "x");
+  oc_string_t joined{};
+  oc_new_string(&joined, "old", 3);
+  oc_join_string_array(&arr, &joined);
+  EXPECT_STREQ(oc_string(joined), "x");
+  oc_free_string(&joined);
+}
+
+// F-048-1: NULL arguments are ignored
+TEST_F(OcStringArrayTest, JoinNullArgumentsAreIgnored)
+{
+  oc_string_t joined{};
+  oc_join_string_array(nullptr, &joined);
+  EXPECT_EQ(oc_string(joined), nullptr);
+  oc_new_string_array(&arr, 1);
+  oc_join_string_array(&arr, nullptr);
+}
+
 TEST_F(OcStringArrayTest, ByteArrayAddItemStoresLengthPrefixedData)
 {
   oc_new_byte_string_array(&arr, 2);
@@ -634,6 +768,18 @@ TEST_F(OcStringArrayTest, ByteArrayAddItemStoresLengthPrefixedData)
   EXPECT_EQ(memcmp(oc_byte_string_array_get_item(arr, 0), data, sizeof(data)), 0);
   // second free slot still empty
   EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 1), 0u);
+}
+
+TEST_F(OcStringArrayTest, ByteArrayAddItemRejectsOverlongData)
+{
+  oc_new_byte_string_array(&arr, 2);
+  char data[STRING_ARRAY_ITEM_MAX_LEN] = { 0 };
+  // no NUL in the data: the old strlen() check did not see the length
+  memset(data, 0x41, sizeof(data));
+  EXPECT_FALSE(oc_byte_string_array_add_item(arr, data, sizeof(data)));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), 0u);
+  EXPECT_TRUE(oc_byte_string_array_add_item(arr, data, sizeof(data) - 1));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), sizeof(data) - 1);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -651,6 +797,14 @@ TEST(OcArrayPool, NewIntArrayAllocatesUsableStorage)
   }
   EXPECT_EQ(oc_int_array(ia)[3], 30);
   oc_free_int_array(&ia);
+}
+
+TEST(OcArrayPool, FreeArrayNullAndEmptyAreIgnored)
+{
+  oc_array_t ia{};
+  _oc_free_array(nullptr, INT_POOL);
+  _oc_free_array(&ia, INT_POOL);
+  EXPECT_EQ(oc_int_array(ia), nullptr);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -692,6 +846,23 @@ TEST_F(OcStringTest, ConvHexStringToOcString)
   EXPECT_EQ((uint8_t)oc_string(s1)[2], 0xff);
 }
 
+TEST_F(OcStringTest, ConvHexStringToOcStringOddLength)
+{
+  const char *hex = "122";
+  ASSERT_EQ(oc_conv_hex_string_to_oc_string(hex, strlen(hex), &s1), 0);
+  ASSERT_EQ(oc_byte_string_len(s1), 2u);
+  EXPECT_EQ((uint8_t)oc_string(s1)[0], 0x01);
+  EXPECT_EQ((uint8_t)oc_string(s1)[1], 0x22);
+}
+
+TEST_F(OcStringTest, ConvHexStringToOcStringFailureLeavesOutEmpty)
+{
+  const char *hex = "12x4";
+  EXPECT_EQ(oc_conv_hex_string_to_oc_string(hex, strlen(hex), &s1), -1);
+  EXPECT_EQ(oc_string(s1), nullptr);
+  EXPECT_EQ(oc_string_len(s1), 0u);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * oc_string_is_hex_array
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -705,5 +876,28 @@ TEST_F(OcStringTest, IsHexArrayAcceptsHexDigits)
 TEST_F(OcStringTest, IsHexArrayRejectsNonHex)
 {
   oc_new_string(&s1, "00xz", 4);
+  EXPECT_EQ(oc_string_is_hex_array(s1), -1);
+}
+
+TEST_F(OcStringTest, CmpEmptyHandlesAreEqual)
+{
+  EXPECT_EQ(oc_string_cmp(s1, s2), 0);
+  EXPECT_EQ(oc_byte_string_cmp(s1, s2), 0);
+}
+
+TEST_F(OcStringTest, CmpEmptyHandleAndEmptyStringAreEqual)
+{
+  oc_new_string(&s1, "", 0);
+  EXPECT_EQ(oc_string_cmp(s1, s2), 0);
+}
+
+TEST_F(OcStringTest, IsHexArrayEmptyHandleIsNotOverread)
+{
+  EXPECT_EQ(oc_string_is_hex_array(s1), 0);
+}
+
+TEST_F(OcStringTest, IsHexArrayRejectsNonAsciiByte)
+{
+  oc_new_string(&s1, "0\xE4", 2);
   EXPECT_EQ(oc_string_is_hex_array(s1), -1);
 }

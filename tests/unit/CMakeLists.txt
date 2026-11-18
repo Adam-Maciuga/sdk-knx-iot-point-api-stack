@@ -74,8 +74,13 @@ function(kis_add_test TEST_NAME TEST_SOURCE)
         kisClientServer_tail
     )
 
-    # Let CTest discover individual TEST() cases
-    gtest_discover_tests(${TEST_NAME})
+    # Let CTest discover individual TEST() cases.
+    # gtest_discover_tests runs the binary at build time (POST_BUILD), so the listing
+    # competes with every other test target still being compiled and linked. A sanitizer
+    # build lists in well under a second on an idle host, but the default 5 s timeout is
+    # reached under a loaded builder, which aborts the whole build. 60 s absorbs that
+    # contention without masking a binary that genuinely hangs.
+    gtest_discover_tests(${TEST_NAME} DISCOVERY_TIMEOUT 60)
 
     # Record this target so the run_unit_tests aggregate target can depend on it
     set_property(GLOBAL APPEND PROPERTY KIS_UNIT_TEST_TARGETS ${TEST_NAME})
@@ -88,23 +93,98 @@ kis_add_test(test_oc_uuid    test_oc_uuid.cpp)
 kis_add_test(test_oc_list    test_oc_list.cpp)
 kis_add_test(test_oc_helpers test_oc_helpers.cpp)
 kis_add_test(test_oc_mmem    test_oc_mmem.cpp)
+# --wrap=malloc: __wrap_malloc() fails the next call when a test arms it (allocation failure in the string layer)
+kis_add_test(test_oc_helpers_alloc_fail test_oc_helpers_alloc_fail.cpp)
+target_link_options(test_oc_helpers_alloc_fail PRIVATE
+    -Wl,--wrap=malloc
+    -Wl,--wrap=free
+)
 kis_add_test(test_c_timestamp test_c_timestamp.cpp)
 kis_add_test(test_oc_rep      test_oc_rep.cpp)
+# --wrap=malloc: __wrap_malloc() fails the next call when a test arms it (allocation failure in the CBOR parser)
+kis_add_test(test_oc_rep_alloc_fail test_oc_rep_alloc_fail.cpp)
+target_link_options(test_oc_rep_alloc_fail PRIVATE
+    -Wl,--wrap=malloc
+)
 kis_add_test(test_coap              test_coap.cpp)
 kis_add_test(test_oc_oscore_crypto  test_oc_oscore_crypto.cpp)
 kis_add_test(test_oc_knx_sec       test_oc_knx_sec.cpp)
+# --wrap=oc_core_get_core_resource_by_index: counts the lookups of the /auth/o and /auth lists (pass through)
+target_link_options(test_oc_knx_sec PRIVATE
+    -Wl,--wrap=oc_core_get_core_resource_by_index
+)
 kis_add_test(test_oc_replay         test_oc_replay.cpp)
 kis_add_test(test_oc_oscore_echo_tx test_oc_oscore_echo_tx.cpp)
+target_link_options(test_oc_oscore_echo_tx PRIVATE
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_send_buffer
+    -Wl,--wrap=oc_oscore_encrypt
+    -Wl,--wrap=oc_message_post
+)
 kis_add_test(test_oc_endpoint       test_oc_endpoint.cpp)
 kis_add_test(test_oc_knx_fp        test_oc_knx_fp.cpp)
 kis_add_test(test_oc_ri            test_oc_ri.cpp)
+target_link_options(test_oc_ri PRIVATE
+    -Wl,--wrap=coap_remove_observer_by_resource
+    -Wl,--wrap=oc_etimer_set
+    -Wl,--wrap=oc_etimer_stop
+    -Wl,--wrap=oc_core_get_core_resource_by_index
+)
 kis_add_test(test_oc_oscore_context test_oc_oscore_context.cpp)
+# RI timed-event list driven by oc_main_poll(), --wrap=oc_clock_time gives a test-controlled clock
+kis_add_test(test_oc_ri_timed_callbacks test_oc_ri_timed_callbacks.cpp)
+target_link_options(test_oc_ri_timed_callbacks PRIVATE
+    -Wl,--wrap=oc_clock_time
+)
+# periodic observe list driven by oc_main_poll(); the notification is wrapped and deletes its resource (see the test)
+kis_add_test(test_oc_ri_periodic_observe test_oc_ri_periodic_observe.cpp)
+target_link_options(test_oc_ri_periodic_observe PRIVATE
+    -Wl,--wrap=oc_clock_time
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_notify_observers
+)
 kis_add_test(test_coap_engine       test_coap_engine.cpp)
+kis_add_test(test_coap_receive_payload test_coap_receive_payload.cpp)
+# Request payload size limits in coap_receive: --wrap fakes the network side (same pattern as test_smode_send_refcount)
+# and records the response.
+target_link_options(test_coap_receive_payload PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+)
 kis_add_test(test_coap_oscore       test_coap_oscore.cpp)
+# --wrap=coap_send_message redirects the network send performed by
+# oscore_send_error() to the recorder __wrap_coap_send_message(), so no real
+# socket I/O runs.
+target_link_options(test_coap_oscore PRIVATE
+    -Wl,--wrap=coap_send_message
+)
 kis_add_test(test_oc_knx_fb         test_oc_knx_fb.cpp)
 kis_add_test(test_oc_timer           test_oc_timer.cpp)
 kis_add_test(test_coap_transactions  test_coap_transactions.cpp)
+kis_add_test(test_coap_blockwise_server test_coap_blockwise_server.cpp)
+# server side Block1/Block2 through coap_receive(): the responses go to the recorder __wrap_coap_send_message()
+target_link_options(test_coap_blockwise_server PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=coap_send_message
+)
+# separate responses through coap_receive(): replies go to the recorder __wrap_coap_send_message(), --wrap=calloc fails a store
+kis_add_test(test_coap_receive_notify test_coap_receive_notify.cpp)
+target_link_options(test_coap_receive_notify PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=calloc
+)
 kis_add_test(test_coap_observe       test_coap_observe.cpp)
+target_link_options(test_coap_observe PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=calloc
+)
 kis_add_test(test_smode_refcount     test_smode_refcount.cpp)
 kis_add_test(test_smode_send_refcount test_smode_send_refcount.cpp)
 # The send-path tests call the real coap_send_transaction(). The GNU linker
@@ -116,6 +196,48 @@ target_link_options(test_smode_send_refcount PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=oc_etimer_restart
 )
+kis_add_test(test_smode_issue test_smode_issue.cpp)
+# The s-mode send path (oc_issue_s_mode_message) through the public multicast send. --wrap fakes the
+# network side (same pattern as test_smode_send_refcount), counts message allocations and can make
+# the transaction creation fail.
+target_link_options(test_smode_issue PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=oc_allocate_message
+    -Wl,--wrap=coap_new_transaction_with_message
+    -Wl,--wrap=coap_notify_k_observers
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_issue PRIVATE -fpermissive)
+endif()
+kis_add_test(test_smode_loopback_recursion test_smode_loopback_recursion.cpp)
+# Regression tests for the internal GO update ("loopback") in
+# oc_send_s_mode_mc_or_uc_message (finding F-022). The tests drive the REAL send
+# path so the GO table walk that carried the recursion is exercised 1:1; only the
+# outgoing message is neutralised. --wrap=coap_new_transaction_with_message makes
+# oc_issue_s_mode_message release its message instead of sending it (no
+# transaction), so no live network stack or oc_main_init() is needed.
+target_link_options(test_smode_loopback_recursion PRIVATE
+    -Wl,--wrap=coap_new_transaction_with_message
+)
+# oc_rep macros use g_err |= cbor_encode_*() which is an invalid
+# enum-to-int conversion in strict C++.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_loopback_recursion PRIVATE -fpermissive)
+endif()
+kis_add_test(test_smode_read_answer_payload test_smode_read_answer_payload.cpp)
+# Regression test for the multicast s-mode read answer payload length (finding
+# F-023). Drives the REAL /k POST handler over two read-flagged GOs on one GA.
+# --wrap=oc_send_s_mode_multicast_message neutralises the transmission while
+# reproducing its oc_rep_new() side effect (that side effect IS the defect) and
+# records the payload length computed for each answer.
+target_link_options(test_smode_read_answer_payload PRIVATE
+    -Wl,--wrap=oc_send_s_mode_multicast_message
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_smode_read_answer_payload PRIVATE -fpermissive)
+endif()
 kis_add_test(test_oc_knx_helpers     test_oc_knx_helpers.cpp)
 kis_add_test(test_oc_knx             test_oc_knx.cpp)
 kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)
@@ -126,26 +248,67 @@ kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)
 target_link_options(test_oc_knx_dev PRIVATE
     -Wl,--wrap=oc_main_initialized
     -Wl,--wrap=knx_dns_sd_update_service
+    -Wl,--wrap=oc_core_get_core_resource_by_index
 )
 kis_add_test(test_oc_knx_sub         test_oc_knx_sub.cpp)
 kis_add_test(test_oc_knx_p           test_oc_knx_p.cpp)
 kis_add_test(test_oc_knx_swu         test_oc_knx_swu.cpp)
+# --wrap=malloc/free: a string setter called with its own value (capture its buffer, poison it on free);
+# --wrap=oc_core_get_core_resource_by_index: counts the lookups of the /swu list
+target_link_options(test_oc_knx_swu PRIVATE
+    -Wl,--wrap=malloc
+    -Wl,--wrap=free
+    -Wl,--wrap=oc_core_get_core_resource_by_index
+)
 kis_add_test(test_oc_blockwise       test_oc_blockwise.cpp)
 kis_add_test(test_oc_test_control    test_oc_test_control.cpp)
 kis_add_test(test_oc_server_api      test_oc_server_api.cpp)
+target_link_options(test_oc_server_api PRIVATE
+    -Wl,--wrap=oc_ri_alloc_resource
+    -Wl,--wrap=oc_ri_alloc_resource_data
+    -Wl,--wrap=oc_ri_add_timed_event_callback_seconds
+    -Wl,--wrap=oc_ri_add_timed_event_callback_ticks
+    -Wl,--wrap=oc_ri_remove_timed_event_callback
+)
 kis_add_test(test_oc_clock           test_oc_clock.cpp)
 kis_add_test(test_oc_buffer_settings test_oc_buffer_settings.cpp)
 kis_add_test(test_oc_buffer          test_oc_buffer.cpp)
+target_link_options(test_oc_buffer PRIVATE
+    -Wl,--wrap=oc_send_buffer
+    -Wl,--wrap=oc_send_discovery_request
+    -Wl,--wrap=_oc_signal_event_loop
+    -Wl,--wrap=oc_process_post
+)
 kis_add_test(test_oc_discovery       test_oc_discovery.cpp)
 kis_add_test(test_oc_client_api      test_oc_client_api.cpp)
+# --wrap facility (same pattern as test_smode_send_refcount) lets
+# oc_send_well_known_message run its real
+# branch logic without a live socket, process loop, or oc_main_init().
+target_link_options(test_oc_client_api PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_etimer_restart
+    -Wl,--wrap=oc_allocate_message
+)
 kis_add_test(test_oc_knx_client      test_oc_knx_client.cpp)
 kis_add_test(test_oc_network_events  test_oc_network_events.cpp)
-kis_add_test(test_oc_session_events  test_oc_session_events.cpp)
+target_link_options(test_oc_network_events PRIVATE
+    -Wl,--wrap=oc_receive_message
+    -Wl,--wrap=handle_network_interface_event_callback
+    -Wl,--wrap=_oc_signal_event_loop
+)
 kis_add_test(test_oc_main            test_oc_main.cpp)
 kis_add_test(test_oc_core_res        test_oc_core_res.cpp)
 kis_add_test(test_spake2plus         test_spake2plus.cpp)
 kis_add_test(test_app_precalculated_spake test_app_precalculated_spake.cpp)
 kis_add_test(test_separate           test_separate.cpp)
+# --wrap=coap_send_message redirects the network send performed by the CON
+# path in coap_separate_accept() (via engine.c's empty-ack helper) to the
+# recorder __wrap_coap_send_message(), so no real socket I/O runs.
+target_link_options(test_separate PRIVATE
+    -Wl,--wrap=coap_send_message
+    -Wl,--wrap=oc_main_initialized
+)
 kis_add_test(test_oc_process         test_oc_process.cpp)
 kis_add_test(test_oc_etimer          test_oc_etimer.cpp)
 kis_add_test(test_oc_storage         test_oc_storage.cpp)
@@ -153,6 +316,30 @@ kis_add_test(test_oc_abort           test_oc_abort.cpp)
 kis_add_test(test_oc_network_interface test_oc_network_interface.cpp)
 kis_add_test(test_oc_random          test_oc_random.cpp)
 kis_add_test(test_oc_log             test_oc_log.cpp)
+# The mDNS announcement tests are POSIX-only: the source uses <net/if.h>,
+# if_nametoindex("lo"), ssize_t and the glibc socket entry points, and the
+# --wrap facility below is a GNU ld feature. Guarded with if(UNIX) so the
+# windows-test-gcc preset keeps building.
+#
+# The wraps redirect sendto to a recorder (no packet leaves the host),
+# recvmsg to an empty socket (the listener thread answers no real query),
+# get_ip_context_for_device to a fake context with one loopback endpoint
+# (dns-sd_mdns.c runs without oc_connectivity_init()), oc_clock_time to a
+# test-controlled clock (the one-second repeat needs no real sleep) and
+# oc_main_initialized to a test flag (no oc_main_init(), the announcement is
+# postponed while the stack is not initialized).
+if(UNIX)
+    kis_add_test(test_dns_sd_mdns    test_dns_sd_mdns.cpp)
+    target_link_options(test_dns_sd_mdns PRIVATE
+        -Wl,--wrap=sendto
+        -Wl,--wrap=recvmsg
+        -Wl,--wrap=get_ip_context_for_device
+        -Wl,--wrap=oc_clock_time
+        -Wl,--wrap=oc_main_initialized
+        -Wl,--wrap=oc_network_event_handler_mutex_lock
+        -Wl,--wrap=oc_network_event_handler_mutex_unlock
+    )
+endif()
 # oc_rep macros use g_err |= cbor_encode_*() which is an invalid
 # enum-to-int conversion in strict C++. Allow it with -fpermissive.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

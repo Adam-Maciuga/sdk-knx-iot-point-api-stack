@@ -1,35 +1,12 @@
 /*
  * Copyright (c) 2016 Intel Corporation
- *
- * Copyright (c) 2005, Swedish Institute of Computer Science
+ * Copyright (c) 2005 Swedish Institute of Computer Science
  * All rights reserved.
+ * Copyright (c) 2026 KNX Association
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the Institute nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * SPDX-License-Identifier: Apache-2.0 AND BSD-3-Clause
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
@@ -40,9 +17,9 @@
  * @{
  */
 
-#ifndef OC_PROCESS_H
-#define OC_PROCESS_H
+#pragma once
 #include "util/pt/pt.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,7 +31,7 @@ extern "C" {
 
 typedef unsigned char oc_process_event_t;
 typedef void *oc_process_data_t;
-typedef unsigned long oc_process_num_events_t;
+typedef uint16_t oc_process_num_events_t; // queue size and counters, bounded by OC_PROCESS_MAX_EVENTS
 
 /**
  * \name Return values
@@ -76,6 +53,22 @@ typedef unsigned long oc_process_num_events_t;
  *             not be posted.
  */
 #define OC_PROCESS_ERR_FULL 1
+
+/**
+ * \brief      Maximum number of queued process events.
+ *
+ *             The queue starts small and doubles on demand up to this size; at the
+ *             maximum oc_process_post() returns OC_PROCESS_ERR_FULL (the caller drops
+ *             the event) instead of growing until the heap is exhausted.
+ */
+#ifndef OC_PROCESS_MAX_EVENTS
+#define OC_PROCESS_MAX_EVENTS 64
+#endif
+
+// the queue size and counters are oc_process_num_events_t (uint16_t)
+#if OC_PROCESS_MAX_EVENTS > 65535
+#error "OC_PROCESS_MAX_EVENTS must not exceed 65535 (oc_process_num_events_t is uint16_t)"
+#endif
 /* @} */
 
 #define OC_PROCESS_NONE NULL
@@ -529,5 +522,3 @@ extern struct oc_process *oc_process_list;
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OC_PROCESS_H */

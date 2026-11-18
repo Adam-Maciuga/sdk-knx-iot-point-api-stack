@@ -1,16 +1,22 @@
-/* 
+/*
  * Copyright (c) 2021-2023 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "api/oc_knx_dev.h"
 #include "api/oc_knx_sec.h"
+#include "messaging/coap/observe.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
@@ -24,28 +30,40 @@
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_auth_o;
 extern const oc_resource_t core_resource_knx_auth_o_replwdo;
-extern const oc_resource_t core_resource_a_sen;
 extern const oc_resource_t core_resource_knx_auth_at;
 extern const oc_resource_t core_resource_knx_auth_at_x;
 extern const oc_resource_t core_resource_knx_auth;
 extern const oc_resource_t core_resource_well_known_core;
 
-// AT storage data
-#define AT_STORE "at_store"
-#define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
+// AT and SSN storage data
+// See the KNX_STORAGE_KEY_ATT_ENTRY and KNX_STORAGE_KEY_SSNT_ENTRY keys in oc_knx_sec.h
 
-// static const, maybe changed in a later stack version
-static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
-
-// static RAM variables 
-static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
+// static RAM variables
+// init all with '0' (also in at table included strings next/ptr/size)
+static oc_auth_at_t g_at_entries[KNX_ATT_MAX_ENTRIES];
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
-uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
-uint16_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
-void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
+int set_and_store_oscore_osn_delay_ms(int64_t milliseconds)
+{
+  // format = dpt.TimePeriodMsec (U16)
+  if (milliseconds < 0 || milliseconds > UINT16_MAX)
+  {
+    return -EINVAL;
+  }
+
+  // store first, an osn delay that is not stored in NVM -> NVM + RAM stay unchanged
+  const uint16_t delay = (uint16_t)milliseconds;
+  if (oc_storage_write(KNX_STORAGE_KEY_OSN_DELAY, (uint8_t*)&delay, sizeof(delay)) != (long)sizeof(delay))
+  {
+    OC_ERR("Failed to store osn delay %u ms in NVM", delay);
+    return -EIO;
+  }
+
+  oc_core_get_device_info()->osn_delay = delay;
+  return 0;
+}
+
 int32_t get_at_index(const oc_auth_at_t* entry)
 {
   if (!entry)
@@ -53,87 +71,77 @@ int32_t get_at_index(const oc_auth_at_t* entry)
     return -1;
   }
   const int32_t index = (int32_t)(entry - g_at_entries);
-  return index >= 0 && index < G_AT_MAX_ENTRIES ? index : -1;
+  return index >= 0 && index < KNX_ATT_MAX_ENTRIES ? index : -1;
 }
 
 /*
-  Builds the storage key for an SSN entry as 'ssn_<osc_id_hex>_<contextid_hex>'.
-  The caller must pre-initialize storage_name[OSCORE_STORAGE_KEY_LEN] with OSCORE_STORAGE_PREFIX.
-  Example: sender id 0x0001, id context 0x200105b7fd8e -> "ssn_0001_200105b7fd8e"
+  Builds the storage key for the SSN entry of an AT table entry as 'ssnt_e_<index>', reusing the
+  AT table index of the entry. Returns false when the entry is NULL or not part of the AT table
+  (index -1, e.g. a unit test mock entry), then no key is built and storage must not be accessed.
+  Example: AT table index 3 -> "ssnt_e_3"
 */
-static void oc_build_ssn_storage_name(const oc_auth_at_t* entry, char* storage_name)
+static bool oc_build_ssn_storage_key(const oc_auth_at_t* entry, char* storage_key)
 {
-  const uint8_t* sender_id = (const uint8_t*)oc_string(entry->osc_id);
-  const size_t sender_id_len = oc_byte_string_len(entry->osc_id);
-  const uint8_t* id_context = (const uint8_t*)oc_string(entry->osc_contextid);
-  const size_t id_context_len = oc_byte_string_len(entry->osc_contextid);
-  size_t storage_name_len;
+  const int index = get_at_index(entry);
 
-  // add 'Sender ID' in hex behind prefix that is something like 'ssn_'
-  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN;
-  oc_conv_byte_array_to_hex_string(sender_id, sender_id_len,
-                                   storage_name + OSCORE_STORAGE_PREFIX_LEN,
-                                   &storage_name_len);
+  if (index == -1)
+  {
+    return false;
+  }
 
-  // append divider ( -1 to overwrite the '\0')
-  storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
-
-  // add 'ID Context' behind the 'Sender ID' (+1 to include the foreseen string end '\0' placeholder)
-  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
-  oc_conv_byte_array_to_hex_string(id_context, id_context_len,
-                                   storage_name + (OSCORE_STORAGE_PREFIX_LEN + sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN),
-                                   &storage_name_len);
+  (void)snprintf(storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
+                 KNX_STORAGE_KEY_SSNT_ENTRY, index);
+  return true;
 }
 
 /**
  * @brief Read SSN from storage for a given access token entry
  *
- * Constructs storage key as 'ssn_<osc_id_hex>_<contextid_hex>' and reads
- * the stored SSN value. Returns 0 if not found or entry is NULL.
+ * Constructs the storage key as 'ssnt_e_<index>' from the AT table index of the entry and
+ * reads the stored SSN value. Returns 0 if not found, or if the entry is NULL or not part of
+ * the AT table.
  *
  * @param entry Pointer to the AT table entry
- * @return uint64_t Stored SSN value, or 0 if not found
+ * @return uint32_t Stored SSN value (4-byte record), or 0 if not found
  */
-static uint64_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
+static uint32_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
 {
-  if (!entry)
+  char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+
+  if (!oc_build_ssn_storage_key(entry, storage_key))
   {
     return 0;
   }
 
-  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
-  oc_build_ssn_storage_name(entry, storage_name);
-
-  uint64_t ssn = 0;
-  const long bytes_read = oc_storage_read(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  uint32_t ssn = 0;
+  const long bytes_read = oc_storage_read(storage_key, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_read == sizeof(ssn))
   {
-    OC_DBG("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
+    OC_DBG("Read SSN from storage '%s': %" PRIu32, storage_key, ssn);
     return ssn;
   }
-  OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_name);
+  OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_key);
   return 0;
 }
 
-void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn)
+void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint32_t ssn)
 {
-  if (!entry)
+  char storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+
+  if (!oc_build_ssn_storage_key(entry, storage_key))
   {
     return;
   }
 
-  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
-  oc_build_ssn_storage_name(entry, storage_name);
-
-  const long bytes_written = oc_storage_write(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  const long bytes_written = oc_storage_write(storage_key, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_written == sizeof(ssn))
   {
-    OC_DBG("Wrote SSN to storage '%s': %" PRIu64, storage_name, ssn);
+    OC_DBG("Wrote SSN to storage '%s': %" PRIu32, storage_key, ssn);
     return;
   }
-  OC_WRN("Wrote NO SSN to storage '%s'", storage_name);
+  OC_WRN("Wrote NO SSN to storage '%s'", storage_key);
 }
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
@@ -170,7 +178,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, get_oscore_osn_delay_ms());
+  oc_rep_i_set_uint(root, 1, oc_core_get_device_info()->osn_delay);
   oc_rep_end_root_object();
 
   OC_INF("oc_core_knx_auth_o_osndelay_get_handler - done");
@@ -187,7 +195,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
     if (rep->type == OC_REP_INT)
@@ -195,7 +203,20 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
       if (rep->iname == 1)
       {
         OC_DBG("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int)rep->type, (int)rep->value.integer);
-        set_oscore_osn_delay_ms((uint16_t)rep->value.integer); 
+        const int result = set_and_store_oscore_osn_delay_ms(rep->value.integer);
+
+        // a failed NVM write is a server error (5.00), an out of range value is a client error (4.00)
+        if (result == -EIO)
+        {
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+          return;
+        }
+        if (result == -EINVAL)
+        {
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
@@ -210,7 +231,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
-  (oc_resource_t*)&core_resource_knx_auth_o,
+  &core_resource_knx_auth_o,
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt:timePeriodMsec"), "urn:knx:dpt:timePeriodMsec"},
@@ -238,7 +259,7 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size); // use direct access
+  oc_rep_i_set_uint(root, 1, OSCORE_REPLAY_WINDOW_SIZE);
   oc_rep_end_root_object();
 
   OC_INF("oc_core_knx_auth_o_replwdo_get_handler - done");
@@ -248,14 +269,14 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
-  (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
+  &core_resource_knx_auth_o_osndelay,
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.value2UCount"), "urn:knx:dpt.value2UCount"},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   {oc_core_knx_auth_o_replwdo_get_handler, NULL, OC_ACL_D, OC_IF_D},
-  {NULL, NULL, OC_ACL_NONE, OC_ACL_NONE},
+  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {{NULL}, NULL},
@@ -272,12 +293,12 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
-  int first_entry = OC_KNX_AUTH_O_REPLWDO; // first entry number of a resource that will be placed on a page
-  int last_entry = OC_KNX_AUTH_O; // last entry number of a resource that will be placed on a page
-  int total = last_entry - first_entry; // total entries of this resource
+  int first_entry = OC_KNX_AUTH_O_REPLWDO;    // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_O;             // last entry number of a resource that will be placed on a page
+  const int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
   OC_INF("oc_core_auth_o_get_handler - start");
@@ -288,7 +309,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -296,10 +317,14 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   // first entry number of a resource that will be placed on a page
   first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-  // check if requested page will carry at least one resource e.g
-  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
-  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0)
+  /* check if requested page will carry at least one resource e.g
+     - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+     - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
+     - ps < 1 is invalid
+     - pn < 0 is invalid
+
+  */
+  if (first_entry >= last_entry || query_ps < 1 || query_pn < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -316,9 +341,15 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
     more_request_needed = true;
   }
 
-  for (int i = first_entry; i < last_entry; i++)
+  /*
+    walk the chain once from first_entry (consecutive core resources); by index every lookup walks from the start
+    - the page is the index range already, nothing to skip: no_skip (0) < 0 is never true (the 'skipped' counter is for discovery)
+  */
+  int no_skip = 0;
+  const oc_resource_t* resource = oc_core_get_core_resource_by_index(first_entry);
+  for (int i = first_entry; i < last_entry; i++, resource = resource->next)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    if (oc_check_request_from_resource(resource, request, &response_length, &no_skip, 0, true, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -348,7 +379,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
-  (oc_resource_t*)&core_resource_knx_auth_at,
+  &core_resource_knx_auth_at,
   {NULL, sizeof("/auth/o"), "/auth/o"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -365,99 +396,64 @@ const oc_resource_t core_resource_knx_auth_o = {
   true,
   &core_resource_knx_auth_o_data};
 
-#define LDEVID_RENEW 1
-#define LDEVID_STOP  2
-
-static int a_sen_convert_cmd(char* cmd)
+/*
+  resets the RAM content of an AT-table entry to its empty state (id, scope, profile, oscore object, ga array)
+  - does not touch the persisted storage file for this slot; 
+  - oc_delete_at_table_entry() does that separately before calling this method
+*/
+static void oc_free_at_table_entry_ram(oc_auth_at_t* entry)
 {
-  if (strncmp(cmd, "renew", strlen("renew")) == 0)
-  {
-    return LDEVID_RENEW;
-  }
-  if (strncmp(cmd, "stop", strlen("stop")) == 0)
-  {
-    return LDEVID_STOP;
-  }
+  // id 
+  oc_free_string(&entry->id);
+  oc_new_string(&entry->id, "", 0);
 
-  OC_DBG("convert_cmd command not recognized: %s", cmd);
-  return 0;
+  entry->scope = OC_ACL_NONE;
+  entry->profile = OC_PROFILE_UNKNOWN;
+
+  // cnf:osc - oscore object
+  oc_free_string(&entry->osc_id);
+  oc_new_byte_string(&entry->osc_id, "", 0);
+
+  oc_free_string(&entry->osc_ms);
+  oc_new_byte_string(&entry->osc_ms, "", 0);
+
+  oc_free_string(&entry->osc_salt);
+  oc_new_byte_string(&entry->osc_salt, "", 0);
+
+  oc_free_string(&entry->osc_contextid);
+  oc_new_byte_string(&entry->osc_contextid, "", 0);
+
+  // release a possible ga array, free ignores NULL ptr
+  free(entry->ga);
+
+  entry->ga = NULL;
+  entry->ga_len = 0;
 }
 
-static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+
+void oc_free_at_table_ram(void)
 {
-  (void)data;
-  (void)iface_mask;
-
-  int cmd = 0;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
-    return;
+    oc_free_at_table_entry_ram(entry);
   }
-
-  bool changed = false;
-  const oc_rep_t* rep = request->request_payload;
-  while (rep)
-  {
-    OC_DBG("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
-    if (rep->type == OC_REP_STRING)
-    {
-      if (rep->iname == 2)
-      {
-        // 2: "renew"
-        cmd = a_sen_convert_cmd(oc_string_checked(rep->value.string));
-        changed = true;
-        break;
-      }
-    }
-
-    rep = rep->next;
-  }
-
-  // input was set, so create the response
-  if (changed == true)
-  {
-    OC_INF("oc_core_a_sen_post_handler cmd %d ", cmd);
-    /*
-      renew the credentials
-      Note: This is optional for now.
-    */
-    oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-    return;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core'
-static oc_resource_data_t core_resource_a_sen_data;
-const oc_resource_t core_resource_a_sen = {
-  (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
-  {NULL, sizeof("/a/sen"), "/a/sen"},
-  {NULL, 0, NULL},
-  {NULL, 0, NULL},
-  {APPLICATION_CBOR, CONTENT_NONE},
-  OC_DISCOVERABLE,
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {oc_core_a_sen_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {{NULL}, NULL},
-  {{NULL}, NULL},
-  0,
-  0,
-  true,
-  &core_resource_a_sen_data};
 
-// empty ... when 'id' string is an empty string "" 
+/*
+  empty ... when 'id' string is an empty string ""
+  the returned entry wipes the at-table RAM content (but not the storage), a free RAM at-table slot
+  may still carry leftovers (salt, context id, ga) of a beforehand rejected entry
+*/
 static oc_auth_at_t* find_empty_at_entry(void)
 {
-  
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) == 0)
     {
-      // found an empty 'id' string ...
+      // found an empty 'id' string ... reset the remaining content before handing the slot out (double free of id accepted)
+      oc_free_at_table_entry_ram(entry);
       return entry;
     }
   }
@@ -465,9 +461,10 @@ static oc_auth_at_t* find_empty_at_entry(void)
   return NULL;
 }
 
-static oc_auth_at_t* find_entry_from_access_token_string(const char* at, size_t len_at)
+// an empty id (len_at = 0) never matches, an unused slot carries an empty id
+oc_auth_at_t* oc_core_find_at_entry_by_access_token(const char* at, size_t len_at)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     const size_t len = oc_string_len(entry->id);
     if (len > 0 && len == len_at && strncmp(at, oc_string(entry->id), len) == 0)
@@ -508,7 +505,7 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
 }
 
 // false, if the GA was NOT found in access token GA list
-static bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address)
+bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address)
 {
   if (!at_entry)
   {
@@ -533,7 +530,7 @@ static bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, u
 
 int oc_core_get_at_table_size(void)
 {
-  return G_AT_MAX_ENTRIES;
+  return KNX_ATT_MAX_ENTRIES;
 }
 
 /*
@@ -545,7 +542,7 @@ int oc_core_get_at_table_size(void)
 int oc_core_items_used_in_auth_at_table(void)
 {
   int counter = 0;
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) > 0)
     {
@@ -564,8 +561,8 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   // query parameter key/value pair matches found
   int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
   OC_INF("oc_core_auth_at_get_handler - start"); 
 
@@ -578,7 +575,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   const int total = oc_core_items_used_in_auth_at_table();
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -593,14 +590,14 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   // first entry number of a resource that will be placed on a page
   const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-  /*
-    check if requested page will carry at least one resource e.g
-    - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5
-      (all on page 0)
-    - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1
-      (all on page 0)
+  /* check if requested page will carry at least one resource e.g
+     - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+     - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
+     - ps < 1 is invalid
+     - pn < 0 is invalid
+
   */
-  if (first_entry >= total || query_ps == 0)
+  if (first_entry >= total || query_ps < 1 || query_pn < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -608,17 +605,16 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 
   /*
     entries don't fit in a single page -> more pages are needed to get the full list
-    - total=4, page number 1, page size 02, first entry = 002
-      -> no more data on next page
-    - total=4, page number 1, page size 01, first entry = 001
-      -> more data on next page
+    - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page
+    - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
   */
-  const bool more_request_needed = total > first_entry + query_ps ? true : false;
+  const bool more_request_needed = total > first_entry + query_ps;
 
   /*
     Example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly.
   */
-  for (oc_auth_at_t* entry = g_at_entries + first_entry; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries + first_entry;
+       entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (oc_string_len(entry->id) > 0)
     {
@@ -653,6 +649,49 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   OC_INF("oc_core_auth_at_get_handler - end");
 }
 
+// identifiers of the elements a POST /auth/at request replaced in its shadow copy (as TABLE_AT_REF/TABLE_GAS on fp/r)
+#define AT_ALLOC_OSC_ID        (1u << 0)
+#define AT_ALLOC_OSC_MS        (1u << 1)
+#define AT_ALLOC_OSC_SALT      (1u << 2)
+#define AT_ALLOC_OSC_CONTEXTID (1u << 3)
+#define AT_ALLOC_GA            (1u << 4)
+
+/*
+  frees the elements of 'entry' flagged in 'allocator' (a set bit = the element was replaced in the shadow copy)
+  - (&tmp, allocator) on a rejected request -> drops the new values, the live entry stays as it was
+  - (live, allocator) before '*live = tmp' -> drops the replaced old values, no leak
+  - AT_ALLOC_GA is also set when a string scope removed the ga array (tmp.ga = NULL), free ignores NULL ptr
+*/
+static void oc_free_allocated_at_elements(oc_auth_at_t* entry, uint8_t allocator)
+{
+  if (allocator & AT_ALLOC_OSC_ID)
+  {
+    oc_free_string(&entry->osc_id);
+  }
+
+  if (allocator & AT_ALLOC_OSC_MS)
+  {
+    oc_free_string(&entry->osc_ms);
+  }
+
+  if (allocator & AT_ALLOC_OSC_SALT)
+  {
+    oc_free_string(&entry->osc_salt);
+  }
+
+  if (allocator & AT_ALLOC_OSC_CONTEXTID)
+  {
+    oc_free_string(&entry->osc_contextid);
+  }
+
+  if (allocator & AT_ALLOC_GA)
+  {
+    free(entry->ga);
+    entry->ga = NULL;
+    entry->ga_len = 0;
+  }
+}
+
 static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -665,6 +704,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   // default assumption
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
+  // global flags to indicate if scope or other properties were updated over an entire collection
   bool scope_updated = false;
   bool other_updated = false;
 
@@ -720,11 +760,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       // find index from access token table
-      at_entry = find_entry_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
+      at_entry = oc_core_find_at_entry_by_access_token(oc_string(*access_token_id), oc_string_len(*access_token_id));
       if (at_entry)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
+
+        // NOTHING is cleared here, a partial update (d) must keep the properties that are not in the payload
       }
       else
       {
@@ -741,18 +783,36 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
       }
 
-      #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id/ms
-      bool id_only = true; // used to delete the AT table entry
+      /*
+        A bitmask, not a counter: a repeated CBOR key survives oc_parse_rep() as
+        a separate rep, so counting occurrences would let one property repeated
+        five times stand in for all five mandatory ones.
+      */
+      #define AT_PROP_ID      (1u << 0)
+      #define AT_PROP_SCOPE   (1u << 1)
+      #define AT_PROP_PROFILE (1u << 2)
+      #define AT_PROP_OSC_ID  (1u << 3)
+      #define AT_PROP_OSC_MS  (1u << 4)
+      #define AT_PROP_CNF     (1u << 5)
+      #define MANDATORY_AT_PROPERTIES (AT_PROP_ID | AT_PROP_SCOPE | AT_PROP_PROFILE | AT_PROP_OSC_ID | AT_PROP_OSC_MS)
 
       /*
-        Set access token id, note that an access token is (too) complex to use
-        a shadow copy as for POST on pub/rcp/go.
-      */
-      oc_free_string(&at_entry->id);
-      oc_new_string(&at_entry->id, oc_string(*access_token_id), oc_string_len(*access_token_id));
+        shadow copy (as for POST on fp/g, fp/p, fp/r): all properties are written to 'tmp', the live entry changes only once ALL checks passed
+        - a rejected request (4.00/5.00) leaves an existing token as it was, a new one leaves its slot empty
+        - the access token id is written to the entry as the LAST step (see 'b + d' below)
+        - a new value gets its own allocation, flagged in 'allocator'; an element not in the payload stays shared with the live entry
 
-      // access token id already set
-      int current_at_properties = 1;
+        repeated key in one access token
+        - accepted, the last one wins (as on fp/g, fp/p, fp/r)
+        - each branch releases an earlier value of THIS request first (ga array, ms, id, contextId, salt) -> no leak
+        - a value shared with the live entry (bit not set) is NOT freed there, the commit below releases it
+      */
+      oc_auth_at_t tmp = *at_entry;
+      uint8_t allocator = 0;
+
+      bool id_only = true; // used to delete the AT table entry
+
+      unsigned int at_properties_seen = AT_PROP_ID;
 
       while (object)
       {
@@ -770,39 +830,53 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               - length must iterate over length / 32
             */
             char* array = (char*)object->value.array.ptr;
-            const int new_array_size = (int)object->value.array.size / STRING_ARRAY_ITEM_MAX_LEN;
+            const int array_size = (int)object->value.array.size / STRING_ARRAY_ITEM_MAX_LEN;
 
             // set default scope
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
 
-            // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
-            free(at_entry->ga);
-
-            // in case of scopes the GA/GA len property is not used
-            at_entry->ga = NULL;
-            at_entry->ga_len = 0;
-            for (int i = 0; i < new_array_size; i++)
+            for (int i = 0; i < array_size; i++)
             {
               // address each string
               char* acl_string = (char*)array + i * STRING_ARRAY_ITEM_MAX_LEN;
 
-              // compact the input strings as acl bit mask definitions
-              acl_scopes += oc_ri_get_scope_mask(acl_string, strlen(acl_string));
+              /* 
+                 compact the input strings as acl bit mask definitions, no privilege escalation possible
+
+                (a) an empty input array yields OC_ACL_NONE (0), the loop does not start -> 4.00
+                (b) an unknown ["if.unknown"] or empty [""] name yields OC_ACL_NONE (0) -> 4.00
+                (c) a known name ["if.o"] yields the corresponding bit -> accepted    
+                (d) a combination of (b) and (c) yields the union of the bits -> accepted                    
+                    (a scope of ["if.o", "if.unknown"] is accepted as ["if.o"], we accept a badly implemented MaC)
+              */
+              acl_scopes |= oc_ri_get_scope_mask(acl_string, strlen(acl_string));
             }
 
-            // no scope (an empty array) or a bad scope was set (such as if.ll)
+            // (a) - (d), checked BEFORE the entry is changed: a rejected request leaves the existing token as it is
             if (acl_scopes == OC_ACL_NONE)
             {
               OC_ERR("No valid access scope was set!");
+              oc_free_allocated_at_elements(&tmp, allocator);
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
               return;
             }
 
+            // release a ga array of this request (repeated key), a live one is released by the commit, free ignores NULL ptr
+            if (allocator & AT_ALLOC_GA)
+            {
+              free(tmp.ga);
+            }
+
+            // in case of scopes the GA/GA len property is not used, the bit makes the commit release a live ga array
+            tmp.ga = NULL;
+            tmp.ga_len = 0;
+            allocator |= AT_ALLOC_GA;
+
             scope_updated = true;
 
             // scopes (compacted bits)
-            at_entry->scope = acl_scopes;
-            current_at_properties++;
+            tmp.scope = acl_scopes;
+            at_properties_seen |= AT_PROP_SCOPE;
           }
         }
         else if (object->type == OC_REP_INT_ARRAY)
@@ -813,54 +887,56 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // scope with GA integer array from MaC such as [200, 201]
           if (object->iname == 9)
           {
-            // default, will be overwritten if GA array was correctly assigned
-            at_entry->scope = OC_ACL_NONE;
-
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
-            const int new_array_size = oc_int_array_size(object->value.array);
+            const int array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array)
+            // an empty array never reaches malloc(0), an empty GA scope is not valid
+            if (array_size == 0)
             {
-              if (new_array_size > 0)
-              {
-                for (int i = 0; i < new_array_size; i++)
-                {
-                  new_array[i] = (uint32_t)array[i];
-                }
-
-                OC_DBG("ga size %d", new_array_size);
-
-                // release a possible ga array, it will be overwritten, free ignores NULL ptr
-                free(at_entry->ga);
-
-                at_entry->ga_len = new_array_size;
-                at_entry->ga = new_array;
-
-                /*
-                  define THIS auth at token below with <ga> scope 's-mode messaging',
-                  - is defined only here in the code
-                  - is used only on /k resource (see also oc_knx_sec_check_acl)
-                  - is used only in combination with a present ga array / array len (see above)
-                */
-                at_entry->scope = OC_ACL_GA;
-                current_at_properties++;
-              }
-              else
-              {
-                OC_ERR("No valid access GA scope was set!");
-                oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-                return;
-              }
+              OC_ERR("No valid access GA scope was set!");
+              oc_free_allocated_at_elements(&tmp, allocator);
+              oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+              return;
             }
-            else
+
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            if (!new_array)
             {
               OC_ERR("Out of stack memory!");
+              oc_free_allocated_at_elements(&tmp, allocator);
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
+
+            for (int i = 0; i < array_size; i++)
+            {
+              new_array[i] = (uint32_t)array[i];
+            }
+
+            OC_DBG("ga size %d", array_size);
+
+            // release a ga array of this request (repeated key), a live one is released by the commit, free ignores NULL ptr
+            if (allocator & AT_ALLOC_GA)
+            {
+              free(tmp.ga);
+            }
+
+            tmp.ga_len = array_size;
+            tmp.ga = new_array;
+            allocator |= AT_ALLOC_GA;
+
+            /*
+              define THIS auth at token below with <ga> scope 's-mode messaging',
+              - is defined only here in the code
+              - is used only on /k resource (see also oc_knx_sec_check_acl)
+              - is used only in combination with a present ga array / array len (see above)
+            */
+            tmp.scope = OC_ACL_GA;
+            at_properties_seen |= AT_PROP_SCOPE;
+
+            // as in the string scope branch: a GA-only update needs no re-initialization of the OSCORE contexts (see below)
+            scope_updated = true;
           }
         }
         else if (object->type == OC_REP_STRING)
@@ -882,14 +958,23 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // profile (38)
           if (object->iname == 38)
           {
-            at_entry->profile = (oc_at_profile_t)object->value.integer;
-            current_at_properties++;
+            tmp.profile = (oc_at_profile_t)object->value.integer;
+            at_properties_seen |= AT_PROP_PROFILE;
+
+            // the profile decides whether an OSCORE context exists at all -> the contexts must be re-initialized
+            other_updated = true;
           }
         }
         else if (object->type == OC_REP_OBJECT)
         {
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
+
+          // cnf (8): only allowed in a full token, see the check after the loop
+          if (object->iname == 8)
+          {
+            at_properties_seen |= AT_PROP_CNF;
+          }
 
           // level of cnf:xxx
           cnf_object = object->value.object;
@@ -909,13 +994,15 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 {
                   if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
                   {
-                    // cnf:osc:ms (8:4:4)
+                    // cnf:osc:alg (8:4:4)
 
-                    /* algorithm (10) only supports value 10 at the moment, EITT test 5.3.19.3 */
-                    if (object->value.integer != 10)
+                    // algorithm (10) only supports value 10 at the moment
+                    if (oscore_object->value.integer != 10)
                     {
-                      OC_ERR("algorithm is not 10 : %d", (int)object->value.integer);
-                      return_status = OC_STATUS_BAD_REQUEST;
+                      OC_ERR("algorithm is not 10 : %d", (int)oscore_object->value.integer);
+                      oc_free_allocated_at_elements(&tmp, allocator);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
                     }
 
                     other_updated = true;
@@ -934,6 +1021,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     if (mastersecret_size < OSCORE_KEY_LEN || mastersecret_size > OSCORE_MASTER_SECRET_LEN)
                     {
                       OC_ERR("master secret size must be in range 16 ... 32: %u", mastersecret_size);
+                      oc_free_allocated_at_elements(&tmp, allocator);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
@@ -943,15 +1031,21 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     {
 
                       OC_ERR("master secret with len %u content cannot be zero : ", mastersecret_size);
+                      oc_free_allocated_at_elements(&tmp, allocator);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
 
-                    oc_free_string(&at_entry->osc_ms);
-                    oc_new_byte_string(&at_entry->osc_ms, mastersecret_ptr, mastersecret_size);
+                    // repeated key: release the value of this request only (see shadow copy above)
+                    if (allocator & AT_ALLOC_OSC_MS)
+                    {
+                      oc_free_string(&tmp.osc_ms);
+                    }
+                    oc_new_byte_string(&tmp.osc_ms, mastersecret_ptr, mastersecret_size);
+                    allocator |= AT_ALLOC_OSC_MS;
 
                     other_updated = true;
-                    current_at_properties++;
+                    at_properties_seen |= AT_PROP_OSC_MS;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
                   {
@@ -963,12 +1057,17 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     if (id_context_size > OSCORE_ID_CONTEXT_LEN)
                     {
                       OC_ERR("id context size to big : %zu", id_context_size);
+                      oc_free_allocated_at_elements(&tmp, allocator);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
 
-                    oc_free_string(&at_entry->osc_contextid);
-                    oc_new_byte_string(&at_entry->osc_contextid, oc_string(oscore_object->value.string), id_context_size);
+                    if (allocator & AT_ALLOC_OSC_CONTEXTID)
+                    {
+                      oc_free_string(&tmp.osc_contextid);
+                    }
+                    oc_new_byte_string(&tmp.osc_contextid, oc_string(oscore_object->value.string), id_context_size);
+                    allocator |= AT_ALLOC_OSC_CONTEXTID;
                     other_updated = true;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
@@ -981,21 +1080,30 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     if (sender_id_size > OSCORE_SENDER_ID_LEN)
                     {
                       OC_ERR("sender id size to big : %zu", sender_id_size);
+                      oc_free_allocated_at_elements(&tmp, allocator);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
 
-                    oc_free_string(&at_entry->osc_id);
-                    oc_new_byte_string(&at_entry->osc_id, oc_string(oscore_object->value.string), sender_id_size);
+                    if (allocator & AT_ALLOC_OSC_ID)
+                    {
+                      oc_free_string(&tmp.osc_id);
+                    }
+                    oc_new_byte_string(&tmp.osc_id, oc_string(oscore_object->value.string), sender_id_size);
+                    allocator |= AT_ALLOC_OSC_ID;
                     other_updated = true;
-                    current_at_properties++;
+                    at_properties_seen |= AT_PROP_OSC_ID;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
                   {
                     // cnf:osc:salt (8:4:5), RFC 9003 max 255 bytes on JSON ....
 
-                    oc_free_string(&at_entry->osc_salt);
-                    oc_new_byte_string(&at_entry->osc_salt, oc_string(oscore_object->value.string), oc_string_len(oscore_object->value.string));
+                    if (allocator & AT_ALLOC_OSC_SALT)
+                    {
+                      oc_free_string(&tmp.osc_salt);
+                    }
+                    oc_new_byte_string(&tmp.osc_salt, oc_string(oscore_object->value.string), oc_string_len(oscore_object->value.string));
+                    allocator |= AT_ALLOC_OSC_SALT;
                     other_updated = true;
                   }
                 }
@@ -1006,16 +1114,24 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
             cnf_object = cnf_object->next;
           }
+        } 
+        else if (object->type == OC_REP_NIL)
+        {
+          // an empty (array) element such as [{0: '12', 9: []}]  - as a kind of MaC mistake ar attack - causes a "not an id only"
+          id_only = false;
         }
 
         object = object->next;
       }
 
       /*
-        a: created +  id only/< min elements = ERROR (to few elements)
+        a: created +  id only/< min elements = ERROR (to few elements, the claimed slot stays free because the id is written as the last step)
         b: created +  5 elements             = OK (create)
         c: changed +  id only                = OK (delete)
-        d: changed +  1...n elements         = OK (update)
+        d: changed +  1...n elements         = OK (update, a rejected update never deletes the entry)
+        e: changed +  cnf + < min elements   = ERROR (spec 2.6.7.3: 'cnf' is not updatable, the existing token stays as it is)
+                                               - a full token (with ALL mandatory elements) with the same id is 
+                                                 seen as allowed to overwrite, its cnf is accepted (case d)
       */
       if (return_status == OC_STATUS_CHANGED && id_only)
       {
@@ -1023,18 +1139,55 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         OC_DBG("only found id in request, deleting entry...");
         oc_delete_at_table_entry(at_entry);
       }
+      else if ((return_status == OC_STATUS_CREATED || at_properties_seen & AT_PROP_CNF) &&
+               (at_properties_seen & MANDATORY_AT_PROPERTIES) != MANDATORY_AT_PROPERTIES)
+      {
+        // a + e
+        OC_WRN("mandatory items missing, entry not created / cnf not updated");
+        oc_free_allocated_at_elements(&tmp, allocator);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
-        {
-          // a
-          OC_WRN("mandatory items missing, no entry created");
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
         // b + d
         OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
+
+        /*
+          an existing token rewritten (= CHANGED) with a NEW key (cnf values or profile differ from the live entry)
+
+          1. oc_oscore_free_contexts_at_id() below frees ALL its contexts (sender and recipient), only when the key differs
+          2. oc_init_oscore_from_storage() at the end rebuilds only the sender contexts, a recipient context is created again
+             from the new key on the next inbound request
+
+          (a) new = old: the contexts are kept, the recipient context of THIS request encrypts its later outbound 2.04 response
+              -> freed, the response would find no context and be dropped
+          (b) new != old: the contexts are freed, a kept recipient context would still accept the old key and reject the new one
+              -> a request protected with a DIFFERENT token gets its 2.04 (its own context is untouched)
+              -> a request protected with THIS token gets no 2.04, the response has to use the request's (old) context
+                 (RFC 8613 8.3), which is freed
+
+          - only cnf and profile are part of a context, so only they free the contexts (b)
+          - the VALUES are compared, not the elements seen: a full token re-POSTed with the same key (conformance 5.3.8.4,
+            and 5.10.5.2 protected with this token itself) keeps its contexts (a), such a request still gets its response
+        */
+        if (return_status == OC_STATUS_CHANGED && (tmp.profile != at_entry->profile
+                      || (at_properties_seen & AT_PROP_CNF
+                      && (oc_byte_string_cmp(tmp.osc_id, at_entry->osc_id) != 0
+                          || oc_byte_string_cmp(tmp.osc_ms, at_entry->osc_ms) != 0
+                          || oc_byte_string_cmp(tmp.osc_salt, at_entry->osc_salt) != 0
+                          || oc_byte_string_cmp(tmp.osc_contextid, at_entry->osc_contextid) != 0))))
+        {
+          oc_oscore_free_contexts_at_id(at_entry);
+        }
+
+        // all checks passed: release the replaced values of the live entry, then take over the shadow copy
+        oc_free_allocated_at_elements(at_entry, allocator);
+        *at_entry = tmp;
+
+        // all checks passed, only now the entry gets its id and becomes visible in the AT table
+        oc_free_string(&at_entry->id);
+        oc_new_string(&at_entry->id, oc_string(*access_token_id), oc_string_len(*access_token_id));
 
         // debugging
         oc_print_auth_at_entry(at_entry);
@@ -1045,18 +1198,25 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
     rep = rep->next;
   }
 
-  OC_INF("activating oscore context");
+  /*
+    spec 2.6.7.3 -> secure related data from 'cnf' claim are not allowed to be updated, but all others from table 49
+    - scope   (9)
+    - profile (38)
+    - sub     (2) - not implemented
+    - exp     (4) - not implemented
+    - nbf     (5) - not implemented
 
-  if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true)
+    Use Case
+    - update ONE or MANY access token in place (as part of one request), such as to extend the 'exp' time of an access token without rewriting the key
+      (such as a token for a diagnostic function that publishes a live value to a visualization)
+    -> a scope-only update needs no re-initialization, all other cases add the oscore contexts by reinitializing all used oscore keys
+  */
+  const bool scope_only = return_status == OC_STATUS_CHANGED && !other_updated && scope_updated;
+  if (!scope_only)
   {
-    // do not update the oscore when update only scope content
-    OC_WRN("updated scopes only, NO reinitializing of all used oscore keys ");
-  }
-  else
-  {
-    // add the oscore contexts by reinitializing all used oscore keys
     oc_init_oscore_from_storage(false);
   }
+  OC_DBG("oscore contexts %s", scope_only ? "kept (scope-only update)" : "reinitialized");
 
   // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
@@ -1083,7 +1243,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
-  (oc_resource_t*)&core_resource_knx_auth_at_x,
+  &core_resource_knx_auth_at_x,
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1129,7 +1289,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   OC_DBG("id = %.*s", value_len, value); 
 
   // get the AT entry from access string token
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(value, value_len);
   if (!at_entry)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1251,7 +1411,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   OC_DBG("id = %.*s", value_len, value); 
 
   // get the AT entry from access string token
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(value, value_len);
 
   if (!at_entry)
   {
@@ -1263,9 +1423,6 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   OC_DBG("delete AT table entry");
   oc_delete_at_table_entry(at_entry);
 
-  // delete the related oscore contexts
-  oc_oscore_free_contexts_at_id(at_entry);
-
   OC_INF("oc_core_auth_at_x_delete_handler - done");
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
@@ -1273,7 +1430,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
-  (oc_resource_t*)&core_resource_knx_auth,
+  &core_resource_knx_auth,
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1297,14 +1454,12 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
-  int query_pn = PAGE_NUMBER;
-  int query_ps = PAGE_SIZE;
+  int query_pn = KNX_PAGE_NUMBER;
+  int query_ps = KNX_PAGE_SIZE;
 
-  int first_entry = OC_KNX_AUTH_O; // first entry number of a resource that will
-  // be placed on a page
-  int last_entry = OC_KNX_AUTH_AT_X; // last entry number of a resource that
-  // will be placed on a page
-  int total = last_entry - first_entry; // total entries of this resource
+  int first_entry = OC_KNX_AUTH_O;            // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_AT_X;          // last entry number of a resource that will be placed on a page
+  const int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
   OC_INF("oc_core_knx_auth_get_handler - start");
@@ -1315,7 +1470,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE, total))
+  if (query_l_was_processed(request, KNX_PAGE_SIZE, total))
   {
     return;
   }
@@ -1328,7 +1483,9 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   //   (all on page 0)
   // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1
   //   (all on page 0)
-  if (first_entry >= last_entry || query_ps == 0)
+  // - ps < 1 is invalid
+  // - pn < 0 is invalid
+  if (first_entry >= last_entry || query_ps < 1 || query_pn < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1345,9 +1502,15 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
     more_request_needed = true;
   }
 
-  for (int i = first_entry; i < last_entry; i++)
+  /*
+    walk the chain once from first_entry (consecutive core resources); by index every lookup walks from the start
+    - the page is the index range already, nothing to skip: no_skip (0) < 0 is never true (the 'skipped' counter is for discovery)
+  */
+  int no_skip = 0;
+  const oc_resource_t* resource = oc_core_get_core_resource_by_index(first_entry);
+  for (int i = first_entry; i < last_entry; i++, resource = resource->next)
   {
-    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
+    if (oc_check_request_from_resource(resource, request, &response_length, &no_skip, 0, true, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -1375,7 +1538,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
-  (oc_resource_t*)&core_resource_well_known_core,
+  &core_resource_well_known_core,
   {NULL, sizeof("/auth"), "/auth"},
   {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.auth"}},
   {NULL, 0, NULL},
@@ -1441,6 +1604,8 @@ void oc_print_auth_at_entry(const oc_auth_at_t* entry)
       }
     }
   }
+#else
+  (void)entry;
 #endif
 }
 
@@ -1449,42 +1614,59 @@ static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
   return entry ? entry->scope : OC_ACL_NONE;
 }
 
+/*
+  Erases the SSN entry and the AT table entry of one AT table slot from storage and clears the RAM.
+  Everything that refers to the slot ends with it: its /k observers and ALL its OSCORE contexts (sender AND recipient).
+  - callers need no own context handling -> a single delete (DELETE /auth/at/{id}, POST id-only) can't forget it
+  - oc_init_oscore_from_storage() frees sender contexts only, a recipient context of a deleted token would stay otherwise
+
+  NOTES:
+  (a) AT table entry manipulations ALWAYS need to be reflected in the SSNT entry handling! The AT
+      table entry (KNX_STORAGE_KEY_ATT_ENTRY) and its SSN entry (KNX_STORAGE_KEY_SSNT_ENTRY) share
+      the same AT table index and are ALWAYS manipulated together. Whoever creates, stores, moves
+      or deletes an AT table entry must do the same for its SSN entry.
+  (b) The SSN has a dedicated storage entry because it is the value written to flash by far the
+      most often (every OSCORE_SSN_WRITE_FREQ_K outgoing OSCORE messages). Keeping it apart from
+      the AT table entry reduces the amount of flash writes as much as possible. The AT table entry
+      itself is only written on commissioning or management events.
+  (c) Erase order: The SSN entry is erased FIRST. Even in the unlikely case of a crash between the
+      two erases the SSN entry is then already gone, so a future occupant of this slot can never
+      inherit the previous occupant's counter.
+*/
 int oc_delete_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
 
   if (index != -1)
   {
-    // AT file entry
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
-    oc_storage_erase(filename);
+    /*
+      subscriptions made with this token end with it
+      - token rotation (spec 3.5.4.1): the new token is configured first, the old one deleted, also while 'loaded'
+      - an observer keeps a pointer to this slot, a later token in the same slot would otherwise inherit it
+    */
+    coap_remove_observers_by_access_token(entry);
 
-    // id, scope, profile
-    oc_free_string(&entry->id);
-    oc_new_string(&entry->id, "", 0);
-    entry->scope = OC_ACL_NONE;
-    entry->profile = OC_PROFILE_UNKNOWN;
+    // OSCORE contexts of this token (they point to this slot, a later token in the same slot would inherit them)
+    oc_oscore_free_contexts_at_id(entry);
 
-    // oscore object
-    oc_free_string(&entry->osc_ms);
-    oc_new_byte_string(&entry->osc_ms, "", 0);
+    /*
+       SSN entry of the AT table entry (same index), erased first, see NOTES (c) above, otherwise it
+       stays in storage forever and a future occupant of this AT table slot would start from the
+       previous occupant's counter
+    */
+    char ssn_storage_key[KNX_STORAGE_KEY_SSNT_ENTRY_SIZE];
+    (void)snprintf(ssn_storage_key, KNX_STORAGE_KEY_SSNT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_SSNT_ENTRY, index);
+    oc_storage_erase(ssn_storage_key);
 
-    oc_free_string(&entry->osc_salt);
-    oc_new_byte_string(&entry->osc_salt, "", 0);
+    // AT table entry
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
+    oc_storage_erase(at_storage_key);
 
-    oc_free_string(&entry->osc_contextid);
-    oc_new_byte_string(&entry->osc_contextid, "", 0);
-
-    oc_free_string(&entry->osc_id);
-    oc_new_byte_string(&entry->osc_id, "", 0);
-
-    // release a possible ga array, free ignores NULL ptr
-    free(entry->ga);
-
-    entry->ga = NULL;
-    entry->ga_len = 0;
+    oc_free_at_table_entry_ram(entry);
     return 0;
   }
 
@@ -1495,16 +1677,30 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
   Store AT table data in CBOR (hex stream data).
   Storage of the fields is done via the cbor keys in their hierarchy.
   Example tag cnf:osc:ms = 8:4:2 = 842
+
+  NOTES:
+  (a) AT table entry manipulations ALWAYS need to be reflected in the SSNT entry handling! The AT
+      table entry (KNX_STORAGE_KEY_ATT_ENTRY) and its SSN entry (KNX_STORAGE_KEY_SSNT_ENTRY) share
+      the same AT table index and are ALWAYS manipulated together. Whoever creates, stores, moves
+      or deletes an AT table entry must do the same for its SSN entry.
+  (b) The SSN has a dedicated storage entry because it is the value written to flash by far the
+      most often (every OSCORE_SSN_WRITE_FREQ_K outgoing OSCORE messages). Keeping it apart from
+      the AT table entry reduces the amount of flash writes as much as possible. The AT table entry
+      itself is only written on commissioning or management events.
+  (c) Creating or overwriting an AT table entry here does not write its SSN entry on purpose: The
+      SSN entry is written by the OSCORE sender context (oc_write_ssn_to_storage()) and erased
+      together with the AT table entry in oc_delete_at_table_entry(), SSN entry first.
 */
 static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
-  
+
   if (index != -1)
   {
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
 
     uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     if (!buf)
@@ -1545,12 +1741,12 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
     const int size = oc_rep_get_encoded_payload_size();
     if (size > 0)
     {
-      OC_DBG("stored current state [%s] [%d]: size %d", filename, index, size);
+      OC_DBG("stored current state [%s] [%d]: size %d", at_storage_key, index, size);
 
-      const long written_size = oc_storage_write(filename, buf, size);
+      const long written_size = oc_storage_write(at_storage_key, buf, size);
       if (written_size != (long)size)
       {
-        OC_WRN("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
+        OC_WRN("entry: [%s] written %d != %d (to write)", at_storage_key, (int)written_size, size);
       }
     }
 
@@ -1560,13 +1756,14 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
 
 static void oc_load_at_table_entry(oc_auth_at_t* entry)
 {
-  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  // results in a valid case in an index between 0 ... KNX_ATT_MAX_ENTRIES
   const int index = get_at_index(entry);
-  
+
   if (index !=-1)
   {
-    char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
+    char at_storage_key[KNX_STORAGE_KEY_ATT_ENTRY_SIZE];
+    (void)snprintf(at_storage_key, KNX_STORAGE_KEY_ATT_ENTRY_SIZE, "%s_%d",
+                   KNX_STORAGE_KEY_ATT_ENTRY, index);
 
     oc_rep_t* rep;
 
@@ -1576,14 +1773,15 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
       return;
     }
 
-    const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+    const long bytes_to_read = oc_storage_read(at_storage_key, buf, OC_MAX_APP_DATA_SIZE);
     if (bytes_to_read > 0)
     {
-      OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+      OC_INF("Reading from %s , bytes : %ld", at_storage_key, bytes_to_read);
 
       // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
       const int err = oc_parse_rep(buf, bytes_to_read, &rep);
-      oc_rep_t* head = rep;
+      // tmp copy for later release, rep is iterated...  
+      oc_rep_t* const head = rep;
 
       if (err == 0)
       {
@@ -1646,26 +1844,39 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
             {
               // a load command does NOT append items to an (existing) array, it overwrites them
               const int64_t* array = oc_int_array(rep->value.array);
-              const int new_array_size = oc_int_array_size(rep->value.array);
+              const int array_size = oc_int_array_size(rep->value.array);
 
-              // malloc of 'zero' byte return pointer is undefined
-              uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-              if (new_array && new_array_size > 0)
+              // an empty array never reaches malloc(0), it is an empty ga (same as OC_REP_NIL below)
+              if (array_size == 0)
               {
-                for (int i = 0; i < new_array_size; i++)
-                {
-                  new_array[i] = (uint32_t)array[i];
-                }
-
                 // release an already assigned ga array on the org ptr, free ignores NULL ptr
                 free(entry->ga);
 
-                // assign only when the new array is allocated correctly
-                entry->ga_len = new_array_size;
-                entry->ga = new_array;
-
-                OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", new_array_size);
+                entry->ga_len = 0;
+                entry->ga = NULL;
+                break;
               }
+
+              uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+              if (!new_array)
+              {
+                OC_ERR("out of memory, at table entry %d loaded without its ga array from storage", (int)get_at_index(entry));
+                break;
+              }
+
+              for (int i = 0; i < array_size; i++)
+              {
+                new_array[i] = (uint32_t)array[i];
+              }
+
+              // release an already assigned ga array on the org ptr, free ignores NULL ptr
+              free(entry->ga);
+
+              // assign only when the new array is allocated correctly
+              entry->ga_len = array_size;
+              entry->ga = new_array;
+
+              OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", array_size);
             }
 
             break;
@@ -1702,12 +1913,11 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
 
 void oc_core_find_and_remove_pase_token_in_at_table(void)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     if (entry->profile == OC_PROFILE_COAP_PASE)
     {
-      oc_delete_at_table_entry(entry); // delete entry from AT table
-      oc_oscore_free_contexts_at_id(entry); // removes possible references
+      oc_delete_at_table_entry(entry); // delete entry from AT table, incl. its OSCORE contexts
       OC_DBG("PASE key found, invalidated...");
     }
   }
@@ -1715,8 +1925,28 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
 
 const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
 {
-  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  /*
+    A message without a 'kid' must not match an unused slot (its osc_id is empty).
+
+    - without this check, an empty kid (length 0) equals an empty osc_id (length 0),
+      so we would return an AT entry that was never set up by MaC
+    
+    - note; the 8.4 echo-response code calls this function without first checking that
+      kid_len is greater than 0, so the check must be done here
+  */
+  if (pkt->kid_len == 0)
   {
+    return NULL;
+  }
+
+  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
+  {
+    // an entry only counts as provisioned once it carries its id (written last)
+    if (oc_string_len(entry->id) == 0)
+    {
+      continue;
+    }
+
     if (oc_byte_string_len(entry->osc_id) == pkt->kid_len 
         && memcmp(oc_string(entry->osc_id), pkt->kid, pkt->kid_len) == 0)
     {
@@ -1731,7 +1961,7 @@ static void oc_load_at_table(void)
 {
   OC_INF("Loading AT Table into RAM from persistent storage");
   
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // debugging 
     oc_load_at_table_entry(entry);
@@ -1746,7 +1976,7 @@ void oc_delete_at_table(void)
 {
   OC_INF("Deleting AT from RAM and persistent storage");
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     // debugging 
     oc_print_auth_at_entry(entry);
@@ -1755,14 +1985,14 @@ void oc_delete_at_table(void)
 
   oc_oscore_free_all_contexts();
   oc_oscore_free_all_replay_records();
-  oc_oscore_free_all_echo_records();
+  oc_oscore_free_all_echo_records();  // echo ring contains, kid/kid_ctx -> cant be valid anymore 
 }
 
 void oc_delete_at_table_except_sec_scope_entries(void)
 {
   OC_INF("deleting 'non if.sec' access token table entries from RAM and storage");
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + KNX_ATT_MAX_ENTRIES; entry++)
   {
     const oc_acl_mask_t scope = oc_at_get_scope_mask(entry);
 
@@ -1777,7 +2007,7 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 
 void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
 {
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(client_sender_id, client_sender_id_size);
+  oc_auth_at_t* at_entry = oc_core_find_at_entry_by_access_token(client_sender_id, client_sender_id_size);
 
   if (!at_entry)
   {
@@ -1833,7 +2063,7 @@ void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_i
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)
 {
-  return index >= 0 && index < G_AT_MAX_ENTRIES ? &g_at_entries[index] : NULL;
+  return index >= 0 && index < KNX_ATT_MAX_ENTRIES ? &g_at_entries[index] : NULL;
 }
 
 void oc_create_knx_sec_resources(void)
@@ -1846,7 +2076,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
   oc_oscore_free_sender_contexts();
 
-  for (oc_auth_at_t* at_entry = g_at_entries; at_entry < g_at_entries + G_AT_MAX_ENTRIES; at_entry++)
+  for (oc_auth_at_t* at_entry = g_at_entries;
+       at_entry < g_at_entries + KNX_ATT_MAX_ENTRIES; at_entry++)
   {
     if (oc_string_len(at_entry->id) > 0)
     {
@@ -1856,9 +2087,9 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       if (at_entry->profile == OC_PROFILE_COAP_OSCORE || at_entry->profile == OC_PROFILE_COAP_PASE)
       {
         // always read stored SSN from storage to maintain continuity
-        const uint64_t stored_ssn = oc_read_ssn_from_storage(at_entry);
+        const uint32_t stored_ssn = oc_read_ssn_from_storage(at_entry);
 
-        OC_DBG("loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
+        OC_DBG("loaded SSN from storage: %" PRIu32 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
         /*
                'Client' Side (details see method 'oc_oscore_receive_message' header), create:
@@ -1891,7 +2122,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
   }
 }
 
-bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
+oc_status_t oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
 {
   //  scope of called resource, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;
@@ -1900,7 +2131,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   if (!oc_resource_get_acl_for_method(resource, method, &called_res_scope))
   {
     // resource or handler for method does not exist, no access
-    return false;
+    return OC_STATUS_METHOD_NOT_ALLOWED;
   }
 
   // resource and handler for method exists...
@@ -1909,7 +2140,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   {
     // not a secure resource, access allowed, see table in clause 5.1.3 of specification,
     // all resources with methods that do not have any scope uses in stack 'OC_ACL_NONE'
-    return true;
+    return OC_STATUS_OK;
   }
 
   // debugging
@@ -1919,9 +2150,8 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   if ((endpoint->flags & (OSCORE | OSCORE_DECRYPTED)) != (OSCORE | OSCORE_DECRYPTED))
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
-    OC_DBG_OSCORE("access denied for: %s with flags: %d",
-                  oc_string_checked(resource->uri), endpoint->flags);
-    return false;
+    OC_DBG_OSCORE("access denied for: %s with flags: %d", oc_string_checked(resource->uri), endpoint->flags);
+    return OC_STATUS_UNAUTHORIZED;
   }
 
   /*
@@ -1942,86 +2172,126 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
     (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
   */
 
-  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_of_inbound_msg);
+  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->access_token.inbound);
 
-  // bitwise 'and' -> at least one scope from access token and resource must match
-  if (caller_acl_scope & called_res_scope)
+  // bitwise 'and' -> at least one scope from access token and resource must match, otherwise 4.03
+  if (!(caller_acl_scope & called_res_scope))
   {
-    /*
-      Here the caller/called scopes are matching
+    #ifdef OC_DEBUG
+    OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
 
-      O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec'
-         -> OK
+    oc_print_acl_scopes(caller_acl_scope);
+    oc_print_acl_scopes(called_res_scope);
 
-      O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s'
-         -> OK
-         = all ga's are allowed for 'if.g.s'
-
-      O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>'
-         -> NOT ENOUGH
-         = some ga's are allowed for <ga>
-         - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
-         - no other EP than /k uses '<ga>' as resource scope (see resource definition)
-         - <ga> scope is set only in one place (create access token with non-empty list)
-    */
-
-    if (caller_acl_scope == OC_ACL_GA)
-    {
-      /*
-        O2 - a call with <ga> access token
-        Here this is only possible if /k resource was addressed.
-        (caller_acl_scope & called_res_scope ->
-        OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
-      */
-
-      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
-      const oc_rep_t* rep = value_object;
-      bool group_address_match = false;
-
-      while (rep)
-      {
-        if (rep->type == OC_REP_OBJECT)
-        {
-          // s map with st/ga/value (if present on w=write/a=update)
-          const oc_rep_t* s_map = rep->value.object;
-
-          while (s_map)
-          {
-            if (s_map->type == OC_REP_INT && s_map->iname == 7)
-            {
-              // only GA is of interest
-
-              // found a GA, check it, and break ...
-              group_address_match = check_access_token_for_group_address(endpoint->auth_at_of_inbound_msg, (uint32_t)s_map->value.integer);
-              break;
-            }
-
-            s_map = s_map->next;
-          }
-        }
-
-        rep = rep->next;
-      }
-
-      // a: no ga found in request payload at all = request payload error (no access) -> false 
-      // b: acl scopes + method OK + ga found in request payload, was checked
-      //    - b1 : true -> found in an access token
-      //    - b2 : false -> not found in any access token
-
-      return group_address_match;
-    }
-
-    // acl scopes + method OK
-    return true;
+    #endif
+    return OC_STATUS_FORBIDDEN;
   }
 
-  #ifdef OC_DEBUG
-  OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
+  /*
+    Here the caller/called scopes are matching
 
-  oc_print_acl_scopes(caller_acl_scope);
-  oc_print_acl_scopes(called_res_scope);
+    O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec'
+       -> OK
 
-  #endif
+    O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s'
+       -> OK
+       = all ga's are allowed for 'if.g.s'
 
-  return false;
+    O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>'
+       -> NOT ENOUGH
+       = some ga's are allowed for <ga>
+       - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
+       - no other EP than /k uses '<ga>' as resource scope (see resource definition)
+       - <ga> scope is set only in one place (create access token with non-empty list)
+  */
+
+  if (caller_acl_scope == OC_ACL_GA)
+  {
+    /*
+      O2 - a call with <ga> access token
+      Here this is only possible if /k resource was addressed.
+      (caller_acl_scope & called_res_scope ->
+      OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
+    */
+
+    const oc_rep_t* rep = value_object;
+    bool group_address_found = false;      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
+    bool s_map_found = false;              // true when the payload carries any object, which is what the /k handler scans for a ga
+    bool sia_found = false;                // true when the payload carries the mandatory 'sia' (4) key
+
+    /*
+      EVERY ga in the payload must be covered by the access token, not just the
+      first one. oc_core_knx_k_post_handler keeps the LAST ga of an s map, so
+      authorizing on the first one let a payload carrying the key twice be
+      checked against one group address and executed with another.
+      
+      - sia only = {4: <ia>} -> no s-map, authorization granted (no r/w action will be performed)
+      - normal   = {6: "w", 7: 2, 1: true} -> s-map 
+      - abnormal = {6: "w", 7: 2, 7: 99, 1: true} -> s-map - parser allows this, 
+                   if the authorization loop only checked the first ga (2, covered by the token) instead
+                   of scanning all occurrences, the request would be authorized against GA 2 but actually
+                   executed against GA 99.
+    */
+    while (rep)
+    {
+      if (rep->type == OC_REP_INT && rep->iname == KNX_SMODE_KEY_SIA)
+      {
+        sia_found = true;
+      }
+
+      /*
+        Any object is scanned, not only the '5' s map: oc_core_knx_k_post_handler takes the ga from
+        every object it walks, so narrowing this scan would let a ga smuggled into another object key
+        reach the handler unauthorized.
+      */
+
+      if (rep->type == OC_REP_OBJECT)
+      {
+        // s map (5) with ia/st/ga/value (if present on w=write/a=update)
+        const oc_rep_t* s_map = rep->value.object;
+
+        s_map_found = true;
+
+        while (s_map)
+        {
+          if (s_map->type == OC_REP_INT && s_map->iname == KNX_SMODE_KEY_GA)
+          {
+            // only GA is of interest
+
+            if (!check_access_token_for_group_address(endpoint->access_token.inbound, (uint32_t)s_map->value.integer))
+            {
+              OC_WRN("ga %d of the request payload is not in the access token", (int)s_map->value.integer);
+              return OC_STATUS_FORBIDDEN;
+            }
+
+            group_address_found = true;
+          }
+
+          s_map = s_map->next;
+        }
+      }
+
+      rep = rep->next;
+    }
+
+    /*
+      The payload shape decides which fact authorizes:
+      - an object is present -> every ga it carries must be in the access token. No ga at all in it
+        is a request payload error (no access).
+      - no object at all -> a 'sia' only payload { 4: <ia> }, an OSCORE sequence number
+        synchronization request. There is no group address to authorize against, and a device SHALL
+        accept such a request from every peer whose sender context is in the access control list,
+        which is already proven by the message having been decrypted.
+      Note group_address_found can only be true when s_map_found is, so the two arms are exclusive.
+    */
+
+    // an object decides by its ga's, a payload without any object only by 'sia', otherwise the fallback OK below
+    if (s_map_found ? !group_address_found : !sia_found)
+    {
+      return OC_STATUS_FORBIDDEN;
+    }
+  }
+
+  // acl scopes + method OK (O0, O1, O2 with all ga's covered or a 'sia' only payload)
+  return OC_STATUS_OK;
 }

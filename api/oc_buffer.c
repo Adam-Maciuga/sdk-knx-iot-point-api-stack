@@ -2,21 +2,17 @@
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2022 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * This file was created with the assistance of AI tools.
+ * Copyright 2026 KNXA (to the extent protectable under applicable law)
  */
 
 #include "messaging/coap/engine.h"
 #include "oc_signal_event_loop.h"
 #include "port/oc_network_events_mutex.h"
-#include "messaging/coap/coap.h"
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-
-#ifdef OC_TCP_TLS
-#include "security/oc_tls.h"
-#endif 
 #include "security/oc_oscore.h"
 #include "messaging/coap/oscore.h"
 #include "oc_buffer.h"
@@ -28,12 +24,19 @@ OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
 oc_message_t* oc_allocate_message(void)
 {
   oc_network_event_handler_mutex_lock();
-  oc_message_t* message = calloc(1, sizeof(oc_message_t));
+  oc_message_t* message = (oc_message_t*)calloc(1, sizeof(oc_message_t));
   oc_network_event_handler_mutex_unlock();
 
   if (message)
   {
-    message->data = (uint8_t*)malloc(OC_PDU_SIZE);
+    /*
+      one byte more than the CoAP PDU size is allocated on purpose
+      - an inbound message may fill the buffer completely (the receive-limit in the IP adapter is OC_PDU_SIZE)
+      - the CoAP parser appends a null-terminator behind the application payload, which then lands at index OC_PDU_SIZE
+      - the OSCORE plaintext is decrypted in place, so the inner parse terminator stays within the same allocation
+      - the extra byte is never part of message->length and is never sent
+    */
+    message->data = (uint8_t*)malloc(OC_PDU_SIZE + 1);
     if (!message->data)
     {
       OC_ERR("Out of memory, cannot allocate message data!");
@@ -81,34 +84,34 @@ void oc_message_unref(oc_message_t* message)
   }
 }
 
-void oc_receive_message(oc_message_t* message) 
+/*
+  posts a message to a process, the reference of the caller goes to the queue
+  - OC_PROCESS_ERR_FULL (queue full or after shutdown): nobody else takes this reference -> released here
+  -> one place for the release, every message post goes through it, no caller can forget it
+*/
+int oc_message_post(struct oc_process* p, oc_process_event_t ev, oc_message_t* message)
 {
-  if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
+  const int ret = oc_process_post(p, ev, message);
+  if (ret == OC_PROCESS_ERR_FULL)
   {
-    OC_ERR("oc_receive_message ref_count decrease due to FULL");
+    OC_ERR("process event queue full, message dropped");
     oc_message_unref(message);
   }
+  return ret;
+}
+
+void oc_receive_message(oc_message_t* message) 
+{
+  (void)oc_message_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT], message);
 }
 
 void oc_send_message(oc_message_t* message) 
 {
   // forward message (any type such as plain/ secured, CON/NON request, ... )
-	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
-  {
-		OC_ERR("oc_send_message ref_count decrease due to FULL");
-    oc_message_unref(message);
-	}
+  (void)oc_message_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message);
 
   _oc_signal_event_loop();
 }
-
-#ifdef KNX_TCP_TLS
-void oc_close_all_tls_sessions(void)
-{
-  oc_process_post(&message_buffer_handler, oc_events[TLS_CLOSE_ALL_SESSIONS], NULL);
-  _oc_signal_event_loop();
-}
-#endif 
 
 OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 {
@@ -126,12 +129,12 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         {
           // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE layer
           OC_DBG("Inbound OSCORE message, forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
+          (void)oc_message_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], message);
         }
         else
         {
           OC_DBG("Inbound plain message, forwarding to CoAP layer");
-          oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
+          (void)oc_message_post(&coap_engine, oc_events[INBOUND_RI_EVENT], message);
         }
       }
       else if (ev == oc_events[OUTBOUND_NETWORK_EVENT])
@@ -145,13 +148,13 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
           {
             // multicast
             OC_DBG("Outbound plain multicast message, forwarding to OSCORE layer");
-            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
+            (void)oc_message_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], message);
           }
           else
           {
             // unicast
             OC_DBG("Outbound plain unicast message, forwarding to OSCORE layer");
-            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
+            (void)oc_message_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], message);
           }
         }
         else if (message->endpoint.flags & DISCOVERY)
